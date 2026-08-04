@@ -1,0 +1,7 @@
+-- Applied 2026-08-04 to twisted-growers-os as floor_operations_intake1.
+-- Source of record: Supabase migration history. Spec: docs/06_INTAKE_PREROLL_PLANNER.md
+-- machines registry (rate basis, min/max ops, combo stations, park, run-through-breaks),
+-- machine_qualifications (skill levels + multipliers), employee tiers + pull budgets/lockout,
+-- shift_templates (blocks/breaks/quota buffer as config), task_standards (scrap/OEE derating
+-- chain + pipeline_seq), wip_snapshots, schedule_assignments engine fields (machine, override,
+-- expected/actual units, is_pull).
