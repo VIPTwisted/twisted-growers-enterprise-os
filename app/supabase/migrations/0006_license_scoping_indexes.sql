@@ -1,0 +1,4 @@
+-- Applied 2026-08-04 as license_scoping_and_indexes. Spec: docs/07_DEEP_SCOPE_ENHANCEMENTS.md
+-- license_id on harvests/lots/shipments/test_requests (multi-license Metrc correctness);
+-- 11 hot-path indexes (lots status/license/expiry, allocations, time entries, schedule,
+-- metrc packages, audit entity, testing + order status).
