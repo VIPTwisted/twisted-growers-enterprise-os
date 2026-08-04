@@ -51,6 +51,33 @@ Reference tables (departments, roles, families, cultivars+aliases, rooms, status
 - **M4 — Flow:** notifications/escalations, Monday pilot, document workflow.
 - **M5 — Intelligence:** AI COA parsing, forecasting, daily brief; mobile clock + scale capture; BI trends.
 
+## Full-Scope Addendum (updated 2026-08-04, evening)
+
+**Principle #5 (adopted): the OS monitors its own adoption.** Freshness SLAs per data source,
+module heartbeats, and the shadow-period readiness gate computed live. Every prior attempt
+died of abandonment, not malfunction — the OS notices when it is being ignored.
+
+**Build ledger — LIVE right now:**
+- Supabase `twisted-growers-os` (fxetuqjryttnypgepsru): **6 migrations** — 0001 identity/audit/per-employee rates · 0002 cultivation/COA-gate/allocation-netting · 0003 operations/payroll-view/ship-gate · 0004 Metrc staging/control-tower/seeds · 0005 floor ops (machines registry, tiers/pull budgets, qualifications, shift templates, task standards, WIP) · 0006 license scoping + hot-path indexes. Edge function `metrc-sync` deployed (awaiting 4 secrets).
+- GitHub `VIPTwisted/twisted-growers-enterprise-os` (private): docs + migrations + planner v4/v5, all commits pushed.
+- Netlify `twisted-growers-enterprise-os` on the Pro team (site-id b565a8cc-…): created; goes live at first app deploy (M1).
+
+**Enhancement integration:** Intake #1's 10 floor concepts → schema live (0005), engine in
+M1–M3. Deep-scope 30 (docs/07) → license scoping + indexes live (0006); waste custody,
+samples ledger, credit gate, COGS-per-lot, qualification gate queued as 0007; audit-pack,
+biomass netting, adoption telemetry, witnessed approvals in the app milestones.
+
+**People & roles (owner requirement):** assigning or changing ANY employee's role, tier,
+department, allocation, or rate is an **Admin → People screen action** — effective-dated,
+audited, zero code. App-login roles (owner/executive/planner/dept-head/staff) are equally
+assignable; staff personas unlock at the Phase-3 gate.
+
+**Deployment & team visibility:** migrations live in the repo (database-as-code); pushes to
+`main` auto-deploy to Netlify once the app lands (M1) — deploy status visible to every team
+member on the Netlify project page; team access = GitHub repo invites + Netlify team members
++ Supabase org members (owner grants each in the respective dashboard). Secrets are entered
+only in dashboards, never in chat, never in the repo.
+
 ## Current-Tools Intake (fill this when sharing what the team uses today)
 For **each** spreadsheet/board/app currently in use, we record:
 **(1)** name + link/file · **(2)** owner (who maintains it) · **(3)** update cadence · **(4)** what decisions it drives · **(5)** which module above absorbs it · **(6)** disposition: **import once** (history) / **sync during shadow** (living source) / **retire at cutover**.
