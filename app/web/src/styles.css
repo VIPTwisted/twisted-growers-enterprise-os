@@ -1,0 +1,78 @@
+/* TG Enterprise OS — restrained operations palette. Not the legacy orange theme. */
+:root {
+  --bg: #101412;
+  --panel: #181e1a;
+  --line: #26302a;
+  --ink: #e6ebe7;
+  --muted: #8fa096;
+  --accent: #4caf7d;
+  --accent-ink: #0c130f;
+  --crit: #d9705c;
+  --warn: #d3a94f;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--ink);
+  font-family: -apple-system, "Segoe UI", system-ui, sans-serif;
+  font-size: 15px; line-height: 1.5;
+}
+#root { min-height: 100vh; }
+.shell { display: flex; min-height: 100vh; }
+.nav {
+  width: 230px; background: var(--panel); border-right: 1px solid var(--line);
+  padding: 20px 14px; display: flex; flex-direction: column; gap: 4px; flex-shrink: 0;
+}
+.brand { font-weight: 700; letter-spacing: 0.02em; margin-bottom: 4px; }
+.brand small { display: block; color: var(--muted); font-weight: 500; font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; }
+.nav button {
+  text-align: left; background: none; border: none; color: var(--muted);
+  padding: 9px 12px; border-radius: 8px; font-size: 14px; cursor: pointer; font-weight: 500;
+}
+.nav button:hover { color: var(--ink); background: rgba(255,255,255,0.04); }
+.nav button.on { background: var(--accent); color: var(--accent-ink); font-weight: 650; }
+.nav .foot { margin-top: auto; font-size: 12px; color: var(--muted); }
+.nav .foot button { padding: 6px 12px; font-size: 13px; }
+.main { flex: 1; padding: 28px 32px; max-width: 1100px; }
+h1 { font-size: 22px; font-weight: 650; margin-bottom: 4px; }
+.sub { color: var(--muted); margin-bottom: 24px; font-size: 13.5px; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 14px; }
+.card {
+  background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px 18px;
+}
+.card .metric { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.07em; }
+.card .value { font-size: 30px; font-weight: 700; margin-top: 6px; font-variant-numeric: tabular-nums; }
+.card.zero .value { color: var(--muted); }
+.card.hot { border-color: var(--crit); }
+.card.hot .value { color: var(--crit); }
+.empty {
+  border: 1px dashed var(--line); border-radius: 10px; padding: 28px; text-align: center;
+  color: var(--muted); margin-top: 8px;
+}
+.empty b { color: var(--ink); display: block; margin-bottom: 4px; }
+form.panel, .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 20px; max-width: 560px; }
+label { display: block; font-size: 12.5px; color: var(--muted); margin: 14px 0 5px; font-weight: 600; }
+input {
+  width: 100%; background: var(--bg); border: 1px solid var(--line); color: var(--ink);
+  border-radius: 8px; padding: 9px 12px; font-size: 14px; font-family: inherit;
+}
+input:focus { outline: none; border-color: var(--accent); }
+.btn {
+  background: var(--accent); color: var(--accent-ink); border: none; border-radius: 8px;
+  padding: 10px 18px; font-weight: 650; font-size: 14px; cursor: pointer; margin-top: 18px;
+}
+.btn.ghost { background: none; border: 1px solid var(--line); color: var(--ink); }
+.btn:disabled { opacity: 0.5; cursor: default; }
+.note { font-size: 12.5px; color: var(--muted); margin-top: 10px; }
+.msg { margin-top: 14px; padding: 10px 14px; border-radius: 8px; font-size: 13.5px; }
+.msg.ok { background: rgba(76,175,125,0.12); color: var(--accent); }
+.msg.err { background: rgba(217,112,92,0.12); color: var(--crit); }
+table { width: 100%; border-collapse: collapse; font-size: 13.5px; margin-top: 10px; }
+th { text-align: left; color: var(--muted); font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.06em; padding: 8px 10px; border-bottom: 1px solid var(--line); }
+td { padding: 8px 10px; border-bottom: 1px solid var(--line); font-variant-numeric: tabular-nums; }
+.pill { display: inline-block; padding: 2px 9px; border-radius: 99px; font-size: 12px; font-weight: 600; }
+.pill.ok { background: rgba(76,175,125,0.15); color: var(--accent); }
+.pill.err { background: rgba(217,112,92,0.15); color: var(--crit); }
+.pill.run { background: rgba(211,169,79,0.15); color: var(--warn); }
+.auth-wrap { min-height: 100vh; display: grid; place-items: center; padding: 20px; }
+.auth-wrap .panel { width: 100%; max-width: 400px; }
+.section-title { font-size: 15px; font-weight: 650; margin: 26px 0 8px; }
