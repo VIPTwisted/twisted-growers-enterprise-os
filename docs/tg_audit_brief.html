@@ -1,0 +1,245 @@
+<title>Twisted Growers — Ops Audit & Enhancement Plan</title>
+<style>
+  :root{
+    --paper:#FAFAF7; --card:#FFFFFF; --ink:#1C221D; --muted:#5A6259;
+    --line:#E2E5DF; --accent:#2E6B4F; --accent-soft:#EAF2ED;
+    --crit:#B3402E; --crit-soft:#F7ECE9; --warn:#A8781E; --warn-soft:#F6F0E2;
+  }
+  @media (prefers-color-scheme: dark){:root{
+    --paper:#141815; --card:#1B211C; --ink:#E9ECE6; --muted:#9AA398;
+    --line:#2A302B; --accent:#63B08A; --accent-soft:#1E2B24;
+    --crit:#E07B5F; --crit-soft:#2E1F1B; --warn:#D6A548; --warn-soft:#2B2417;
+  }}
+  :root[data-theme="light"]{
+    --paper:#FAFAF7; --card:#FFFFFF; --ink:#1C221D; --muted:#5A6259;
+    --line:#E2E5DF; --accent:#2E6B4F; --accent-soft:#EAF2ED;
+    --crit:#B3402E; --crit-soft:#F7ECE9; --warn:#A8781E; --warn-soft:#F6F0E2;
+  }
+  :root[data-theme="dark"]{
+    --paper:#141815; --card:#1B211C; --ink:#E9ECE6; --muted:#9AA398;
+    --line:#2A302B; --accent:#63B08A; --accent-soft:#1E2B24;
+    --crit:#E07B5F; --crit-soft:#2E1F1B; --warn:#D6A548; --warn-soft:#2B2417;
+  }
+  html{background:var(--paper)}
+  body{
+    font-family:-apple-system,"Segoe UI",system-ui,sans-serif;
+    color:var(--ink); background:var(--paper); line-height:1.55; font-size:16px;
+  }
+  .wrap{max-width:920px; margin:0 auto; padding:48px 24px 80px; display:flex; flex-direction:column; gap:44px}
+  .serif{font-family:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif}
+  .mono{font-family:ui-monospace,Consolas,"Cascadia Mono",monospace; font-variant-numeric:tabular-nums}
+  .eyebrow{font-family:ui-monospace,Consolas,monospace; text-transform:uppercase; letter-spacing:.14em;
+    font-size:.72rem; color:var(--accent); margin-bottom:10px}
+  h1{font-size:clamp(1.9rem,4.5vw,2.7rem); line-height:1.12; font-weight:600; text-wrap:balance; margin:6px 0 4px}
+  h2{font-size:1.35rem; font-weight:600; margin-bottom:4px; text-wrap:balance}
+  h3{font-size:1rem; font-weight:650; margin-bottom:2px}
+  p{max-width:70ch}
+  .sub{color:var(--muted)}
+  .chips{display:flex; flex-wrap:wrap; gap:8px; margin-top:16px}
+  .chip{font-family:ui-monospace,Consolas,monospace; font-size:.78rem; padding:4px 10px;
+    border:1px solid var(--line); border-radius:999px; background:var(--card); white-space:nowrap}
+  .chip b{font-weight:700}
+  .chip.good{border-color:var(--accent); color:var(--accent)}
+  .chip.bad{border-color:var(--crit); color:var(--crit)}
+  .chip.warn{border-color:var(--warn); color:var(--warn)}
+  .thesis{font-size:clamp(1.25rem,2.6vw,1.6rem); line-height:1.35; max-width:34ch}
+  .thesis em{font-style:italic; color:var(--accent)}
+  .cols{display:grid; grid-template-columns:1fr 1fr; gap:20px}
+  @media (max-width:680px){.cols{grid-template-columns:1fr}}
+  .panel{background:var(--card); border:1px solid var(--line); border-radius:10px; padding:20px 22px}
+  .panel ul{list-style:none; display:flex; flex-direction:column; gap:7px; font-size:.92rem}
+  .panel li{padding-left:16px; position:relative}
+  .panel li::before{content:""; position:absolute; left:0; top:.55em; width:7px; height:7px; border-radius:2px}
+  .panel.real li::before{background:var(--accent)}
+  .panel.empty li::before{background:var(--line); border:1px solid var(--muted)}
+  .panel .k{font-weight:650}
+  .tablewrap{overflow-x:auto; border:1px solid var(--line); border-radius:10px; background:var(--card)}
+  table{border-collapse:collapse; width:100%; min-width:560px; font-size:.9rem}
+  th{font-family:ui-monospace,Consolas,monospace; font-size:.7rem; text-transform:uppercase; letter-spacing:.1em;
+    text-align:left; color:var(--muted); padding:12px 14px; border-bottom:1px solid var(--line)}
+  td{padding:10px 14px; border-bottom:1px solid var(--line); vertical-align:top}
+  tr:last-child td{border-bottom:none}
+  td.n{font-family:ui-monospace,Consolas,monospace; font-size:.8rem; color:var(--muted); white-space:nowrap}
+  td .fx{color:var(--crit); font-weight:650}
+  .urgent{display:flex; flex-direction:column; gap:10px; counter-reset:urg}
+  .urgent .item{background:var(--card); border:1px solid var(--line); border-left:4px solid var(--crit);
+    border-radius:8px; padding:14px 18px; display:flex; gap:14px; align-items:baseline}
+  .urgent .item::before{counter-increment:urg; content:counter(urg,decimal-leading-zero);
+    font-family:ui-monospace,Consolas,monospace; font-size:.8rem; color:var(--crit); font-weight:700}
+  .urgent .item p{font-size:.93rem}
+  .reqs{display:grid; grid-template-columns:1fr 1fr; gap:20px}
+  @media (max-width:680px){.reqs{grid-template-columns:1fr}}
+  .req{border:1.5px solid var(--accent); background:var(--accent-soft); border-radius:10px; padding:20px 22px}
+  .req .tag{font-family:ui-monospace,Consolas,monospace; font-size:.7rem; text-transform:uppercase;
+    letter-spacing:.12em; color:var(--accent); font-weight:700}
+  .req h3{margin-top:6px}
+  .req p{font-size:.92rem; margin-top:6px}
+  .tiers{display:flex; flex-direction:column; gap:16px}
+  .tier{background:var(--card); border:1px solid var(--line); border-radius:10px; padding:20px 22px}
+  .tier header{display:flex; justify-content:space-between; align-items:baseline; gap:12px; flex-wrap:wrap; margin-bottom:10px}
+  .tier .when{font-family:ui-monospace,Consolas,monospace; font-size:.75rem; color:var(--muted)}
+  .tier ul{list-style:none; display:grid; grid-template-columns:1fr 1fr; gap:6px 24px; font-size:.9rem}
+  @media (max-width:680px){.tier ul{grid-template-columns:1fr}}
+  .tier li{padding-left:14px; position:relative}
+  .tier li::before{content:"→"; position:absolute; left:0; color:var(--accent); font-size:.8rem}
+  .tier.t0{border-left:4px solid var(--crit)}
+  .tier.t1{border-left:4px solid var(--warn)}
+  .tier.t2{border-left:4px solid var(--accent)}
+  .tier.t3{border-left:4px solid var(--muted)}
+  .foot{color:var(--muted); font-size:.85rem; border-top:1px solid var(--line); padding-top:20px}
+  .foot p{max-width:none}
+  section{scroll-margin-top:24px}
+</style>
+
+<div class="wrap">
+
+<header>
+  <div class="eyebrow">Twisted Growers · Project TG · 2026-08-04</div>
+  <h1 class="serif">Operations Planner v4 — Audit &amp; Enhancement Plan</h1>
+  <p class="sub">All 79 sheets extracted and read by five domain analysts. Every finding cites sheet &amp; cell in the project docs.</p>
+  <div class="chips">
+    <span class="chip good"><b>0</b> formula errors / 161,690 formulas</span>
+    <span class="chip warn"><b>9,412</b> inputs awaiting data</span>
+    <span class="chip bad"><b>12</b> defects that mislead the gauges</span>
+    <span class="chip"><b>~5%</b> of the machine fueled with real data</span>
+  </div>
+</header>
+
+<section>
+  <div class="eyebrow">Diagnosis</div>
+  <p class="serif thesis">A genuinely well-engineered control system, running nearly empty — and the gauges it does show are <em>lying in twelve specific, fixable ways.</em> The missing fuel mostly already exists in import tabs nobody reviewed.</p>
+</section>
+
+<section>
+  <div class="eyebrow">What&rsquo;s real vs. what&rsquo;s empty</div>
+  <div class="cols">
+    <div class="panel real">
+      <h3>Live data islands</h3>
+      <ul>
+        <li><span class="k">21 employees</span> with 4 weeks of actual payroll hours</li>
+        <li><span class="k">137-row harvest calendar</span> — 26 events, ~30 cultivars, F1–F4</li>
+        <li><span class="k">142 manufacturing lots</span> — 24,149 units Ready To Ship</li>
+        <li><span class="k">153 cultivation lots</span> — flower, smalls, trim, 3rd-party</li>
+        <li><span class="k">~770 production metrics</span> in quarantine — costs, yields, prices, <b>0 reviewed</b></li>
+        <li><span class="k">One coherent thread:</span> Regular Pre-Rolls 13,600/day consistent end-to-end</li>
+        <li><span class="k">12-module platform blueprint</span> + Monday map, fully specified</li>
+      </ul>
+    </div>
+    <div class="panel empty">
+      <h3>Empty engines (0 records)</h3>
+      <ul>
+        <li>Demand · SKUs (0/500) · BOMs · Equipment · Work orders</li>
+        <li>Time punches · Schedule assignments · Purchase orders</li>
+        <li>Testing requests · Shipments · AR invoices · CAPA</li>
+        <li><span class="k">Licenses — empty at a licensed operator</span></li>
+        <li><span class="k">Cash $0 · Overhead 0 rows</span> → runway is fiction</li>
+        <li>Batch genealogy — recall trace impossible today</li>
+        <li>Source syncs: <span class="k">1 of 8 live</span>; SKU mapping 0 of 295 lots</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="eyebrow">The twelve defects that make the gauges lie</div>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>#</th><th>Defect</th><th>Effect on decisions</th></tr></thead>
+      <tbody>
+        <tr><td class="n">01</td><td>Mass-balance check counts empty scaffold rows</td><td><span class="fx">&ldquo;495 exceptions&rdquo; = 1 real variance (−0.08 lb)</span> + 494 no-data rows</td></tr>
+        <tr><td class="n">02</td><td>Roster column-shift bug feeds Department Budget</td><td><span class="fx">$16,440/wk of real wages reads as $880</span> — staff costed at ~$0</td></tr>
+        <tr><td class="n">03</td><td>Hiring plan matches roles by exact text</td><td><span class="fx">~11 of 17 recommended hires are phantoms</span>; true need ≈ 5–6</td></tr>
+        <tr><td class="n">04</td><td>Dashboards saved without recalculation</td><td>Status cells contradict their own formulas; totals contradict details</td></tr>
+        <tr><td class="n">05</td><td>Row count keyed into a currency field on the one live sync</td><td><span class="fx">$556,094 variance — no alert fires</span></td></tr>
+        <tr><td class="n">06</td><td>Alerts blind when demand = 0</td><td><span class="fx">15M phantom pre-rolls by 2030 read &ldquo;OK / BALANCED&rdquo;</span></td></tr>
+        <tr><td class="n">07</td><td>&ldquo;CFO — INPUT REQUIRED&rdquo; passes coverage checks</td><td>Unfilled seats score as COVERED</td></tr>
+        <tr><td class="n">08</td><td>Defaults pre-filled on empty rows (&ldquo;On Hand&rdquo;×249, &ldquo;Vincent&rdquo;×500, Active&nbsp;&ldquo;Yes&rdquo;×100)</td><td>Counts poisoned; 100 garbage lab-SLA rules are live</td></tr>
+        <tr><td class="n">09</td><td>Lab lead-time lookup SUMS overlapping rules; SLA table all zeros</td><td>Every promised date assumes <span class="fx">0-day lab turnaround</span></td></tr>
+        <tr><td class="n">10</td><td>Shipping &ldquo;In Full&rdquo; logic on blank shipments</td><td>Unshipped orders read In-Full &ldquo;YES&rdquo;</td></tr>
+        <tr><td class="n">11</td><td>Allocation gate not netted per lot; release gate is typed text</td><td>Vincent&rsquo;s central control can be over-allocated invisibly</td></tr>
+        <tr><td class="n">12</td><td>Cost lookups hardcoded to 4 product families</td><td>Any 5th family silently computes $0 cost, 0 capacity</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section>
+  <div class="eyebrow">Act this week — business items, not software</div>
+  <div class="urgent">
+    <div class="item"><p><b>8 lots (~6,500 units) sit &ldquo;Ready To Ship&rdquo; with expiration dates already passed</b> — almost certainly 2026→2027 year typos, but as written it&rsquo;s expired product staged to sell. Confirm or quarantine today.</p></div>
+    <div class="item"><p><b>21 of 94 RTS lots have no COA link</b>; existing links are bit.ly shorteners with no lab, COA ID, or test date captured. No laboratory is named anywhere in the workbook.</p></div>
+    <div class="item"><p><b>License register is empty</b> at a licensed, Metrc-regulated operator — renewals and filings are untracked.</p></div>
+    <div class="item"><p><b>Cash and overhead are unentered</b> — the model projects −$6.49M on a hypothetical payroll while real burn is invisible. Enter actual cash, real per-employee wages, and committed overhead.</p></div>
+    <div class="item"><p><b>Vincent is a single point of failure</b> — manufacturing blocks on his approval and every backup/escalation cell in the workbook is blank. Name a deputy.</p></div>
+    <div class="item"><p><b>The harvest actuals pipeline died in March</b> — 3 completed harvests sit unweighed as text in the source sheet; only 6 of 26 harvests have recorded weights. Backfill and restart weekly capture.</p></div>
+    <div class="item"><p><b>Six P0 questions remain unowned</b> — late orders, schedule owner, testing owner, lab SLAs, cash, overhead. The workbook already prescribes the order; assign names and dates.</p></div>
+  </div>
+</section>
+
+<section>
+  <div class="eyebrow">Standing requirements — set by the owner, non-negotiable</div>
+  <div class="reqs">
+    <div class="req">
+      <div class="tag">Requirement 01</div>
+      <h3>Payroll is per-employee, at actual rates</h3>
+      <p>Everyone is paid differently — the flat $22/hr entries are placeholders. Budgets roll up <i>from people</i>: each employee&rsquo;s real rate × allocation × hours, with OT and 12% burden, to department and company totals. Per-role planned rates for open seats. Pay data stays on restricted executive surfaces only.</p>
+    </div>
+    <div class="req">
+      <div class="tag">Requirement 02</div>
+      <h3>Everything links to a COA; all testing tracked</h3>
+      <p>A COA registry (lab, sample ID, dates, panel results, pass/fail, durable file link) keyed from every lot, batch, and shipment. A viewable COA schedule: submissions this week, at-lab, results due, QA queue, releases vs ship commitments. Hard gate: nothing goes Ready&nbsp;To&nbsp;Ship without a linked passing COA.</p>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="eyebrow">The enhancement plan — four tiers, in build order</div>
+  <div class="tiers">
+    <div class="tier t0">
+      <header><h3>Tier 0 — Make the gauges tell the truth</h3><span class="when">days · inside the workbook</span></header>
+      <ul>
+        <li>Fix all 12 defects (mass-balance scope, roster columns, alert logic, stale caches)</li>
+        <li>Canonical reference tables: departments, roles, families, strains, rooms, statuses</li>
+        <li>Load real per-employee rates; strip poisoned defaults</li>
+        <li>Days-to-expiry + COA-missing flags; fix date-format corruption</li>
+      </ul>
+    </div>
+    <div class="tier t1">
+      <header><h3>Tier 1 — Fill the tanks</h3><span class="when">1–3 weeks · data sprint, named owners</span></header>
+      <ul>
+        <li>Review the 770 quarantined standards (Bert / Kyle / Josh) → propagate</li>
+        <li>Backfill harvest actuals; per-cultivar grading at trim (Jackie)</li>
+        <li>Enter cash, overhead, licenses, real lab SLAs, 2027–30 holidays</li>
+        <li>Map 295 inventory lots to SKUs; seed SKU Master + category targets</li>
+        <li>Load open orders (24-hour rule; no off-system promises)</li>
+        <li>Appoint MPS / QA / Sales / S&amp;OP owners + Vincent&rsquo;s deputy; unblock the 8 syncs</li>
+      </ul>
+    </div>
+    <div class="tier t2">
+      <header><h3>Tier 2 — Power tools on the workbook</h3><span class="when">weeks 2–4 · Apps Script</span></header>
+      <ul>
+        <li>Data-completeness dashboard + import burn-down tracker</li>
+        <li>COA exception dashboard; testing calendar; submission/due alerts</li>
+        <li>13-week direct cash flow; scenario switcher; burn &amp; runway charts</li>
+        <li>Nightly KPI snapshots; sync-health alarm; edit audit log</li>
+        <li>Paste-zone payroll importer; per-employee budget view (restricted)</li>
+        <li>Validation + protection everywhere; the 45 defined filter views</li>
+      </ul>
+    </div>
+    <div class="tier t3">
+      <header><h3>Tier 3 — The platform</h3><span class="when">month 2+ · per the workbook&rsquo;s own blueprint</span></header>
+      <ul>
+        <li>Build CODE-001…012 (P0 modules first); Monday one-way pilot; Metrc read-first</li>
+        <li>Add what the blueprint omits: notifications, AI layer (forecasting, anomaly detection, COA parsing, daily brief), mobile time-clock &amp; scale capture, document management, accounting/280E adapter, hardware (scales, scanners, sensors), BI trends, SSO/2FA</li>
+        <li>Platform-only wins: multi-level BOM with co-products, finite scheduling, FEFO, enforced allocation gate with timestamps, one-click recall trace, COA-gated shipping</li>
+        <li>Jan 1, 2027 stays a readiness gate — not a forced cutover</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<div class="foot">
+  <p>Sources: full 79-sheet extract (values + formulas) and five domain reports · project workspace <span class="mono">Documents\Claude_Twisted Growers</span> · details in <span class="mono">docs/02_CURRENT_STATE.md</span> and <span class="mono">docs/04_ENHANCEMENT_PLAN.md</span>. Prepared for Vincent, CFO, CEO, Owners — private; the workbook&rsquo;s no-public-links rule applies to this page too.</p>
+</div>
+
+</div>
