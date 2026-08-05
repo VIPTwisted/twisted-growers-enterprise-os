@@ -47,7 +47,46 @@ const I = {
   board: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="14" rx="1.5" /><path d="M7 14c2-3 4 1 6-2s3-1 4-2" /><path d="M9 21h6" /></svg>),
   mic: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="3" width="6" height="11" rx="3" /><path d="M5 11a7 7 0 0 0 14 0M12 18v3" /></svg>),
   stopwatch: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="13.5" r="7.5" /><path d="M12 13.5V9.5M10 2.5h4M17.5 6.5l1.5-1.5" /></svg>),
+  apps: (<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="5" r="2" /><circle cx="12" cy="5" r="2" /><circle cx="19" cy="5" r="2" /><circle cx="5" cy="12" r="2" /><circle cx="12" cy="12" r="2" /><circle cx="19" cy="12" r="2" /><circle cx="5" cy="19" r="2" /><circle cx="12" cy="19" r="2" /><circle cx="19" cy="19" r="2" /></svg>),
 };
+/* ---------- Workspace launcher: the work platform inside the OS ---------- */
+const LAUNCHER_APPS = [
+  { view: "brain", icon: "dna", name: "TG Brain", desc: "Ask the whole operation" },
+  { view: "tasks", icon: "check", name: "Tasks", desc: "Who's doing what, by when" },
+  { view: "teams", icon: "users", name: "Teams", desc: "Departments + custom crews" },
+  { view: "planner", icon: "clock", name: "Planner", desc: "The ops calendar, live" },
+  { view: "dashboards", icon: "grid", name: "Dashboards", desc: "Live boards by template" },
+  { view: "whiteboards", icon: "board", name: "Whiteboards", desc: "Sketch and pin notes" },
+  { view: "templates", icon: "clip", name: "Template Center", desc: "Industry-native, ready to run" },
+  { view: "spaces", icon: "box", name: "Spaces", desc: "Work containers per department" },
+  { view: "alerts", icon: "bell", name: "Alerts", desc: "Everything that needs eyes" },
+  { view: "tower", icon: "gauge", name: "Control Tower", desc: "Back to the executive board" },
+];
+function Launcher({ onGo, onClose }) {
+  return (
+    <div className="launcher" onClick={onClose}>
+      <div className="lwrap" onClick={(e) => e.stopPropagation()}>
+        <div className="lhead">
+          <img src="/tg-mark.png" alt="" />
+          <div>
+            <div className="lt">TG Workspace</div>
+            <div className="ls">The work platform inside the OS — pre-configured for this company. Nothing to set up.</div>
+          </div>
+          <button className="btn small ghost" onClick={onClose}>✕</button>
+        </div>
+        <div className="lgrid">
+          {LAUNCHER_APPS.map((a, i) => (
+            <button key={a.view} className="lapp" style={{ "--d": `${i * 40}ms` }} onClick={() => { onGo(a.view); onClose(); }}>
+              <span className="li">{iconByName(a.icon)}</span>
+              <span className="ln">{a.name}</span>
+              <span className="ld">{a.desc}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
 const fmtHMS = (s) => {
   const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), x = s % 60;
   return `${h}:${String(m).padStart(2, "0")}:${String(x).padStart(2, "0")}`;
@@ -2055,6 +2094,11 @@ export default function App() {
   const [openCats, setOpenCats] = useState({});
   const [dragging, setDragging] = useState(false);
   const [userMenu, setUserMenu] = useState(false);
+  const [launcher, setLauncher] = useState(false);
+  useEffect(() => {
+    const WORK = new Set(["brain", "tasks", "teams", "planner", "dashboards", "whiteboards", "templates", "spaces"]);
+    document.documentElement.dataset.realm = WORK.has(view) ? "work" : "ops";
+  }, [view]);
   const [listening, setListening] = useState(false);
   const [dictation, setDictation] = useState(null);
   const startMic = () => {
@@ -2127,8 +2171,10 @@ export default function App() {
 
   return (
     <div className="frame">
+      {launcher && <Launcher onGo={setView} onClose={() => setLauncher(false)} />}
       <header className="topnav">
         <div className="tlogo"><img src="/tg-mark.png" alt="Twisted Growers" style={{ width: 34, height: 34, borderRadius: "50%" }} /><span className="tword">Twisted <b>Growers</b></span></div>
+        <button className="tibtn launchbtn" title="Open TG Workspace" onClick={() => setLauncher(true)}>{I.apps}</button>
         <div className="tdivider" />
         <div className="tcrumb">{current ? `${current.category} / ${current.label}` : view === "alerts" ? "Command / Alerts & Reminders" : "Command / Control Tower"}</div>
         <div className="tspacer" />
