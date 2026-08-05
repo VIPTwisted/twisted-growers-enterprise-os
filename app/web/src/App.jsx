@@ -77,7 +77,7 @@ const METRIC_GROUPS = [
     items: {
       late_or_at_risk_orders: { label: "Late / At-Risk Orders", icon: I.truck, drill: "orders" },
       unconfirmed_open_orders: { label: "Unconfirmed Open Orders", icon: I.clip, drill: "orders" },
-      open_p0_actions: { label: "Open P0 Actions", icon: I.shield, drill: "alerts" },
+      open_p0_actions: { label: "Open P0 Actions", icon: I.shield, drill: "action_register" },
     },
   },
 ];
@@ -854,6 +854,71 @@ function ControlTower({ go, session }) {
   );
 }
 
+/* ---------- Alerts & Reminders: computed live from operating records, never manual ---------- */
+const METRIC_META = Object.assign({}, ...METRIC_GROUPS.map((g) => g.items));
+function AlertsScreen({ go }) {
+  const [alerts, setAlerts] = useState(null);
+  useEffect(() => {
+    (async () => {
+      const list = [];
+      const { data: tower } = await supabase.from("v_control_tower").select("*");
+      (tower ?? []).forEach((r) => {
+        const v = Number(r.value ?? 0);
+        if (r.metric === "days_since_cash_update") {
+          const lvl = v >= 30 ? "critical" : v >= 14 ? "elevated" : v >= 7 ? "watch" : null;
+          if (lvl) list.push({ level: lvl, text: `Cash data ${v >= 999 ? "has never been updated" : `is ${v} days old`}`, drill: "cash" });
+        } else if (v > 0) {
+          const meta = METRIC_META[r.metric];
+          list.push({ level: "critical", text: `${meta?.label ?? r.metric.replaceAll("_", " ")}: ${v}`, drill: meta?.drill });
+        }
+      });
+      const t = new Date().toISOString().slice(0, 10);
+      const in7 = new Date(Date.now() + 7 * 864e5).toISOString().slice(0, 10);
+      const checks = await Promise.all([
+        supabase.from("harvest_schedule").select("id", { count: "exact", head: true }).gte("harvest_date", t).lte("harvest_date", in7),
+        supabase.from("time_entries").select("id", { count: "exact", head: true }).eq("work_date", t).not("exception_code", "is", null),
+        supabase.from("v_material_aging").select("lot_code", { count: "exact", head: true }).eq("aging_alert", "CAPITAL TIED UP"),
+        supabase.from("v_fg_metrc_check").select("sheet_tag", { count: "exact", head: true }).eq("check_result", "TAG NOT IN SYNCED METRC"),
+        supabase.from("issue_reports").select("id", { count: "exact", head: true }).eq("status", "open"),
+        supabase.from("product_inventory").select("id", { count: "exact", head: true }).lt("expiration_date", in7 === t ? t : new Date(Date.now() + 30 * 864e5).toISOString().slice(0, 10)),
+      ]);
+      const [due, exc, tied, mism, issues, expiring] = checks.map((c) => c.count ?? 0);
+      if (due) list.push({ level: "watch", text: `${due} harvest event${due > 1 ? "s" : ""} due in the next 7 days`, drill: "harvest_schedule" });
+      if (exc) list.push({ level: "elevated", text: `${exc} attendance exception${exc > 1 ? "s" : ""} today (late / called out)`, drill: "time" });
+      if (tied) list.push({ level: "elevated", text: `${tied} purchased material lot${tied > 1 ? "s" : ""} flagged CAPITAL TIED UP`, drill: "materials" });
+      if (mism) list.push({ level: "watch", text: `${mism} finished-goods sheet row${mism > 1 ? "s" : ""} with a tag not found in synced Metrc`, drill: "fg_metrc_check" });
+      if (issues) list.push({ level: "elevated", text: `${issues} open staff issue report${issues > 1 ? "s" : ""}`, drill: "issues" });
+      if (expiring) list.push({ level: "watch", text: `${expiring} finished-goods lot${expiring > 1 ? "s" : ""} expiring within 30 days`, drill: "inv_summary" });
+      setAlerts(list);
+    })();
+  }, []);
+  return (
+    <>
+      <div className="pagehead">
+        <div>
+          <h1>Alerts & Reminders</h1>
+          <div className="sub">Every alert below is computed live from operating records the moment you open this page — tiered yellow → orange → red, each one clicks through to its source. Nothing manual, nothing fake.</div>
+        </div>
+      </div>
+      {alerts === null ? (
+        <div className="empty"><div className="eicon">{I.bell}</div>Checking every board…</div>
+      ) : alerts.length === 0 ? (
+        <div className="empty"><div className="eicon">{I.check}</div><b>All clear</b>No live alerts across cash, compliance, cadence, attendance, materials, or inventory.</div>
+      ) : (
+        <div className="alertlist">
+          {alerts.map((a, i) => (
+            <button key={i} className={`alertrow ${a.level}`} onClick={() => a.drill && go(a.drill)} title="Open source module">
+              <span className="allvl">{a.level}</span>
+              <span className="altxt">{a.text}</span>
+              <span className="alarrow">{I.caret}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </>
+  );
+}
+
 /* ---------- Finished Goods: the team's live sheet, tab for tab ---------- */
 const FG_TABS = [
   { key: "solventless", label: "Solventless", cols: ["current_status","bulk_metrc_tag","prefill_metrc_tag","final_metrc_tag","production_batch","strain_flavor","size_g","total_bulk","total_filled","total_packaged","cases_available","creation_date","expiration_date","tac_pct"] },
@@ -1222,6 +1287,18 @@ export default function App() {
   const [openCats, setOpenCats] = useState({});
   const [dragging, setDragging] = useState(false);
   const [userMenu, setUserMenu] = useState(false);
+  const [alertN, setAlertN] = useState(0);
+  useEffect(() => {
+    if (!session) return;
+    supabase.from("v_control_tower").select("*").then(({ data }) => {
+      const n = (data ?? []).reduce((a, r) => {
+        const v = Number(r.value ?? 0);
+        if (r.metric === "days_since_cash_update") return a + (v >= 7 ? 1 : 0);
+        return a + (v > 0 ? 1 : 0);
+      }, 0);
+      setAlertN(n);
+    });
+  }, [session, view]);
   useEffect(() => {
     if (!dragging) return;
     const move = (e) => prefs.setNavWidthLive(e.clientX);
@@ -1247,6 +1324,7 @@ export default function App() {
   const special = {
     tower: <ControlTower go={setView} session={session} />,
     fg_inventory: <FinishedGoods session={session} />,
+    alerts: <AlertsScreen go={setView} />,
     people: <People />,
     integrations: <Integrations session={session} />,
     settings: <Settings session={session} prefs={prefs} />,
@@ -1261,11 +1339,14 @@ export default function App() {
       <header className="topnav">
         <div className="tlogo"><img src="/tg-mark.png" alt="Twisted Growers" style={{ width: 34, height: 34, borderRadius: "50%" }} /><span className="tword">Twisted <b>Growers</b></span></div>
         <div className="tdivider" />
-        <div className="tcrumb">{current ? `${current.category} / ${current.label}` : "Command / Control Tower"}</div>
+        <div className="tcrumb">{current ? `${current.category} / ${current.label}` : view === "alerts" ? "Command / Alerts & Reminders" : "Command / Control Tower"}</div>
         <div className="tspacer" />
         <span className="tpill"><span className="d" /> LIVE</span>
         <div className="tuser">
-          <button className="tibtn" title="Alerts & Reminders" onClick={() => setView("alerts")}>{I.bell}</button>
+          <button className="tibtn" title="Control Tower" onClick={() => setView("tower")}>{I.gauge}</button>
+          <button className="tibtn" title="Alerts & Reminders" onClick={() => setView("alerts")}>
+            {I.bell}{alertN > 0 && <span className="tbadge">{alertN}</span>}
+          </button>
           <button className="tibtn" title="Messages" onClick={() => setView("messages")}>{I.mail}</button>
           <button className="tibtn" title="Help & Support" onClick={() => setView("help")}>{I.help}</button>
           <div className="uwrap">
