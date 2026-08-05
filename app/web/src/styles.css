@@ -135,7 +135,7 @@ h1, h2, h3, .display { font-family: "Figtree", "Inter", sans-serif; }
 .topnav {
   height: 58px; flex-shrink: 0;
   /* Translucent over the fixed mesh: the ONE hue starts inside the top menu, no separating line. */
-  background: linear-gradient(180deg, rgba(4, 6, 5, 0.55), rgba(4, 6, 5, 0.72));
+  background: linear-gradient(180deg, rgba(4, 6, 5, 0.18), rgba(4, 6, 5, 0.42));
   backdrop-filter: blur(9px);
   -webkit-backdrop-filter: blur(9px);
   border-bottom: none;
@@ -199,7 +199,7 @@ h1, h2, h3, .display { font-family: "Figtree", "Inter", sans-serif; }
   position: relative;
   width: 246px; flex-shrink: 0;
   /* Translucent over the fixed mesh: the page gradient flows behind the menu too — nothing contains it. */
-  background: linear-gradient(180deg, rgba(4, 6, 5, 0.58), rgba(4, 6, 5, 0.76));
+  background: linear-gradient(180deg, rgba(4, 6, 5, 0.46), rgba(4, 6, 5, 0.66));
   backdrop-filter: blur(9px);
   -webkit-backdrop-filter: blur(9px);
   color: #e9efeb;
@@ -892,3 +892,13 @@ button.teamcard:hover { border-color: var(--neon-line); }
 .vedrawer { position: absolute; top: 0; right: 0; bottom: 0; width: min(420px, 92vw); background: var(--surface); border-left: 1px solid var(--line); padding: 18px; overflow-y: auto; }
 .vedrawer label { display: block; font-size: 10.5px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin: 12px 0 4px; }
 .vedrawer input, .vedrawer select, .vedrawer textarea { width: 100%; background: var(--input-bg); border: 1px solid var(--line); border-radius: 6px; color: var(--ink); font-family: inherit; font-size: 13.5px; padding: 8px 10px; }
+
+/* Canvas gradient preset previews: dark strip + light strip + name */
+.cppre { display: flex; flex-direction: column; width: 136px; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: var(--surface); cursor: pointer; padding: 0; font-family: inherit; transition: transform 0.12s, border-color 0.12s; }
+.cppre:hover { transform: translateY(-2px); border-color: var(--neon-line); }
+.cppre.on { border-color: var(--neon); box-shadow: var(--glow); }
+.cppre .cpd, .cppre .cpl { display: block; height: 24px; }
+.cppre .cpn { font-size: 11px; font-weight: 700; color: var(--ink); padding: 6px 8px; text-align: left; }
+
+/* Action Register brief drawer */
+.regtext { font-size: 13px; line-height: 1.6; color: var(--ink-2); background: var(--surface-2); border: 1px solid var(--line); border-radius: 6px; padding: 10px 12px; white-space: pre-wrap; word-break: break-word; }

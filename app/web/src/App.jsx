@@ -1604,6 +1604,100 @@ function TasksScreen({ session }) {
   );
 }
 
+/* ---------- Action Register: full briefs — what, why, how, recommendation ---------- */
+function RegisterScreen({ isExec }) {
+  const [rows, setRows] = useState(null);
+  const [q, setQ] = useState("");
+  const [statusSel, setStatusSel] = useState("open");
+  const [prioSel, setPrioSel] = useState(null);
+  const [drawer, setDrawer] = useState(null);
+  const [ver, setVer] = useState(0);
+  useEffect(() => {
+    supabase.from("actions_register").select("*").order("priority").order("created_at", { ascending: false }).limit(1000)
+      .then(({ data }) => setRows(data ?? []));
+  }, [ver]);
+  if (rows === null) return <div className="empty"><div className="eicon">{I.board}</div>Loading…</div>;
+  const statuses = [...new Set(rows.map((r) => r.status ?? "open"))];
+  const filtered = rows.filter((r) =>
+    (!statusSel || (r.status ?? "open") === statusSel) &&
+    (!prioSel || r.priority === prioSel) &&
+    (!q || `${r.title} ${r.note ?? ""} ${r.source ?? ""}`.toLowerCase().includes(q.toLowerCase())));
+  const advance = async (r) => {
+    if (!isExec) return;
+    const next = r.status === "open" ? "in_progress" : r.status === "in_progress" ? "done" : "open";
+    setRows((s) => s.map((x) => (x.id === r.id ? { ...x, status: next } : x)));
+    if (drawer?.id === r.id) setDrawer({ ...r, status: next });
+    await supabase.from("actions_register").update({ status: next }).eq("id", r.id);
+  };
+  const Sect = ({ label, text, fallback }) => (
+    <>
+      <label>{label}</label>
+      <div className="regtext">{text ?? <span className="note">{fallback}</span>}</div>
+    </>
+  );
+  return (
+    <>
+      <div className="pagehead">
+        <div><h1>Action Register</h1>
+          <div className="sub">Every directive, audit finding, and spreadsheet gap — each with what to do, why it matters, how to execute, and my recommendation. Click any item for the full brief.</div></div>
+      </div>
+      <div className="filterbar">
+        <input className="fsearch" placeholder="Search title, note, source…" value={q} onChange={(e) => setQ(e.target.value)} />
+        <span className="flab">Priority</span>
+        <select className="fdate" value={prioSel ?? ""} onChange={(e) => setPrioSel(e.target.value || null)}>
+          <option value="">All</option>
+          {["P0", "P1", "P2"].map((p) => <option key={p}>{p}</option>)}
+        </select>
+        <span style={{ flex: 1 }} />
+        <span className="note">{filtered.length} of {rows.length}</span>
+      </div>
+      <div className="statchips">
+        {statuses.map((s) => (
+          <button key={s} className={`schip ${s === "done" ? "good" : s === "in_progress" ? "info" : "warn"} ${statusSel === s ? "sel" : ""}`}
+            onClick={() => setStatusSel(statusSel === s ? null : s)}>
+            <b>{rows.filter((r) => (r.status ?? "open") === s).length}</b> {s.replace("_", " ")}
+          </button>
+        ))}
+        <span className="schl">Live breakdown by status — click to filter</span>
+      </div>
+      <div className="glist">
+        {filtered.map((r) => (
+          <div key={r.id} className="glrow" style={{ cursor: "pointer" }} onClick={() => setDrawer(r)}>
+            <button className={`glstatus ${r.status === "done" ? "done" : r.status === "in_progress" ? "in_progress" : "open"}`}
+              onClick={(e) => { e.stopPropagation(); advance(r); }} disabled={!isExec}>{(r.status ?? "open").replace("_", " ")}</button>
+            <span className={`glprio ${r.priority}`}>{r.priority}</span>
+            <div className="glmain">
+              <div className="gltitle">{r.title}{r.needs_owner && <span className="glowner">OWNER</span>}</div>
+              <div className="gldetail">{r.source} · {String(r.note ?? "").slice(0, 140)}{String(r.note ?? "").length > 140 ? "…" : ""}</div>
+            </div>
+          </div>
+        ))}
+        {filtered.length === 0 && <div className="empty"><div className="eicon">{I.check}</div><b>Nothing matches</b>Clear a filter to see more.</div>}
+      </div>
+      {drawer && (
+        <div className="vedrawerwrap" onClick={() => setDrawer(null)}>
+          <div className="vedrawer" onClick={(e) => e.stopPropagation()}>
+            <div className="srhead"><span className="srtitle">Action brief</span><button className="btn small ghost" onClick={() => setDrawer(null)}>✕</button></div>
+            <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", margin: "6px 0 4px" }}>
+              <span className={`glprio ${drawer.priority}`}>{drawer.priority}</span>
+              <button className={`glstatus ${drawer.status === "done" ? "done" : drawer.status === "in_progress" ? "in_progress" : "open"}`}
+                onClick={() => advance(drawer)} disabled={!isExec}>{(drawer.status ?? "open").replace("_", " ")}</button>
+              <span className="note">{drawer.source} · {new Date(drawer.created_at).toLocaleDateString()}</span>
+              {drawer.needs_owner && <span className="glowner">NEEDS OWNER</span>}
+            </div>
+            <div style={{ fontFamily: '"Figtree", sans-serif', fontSize: 17, fontWeight: 700, margin: "6px 0 2px" }}>{drawer.title}</div>
+            <Sect label="What to do" text={drawer.what_to_do} fallback="Brief being authored by the register department — the source note below carries the context meanwhile." />
+            <Sect label="Why it matters" text={drawer.why_it_matters} fallback="—" />
+            <Sect label="How to execute" text={drawer.how_to_execute} fallback="—" />
+            <Sect label="My recommendation" text={drawer.recommendation} fallback="—" />
+            <Sect label="Source note (full)" text={drawer.note} fallback="No note recorded." />
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
 /* ---------- Metrc Report Import: pull data straight from Metrc's reports ---------- */
 function parseCSV(text) {
   const rows = [];
@@ -2747,16 +2841,34 @@ function Settings({ session, prefs }) {
     const base = ct ?? { preset: "custom", ...CANVAS_DEF };
     saveCt({ ...base, preset: "custom", [mode]: { ...(base[mode] ?? CANVAS_DEF[mode]), [k]: v } });
   };
-  const uploadAvatar = async (e) => {
+  const [avEdit, setAvEdit] = useState(null);
+  const avImgRef = React.useRef(null);
+  const uploadAvatar = (e) => {
     const f = e.target.files?.[0];
     if (!f) return;
-    setAvMsg("Uploading…");
-    const path = `${session.user.id}-${Date.now()}.${(f.name.split(".").pop() || "png").toLowerCase()}`;
-    const { error } = await supabase.storage.from("avatars").upload(path, f, { upsert: true });
+    setAvMsg(null);
+    setAvEdit({ src: URL.createObjectURL(f), zoom: 1 });
+  };
+  const saveAvatar = async () => {
+    const img = avImgRef.current;
+    if (!img || !avEdit) return;
+    setAvMsg("Resizing and uploading…");
+    const S = 512;
+    const c = document.createElement("canvas");
+    c.width = S; c.height = S;
+    const ctx = c.getContext("2d");
+    const base = Math.max(S / img.naturalWidth, S / img.naturalHeight) * avEdit.zoom;
+    const dw = img.naturalWidth * base, dh = img.naturalHeight * base;
+    ctx.fillStyle = "#0a0c0b"; ctx.fillRect(0, 0, S, S);
+    ctx.drawImage(img, (S - dw) / 2, (S - dh) / 2, dw, dh);
+    const blob = await new Promise((res) => c.toBlob(res, "image/jpeg", 0.88));
+    const path = `${session.user.id}-${Date.now()}.jpg`;
+    const { error } = await supabase.storage.from("avatars").upload(path, blob, { upsert: true, contentType: "image/jpeg" });
     if (error) { setAvMsg(`Upload failed: ${error.message}`); return; }
     const { data } = supabase.storage.from("avatars").getPublicUrl(path);
     await supabase.from("user_settings").upsert({ user_id: session.user.id, avatar_url: data.publicUrl }, { onConflict: "user_id" });
     setAvatarUrl(data.publicUrl);
+    setAvEdit(null);
     setAvMsg("Saved — your photo now shows on the top bar.");
     window.dispatchEvent(new CustomEvent("tg-avatar-updated", { detail: data.publicUrl }));
   };
@@ -2772,14 +2884,32 @@ function Settings({ session, prefs }) {
         <div className="msection" style={{ marginTop: 0 }}>
           <div className="mtitle"><span className="sq" /><h2>Profile photo</h2><span className="rule" /></div>
           <div className="panel" style={{ maxWidth: "none" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-              <span className="uav big">{avatarUrl ? <img src={avatarUrl} alt="Your profile" /> : I.users}</span>
-              <div>
-                <button className="btn small" onClick={() => avRef.current?.click()}>{avatarUrl ? "Change photo" : "Upload photo"}</button>
-                <input ref={avRef} type="file" accept="image/*" style={{ display: "none" }} onChange={uploadAvatar} />
-                <div className="note" style={{ marginTop: 6 }}>{avMsg ?? "Shown on the top bar and everywhere you appear in the OS."}</div>
+            {avEdit ? (
+              <div style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
+                <span className="uav big" style={{ width: 128, height: 128 }}>
+                  <img ref={avImgRef} src={avEdit.src} alt="Preview" style={{ transform: `scale(${avEdit.zoom})`, transformOrigin: "center" }} />
+                </span>
+                <div style={{ flex: 1, minWidth: 220 }}>
+                  <div className="note">Zoom to fit — drag the slider until it looks right in the circle:</div>
+                  <input type="range" min="1" max="3" step="0.01" value={avEdit.zoom} style={{ width: "100%", margin: "8px 0" }}
+                    onChange={(e) => setAvEdit({ ...avEdit, zoom: Number(e.target.value) })} />
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <button className="btn small" onClick={saveAvatar}>Save photo</button>
+                    <button className="btn small ghost" onClick={() => setAvEdit(null)}>Cancel</button>
+                  </div>
+                  <div className="note" style={{ marginTop: 6 }}>{avMsg ?? "Any image works — we resize it to 512 × 512 pixels automatically. No need to prepare anything."}</div>
+                </div>
               </div>
-            </div>
+            ) : (
+              <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                <span className="uav big">{avatarUrl ? <img src={avatarUrl} alt="Your profile" /> : I.users}</span>
+                <div>
+                  <button className="btn small" onClick={() => avRef.current?.click()}>{avatarUrl ? "Change photo" : "Upload photo"}</button>
+                  <input ref={avRef} type="file" accept="image/*" style={{ display: "none" }} onChange={uploadAvatar} />
+                  <div className="note" style={{ marginTop: 6 }}>{avMsg ?? "Any image works — automatically resized to 512 × 512 pixels with a zoom control, so you never have to fight file sizes."}</div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
         <div className="msection" style={{ marginTop: 0 }}>
@@ -2806,9 +2936,12 @@ function Settings({ session, prefs }) {
             <div className="note" style={{ marginBottom: 8 }}>Summer presets — one click sets both modes. Then fine-tune each color per mode; everything saves to your account and applies instantly.</div>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
               {CANVAS_PRESETS.map((p) => (
-                <button key={p.name} className={`btn small ghost ${ct?.preset === p.name ? "sel" : ""}`}
-                  style={{ backgroundImage: `linear-gradient(100deg, ${p.c[0]}55, ${p.c[1]}55, ${p.c[2]}55)` }}
-                  onClick={() => choosePreset(p)}>{p.name}{ct?.preset === p.name ? " ✓" : ""}</button>
+                <button key={p.name} className={`cppre ${ct?.preset === p.name ? "on" : ""}`} onClick={() => choosePreset(p)}
+                  title={`${p.name} — top strip is dark mode, bottom is light mode. One click sets both.`}>
+                  <span className="cpd" style={{ background: `linear-gradient(180deg, rgba(10,12,11,0.05) 0%, rgba(10,12,11,0.88) 100%), linear-gradient(100deg, ${p.c[0]}, ${p.c[1]}, ${p.c[2]})` }} />
+                  <span className="cpl" style={{ background: `linear-gradient(180deg, rgba(253,254,253,0.15) 0%, rgba(253,254,253,0.92) 100%), linear-gradient(100deg, ${p.c[0]}, ${p.c[1]}, ${p.c[2]})` }} />
+                  <span className="cpn">{p.name}{ct?.preset === p.name ? " ✓" : ""}</span>
+                </button>
               ))}
             </div>
             {["dark", "light"].map((mode) => (
@@ -2889,6 +3022,10 @@ function Help() {
 function People() {
   const [rows, setRows] = useState(null);
   const [lookups, setLookups] = useState(null);
+  const [q, setQ] = useState("");
+  const [statusSel, setStatusSel] = useState(null);
+  const [deptSel, setDeptSel] = useState("");
+  const [sort, setSort] = useState({ col: "full_name", dir: 1 });
   useEffect(() => {
     Promise.all([
       supabase.from("employees").select("*").order("full_name"),
@@ -2905,6 +3042,32 @@ function People() {
   const roleOf = (id) => lookups?.roles[id] ?? "—";
   const deptOf = (id) => lookups?.depts[id] ?? "—";
   const cols = ["employee_code", "full_name", "position", "departments", "status"];
+  const enriched = (rows ?? []).map((r) => ({
+    employee_code: r.employee_code,
+    full_name: r.full_name,
+    position: roleOf(r.primary_role_id),
+    departments: [deptOf(r.primary_department_id), r.secondary_department_id ? deptOf(r.secondary_department_id) : null].filter((x) => x && x !== "—").join(" + ") || "—",
+    status: r.status,
+    ...r,
+  }));
+  const statuses = [...new Set(enriched.map((r) => r.status ?? "—"))];
+  const deptNames = [...new Set(enriched.flatMap((r) => r.departments.split(" + ")).filter((x) => x !== "—"))].sort();
+  const filtered = enriched
+    .filter((r) =>
+      (!q || `${r.employee_code} ${r.full_name} ${r.position} ${r.departments}`.toLowerCase().includes(q.toLowerCase())) &&
+      (!statusSel || (r.status ?? "—") === statusSel) &&
+      (!deptSel || r.departments.includes(deptSel)))
+    .sort((a, b) => sort.dir * String(a[sort.col] ?? "").localeCompare(String(b[sort.col] ?? "")));
+  const clickSort = (col) => setSort((s) => (s.col === col ? { col, dir: -s.dir } : { col, dir: 1 }));
+  const arrow = (col) => (sort.col === col ? (sort.dir === 1 ? " ▲" : " ▼") : "");
+  const exportCSV = () => {
+    const head = ["Code", "Name", "Position", "Departments", "Status"];
+    const lines = [head.join(","), ...filtered.map((r) =>
+      cols.map((c) => `"${String(r[c] ?? "").replaceAll('"', '""')}"`).join(","))];
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([lines.join("\n")], { type: "text/csv" }));
+    a.download = "employees.csv"; a.click();
+  };
   return (
     <>
       <div className="pagehead">
@@ -2916,22 +3079,44 @@ function People() {
       {rows === null ? <div className="empty"><div className="eicon">{I.users}</div>Loading…</div> : rows.length === 0 ? (
         <div className="empty"><div className="eicon">{I.users}</div><b>No employees connected yet</b>The real roster loads from the v5 planner — no sample people will ever appear here.</div>
       ) : (
-        <div className="tablewrap">
-          <table>
-            <thead><tr><th>Code</th><th>Name</th><th>Position</th><th>Departments</th><th>Status</th></tr></thead>
-            <tbody>{rows.map((r) => {
-              const view = {
-                employee_code: r.employee_code,
-                full_name: r.full_name,
-                position: roleOf(r.primary_role_id),
-                departments: [deptOf(r.primary_department_id), r.secondary_department_id ? deptOf(r.secondary_department_id) : null].filter((x) => x && x !== "—").join(" + ") || "—",
-                status: r.status,
-                ...r,
-              };
-              return <RawRow key={r.id} row={view} cols={cols} />;
-            })}</tbody>
-          </table>
-        </div>
+        <>
+          <div className="filterbar">
+            <input className="fsearch" placeholder="Search name, code, position, department…" value={q} onChange={(e) => setQ(e.target.value)} />
+            <span className="flab">Department</span>
+            <select className="fdate" value={deptSel} onChange={(e) => setDeptSel(e.target.value)}>
+              <option value="">All</option>
+              {deptNames.map((d) => <option key={d} value={d}>{d}</option>)}
+            </select>
+            {(q || statusSel || deptSel) && (
+              <button className="btn small ghost" onClick={() => { setQ(""); setStatusSel(null); setDeptSel(""); }}>Clear</button>
+            )}
+            <span style={{ flex: 1 }} />
+            <span className="note">{filtered.length} of {enriched.length}</span>
+            <button className="btn small ghost" onClick={exportCSV}>Export CSV</button>
+            <button className="btn small ghost" onClick={() => window.print()}>Print</button>
+          </div>
+          <div className="statchips">
+            {statuses.map((s) => (
+              <button key={s} className={`schip ${s === "active" ? "good" : "warn"} ${statusSel === s ? "sel" : ""}`}
+                onClick={() => setStatusSel(statusSel === s ? null : s)}>
+                <b>{enriched.filter((r) => (r.status ?? "—") === s).length}</b> {s}
+              </button>
+            ))}
+            <span className="schl">Live breakdown by status — click to filter</span>
+          </div>
+          <div className="tablewrap">
+            <table>
+              <thead><tr>
+                <th style={{ cursor: "pointer" }} onClick={() => clickSort("employee_code")}>Code{arrow("employee_code")}</th>
+                <th style={{ cursor: "pointer" }} onClick={() => clickSort("full_name")}>Name{arrow("full_name")}</th>
+                <th style={{ cursor: "pointer" }} onClick={() => clickSort("position")}>Position{arrow("position")}</th>
+                <th style={{ cursor: "pointer" }} onClick={() => clickSort("departments")}>Departments{arrow("departments")}</th>
+                <th style={{ cursor: "pointer" }} onClick={() => clickSort("status")}>Status{arrow("status")}</th>
+              </tr></thead>
+              <tbody>{filtered.map((r) => <RawRow key={r.id} row={r} cols={cols} />)}</tbody>
+            </table>
+          </div>
+        </>
       )}
     </>
   );
@@ -3065,6 +3250,7 @@ export default function App() {
     metrc_mp: <MetrcMirror license="MP281909" />,
     golive: <GoLiveScreen isExec={isExec} go={setView} />,
     metrc_report_import: <MetrcReportImport session={session} />,
+    action_register: <RegisterScreen isExec={isExec} />,
     menu_manager: isExec
       ? <MenuManager onChanged={() => setNavVersion((v) => v + 1)} />
       : <div className="empty"><div className="eicon">{I.shield}</div><b>Admin area</b>Menu Manager is restricted to executives. Ask an owner if a menu change is needed.</div>,
