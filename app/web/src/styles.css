@@ -11,9 +11,9 @@
     radial-gradient(900px 500px at -10% 110%, rgba(232, 196, 104, 0.04), transparent 55%);
   --surface: #111513;
   --surface-2: #181d1a;
-  --ink: #f3f6f4;
-  --ink-2: #c2ccc6;
-  --muted: #7d8983;
+  --ink: #ffffff;
+  --ink-2: #e2eae5;
+  --muted: #9aa69f;
   --line: #242a26;
   --neon: #2df26a;
   --neon-hi: #5cff92;
