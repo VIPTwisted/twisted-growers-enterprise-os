@@ -2209,7 +2209,7 @@ function QrDecode({ onDecoded }) {
   }, [decode]);
   return (
     <div className="panel feature" style={{ marginBottom: 16 }}>
-      <div className="ptitle"><span className="pchip" style={{ background: "var(--violet-soft)", color: "var(--violet)" }}>{I.qr}</span> Square-code (QR) decoder</div>
+      <div className="ptitle"><span className="pchip" style={{ background: "var(--violet)", color: "#07130b" }}>{I.qr}</span> Square-code (QR) decoder</div>
       <div className="note" style={{ marginTop: 4 }}>
         Snip a QR square with <b>Win + Shift + S</b>, come back here, press <b>Ctrl + V</b>. Decoding happens entirely inside your browser. Or{" "}
         <label style={{ display: "inline", color: "var(--neon)", cursor: "pointer", textDecoration: "underline", margin: 0, fontSize: "12px" }}>
@@ -2285,7 +2285,7 @@ function Integrations({ session }) {
         <div>
           <QrDecode onDecoded={(v) => setForm((f) => ({ ...f, METRC_VENDOR_KEYS: v }))} />
           <form className="panel" onSubmit={save} style={{ maxWidth: "none" }}>
-            <div className="ptitle"><span className="pchip" style={{ background: "var(--neon-soft)", color: "var(--neon)" }}>{I.shield}</span> Metrc — Massachusetts</div>
+            <div className="ptitle"><span className="pchip" style={{ background: "var(--neon)", color: "var(--neon-ink)" }}>{I.shield}</span> Metrc — Massachusetts</div>
             <label>Licenses (comma-separated, cultivation first) {setPill("METRC_LICENSES")}</label>
             <input value={form.METRC_LICENSES} onChange={(e) => setForm({ ...form, METRC_LICENSES: e.target.value })} placeholder={isSet("METRC_LICENSES") ? "•••••• stored — paste to replace" : "MC…, MP…"} />
             <label>Vendor / software key(s) {setPill("METRC_VENDOR_KEYS")}</label>
@@ -2467,7 +2467,7 @@ function Settings({ session, prefs }) {
         <div className="msection" style={{ marginTop: 0 }}>
           <div className="mtitle"><span className="sq" /><h2>Account</h2><span className="rule" /></div>
           <div className="panel" style={{ maxWidth: "none" }}>
-            <div className="ptitle"><span className="pchip" style={{ background: "var(--gold-soft)", color: "var(--gold)" }}>{I.users}</span> {session.user.email}</div>
+            <div className="ptitle"><span className="pchip" style={{ background: "var(--gold)", color: "#1a1400" }}>{I.users}</span> {session.user.email}</div>
             <div className="note">Role management (owner-assigned), per-employee links, and security options arrive with the People milestone.</div>
             <button className="btn ghost" onClick={() => supabase.auth.signOut()} style={{ marginTop: 12 }}>Sign out</button>
           </div>
@@ -2501,7 +2501,7 @@ function Help() {
       <div className="cols2">
         {HELP.map(([q, a], i) => (
           <div key={i} className="panel" style={{ maxWidth: "none", cursor: "pointer" }} onClick={() => setOpen(open === i ? -1 : i)}>
-            <div className="ptitle"><span className="pchip" style={{ background: "var(--blue-soft)", color: "var(--blue)" }}>{I.help}</span> {q}</div>
+            <div className="ptitle"><span className="pchip" style={{ background: "var(--blue)", color: "#06121f" }}>{I.help}</span> {q}</div>
             {open === i && <div className="note" style={{ marginTop: 8 }}>{a}</div>}
           </div>
         ))}

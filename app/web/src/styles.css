@@ -365,13 +365,13 @@ tbody tr:hover { background: var(--row-hover); }
 .tabs button.on { background: var(--neon-soft); border-color: var(--neon-line); color: var(--neon); }
 .tabs button .cnt { font-weight: 800; margin-left: 6px; font-variant-numeric: tabular-nums; opacity: 0.8; }
 .empty { background: var(--surface); border: 1.5px dashed var(--line); border-radius: 8px; padding: 36px 26px; text-align: center; color: var(--muted); margin-top: 12px; font-size: 13.5px; }
-.empty .eicon { width: 42px; height: 42px; border-radius: 8px; background: var(--surface-2); color: var(--muted); display: grid; place-items: center; margin: 0 auto 11px; }
+.empty .eicon { width: 42px; height: 42px; border-radius: 8px; background: var(--neon); color: var(--neon-ink); display: grid; place-items: center; margin: 0 auto 11px; }
 .empty .eicon svg { width: 21px; height: 21px; }
 .empty b { color: var(--ink); display: block; margin-bottom: 3px; font-size: 14.5px; font-family: "Figtree", sans-serif; }
 
 /* Module status header */
 .modhead { display: flex; align-items: center; gap: 14px; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 18px 20px; box-shadow: var(--shadow-sm); }
-.modhead .mchip { width: 46px; height: 46px; border-radius: 8px; background: var(--neon-soft); color: var(--neon); display: grid; place-items: center; flex-shrink: 0; }
+.modhead .mchip { width: 46px; height: 46px; border-radius: 8px; background: var(--neon); color: var(--neon-ink); display: grid; place-items: center; flex-shrink: 0; }
 .modhead .mchip svg { width: 22px; height: 22px; }
 .modhead .mt { font-family: "Figtree", sans-serif; font-weight: 700; font-size: 16px; }
 .modhead .md { font-size: 12.5px; color: var(--muted); margin-top: 1px; }
@@ -623,7 +623,8 @@ button.pulse:hover, button.stat:hover { background: var(--row-hover); }
 .dashgrid { max-width: none; margin-top: 0; }
 .qcard { display: flex; align-items: center; gap: 10px; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 14px; cursor: pointer; font-family: inherit; color: var(--ink); transition: border-color 0.13s, transform 0.13s; text-align: left; }
 .qcard:hover { border-color: var(--neon-line); transform: translateY(-2px); }
-.qcard .qi svg { width: 17px; height: 17px; color: var(--neon); }
+.qcard .qi { width: 30px; height: 30px; border-radius: 6px; background: var(--neon); display: grid; place-items: center; flex-shrink: 0; }
+.qcard .qi svg { width: 17px; height: 17px; color: var(--neon-ink); }
 .qcard .qt { flex: 1; font-size: 12.5px; font-weight: 700; }
 .qcard .qn { font-family: "Figtree", sans-serif; font-size: 20px; font-weight: 700; }
 .qcard .qn.hot { color: #ff2e5f; }
