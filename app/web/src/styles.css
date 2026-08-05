@@ -78,7 +78,7 @@
   --gold-soft: rgba(156, 122, 30, 0.11);
   --blue: #2673c4;   --blue-soft: rgba(38, 115, 196, 0.09);
   --violet: #0f9e4c; --violet-soft: rgba(15, 158, 76, 0.09);
-  --red: #d7263d;    --red-soft: rgba(215, 38, 61, 0.09);
+  --red: #f5222d;    --red-soft: rgba(245, 34, 45, 0.10);
   --amber: #d4b800;  --amber-soft: rgba(212, 184, 0, 0.12);
   --alert-watch: #d4b800;
   --alert-elevated: #e07000;
@@ -304,24 +304,24 @@ h1::after { content: ""; display: block; width: 42px; height: 3px; margin-top: 7
 .card .value { font-family: "Figtree", sans-serif; font-size: 25px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.15; }
 .card .state { font-size: 9px; font-weight: 800; letter-spacing: 0.14em; text-transform: uppercase; }
 .card.ok::before { background: var(--neon); opacity: 0.45; }
-.card.ok .chip { background: var(--neon-soft); color: var(--neon); }
+.card.ok .chip { background: var(--neon); color: var(--neon-ink); }
 .card.ok .state { color: var(--neon); }
 .card.zero::before { background: var(--neon); opacity: 0.3; }
-.card.zero .chip { background: var(--surface-2); color: var(--ink-2); }
+.card.zero .chip { background: var(--neon); color: var(--neon-ink); } /* HARD RULE: never grey, never pastel — solid vivid tiles */
 .card.zero .value { color: var(--ink); }
 .card.zero .state { color: var(--neon); }
 .card.hot { border-color: rgba(255, 46, 95, 0.4); }
 .card.hot::before { background: var(--red); box-shadow: 0 0 10px rgba(255, 46, 95, 0.55); }
-.card.hot .chip { background: var(--red-soft); color: var(--red); }
+.card.hot .chip { background: var(--red); color: #ffffff; }
 .card.hot .value { color: var(--red); }
 .card.hot .state { color: var(--red); }
 .card.hot1 { border-color: rgba(255, 234, 0, 0.35); }
 .card.hot1::before { background: var(--alert-watch); box-shadow: 0 0 10px rgba(255, 234, 0, 0.5); }
-.card.hot1 .chip { background: var(--amber-soft); color: var(--alert-watch); }
+.card.hot1 .chip { background: var(--alert-watch); color: #1a1400; }
 .card.hot1 .value, .card.hot1 .state { color: var(--alert-watch); }
 .card.hot2 { border-color: rgba(255, 138, 0, 0.4); }
 .card.hot2::before { background: var(--alert-elevated); box-shadow: 0 0 10px rgba(255, 138, 0, 0.55); }
-.card.hot2 .chip { background: rgba(255, 138, 0, 0.13); color: var(--alert-elevated); }
+.card.hot2 .chip { background: var(--alert-elevated); color: #1c0e00; }
 .card.hot2 .value, .card.hot2 .state { color: var(--alert-elevated); }
 
 /* ================= Panels / forms ================= */
@@ -861,17 +861,6 @@ button.teamcard:hover { border-color: var(--neon-line); }
   background: linear-gradient(180deg, rgba(253, 254, 253, 0.30), rgba(253, 254, 253, 0.55));
 }
 
-/* Light-mode readability (owner 2026-08-05): accent-colored text auto-deepens on the light
-   canvas — same hue family, real contrast. No pastels, no unreadable yellows. Dark untouched. */
-:root[data-theme="light"] .card .chip,
-:root[data-theme="light"] .card .state,
-:root[data-theme="light"] .card .value,
-:root[data-theme="light"] .qcard .qn,
-:root[data-theme="light"] .qcard .qi,
-:root[data-theme="light"] .tophead,
-:root[data-theme="light"] .tcount,
-:root[data-theme="light"] .brl,
-:root[data-theme="light"] .calev,
-:root[data-theme="light"] .cl i {
-  filter: saturate(1.35) brightness(0.56) contrast(1.12);
-}
+/* Light-mode readability (owner 2026-08-05, revised): NO darkening filters, NO pastels.
+   Color identity lives in solid vivid tiles; numbers are crisp ink in both themes. */
+:root[data-theme="light"] .card .value { color: var(--ink); }

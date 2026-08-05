@@ -740,20 +740,20 @@ function MetrcMirror({ license }) {
 
 /* ---------- Live data KPIs (real counts only) ---------- */
 const KPI_TABLES = [
-  ["metrc_packages", "Metrc Packages", "#00d4ff", "metrc_mirror"],
-  ["metrc_plants", "Metrc Plants", "#5cff92", "metrc_mirror"],
-  ["metrc_harvests", "Metrc Harvests", "#b366ff", "metrc_mirror"],
-  ["metrc_transfers", "Transfers", "#ffea00", "metrc_mirror"],
-  ["harvest_schedule", "Harvest Events", "#2df26a", "harvest_schedule"],
-  ["lots", "Lots", "#ff8a00", "lots"],
-  ["employees", "Employees", "#ff2e9e", "people"],
+  ["metrc_packages", "Metrc Packages", "#00d4ff", "metrc_mirror", "box"],
+  ["metrc_plants", "Metrc Plants", "#5cff92", "metrc_mirror", "leafline"],
+  ["metrc_harvests", "Metrc Harvests", "#00e676", "metrc_mirror", "scale"],
+  ["metrc_transfers", "Transfers", "#ffea00", "metrc_mirror", "truck"],
+  ["harvest_schedule", "Harvest Events", "#2df26a", "harvest_schedule", "clock"],
+  ["lots", "Lots", "#ff8a00", "lots", "flask"],
+  ["employees", "Employees", "#ff2e9e", "people", "users"],
 ];
 function useLiveCounts() {
   const [c, setC] = useState(null);
   useEffect(() => {
     Promise.all(KPI_TABLES.map(([t]) =>
       supabase.from(t).select("*", { count: "exact", head: true }).then(({ count }) => count ?? 0)
-    )).then((counts) => setC(KPI_TABLES.map(([t, l, col, drill], i) => ({ t, l, col, drill, n: counts[i] }))));
+    )).then((counts) => setC(KPI_TABLES.map(([t, l, col, drill, icon], i) => ({ t, l, col, drill, icon, n: counts[i] }))));
   }, []);
   return c;
 }
@@ -1044,10 +1044,10 @@ function ControlTower({ go, session }) {
             {kpis.map((k) => (
               <div key={k.t} className="card ok" style={{ borderLeftColor: k.col, cursor: "pointer" }}
                 onClick={() => go(k.drill)} title="Open source module for full detail">
-                <div className="chip" style={{ background: `${k.col}22`, color: k.col }}>{I.gauge}</div>
+                <div className="chip" style={{ background: k.col, color: "#07130b" }}>{iconByName(k.icon)}</div>
                 <div className="body">
                   <div className="metric">{k.l}</div>
-                  <div className="vrow"><div className="value">{k.n.toLocaleString()}</div><div className="state" style={{ color: k.col }}>records</div></div>
+                  <div className="vrow"><div className="value">{k.n.toLocaleString()}</div><div className="state">records</div></div>
                 </div>
               </div>
             ))}
