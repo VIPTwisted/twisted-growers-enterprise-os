@@ -935,8 +935,8 @@ const SYNC_SOURCES = [
     desc: "Invoices, payments, expenses, customers — connects once Intuit app keys are stored." },
   { key: "monday", label: "Monday.com", fn: null, live: false,
     desc: "One-way board sync (idempotent upserts, conflict queue) — connects once workspace/board IDs are stored." },
-  { key: "clickup", label: "ClickUp", fn: null, live: false,
-    desc: "Import/sync tasks, docs, and spaces from a ClickUp workspace — connects once an API token is stored." },
+  { key: "clickup", label: "ClickUp", fn: "clickup-sync", live: true,
+    desc: "Pulls every space, list, and task (open + closed, subtasks, custom fields) from your ClickUp workspace. Needs the API token stored in Integrations." },
 ];
 function parseSyncResponse(src, j) {
   const item = { label: src.label, ok: !!j.ok, total: 0, details: [], skipped: [], errors: [] };
@@ -2281,7 +2281,7 @@ function QrDecode({ onDecoded }) {
 /* ---------- Integrations ---------- */
 function Integrations({ session }) {
   const [status, setStatus] = useState(null);
-  const [form, setForm] = useState({ METRC_LICENSES: "", METRC_VENDOR_KEYS: "", METRC_USER_KEY: "", METRC_STATE: "" });
+  const [form, setForm] = useState({ METRC_LICENSES: "", METRC_VENDOR_KEYS: "", METRC_USER_KEY: "", METRC_STATE: "", CLICKUP_TOKEN: "" });
   const [msg, setMsg] = useState(null);
   const [busy, setBusy] = useState(false);
   const [runs, setRuns] = useState(null);
@@ -2350,6 +2350,9 @@ function Integrations({ session }) {
             <input value={form.METRC_USER_KEY} onChange={(e) => setForm({ ...form, METRC_USER_KEY: e.target.value })} placeholder={isSet("METRC_USER_KEY") ? "•••••• stored — paste to replace" : "metrc.com → profile → API Keys"} />
             <label>State {setPill("METRC_STATE")}</label>
             <input value={form.METRC_STATE} onChange={(e) => setForm({ ...form, METRC_STATE: e.target.value })} placeholder="ma" />
+            <div className="ptitle" style={{ marginTop: 18 }}><span className="pchip" style={{ background: "var(--neon)", color: "var(--neon-ink)" }}>{I.board}</span> ClickUp</div>
+            <label>API token — write-only, never displayed {setPill("CLICKUP_TOKEN")}</label>
+            <input value={form.CLICKUP_TOKEN} onChange={(e) => setForm({ ...form, CLICKUP_TOKEN: e.target.value })} placeholder={isSet("CLICKUP_TOKEN") ? "•••••• stored — paste to replace" : "ClickUp → avatar → Settings → Apps → API Token (starts pk_)"} />
             <button className="btn" disabled={busy}>Store securely</button>
             <button type="button" className="btn ghost" style={{ marginLeft: 10 }} disabled={busy} onClick={runSync}>Run Metrc sync now</button>
             {msg && <div className={`msg ${msg.kind}`}>{msg.text}</div>}
