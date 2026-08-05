@@ -6,16 +6,15 @@
    ============================================================ */
 :root, :root[data-theme="dark"] {
   --canvas: #0a0c0b;
+  /* NEON GREENS ONLY — no yellow, no gold: those read brown over black. Owner order 2026-08-05. */
   --canvas-glow:
-    linear-gradient(180deg, rgba(10, 12, 11, 0) 0%, rgba(10, 12, 11, 0.82) 26%, #0a0c0b 44%),
+    linear-gradient(180deg, rgba(10, 12, 11, 0) 0%, rgba(10, 12, 11, 0.80) 28%, #0a0c0b 46%),
     linear-gradient(100deg,
-      rgba(45, 242, 106, 0.16) 0%,
-      rgba(184, 242, 45, 0.11) 26%,
-      rgba(255, 234, 0, 0.09) 48%,
-      rgba(87, 169, 255, 0.13) 76%,
-      rgba(45, 242, 106, 0.10) 100%),
-    radial-gradient(1100px 500px at 90% -10%, rgba(45, 242, 106, 0.06), transparent 60%),
-    radial-gradient(900px 500px at -10% 110%, rgba(232, 196, 104, 0.04), transparent 55%);
+      rgba(45, 242, 106, 0.26) 0%,
+      rgba(92, 255, 146, 0.19) 30%,
+      rgba(184, 242, 45, 0.13) 62%,
+      rgba(45, 242, 106, 0.17) 100%),
+    radial-gradient(1100px 500px at 90% -10%, rgba(45, 242, 106, 0.09), transparent 60%);
   --surface: #111513;
   --surface-2: #181d1a;
   --ink: #ffffff;
@@ -58,14 +57,14 @@
 }
 :root[data-theme="light"] {
   --canvas: #fdfefd;
+  /* NEON GREENS ONLY in light too — soft green-led wash, no yellow/blue. Owner order 2026-08-05. */
   --canvas-glow:
     linear-gradient(180deg, rgba(253, 254, 253, 0) 0%, rgba(253, 254, 253, 0.72) 24%, #fdfefd 40%),
     linear-gradient(100deg,
-      rgba(20, 204, 93, 0.32) 0%,
-      rgba(163, 216, 60, 0.26) 26%,
-      rgba(232, 212, 0, 0.24) 48%,
-      rgba(87, 169, 255, 0.28) 76%,
-      rgba(20, 204, 93, 0.22) 100%);
+      rgba(20, 204, 93, 0.34) 0%,
+      rgba(88, 224, 133, 0.26) 30%,
+      rgba(163, 216, 60, 0.22) 62%,
+      rgba(20, 204, 93, 0.24) 100%);
   --surface: #ffffff;
   --surface-2: #eef1ee;
   --ink: #101312;
@@ -130,7 +129,10 @@ h1, h2, h3, .display { font-family: "Space Grotesk", "Inter", sans-serif; }
 /* --- Universal topbar --- */
 .topnav {
   height: 58px; flex-shrink: 0;
-  background: linear-gradient(180deg, var(--rail), var(--rail-2));
+  /* Faint neon sheen so the green hue starts at the very top menu, per owner. */
+  background:
+    linear-gradient(180deg, rgba(45, 242, 106, 0.11), rgba(45, 242, 106, 0) 75%),
+    linear-gradient(180deg, var(--rail), var(--rail-2));
   border-bottom: 1px solid var(--rail-border);
   display: flex; align-items: center; gap: 16px;
   padding: 0 18px 0 12px;
