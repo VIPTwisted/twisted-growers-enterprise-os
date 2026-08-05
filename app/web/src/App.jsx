@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useCallback } from "react";
 import jsQR from "jsqr";
 import { supabase, FUNCTIONS_URL } from "./lib/supabase.js";
+import { BudzScreen, CeoDashboard } from "./budz.jsx";
 
 // Laws: live numbers (2) · no fake data (3) · nothing hardwired (4) — navigation itself is DB rows.
 
@@ -3851,6 +3852,8 @@ export default function App() {
     metrc_report_import: <MetrcReportImport session={session} />,
     action_register: <RegisterScreen isExec={isExec} />,
     allocation_requests: <AllocationRequests session={session} isExec={isExec} />,
+    ceo_dashboard: <CeoDashboard go={setView} />,
+    budz: <BudzScreen go={setView} />,
     inventory_locator: <InventoryLocator go={setView} />,
     menu_manager: isExec
       ? <MenuManager onChanged={() => setNavVersion((v) => v + 1)} />
