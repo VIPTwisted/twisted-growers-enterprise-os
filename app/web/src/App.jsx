@@ -517,6 +517,55 @@ const chipTone = (v) => {
   if (/(active|released|passed|complete|done|ok|connected|approved|worked|scheduled|finished|rts|paid)/.test(s)) return "good";
   return "info";
 };
+/* QuickBooks-style date ranges — one dropdown, every date filter in the OS */
+const DATE_PRESETS = [
+  ["all", "All dates"], ["today", "Today"], ["yesterday", "Yesterday"],
+  ["this_week", "This week"], ["this_month", "This month"], ["this_quarter", "This quarter"], ["this_year", "This year"],
+  ["last_week", "Last week"], ["last_month", "Last month"], ["last_quarter", "Last quarter"], ["last_year", "Last year"],
+  ["last_30", "Last 30 days"], ["last_90", "Last 90 days"], ["ytd", "Year to date"], ["custom", "Custom range…"],
+];
+function presetRange(key) {
+  const d = new Date(); const y = d.getFullYear(), m = d.getMonth(), dt = d.getDate(), dow = d.getDay();
+  const q = Math.floor(m / 3);
+  const iso = (x) => `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, "0")}-${String(x.getDate()).padStart(2, "0")}`;
+  switch (key) {
+    case "today": return [iso(d), iso(d)];
+    case "yesterday": { const t = new Date(y, m, dt - 1); return [iso(t), iso(t)]; }
+    case "this_week": return [iso(new Date(y, m, dt - dow)), iso(new Date(y, m, dt - dow + 6))];
+    case "this_month": return [iso(new Date(y, m, 1)), iso(new Date(y, m + 1, 0))];
+    case "this_quarter": return [iso(new Date(y, q * 3, 1)), iso(new Date(y, q * 3 + 3, 0))];
+    case "this_year": return [iso(new Date(y, 0, 1)), iso(new Date(y, 11, 31))];
+    case "last_week": return [iso(new Date(y, m, dt - dow - 7)), iso(new Date(y, m, dt - dow - 1))];
+    case "last_month": return [iso(new Date(y, m - 1, 1)), iso(new Date(y, m, 0))];
+    case "last_quarter": return [iso(new Date(y, (q - 1) * 3, 1)), iso(new Date(y, q * 3, 0))];
+    case "last_year": return [iso(new Date(y - 1, 0, 1)), iso(new Date(y - 1, 11, 31))];
+    case "last_30": return [iso(new Date(y, m, dt - 30)), iso(d)];
+    case "last_90": return [iso(new Date(y, m, dt - 90)), iso(d)];
+    case "ytd": return [iso(new Date(y, 0, 1)), iso(d)];
+    default: return ["", ""];
+  }
+}
+function DateRangeSelect({ label, from, to, onFrom, onTo }) {
+  const [preset, setPreset] = useState("all");
+  const shown = !from && !to ? "all" : preset;
+  const pick = (k) => {
+    setPreset(k);
+    if (k === "custom") return;
+    const [f, t] = presetRange(k);
+    onFrom(f); onTo(t);
+  };
+  return (
+    <>
+      <span className="flab">{label}</span>
+      <select className="fdate" value={shown} onChange={(e) => pick(e.target.value)}>
+        {DATE_PRESETS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+      </select>
+      <input type="date" className="fdate" value={from} onChange={(e) => { setPreset("custom"); onFrom(e.target.value); }} />
+      <span className="flab">to</span>
+      <input type="date" className="fdate" value={to} onChange={(e) => { setPreset("custom"); onTo(e.target.value); }} />
+    </>
+  );
+}
 function ModuleScreen({ entry, actions }) {
   const [count, setCount] = useState(null);
   const [rows, setRows] = useState(null);
@@ -600,12 +649,7 @@ function ModuleScreen({ entry, actions }) {
             onKeyDown={(e) => { if (e.key === "Enter") setQ(qLive); }} />
           <button className="btn small" onClick={() => setQ(qLive)}>Find</button>
           {dateCol && (
-            <>
-              <span className="flab">{dateCol.replaceAll("_", " ")}</span>
-              <input type="date" className="fdate" value={dFrom} onChange={(e) => setDFrom(e.target.value)} />
-              <span className="flab">to</span>
-              <input type="date" className="fdate" value={dTo} onChange={(e) => setDTo(e.target.value)} />
-            </>
+            <DateRangeSelect label={dateCol.replaceAll("_", " ")} from={dFrom} to={dTo} onFrom={setDFrom} onTo={setDTo} />
           )}
           {(filtered || sort) && (
             <button className="btn small ghost" onClick={() => { setQ(""); setQLive(""); setStatusSel(null); setDFrom(""); setDTo(""); setSort(null); }}>Clear</button>
