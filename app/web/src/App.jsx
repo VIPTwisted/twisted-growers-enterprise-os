@@ -1604,6 +1604,154 @@ function TasksScreen({ session }) {
   );
 }
 
+/* ---------- Allocation Requests: staff request, an approver decides ---------- */
+function AllocationRequests({ session, isExec }) {
+  const [rows, setRows] = useState(null);
+  const [me, setMe] = useState(null);
+  const [tab, setTab] = useState("pending");
+  const [form, setForm] = useState(null);
+  const [decide, setDecide] = useState(null);
+  const [reason, setReason] = useState("");
+  const [qty, setQty] = useState("");
+  const [msg, setMsg] = useState(null);
+  const [ver, setVer] = useState(0);
+  useEffect(() => {
+    supabase.from("v_allocation_queue").select("*").then(({ data }) => setRows(data ?? []));
+    supabase.from("app_users").select("role, employee_id").eq("user_id", session.user.id).maybeSingle()
+      .then(async ({ data }) => {
+        let name = session.user.email;
+        let dept = null;
+        if (data?.employee_id) {
+          const { data: emp } = await supabase.from("employees").select("full_name, primary_department_id").eq("id", data.employee_id).maybeSingle();
+          if (emp) {
+            name = emp.full_name;
+            const { data: d } = await supabase.from("departments").select("name").eq("id", emp.primary_department_id).maybeSingle();
+            dept = d?.name ?? null;
+          }
+        }
+        setMe({ name, dept, role: data?.role });
+      });
+  }, [ver, session.user.id]);
+  const canDecide = isExec || me?.role === "manager";
+  const submit = async () => {
+    if (!form?.material_name?.trim() || !form?.quantity || !form?.destination?.trim()) {
+      setMsg("Material, quantity, and destination are required."); return;
+    }
+    const { error } = await supabase.from("allocation_requests").insert({
+      requested_by: session.user.id, requester_name: me?.name ?? session.user.email,
+      requester_department: me?.dept ?? null,
+      source_kind: form.source_kind ?? "harvest", source_ref: form.source_ref || null,
+      material_name: form.material_name.trim(), strain: form.strain || null,
+      quantity: Number(form.quantity), uom: form.uom || "g",
+      destination: form.destination.trim(), purpose: form.purpose || null,
+      needed_by: form.needed_by || null, priority: form.priority ?? "P2",
+    });
+    if (error) { setMsg(`Could not submit: ${error.message}`); return; }
+    setForm(null); setMsg("Request submitted — it is now in the approver's queue."); setVer((v) => v + 1);
+  };
+  const decideNow = async (status) => {
+    const patch = { status, decision_reason: reason.trim() || null, decider_name: me?.name ?? session.user.email };
+    if (status === "approved") patch.approved_quantity = qty ? Number(qty) : decide.quantity;
+    const { error } = await supabase.from("allocation_requests").update(patch).eq("id", decide.id);
+    if (error) { setMsg(error.message); return; }
+    setDecide(null); setReason(""); setQty(""); setMsg(`Request #${decide.request_no} ${status}.`); setVer((v) => v + 1);
+  };
+  if (rows === null) return <div className="empty"><div className="eicon">{I.scale}</div>Loading…</div>;
+  const tabs = [["pending", "Awaiting decision"], ["approved", "Approved"], ["denied", "Denied"], ["all", "All requests"]];
+  const list = rows.filter((r) => tab === "all" || r.status === tab);
+  return (
+    <>
+      <div className="pagehead">
+        <div><h1>Allocation Requests</h1>
+          <div className="sub">Cultivation and production request material; an approver approves or denies with a written reason. Every decision is on the record, with who and when.</div></div>
+        <button className="btn" onClick={() => { setForm(form ? null : { source_kind: "harvest", uom: "g", priority: "P2" }); setMsg(null); }}>
+          {form ? "Cancel" : "+ Request material"}
+        </button>
+      </div>
+      {msg && <div className="note" style={{ marginBottom: 10 }}>{msg}</div>}
+      {form && (
+        <div className="panel" style={{ maxWidth: "none", marginBottom: 14 }}>
+          <div className="ptitle">New material request — submitted as {me?.name ?? session.user.email}{me?.dept ? ` · ${me.dept}` : ""}</div>
+          <div className="argrid">
+            <label>Material<input placeholder="e.g. TG Gush Mintz flower" value={form.material_name ?? ""} onChange={(e) => setForm({ ...form, material_name: e.target.value })} /></label>
+            <label>Strain<input placeholder="optional" value={form.strain ?? ""} onChange={(e) => setForm({ ...form, strain: e.target.value })} /></label>
+            <label>Source<select value={form.source_kind} onChange={(e) => setForm({ ...form, source_kind: e.target.value })}>
+              {["harvest", "package", "lot", "purchased", "other"].map((k) => <option key={k} value={k}>{k}</option>)}</select></label>
+            <label>Source reference<input placeholder="harvest name or package tag" value={form.source_ref ?? ""} onChange={(e) => setForm({ ...form, source_ref: e.target.value })} /></label>
+            <label>Quantity<input type="number" value={form.quantity ?? ""} onChange={(e) => setForm({ ...form, quantity: e.target.value })} /></label>
+            <label>Unit<select value={form.uom} onChange={(e) => setForm({ ...form, uom: e.target.value })}>
+              {["g", "kg", "lb", "oz", "ea", "cases"].map((u) => <option key={u}>{u}</option>)}</select></label>
+            <label>Destination<input placeholder="e.g. Infused Pre-Roll line" value={form.destination ?? ""} onChange={(e) => setForm({ ...form, destination: e.target.value })} /></label>
+            <label>Needed by<input type="date" value={form.needed_by ?? ""} onChange={(e) => setForm({ ...form, needed_by: e.target.value })} /></label>
+            <label>Priority<select value={form.priority} onChange={(e) => setForm({ ...form, priority: e.target.value })}>
+              {["P0", "P1", "P2", "P3"].map((p) => <option key={p}>{p}</option>)}</select></label>
+            <label style={{ gridColumn: "1 / -1" }}>Purpose<input placeholder="what it is for" value={form.purpose ?? ""} onChange={(e) => setForm({ ...form, purpose: e.target.value })} /></label>
+          </div>
+          <button className="btn" style={{ marginTop: 10 }} onClick={submit}>Submit request</button>
+        </div>
+      )}
+      <div className="vetabs">
+        {tabs.map(([k, l]) => (
+          <button key={k} className={`vetab ${tab === k ? "on" : ""}`} onClick={() => setTab(k)}>
+            {l} <b style={{ marginLeft: 4 }}>{k === "all" ? rows.length : rows.filter((r) => r.status === k).length}</b>
+          </button>
+        ))}
+      </div>
+      {list.length === 0 ? (
+        <div className="empty"><div className="eicon">{I.scale}</div><b>Nothing here</b>Requests appear the moment someone submits one.</div>
+      ) : (
+        <div className="glist">
+          {list.map((r) => (
+            <div key={r.id} className="glrow">
+              <span className={`glstatus ${r.status === "approved" ? "done" : r.status === "denied" ? "blocked" : "open"}`}>{r.status}</span>
+              <span className={`glprio ${r.priority}`}>{r.priority}</span>
+              <div className="glmain">
+                <div className="gltitle">
+                  #{r.request_no} · {r.quantity} {r.uom} {r.material_name}{r.strain ? ` (${r.strain})` : ""} → {r.destination}
+                  {r.overdue && <span className="glowner" style={{ background: "var(--red)", color: "#fff" }}>PAST NEEDED BY</span>}
+                </div>
+                <div className="gldetail">
+                  Requested by {r.requester_name ?? "—"}{r.requester_department ? ` · ${r.requester_department}` : ""} on {r.requested_on}
+                  {r.needed_by ? ` · needed by ${r.needed_by}` : ""}
+                  {r.status === "pending" && r.days_waiting != null ? ` · waiting ${r.days_waiting} day${r.days_waiting === 1 ? "" : "s"}` : ""}
+                  {r.purpose ? ` · ${r.purpose}` : ""}
+                  {r.status !== "pending" && r.decider_name ? ` — ${r.status} by ${r.decider_name} on ${r.decided_on}${r.decision_reason ? `: ${r.decision_reason}` : ""}` : ""}
+                  {r.status === "approved" && r.approved_quantity != null && Number(r.approved_quantity) !== Number(r.quantity) ? ` · approved quantity ${r.approved_quantity} ${r.uom}` : ""}
+                </div>
+              </div>
+              {r.status === "pending" && canDecide && (
+                <button className="btn small" onClick={() => { setDecide(r); setQty(String(r.quantity)); setReason(""); }}>Decide</button>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+      {decide && (
+        <div className="vedrawerwrap" onClick={() => setDecide(null)}>
+          <div className="vedrawer" onClick={(e) => e.stopPropagation()}>
+            <div className="srhead"><span className="srtitle">Decide request #{decide.request_no}</span><button className="btn small ghost" onClick={() => setDecide(null)}>✕</button></div>
+            <div className="regtext" style={{ marginTop: 8 }}>
+              {decide.requester_name} requests <b>{decide.quantity} {decide.uom}</b> of {decide.material_name}
+              {decide.strain ? ` (${decide.strain})` : ""} for {decide.destination}.
+              {decide.purpose ? ` Purpose: ${decide.purpose}.` : ""}
+              {decide.needed_by ? ` Needed by ${decide.needed_by}.` : ""}
+              {decide.source_ref ? ` Source: ${decide.source_kind} ${decide.source_ref}.` : ""}
+            </div>
+            <label>Approved quantity (edit to approve a partial amount)</label>
+            <input type="number" value={qty} onChange={(e) => setQty(e.target.value)} />
+            <label>Reason / note — required to deny (15 characters or more)</label>
+            <textarea rows={4} value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Why this is approved or denied…" />
+            <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+              <button className="btn" onClick={() => decideNow("approved")}>Approve</button>
+              <button className="btn ghost" onClick={() => decideNow("denied")}>Deny</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
 /* ---------- Action Register: full briefs — what, why, how, recommendation ---------- */
 function RegisterScreen({ isExec }) {
   const [rows, setRows] = useState(null);
@@ -2190,6 +2338,7 @@ function PlannerScreen({ go, session }) {
   const [ym, setYm] = useState(() => { const d = new Date(); return { y: d.getFullYear(), m: d.getMonth() }; });
   const [events, setEvents] = useState(null);
   const [sel, setSel] = useState(null);
+  const [rangeEnd, setRangeEnd] = useState(null);
   const [planners, setPlanners] = useState([]);
   const [plan, setPlan] = useState(null);
   const [pform, setPform] = useState({ name: "", srcs: ["harvest", "shipment", "work_order", "expiry", "shift"], creating: false });
@@ -2297,29 +2446,51 @@ function PlannerScreen({ go, session }) {
               const k = iso(d);
               const list = events[k] ?? [];
               return (
-                <button key={k} className={`calcell ${k === todayIso ? "today" : ""} ${sel === k ? "sel" : ""}`} onClick={() => setSel(sel === k ? null : k)}>
+                <button key={k} className={`calcell ${k === todayIso ? "today" : ""} ${(sel === k || (rangeEnd && k >= (sel ?? "") && k <= rangeEnd)) ? "sel" : ""}`}
+                  onClick={(ev) => {
+                    if (ev.shiftKey && sel && k > sel) { setRangeEnd(k); return; }
+                    setRangeEnd(null); setSel(sel === k && !rangeEnd ? null : k);
+                  }}>
                   <span className="caldate">{d}</span>
                   {list.slice(0, 3).map((e, j) => (
-                    <span key={j} className="calev" style={{ borderLeftColor: e.color }} title={`${e.type}: ${e.label} — click for the full page`}
-                      onClick={(ce) => { ce.stopPropagation(); go(e.drill); }}>{e.label}</span>
+                    <span key={j} className="calev" style={{ borderLeftColor: e.color }} title={`${e.type}: ${e.label}`}>{e.label}</span>
                   ))}
                   {list.length > 3 && <span className="calmore">+{list.length - 3} more</span>}
                 </button>
               );
             })}
           </div>
-          {sel && (
-            <div className="msection">
-              <div className="mtitle"><span className="sq" /><h2>{sel}</h2><span className="rule" /></div>
-              {(events[sel] ?? []).length === 0 ? <p className="bnote">Nothing scheduled from live records this day.</p> :
-                (events[sel] ?? []).map((e, i) => (
-                  <button key={i} className="bres" onClick={() => go(e.drill)}>
-                    <span className="brl" style={{ color: e.color }}>{e.type}</span>
-                    <span className="brs">{e.label}</span><span className="bra">{I.caret}</span>
-                  </button>
+          {sel && (() => {
+            const days = Object.keys(events).filter((d) => (rangeEnd ? d >= sel && d <= rangeEnd : d === sel)).sort();
+            const total = days.reduce((a, d) => a + (events[d] ?? []).length, 0);
+            const byType = {};
+            for (const d of days) for (const e of events[d] ?? []) byType[e.type] = (byType[e.type] ?? 0) + 1;
+            return (
+              <div className="msection">
+                <div className="mtitle"><span className="sq" />
+                  <h2>{rangeEnd ? `${sel} → ${rangeEnd}` : new Date(sel + "T12:00:00").toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" })}</h2>
+                  <span className="rule" />
+                  <span className="note">{total} item{total === 1 ? "" : "s"}</span>
+                  <button className="btn small ghost" onClick={() => { setSel(null); setRangeEnd(null); }}>Clear</button>
+                </div>
+                <div className="statchips" style={{ marginBottom: 10 }}>
+                  {Object.entries(byType).map(([t, n]) => <span key={t} className="schip good"><b>{n}</b> {t}</span>)}
+                  <span className="schl">{rangeEnd ? "Range selected" : "Shift-click another day to select a range"}</span>
+                </div>
+                {total === 0 ? <p className="bnote">Nothing scheduled from live records for this {rangeEnd ? "range" : "day"}.</p> : days.map((d) => (
+                  <div key={d}>
+                    {rangeEnd && <div className="note" style={{ margin: "10px 0 4px", fontWeight: 700 }}>{new Date(d + "T12:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}</div>}
+                    {(events[d] ?? []).map((e, i) => (
+                      <button key={i} className="bres" onClick={() => go(e.drill)} title="Open the source record">
+                        <span className="brl" style={{ color: e.color }}>{e.type}</span>
+                        <span className="brs">{e.label}</span><span className="bra">{I.caret}</span>
+                      </button>
+                    ))}
+                  </div>
                 ))}
-            </div>
-          )}
+              </div>
+            );
+          })()}
         </>
       )}
     </>
@@ -3251,6 +3422,7 @@ export default function App() {
     golive: <GoLiveScreen isExec={isExec} go={setView} />,
     metrc_report_import: <MetrcReportImport session={session} />,
     action_register: <RegisterScreen isExec={isExec} />,
+    allocation_requests: <AllocationRequests session={session} isExec={isExec} />,
     menu_manager: isExec
       ? <MenuManager onChanged={() => setNavVersion((v) => v + 1)} />
       : <div className="empty"><div className="eicon">{I.shield}</div><b>Admin area</b>Menu Manager is restricted to executives. Ask an owner if a menu change is needed.</div>,
