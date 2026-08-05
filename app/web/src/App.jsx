@@ -517,7 +517,7 @@ const chipTone = (v) => {
   if (/(active|released|passed|complete|done|ok|connected|approved|worked|scheduled|finished|rts|paid)/.test(s)) return "good";
   return "info";
 };
-function ModuleScreen({ entry }) {
+function ModuleScreen({ entry, actions }) {
   const [count, setCount] = useState(null);
   const [rows, setRows] = useState(null);
   const [brk, setBrk] = useState(null);
@@ -580,6 +580,7 @@ function ModuleScreen({ entry }) {
           <div className="sub">{entry.description}</div>
         </div>
         {entry.milestone && <span className="pill gold">data loads {entry.milestone}</span>}
+        {actions}
       </div>
       <div className="modhead">
         <div className="mchip">{iconByName(entry.icon)}</div>
@@ -660,21 +661,24 @@ const MIRROR_SETS = [
   { key: "metrc_locations", label: "Locations" },
   { key: "metrc_sales", label: "Sales" },
 ];
-function MetrcMirror() {
+function MetrcMirror({ license }) {
   const [counts, setCounts] = useState({});
   const [tab, setTab] = useState(MIRROR_SETS[0].key);
   const [rows, setRows] = useState(null);
   useEffect(() => {
+    setCounts({});
     MIRROR_SETS.forEach((s) => {
-      supabase.from(s.key).select("*", { count: "exact", head: true })
-        .then(({ count }) => setCounts((c) => ({ ...c, [s.key]: count ?? 0 })));
+      let q = supabase.from(s.key).select("*", { count: "exact", head: true });
+      if (license) q = q.eq("license", license);
+      q.then(({ count }) => setCounts((c) => ({ ...c, [s.key]: count ?? 0 })));
     });
-  }, []);
+  }, [license]);
   useEffect(() => {
     setRows(null);
-    supabase.from(tab).select("*").order("id", { ascending: false }).limit(25)
-      .then(({ data }) => setRows(data ?? []));
-  }, [tab]);
+    let q = supabase.from(tab).select("*").order("id", { ascending: false }).limit(25);
+    if (license) q = q.eq("license", license);
+    q.then(({ data }) => setRows(data ?? []));
+  }, [tab, license]);
   const cols = rows?.length
     ? Object.keys(rows[0]).filter((k) =>
         k !== "raw" && k !== "id" && !k.endsWith("_id") && typeof rows[0][k] !== "object").slice(0, 9)
@@ -683,8 +687,10 @@ function MetrcMirror() {
     <>
       <div className="pagehead">
         <div>
-          <h1>Metrc</h1>
-          <div className="sub">The entire seed-to-sale platform, synced into your own database — every dataset the state API allows, full history. Every row expands to the complete raw Metrc payload: microscopic auditing, one click deep.</div>
+          <h1>{license ? `Metrc — ${license}` : "Metrc"}</h1>
+          <div className="sub">{license
+            ? `${license === "MC281714" ? "Cultivation" : "Manufacturing"} license only — every synced dataset filtered to ${license}. Every row expands to the complete raw payload.`
+            : "The entire seed-to-sale platform, synced into your own database — every dataset the state API allows, full history. Every row expands to the complete raw Metrc payload: microscopic auditing, one click deep."}</div>
         </div>
       </div>
       <div className="tabs">
@@ -847,6 +853,10 @@ const SYNC_SOURCES = [
     desc: "All nine product tabs + 3rd-party material, exactly as the team keeps them." },
   { key: "quickbooks", label: "QuickBooks Online", fn: null, live: false,
     desc: "Invoices, payments, expenses, customers — connects once Intuit app keys are stored." },
+  { key: "monday", label: "Monday.com", fn: null, live: false,
+    desc: "One-way board sync (idempotent upserts, conflict queue) — connects once workspace/board IDs are stored." },
+  { key: "clickup", label: "ClickUp", fn: null, live: false,
+    desc: "Import/sync tasks, docs, and spaces from a ClickUp workspace — connects once an API token is stored." },
 ];
 function SyncCenter({ session }) {
   const [open, setOpen] = useState(false);
@@ -2245,6 +2255,11 @@ export default function App() {
     settings: <Settings session={session} prefs={prefs} />,
     help: <Help />,
     metrc_mirror: <MetrcMirror />,
+    metrc_mc: <MetrcMirror license="MC281714" />,
+    metrc_mp: <MetrcMirror license="MP281909" />,
+    fg_metrc_check: current
+      ? <ModuleScreen entry={current} actions={<SyncCenter session={session} />} />
+      : <ControlTower go={setView} session={session} />,
     menu_manager: isExec
       ? <MenuManager onChanged={() => setNavVersion((v) => v + 1)} />
       : <div className="empty"><div className="eicon">{I.shield}</div><b>Admin area</b>Menu Manager is restricted to executives. Ask an owner if a menu change is needed.</div>,
