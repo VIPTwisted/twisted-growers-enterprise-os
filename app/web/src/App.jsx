@@ -292,8 +292,44 @@ function Auth() {
 }
 
 /* ---------- Raw record inspector (microscopic drill-down) ---------- */
+const fieldLabel = (k) =>
+  String(k).replace(/_/g, " ").replace(/([a-z0-9])([A-Z])/g, "$1 $2").replace(/\b\w/g, (c) => c.toUpperCase());
+function DetailGrid({ obj, depth = 0 }) {
+  const scalars = [], nested = [];
+  Object.entries(obj ?? {}).forEach(([k, v]) => {
+    if (v === null || v === undefined || v === "") return;
+    if (Array.isArray(v)) {
+      if (!v.length) return;
+      if (typeof v[0] === "object") nested.push([k, null, v]);
+      else scalars.push([k, v.join(", ")]);
+      return;
+    }
+    if (typeof v === "object") { nested.push([k, v, null]); return; }
+    scalars.push([k, typeof v === "boolean" ? (v ? "Yes" : "No") : String(v)]);
+  });
+  return (
+    <div>
+      {scalars.length > 0 && (
+        <div className="dgrid">
+          {scalars.map(([k, v]) => (
+            <div key={k} className="df"><div className="dk">{fieldLabel(k)}</div><div className="dv">{v}</div></div>
+          ))}
+        </div>
+      )}
+      {depth < 2 && nested.map(([k, o, arr]) => (
+        <div key={k} className="dsub">
+          <div className="dst">{fieldLabel(k)}</div>
+          {o ? <DetailGrid obj={o} depth={depth + 1} />
+            : arr.slice(0, 6).map((it, i) => <div key={i} className="ditem"><DetailGrid obj={it} depth={depth + 1} /></div>)}
+          {arr && arr.length > 6 && <div className="dmore">+ {arr.length - 6} more in raw payload</div>}
+        </div>
+      ))}
+    </div>
+  );
+}
 function RawRow({ row, cols }) {
   const [open, setOpen] = useState(false);
+  const [showRaw, setShowRaw] = useState(false);
   return (
     <>
       <tr onClick={() => setOpen(!open)} style={{ cursor: "pointer" }}>
@@ -301,8 +337,16 @@ function RawRow({ row, cols }) {
       </tr>
       {open && (
         <tr>
-          <td colSpan={cols.length} style={{ whiteSpace: "pre-wrap", fontFamily: "ui-monospace, monospace", fontSize: 11.5, background: "var(--surface-2)", maxWidth: 0 }}>
-            {JSON.stringify(row, null, 2)}
+          <td colSpan={cols.length} className="detailcell">
+            <div className="dhead">
+              <span className="dtitle">Full record — every field, microscopic</span>
+              <button className="dtoggle" onClick={(e) => { e.stopPropagation(); setShowRaw(!showRaw); }}>
+                {showRaw ? "Readable view" : "Raw payload (audit)"}
+              </button>
+            </div>
+            {showRaw
+              ? <pre className="drawjson">{JSON.stringify(row, null, 2)}</pre>
+              : <DetailGrid obj={row} />}
           </td>
         </tr>
       )}
@@ -591,8 +635,66 @@ function TodayBoard({ go }) {
   );
 }
 
+/* ---------- Sync Center: one button, every connected source (Control Tower) ---------- */
+const SYNC_SOURCES = [
+  { key: "metrc", label: "Metrc (state system)", fn: "metrc-sync", live: true,
+    desc: "Packages, plants, harvests, batches, transfers, items, strains, locations — full history." },
+  { key: "sheet_fg", label: "Finished-Goods Google Sheet", fn: "sheet-sync", live: true,
+    desc: "All nine product tabs + 3rd-party material, exactly as the team keeps them." },
+  { key: "quickbooks", label: "QuickBooks Online", fn: null, live: false,
+    desc: "Invoices, payments, expenses, customers — connects once Intuit app keys are stored." },
+];
+function SyncCenter({ session }) {
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(null);
+  const [out, setOut] = useState({});
+  const run = async (src) => {
+    if (!src.fn) return;
+    setBusy(src.key);
+    setOut((o) => ({ ...o, [src.key]: "Running…" }));
+    try {
+      const r = await fetch(`${FUNCTIONS_URL}/${src.fn}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+      });
+      const j = await r.json();
+      setOut((o) => ({ ...o, [src.key]: j.ok
+        ? `Done — ${j.total ?? Object.entries(j.results ?? {}).map(([k, v]) => `${k}: ${v}`).join(", ")}${j.total ? " records" : ""}`
+        : `Failed: ${j.error ?? "unknown error"}` }));
+    } catch (e) {
+      setOut((o) => ({ ...o, [src.key]: `Failed: ${String(e)}` }));
+    }
+    setBusy(null);
+  };
+  const runAll = async () => { for (const s of SYNC_SOURCES.filter((x) => x.live)) await run(s); };
+  return (
+    <div className="syncwrap">
+      <button className="btn syncbtn" onClick={() => setOpen((v) => !v)}>{I.plug} Sync</button>
+      {open && (
+        <div className="syncpanel">
+          <div className="sphead">
+            <span>Sync Center</span>
+            <button className="btn small" disabled={busy !== null} onClick={runAll}>Sync all</button>
+          </div>
+          {SYNC_SOURCES.map((s) => (
+            <div key={s.key} className="sprow">
+              <div className="spmain">
+                <div className="spname">{s.label}{!s.live && <span className="mtag">SOON</span>}</div>
+                <div className="spdesc">{out[s.key] ?? s.desc}</div>
+              </div>
+              <button className="btn small" disabled={!s.live || busy !== null} onClick={() => run(s)}>
+                {busy === s.key ? "…" : "Sync"}
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* ---------- Control Tower ---------- */
-function ControlTower({ go }) {
+function ControlTower({ go, session }) {
   const kpis = useLiveCounts();
   const [rows, setRows] = useState(null);
   const [err, setErr] = useState(null);
@@ -617,21 +719,22 @@ function ControlTower({ go }) {
           <h1>Executive Control Tower</h1>
           <div className="sub">Every number is computed from live records at read time — and every card drills straight into its source module.</div>
         </div>
+        {session && <SyncCenter session={session} />}
       </div>
       {rows && (
         <div className="hero">
-          <div className="pulse">
+          <button className="pulse" onClick={() => go("alerts")} title="Open the Action Register">
             <div className={`ring ${calm ? "calm" : "alert"}`}>{calm ? I.check : I.shield}</div>
             <div>
               <div className="pt">Operational status</div>
               <div className={`pv ${calm ? "calm" : "alert"}`}>{calm ? "ALL CLEAR" : `${alertCount} ALERT${alertCount > 1 ? "S" : ""}`}</div>
             </div>
-          </div>
+          </button>
           <div className="stats">
-            <div className="stat"><div className="sl">Metrc link</div><div className="sv">{sync == null ? "…" : sync.connected ? <span className="u">CONNECTED</span> : <small>not connected</small>}</div></div>
-            <div className="stat"><div className="sl">Last sync</div><div className="sv">{sync == null ? "…" : sync.lastOkAt ? timeAgo(sync.lastOkAt) : <small>never</small>}</div></div>
-            <div className="stat"><div className="sl">Records synced</div><div className="sv">{sync == null ? "…" : sync.totalRecords.toLocaleString()}</div></div>
-            <div className="stat"><div className="sl">Cash data age</div><div className="sv">{cashDays >= 999 ? <small>never updated</small> : `${cashDays}d`}</div></div>
+            <button className="stat" onClick={() => go("integrations")} title="Open Integrations"><div className="sl">Metrc link</div><div className="sv">{sync == null ? "…" : sync.connected ? <span className="u">CONNECTED</span> : <small>not connected</small>}</div></button>
+            <button className="stat" onClick={() => go("integrations")} title="Open Integrations"><div className="sl">Last sync</div><div className="sv">{sync == null ? "…" : sync.lastOkAt ? timeAgo(sync.lastOkAt) : <small>never</small>}</div></button>
+            <button className="stat" onClick={() => go("metrc_mirror")} title="Open Metrc"><div className="sl">Records synced</div><div className="sv">{sync == null ? "…" : sync.totalRecords.toLocaleString()}</div></button>
+            <button className="stat" onClick={() => go("cash")} title="Open Cash & Overhead"><div className="sl">Cash data age</div><div className="sv">{cashDays >= 999 ? <small>never updated</small> : `${cashDays}d`}</div></button>
           </div>
         </div>
       )}
@@ -690,6 +793,71 @@ function ControlTower({ go }) {
         </div>
       ))}
       {rows && <div className="note" style={{ marginTop: 18 }}>Zeros before operating data is connected mean “no records yet”, not “all clear”. Connect Metrc and load operations to make this board speak.</div>}
+    </>
+  );
+}
+
+/* ---------- Finished Goods: the team's live sheet, tab for tab ---------- */
+const FG_TABS = [
+  { key: "solventless", label: "Solventless", cols: ["current_status","bulk_metrc_tag","prefill_metrc_tag","final_metrc_tag","production_batch","strain_flavor","size_g","total_bulk","total_filled","total_packaged","cases_available","creation_date","expiration_date","tac_pct"] },
+  { key: "hydrocarbon", label: "Hydrocarbon", cols: ["current_status","bulk_metrc_tag","prefill_metrc_tag","final_metrc_tag","production_batch","strain_flavor","product_description","size_g","total_bulk","total_filled","total_packaged","cases_available","creation_date","expiration_date"] },
+  { key: "infused_preroll", label: "Infused PreRolls", cols: ["current_status","bulk_metrc_tag","final_metrc_tag","production_batch","strain_flavor","total_bulk","total_filled","total_packaged","case_size","cases_available","creation_date","expiration_date","tac_pct"] },
+  { key: "raw_preroll_1g", label: "1.0g Raw", cols: ["current_status","projected_avail","bulk_metrc_tag","final_metrc_tag","production_batch","strain_flavor","total_bulk","total_filled","total_packaged","case_size","cases_available","expiration_date","tac_pct","terpene_pct"] },
+  { key: "raw_preroll_05g", label: "0.5g Raw", cols: ["current_status","bulk_metrc_tag","final_metrc_tag","production_batch","strain_flavor","total_bulk","total_filled","total_units","total_gram_equivalent","cases_available","expiration_date","tac_pct","thca_pct"] },
+  { key: "economy_raw_1g", label: "1.0g Economy", cols: ["current_status","projected_avail","bulk_metrc_tag","final_metrc_tag","production_batch","strain_flavor","size_g","total_bulk","total_filled","total_packaged","case_size","cases_available","expiration_date","tac_pct"] },
+  { key: "economy_infused", label: "Economy Infused", cols: ["current_status","bulk_metrc_tag","final_metrc_tag","production_batch","strain_flavor","size_g","total_bulk","total_filled","total_gram_equivalent","total_packaged","case_size","cases_available","expiration_date","tac_pct"] },
+  { key: "economy_raw_05g", label: "0.5g Economy", cols: ["current_status","bulk_metrc_tag","final_metrc_tag","production_batch","strain_flavor","size_g","total_gram_equivalent","total_packaged","case_size","cases_available","expiration_date","tac_pct"] },
+  { key: "vaporizer", label: "Vaporizers", cols: ["current_status","bulk_metrc_tag","final_metrc_tag","production_batch","strain_flavor","size_g","total_packaged","case_size","cases_available","creation_date","expiration_date","tac_pct"] },
+];
+function FinishedGoods({ session }) {
+  const [tab, setTab] = useState(FG_TABS[0].key);
+  const [counts, setCounts] = useState({});
+  const [rows, setRows] = useState(null);
+  const [ver, setVer] = useState(0);
+  useEffect(() => {
+    FG_TABS.forEach((t) => {
+      supabase.from("product_inventory").select("*", { count: "exact", head: true }).eq("category", t.key)
+        .then(({ count }) => setCounts((c) => ({ ...c, [t.key]: count ?? 0 })));
+    });
+  }, [ver]);
+  useEffect(() => {
+    setRows(null);
+    supabase.from("product_inventory").select("*").eq("category", tab).order("source_row")
+      .then(({ data }) => setRows(data ?? []));
+  }, [tab, ver]);
+  const spec = FG_TABS.find((t) => t.key === tab);
+  return (
+    <>
+      <div className="pagehead">
+        <div>
+          <h1>Finished Goods</h1>
+          <div className="sub">The team's live inventory sheet, mirrored tab for tab. Crews keep working in Google Sheets — one press of Sync updates the whole platform for everyone.</div>
+        </div>
+        {session && <SyncCenter session={session} />}
+      </div>
+      <div className="tabs">
+        {FG_TABS.map((t) => (
+          <button key={t.key} className={tab === t.key ? "on" : ""} onClick={() => setTab(t.key)}>
+            {t.label}<span className="cnt">{counts[t.key] ?? "…"}</span>
+          </button>
+        ))}
+      </div>
+      {rows === null ? (
+        <div className="empty"><div className="eicon">{I.box}</div>Loading…</div>
+      ) : rows.length === 0 ? (
+        <div className="empty"><div className="eicon">{I.box}</div><b>No rows in this product line yet</b>Press Sync to pull the latest from the team's sheet.</div>
+      ) : (
+        <div className="tablewrap">
+          <table>
+            <thead><tr>{spec.cols.map((c) => <th key={c}>{c.replaceAll("_", " ")}</th>)}</tr></thead>
+            <tbody>
+              {rows.map((r) => (
+                <RawRow key={r.id} row={r} cols={spec.cols} />
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </>
   );
 }
@@ -1004,7 +1172,8 @@ export default function App() {
   const isOpen = (name) => openCats[name] !== false;
 
   const special = {
-    tower: <ControlTower go={setView} />,
+    tower: <ControlTower go={setView} session={session} />,
+    fg_inventory: <FinishedGoods session={session} />,
     people: <People />,
     integrations: <Integrations session={session} />,
     settings: <Settings session={session} prefs={prefs} />,

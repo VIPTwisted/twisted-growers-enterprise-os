@@ -452,3 +452,37 @@ tbody tr:hover { background: var(--row-hover); }
 .umenu .uitem svg { width: 15px; height: 15px; }
 .umenu .uitem:hover { background: var(--rail-item-hover-bg); color: var(--rail-item-hover); }
 .umenu .uitem.uout:hover { color: #ff2e5f; }
+
+/* Readable record detail (raw JSON behind audit toggle) */
+.detailcell { background: var(--surface-2); padding: 14px 16px !important; }
+.dhead { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.dtitle { font-size: 10.5px; font-weight: 800; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); }
+.dtoggle { background: none; border: 1px solid var(--line); color: var(--muted); border-radius: 5px; padding: 4px 10px; font-size: 11px; font-weight: 700; cursor: pointer; font-family: inherit; }
+.dtoggle:hover { border-color: var(--neon-line); color: var(--neon); }
+.dgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 8px 18px; }
+.df .dk { font-size: 10px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.df .dv { font-size: 13px; color: var(--ink); word-break: break-word; margin-top: 1px; }
+.dsub { margin-top: 12px; border-top: 1px solid var(--line); padding-top: 10px; }
+.dsub .dst { font-size: 10.5px; font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase; color: var(--neon); margin-bottom: 8px; }
+.ditem { border-left: 2px solid var(--line); padding-left: 12px; margin-bottom: 10px; }
+.dmore { font-size: 11.5px; color: var(--muted); margin-top: 4px; }
+.drawjson { white-space: pre-wrap; font-family: ui-monospace, monospace; font-size: 11.5px; color: var(--ink-2); max-height: 480px; overflow: auto; }
+
+/* Hero stats: everything drills (sitewide rule) */
+button.pulse, button.stat { background: none; border: none; font-family: inherit; color: inherit; text-align: left; cursor: pointer; border-radius: 6px; transition: background 0.13s; }
+button.pulse:hover, button.stat:hover { background: var(--row-hover); }
+
+/* Sync Center */
+.syncwrap { position: relative; }
+.syncbtn { display: inline-flex; align-items: center; gap: 8px; }
+.syncbtn svg { width: 16px; height: 16px; }
+.syncpanel {
+  position: absolute; right: 0; top: 46px; width: 380px; z-index: 55;
+  background: var(--surface); border: 1px solid var(--line); border-radius: 8px;
+  box-shadow: var(--shadow-lg); padding: 12px;
+}
+.syncpanel .sphead { display: flex; align-items: center; justify-content: space-between; padding: 2px 4px 10px; font-family: "Space Grotesk", sans-serif; font-weight: 700; font-size: 13px; letter-spacing: 0.06em; text-transform: uppercase; }
+.syncpanel .sprow { display: flex; align-items: center; gap: 12px; border-top: 1px solid var(--line); padding: 10px 4px; }
+.syncpanel .spmain { flex: 1; min-width: 0; }
+.syncpanel .spname { font-size: 13.5px; font-weight: 700; display: flex; align-items: center; gap: 8px; }
+.syncpanel .spdesc { font-size: 11.5px; color: var(--muted); line-height: 1.45; margin-top: 2px; }
