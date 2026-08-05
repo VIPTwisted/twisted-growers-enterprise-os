@@ -911,3 +911,11 @@ button.teamcard:hover { border-color: var(--neon-line); }
 /* Planner: clickable calendar chips */
 .calev.clickable { cursor: pointer; }
 .calev.clickable:hover { background: var(--row-hover); }
+
+/* Sitewide status colour code — additional semantic tones */
+.schip.hot { background: var(--alert-elevated); border-color: var(--alert-elevated); color: #1c0e00; }
+.schip.gold { background: #f5c542; border-color: #f5c542; color: #3a2b00; }
+.schip.neutral { background: transparent; border-color: var(--line); color: var(--ink-2); }
+.legendbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 0 0 12px; }
+.legendbar .lgi { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; color: var(--muted); }
+.legendbar .lgd { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }

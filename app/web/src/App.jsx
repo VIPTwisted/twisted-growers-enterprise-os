@@ -510,11 +510,18 @@ const formatCell = (v) => {
 
 /* ---------- Generic dynamic module (registry-driven, drill-down built in) ---------- */
 const STATUS_COLS = ["status", "state", "source_state", "approval", "release", "exception_code", "room_cycle_flag"];
+/* SITEWIDE STATUS COLOUR CODE - one classifier every page shares.
+   red = loss or exposure · orange = needs attention · yellow = waiting
+   green = good and sellable · blue = money in or moving · gold = free goods */
 const chipTone = (v) => {
   const s = String(v).toLowerCase();
-  if (/(fail|block|overdue|reject|called_out|no_show|violation|expired|void)/.test(s)) return "bad";
-  if (/(pend|hold|submit|due|risk|late|await|review|quarant)/.test(s)) return "warn";
-  if (/(active|released|passed|complete|done|ok|connected|approved|worked|scheduled|finished|rts|paid)/.test(s)) return "good";
+  if (/(destroy|waste|wasted|missing|lost|unaccounted|shrink|theft|stolen|discrepan|shortage|fail|recall|investigat|violation|critical|denied|reject|void|blocked|expired|do not sell)/.test(s)) return "bad";
+  if (/(hold|onhold|on hold|overdue|late|elevated|at risk|unconfirmed|not confirmed|aging|remediat|quarant|no_show|called_out)/.test(s)) return "hot";
+  if (/(pend|submit|await|testing|review|watch|due|in progress|in_progress|drying|curing|planned|scheduled|open|requested|propagation)/.test(s)) return "warn";
+  if (/(sold|shipped|in transit|intransit|delivered|received|closed|invoiced|paid|leaving)/.test(s)) return "info";
+  if (/(free|freebie|sample|promo|donation|comp)/.test(s)) return "gold";
+  if (/(active|in stock|sellable|passed|testpassed|retestpassed|released|complete|done|finished|approved|reconciled|ok|clear|connected|full custody|on plan|worked|rts|growing|flowering|vegetative)/.test(s)) return "good";
+  if (/(inactive|retired|harvested|archived|not submitted|notsubmitted)/.test(s)) return "neutral";
   return "info";
 };
 /* Sitewide color code inside every table: red = issue, green = good, amber = watch, blue = neutral info */
@@ -586,6 +593,8 @@ function ModuleScreen({ entry, actions }) {
   const [qLive, setQLive] = useState("");
   const [q, setQ] = useState("");
   const [statusSel, setStatusSel] = useState(null);
+  const [dimSel, setDimSel] = useState({});
+  const [dims, setDims] = useState({});
   const [dFrom, setDFrom] = useState("");
   const [dTo, setDTo] = useState("");
   const [sort, setSort] = useState(null);
@@ -599,9 +608,9 @@ function ModuleScreen({ entry, actions }) {
   }, [entry.view_key, entry.table_ref]);
 
   const textCols = sample ? Object.keys(sample).filter((k) => typeof sample[k] === "string" && k !== "raw").slice(0, 8) : [];
-  const dateCol = sample ? Object.keys(sample).find((k) => /(_date|_on|_at$|^date)/.test(k)) : null;
+  const dateCol = sample ? Object.keys(sample).find((k) => /(_date|_on$|_on_|_at$|^date|^month|period)/.test(k)) : null;
   const statusCol = sample ? STATUS_COLS.find((k) => k in sample) : null;
-  const filtered = !!(q || statusSel || dFrom || dTo);
+  const filtered = !!(q || statusSel || dFrom || dTo || Object.values(dimSel).some(Boolean));
 
   useEffect(() => {
     if (!entry.table_ref || sample === null) return;
