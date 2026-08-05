@@ -6,15 +6,15 @@
    ============================================================ */
 :root, :root[data-theme="dark"] {
   --canvas: #0a0c0b;
-  /* NEON GREENS ONLY — no yellow, no gold: those read brown over black. Owner order 2026-08-05. */
+  /* Dark hue per owner: NEON green -> neon yellow -> neon aqua -> orange, one even wash from the top menu down. */
   --canvas-glow:
-    linear-gradient(180deg, rgba(10, 12, 11, 0) 0%, rgba(10, 12, 11, 0.80) 28%, #0a0c0b 46%),
+    linear-gradient(180deg, rgba(10, 12, 11, 0) 0%, rgba(10, 12, 11, 0.78) 30%, #0a0c0b 48%),
     linear-gradient(100deg,
-      rgba(45, 242, 106, 0.26) 0%,
-      rgba(92, 255, 146, 0.19) 30%,
-      rgba(184, 242, 45, 0.13) 62%,
-      rgba(45, 242, 106, 0.17) 100%),
-    radial-gradient(1100px 500px at 90% -10%, rgba(45, 242, 106, 0.09), transparent 60%);
+      rgba(57, 255, 20, 0.30) 0%,
+      rgba(255, 234, 0, 0.20) 30%,
+      rgba(0, 229, 255, 0.24) 62%,
+      rgba(255, 138, 0, 0.20) 100%),
+    radial-gradient(1100px 500px at 90% -10%, rgba(57, 255, 20, 0.10), transparent 60%);
   --surface: #111513;
   --surface-2: #181d1a;
   --ink: #ffffff;
@@ -57,14 +57,14 @@
 }
 :root[data-theme="light"] {
   --canvas: #fdfefd;
-  /* Light hue per owner: neon green -> yellow -> orange, one even wash down the page. */
+  /* Light hue per owner: NEON green -> yellow -> orange, one even wash from the top menu down. */
   --canvas-glow:
-    linear-gradient(180deg, rgba(253, 254, 253, 0) 0%, rgba(253, 254, 253, 0.72) 24%, #fdfefd 40%),
+    linear-gradient(180deg, rgba(253, 254, 253, 0) 0%, rgba(253, 254, 253, 0.70) 26%, #fdfefd 42%),
     linear-gradient(100deg,
-      rgba(20, 204, 93, 0.34) 0%,
-      rgba(163, 216, 60, 0.28) 32%,
-      rgba(232, 212, 0, 0.26) 60%,
-      rgba(255, 138, 0, 0.20) 100%);
+      rgba(0, 224, 84, 0.40) 0%,
+      rgba(186, 255, 0, 0.32) 32%,
+      rgba(255, 214, 0, 0.30) 60%,
+      rgba(255, 138, 0, 0.24) 100%);
   --surface: #ffffff;
   --surface-2: #eef1ee;
   --ink: #101312;
@@ -129,7 +129,10 @@ h1, h2, h3, .display { font-family: "Space Grotesk", "Inter", sans-serif; }
 /* --- Universal topbar --- */
 .topnav {
   height: 58px; flex-shrink: 0;
-  background: linear-gradient(180deg, var(--rail), var(--rail-2));
+  /* Translucent over the fixed canvas glow: the ONE page hue starts inside the top menu itself. */
+  background: linear-gradient(180deg, rgba(4, 6, 5, 0.38), rgba(4, 6, 5, 0.60));
+  backdrop-filter: blur(9px);
+  -webkit-backdrop-filter: blur(9px);
   border-bottom: 1px solid var(--rail-border);
   display: flex; align-items: center; gap: 16px;
   padding: 0 18px 0 12px;
@@ -838,4 +841,9 @@ button.teamcard:hover { border-color: var(--neon-line); }
   --rail-active-ink: #051509;
   --rail-active-glow: 0 0 20px rgba(45, 242, 106, 0.35);
   --row-hover: rgba(45, 242, 106, 0.045);
+}
+
+/* Light mode: translucent white top bar so the same neon wash shows through it. */
+:root[data-theme="light"] .topnav {
+  background: linear-gradient(180deg, rgba(253, 254, 253, 0.28), rgba(253, 254, 253, 0.55));
 }
