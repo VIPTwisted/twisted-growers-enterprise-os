@@ -317,17 +317,37 @@ const formatCell = (v) => {
 };
 
 /* ---------- Generic dynamic module (registry-driven, drill-down built in) ---------- */
+const STATUS_COLS = ["status", "state", "source_state", "approval", "release", "exception_code", "room_cycle_flag"];
+const chipTone = (v) => {
+  const s = String(v).toLowerCase();
+  if (/(fail|block|overdue|reject|called_out|no_show|violation|expired|void)/.test(s)) return "bad";
+  if (/(pend|hold|submit|due|risk|late|await|review|quarant)/.test(s)) return "warn";
+  if (/(active|released|passed|complete|done|ok|connected|approved|worked|scheduled|finished|rts|paid)/.test(s)) return "good";
+  return "info";
+};
 function ModuleScreen({ entry }) {
   const [count, setCount] = useState(null);
   const [rows, setRows] = useState(null);
+  const [brk, setBrk] = useState(null);
   useEffect(() => {
-    setCount(null); setRows(null);
-    if (!entry.table_ref) return;
+    setCount(null); setRows(null); setBrk(null);
+    if (!entry.table_ref) { setCount(0); setRows([]); return; }
     supabase.from(entry.table_ref).select("*", { count: "exact", head: true })
       .then(({ count: c }) => setCount(c ?? 0));
     supabase.from(entry.table_ref).select("*").limit(20)
       .then(({ data }) => setRows(data ?? []));
   }, [entry.view_key, entry.table_ref]);
+  useEffect(() => {
+    if (!entry.table_ref || !rows?.length) return;
+    const sc = STATUS_COLS.find((k) => k in rows[0]);
+    if (!sc) return;
+    supabase.from(entry.table_ref).select(sc).limit(1000).then(({ data }) => {
+      if (!data?.length) return;
+      const m = {};
+      data.forEach((r) => { const v = r[sc] ?? "—"; m[v] = (m[v] || 0) + 1; });
+      setBrk({ col: sc, parts: Object.entries(m).sort((a, b) => b[1] - a[1]).slice(0, 6) });
+    });
+  }, [rows, entry.table_ref]);
 
   const cols = rows?.length
     ? Object.keys(rows[0]).filter((k) => k !== "raw" && typeof rows[0][k] !== "object").slice(0, 8)
@@ -353,6 +373,14 @@ function ModuleScreen({ entry }) {
           <div className="l">records</div>
         </div>
       </div>
+      {brk && (
+        <div className="statchips">
+          {brk.parts.map(([v, n]) => (
+            <span key={v} className={`schip ${chipTone(v)}`}><b>{n.toLocaleString()}</b> {String(v).replaceAll("_", " ")}</span>
+          ))}
+          <span className="schl">live breakdown by {brk.col.replaceAll("_", " ")}</span>
+        </div>
+      )}
       {rows === null ? (
         <div className="empty"><div className="eicon">{I.gauge}</div>Loading…</div>
       ) : rows.length === 0 ? (
@@ -373,7 +401,7 @@ function ModuleScreen({ entry }) {
   );
 }
 
-/* ---------- Metrc Mirror: the full state picture, fully wired ---------- */
+/* ---------- Metrc: the entire seed-to-sale platform, synced and drillable ---------- */
 const MIRROR_SETS = [
   { key: "metrc_packages", label: "Packages" },
   { key: "metrc_plants", label: "Plants" },
@@ -407,8 +435,8 @@ function MetrcMirror() {
     <>
       <div className="pagehead">
         <div>
-          <h1>Metrc Mirror</h1>
-          <div className="sub">Your complete state-system picture, synced into your own database. Every row expands to the full raw Metrc payload — microscopic auditing, one click deep.</div>
+          <h1>Metrc</h1>
+          <div className="sub">The entire seed-to-sale platform, synced into your own database — every dataset the state API allows, full history. Every row expands to the complete raw Metrc payload: microscopic auditing, one click deep.</div>
         </div>
       </div>
       <div className="tabs">
@@ -436,21 +464,131 @@ function MetrcMirror() {
 
 /* ---------- Live data KPIs (real counts only) ---------- */
 const KPI_TABLES = [
-  ["metrc_packages", "Metrc Packages", "#00d4ff"],
-  ["metrc_plants", "Metrc Plants", "#5cff92"],
-  ["metrc_harvests", "Metrc Harvests", "#b366ff"],
-  ["metrc_transfers", "Transfers", "#ffea00"],
-  ["lots", "Lots", "#ff8a00"],
-  ["employees", "Employees", "#ff2e9e"],
+  ["metrc_packages", "Metrc Packages", "#00d4ff", "metrc_mirror"],
+  ["metrc_plants", "Metrc Plants", "#5cff92", "metrc_mirror"],
+  ["metrc_harvests", "Metrc Harvests", "#b366ff", "metrc_mirror"],
+  ["metrc_transfers", "Transfers", "#ffea00", "metrc_mirror"],
+  ["harvest_schedule", "Harvest Events", "#2df26a", "harvest_schedule"],
+  ["lots", "Lots", "#ff8a00", "lots"],
+  ["employees", "Employees", "#ff2e9e", "people"],
 ];
 function useLiveCounts() {
   const [c, setC] = useState(null);
   useEffect(() => {
     Promise.all(KPI_TABLES.map(([t]) =>
       supabase.from(t).select("*", { count: "exact", head: true }).then(({ count }) => count ?? 0)
-    )).then((counts) => setC(KPI_TABLES.map(([t, l, col], i) => ({ t, l, col, n: counts[i] }))));
+    )).then((counts) => setC(KPI_TABLES.map(([t, l, col, drill], i) => ({ t, l, col, drill, n: counts[i] }))));
   }, []);
   return c;
+}
+
+/* ---------- Today's Operations: the daily run-the-company board (live tables only) ---------- */
+const todayISO = () => new Date().toISOString().slice(0, 10);
+const TODAY_BOARDS = [
+  { key: "harvest", title: "Harvest Schedule", drill: "harvest_schedule", color: "#5cff92", icon: "leafline",
+    load: async () => {
+      const { data, count } = await supabase.from("harvest_schedule")
+        .select("harvest_date,flower_room,cultivar,projected_weight_lbs", { count: "exact" })
+        .gte("harvest_date", todayISO()).order("harvest_date").limit(4);
+      return { n: count ?? 0, unit: "upcoming harvest events", lines: (data ?? []).map((r) => [`${r.harvest_date} · ${r.flower_room ?? "—"}`, `${r.cultivar ?? ""} · ${r.projected_weight_lbs ?? 0} lbs`]) };
+    } },
+  { key: "cadence", title: "Cadence & Deadlines", drill: "harvest_schedule", color: "#ff8a00", icon: "clock",
+    load: async () => {
+      const t = todayISO();
+      const in14 = new Date(Date.now() + 14 * 864e5).toISOString().slice(0, 10);
+      const [due, past, actual] = await Promise.all([
+        supabase.from("harvest_schedule").select("id", { count: "exact", head: true }).gte("harvest_date", t).lte("harvest_date", in14),
+        supabase.from("harvest_schedule").select("id", { count: "exact", head: true }).lt("harvest_date", t),
+        supabase.from("harvests").select("id", { count: "exact", head: true }),
+      ]);
+      const gap = Math.max(0, (past.count ?? 0) - (actual.count ?? 0));
+      return { n: due.count ?? 0, unit: "harvest events due in 14 days", lines: [
+        ["Past planner events", String(past.count ?? 0)],
+        ["Actual harvests recorded", String(actual.count ?? 0)],
+        ["Weights / records outstanding", String(gap)],
+      ] };
+    } },
+  { key: "testing", title: "Testing Schedule", drill: "testing", color: "#ff8a00", icon: "flask",
+    load: async () => {
+      const { data, count } = await supabase.from("coas")
+        .select("coa_number,status,submitted_on", { count: "exact" })
+        .order("submitted_on", { ascending: false, nullsFirst: false }).limit(4);
+      return { n: count ?? 0, unit: "COAs tracked", lines: (data ?? []).map((r) => [r.coa_number ?? "COA", `${r.status ?? "—"}${r.submitted_on ? ` · ${r.submitted_on}` : ""}`]) };
+    } },
+  { key: "alloc", title: "Material Allocations", drill: "allocations", color: "#00d4ff", icon: "scale",
+    load: async () => {
+      const { data, count } = await supabase.from("allocations")
+        .select("approval,release", { count: "exact" }).limit(1000);
+      const pending = (data ?? []).filter((r) => r.approval !== "approved" || !r.release).length;
+      return { n: count ?? 0, unit: "allocations on record", lines: count ? [["Awaiting approval or release", String(pending)]] : [] };
+    } },
+  { key: "mfg", title: "Manufacturing Schedule", drill: "work_orders", color: "#ffea00", icon: "gauge",
+    load: async () => {
+      const { data, count } = await supabase.from("work_orders")
+        .select("wo_code,status,planned_start", { count: "exact" })
+        .order("planned_start", { ascending: true, nullsFirst: false }).limit(4);
+      return { n: count ?? 0, unit: "work orders", lines: (data ?? []).map((r) => [r.wo_code ?? "WO", `${r.status ?? "—"}${r.planned_start ? ` · starts ${r.planned_start}` : ""}`]) };
+    } },
+  { key: "live", title: "Products Live Today", drill: "lots", color: "#2df26a", icon: "box",
+    load: async () => {
+      const { data, count } = await supabase.from("lots")
+        .select("lot_code,quantity,uom,status", { count: "exact" }).eq("created_on", todayISO()).limit(4);
+      return { n: count ?? 0, unit: "lots created today", lines: (data ?? []).map((r) => [r.lot_code ?? "lot", `${r.quantity ?? 0} ${r.uom ?? ""} · ${r.status ?? ""}`]) };
+    } },
+  { key: "ship", title: "Shipments & Pickups", drill: "shipping", color: "#e2bd63", icon: "truck",
+    load: async () => {
+      const { data, count } = await supabase.from("shipments")
+        .select("shipment_code,scheduled_ship_on,status", { count: "exact" })
+        .gte("scheduled_ship_on", todayISO()).order("scheduled_ship_on").limit(4);
+      return { n: count ?? 0, unit: "scheduled from today", lines: (data ?? []).map((r) => [r.shipment_code ?? "shipment", `${r.scheduled_ship_on ?? ""} · ${r.status ?? "—"}`]) };
+    } },
+  { key: "sched", title: "Employee Schedule Today", drill: "emp_schedule", color: "#b026ff", icon: "users",
+    load: async () => {
+      const { data, count } = await supabase.from("employee_schedules")
+        .select("zone,status,employees(full_name)", { count: "exact" }).eq("work_date", todayISO()).limit(4);
+      return { n: count ?? 0, unit: "scheduled today", lines: (data ?? []).map((r) => [r.employees?.full_name ?? "employee", `${r.zone ?? "—"} · ${r.status}`]) };
+    } },
+  { key: "attend", title: "Call-outs & Lates Today", drill: "time", color: "#ff2e5f", icon: "clock",
+    load: async () => {
+      const { data, count } = await supabase.from("time_entries")
+        .select("exception_code,employees(full_name)", { count: "exact" })
+        .eq("work_date", todayISO()).not("exception_code", "is", null).limit(4);
+      return { n: count ?? 0, unit: "attendance exceptions today", lines: (data ?? []).map((r) => [r.employees?.full_name ?? "employee", String(r.exception_code).replaceAll("_", " ")]) };
+    } },
+];
+function TodayBoard({ go }) {
+  const [data, setData] = useState({});
+  useEffect(() => {
+    let on = true;
+    TODAY_BOARDS.forEach((b) => {
+      b.load().then((res) => { if (on) setData((d) => ({ ...d, [b.key]: res })); })
+        .catch(() => { if (on) setData((d) => ({ ...d, [b.key]: { n: 0, unit: "unavailable", lines: [] } })); });
+    });
+    return () => { on = false; };
+  }, []);
+  return (
+    <div className="msection">
+      <div className="mtitle"><span className="sq" /><h2>Today’s Operations</h2><span className="rule" /></div>
+      <div className="todaygrid">
+        {TODAY_BOARDS.map((b) => {
+          const d = data[b.key];
+          return (
+            <button key={b.key} className="ttile" onClick={() => go(b.drill)} style={{ borderTopColor: b.color }} title="Open source module for full detail">
+              <div className="th">
+                <span className="ti" style={{ color: b.color }}>{iconByName(b.icon)}</span>
+                <span className="tt">{b.title}</span>
+                <span className="tn" style={{ color: b.color }}>{d ? d.n.toLocaleString() : "…"}</span>
+              </div>
+              <div className="tu">{d ? d.unit : "loading"}</div>
+              {d && d.lines.length > 0
+                ? d.lines.map((l, i) => <div key={i} className="tl"><span>{l[0]}</span><span>{l[1]}</span></div>)
+                : d ? <div className="tempty">No records yet — this tile speaks the moment its table has rows.</div> : null}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
 }
 
 /* ---------- Control Tower ---------- */
@@ -502,7 +640,8 @@ function ControlTower({ go }) {
           <div className="mtitle"><span className="sq" /><h2>Live Data KPIs</h2><span className="rule" /></div>
           <div className="grid">
             {kpis.map((k) => (
-              <div key={k.t} className="card ok" style={{ borderLeftColor: k.col }}>
+              <div key={k.t} className="card ok" style={{ borderLeftColor: k.col, cursor: "pointer" }}
+                onClick={() => go(k.drill)} title="Open source module for full detail">
                 <div className="chip" style={{ background: `${k.col}22`, color: k.col }}>{I.gauge}</div>
                 <div className="body">
                   <div className="metric">{k.l}</div>
@@ -513,6 +652,7 @@ function ControlTower({ go }) {
           </div>
         </div>
       )}
+      <TodayBoard go={go} />
       {err && <div className="empty"><div className="eicon">{I.shield}</div><b>Control Tower unavailable</b>{err}</div>}
       {!err && !rows && <div className="empty"><div className="eicon">{I.gauge}</div>Loading live metrics…</div>}
       {rows && METRIC_GROUPS.map((g) => (
@@ -522,10 +662,17 @@ function ControlTower({ go }) {
             {Object.entries(g.items).map(([key, meta]) => {
               const v = byMetric[key] ?? 0;
               const isCash = !!meta.cash;
-              const hot = isCash ? v >= 7 : v > 0;
-              const zero = !hot && v === 0 && !isCash;
+              let cls = "ok", stateWord = "clear";
+              if (isCash) {
+                const lvl = v >= 30 ? 3 : v >= 14 ? 2 : v >= 7 ? 1 : 0;
+                cls = lvl === 3 ? "hot" : lvl === 2 ? "hot2" : lvl === 1 ? "hot1" : "ok";
+                stateWord = lvl === 3 ? "critical" : lvl === 2 ? "elevated" : lvl === 1 ? "watch" : "clear";
+              } else {
+                cls = v > 0 ? "hot" : "ok zero";
+                stateWord = v > 0 ? "action" : "clear";
+              }
               return (
-                <div key={key} className={`card ${hot ? "hot" : zero ? "ok zero" : "ok"}`}
+                <div key={key} className={`card ${cls}`}
                   onClick={() => meta.drill && go(meta.drill)} style={{ cursor: meta.drill ? "pointer" : "default" }}
                   title={meta.drill ? "Open source module" : undefined}>
                   <div className="chip">{meta.icon}</div>
@@ -533,7 +680,7 @@ function ControlTower({ go }) {
                     <div className="metric">{meta.label}</div>
                     <div className="vrow">
                       <div className="value">{isCash && v >= 999 ? "—" : v.toLocaleString()}</div>
-                      <div className="state">{hot ? "action" : "clear"}</div>
+                      <div className="state">{stateWord}</div>
                     </div>
                   </div>
                 </div>
@@ -746,9 +893,9 @@ function Settings({ session, prefs }) {
 const HELP = [
   ["Signing in & accounts", "The first account ever created is the owner. Everyone after starts read-only until the owner assigns a role (role screens arrive with the People milestone). Email confirmation may land on a plain white page — the confirmation still works; just return to the site and sign in."],
   ["Storing Metrc credentials", "Integrations → paste licenses, the software key (from the Metrc Connect portal), and your user key (metrc.com → profile icon → API Keys). Values are write-only: stored server-side, never displayed again. Re-paste any field to rotate it."],
-  ["Running a Metrc sync", "Integrations → Run Metrc sync now. The worker authenticates, verifies which licenses your key can see, and pulls the full catalog politely (Massachusetts caps pages at 20 records). First pull is big; after that only changes sync. Results appear in the run log and in the Metrc Mirror."],
+  ["Running a Metrc sync", "Integrations → Run Metrc sync now. The worker authenticates, verifies which licenses your key can see, and pulls the full catalog politely (Massachusetts caps pages at 20 records). First pull is big; after that only changes sync. Results appear in the run log and in the Metrc section."],
   ["Reading the Control Tower", "Every card is computed live from the database — nothing can be typed into it. Red means action required; dim zero means no records connected yet. Click any card to drill into its source module."],
-  ["Drilling into records", "In the Metrc Mirror and every module screen, click any row to expand the complete raw record — including the full payload exactly as Metrc holds it."],
+  ["Drilling into records", "In the Metrc section and every module screen, click any row to expand the complete raw record — including the full payload exactly as Metrc holds it."],
   ["Dark / light mode", "Settings → Appearance. Your choice saves to your account and follows you across devices."],
   ["The QR decoder", "Integrations → snip any QR square with Win+Shift+S, then press Ctrl+V on that screen. Decoding happens entirely in your browser; nothing is uploaded."],
   ["Something looks broken", "Each section runs isolated — if one errors, the rest keeps working. Use Retry section, refresh the page, and report what you saw. The audit log records every material change for reconstruction."],
@@ -833,6 +980,7 @@ export default function App() {
   const [view, setView] = useState("tower");
   const [openCats, setOpenCats] = useState({});
   const [dragging, setDragging] = useState(false);
+  const [userMenu, setUserMenu] = useState(false);
   useEffect(() => {
     if (!dragging) return;
     const move = (e) => prefs.setNavWidthLive(e.clientX);
@@ -878,7 +1026,29 @@ export default function App() {
           <button className="tibtn" title="Alerts & Reminders" onClick={() => setView("alerts")}>{I.bell}</button>
           <button className="tibtn" title="Messages" onClick={() => setView("messages")}>{I.mail}</button>
           <button className="tibtn" title="Help & Support" onClick={() => setView("help")}>{I.help}</button>
-          <button className="avatar" title={`${email} — Settings`} onClick={() => setView("settings")}>{(email[0] ?? "T").toUpperCase()}</button>
+          <div className="uwrap">
+            <button className="avatar" title={email} onClick={() => setUserMenu((v) => !v)}>{(email[0] ?? "T").toUpperCase()}</button>
+            {userMenu && (
+              <div className="umenu" onMouseLeave={() => setUserMenu(false)}>
+                <div className="uhead">
+                  <div className="uav">{(email[0] ?? "T").toUpperCase()}</div>
+                  <div><div className="uname">Signed in</div><div className="umail">{email}</div></div>
+                </div>
+                <div className="usep" />
+                <div className="ulabel">Theme</div>
+                <div className="uthemes">
+                  <button className={prefs.theme === "dark" ? "on" : ""} onClick={() => prefs.setTheme("dark")}>{I.moon} Dark</button>
+                  <button className={prefs.theme === "light" ? "on" : ""} onClick={() => prefs.setTheme("light")}>{I.sun} Light</button>
+                </div>
+                <div className="usep" />
+                <button className="uitem" onClick={() => { setUserMenu(false); setView("people"); }}>{I.users} Employee directory</button>
+                <button className="uitem" onClick={() => { setUserMenu(false); setView("settings"); }}>{I.gear} Settings</button>
+                <button className="uitem" onClick={() => { setUserMenu(false); setView("menu_manager"); }}>{I.burger} Menu Manager</button>
+                <div className="usep" />
+                <button className="uitem uout" onClick={() => supabase.auth.signOut()}>{I.out} Sign out</button>
+              </div>
+            )}
+          </div>
         </div>
       </header>
       <div className="below">
