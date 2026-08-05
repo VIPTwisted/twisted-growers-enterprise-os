@@ -2511,7 +2511,7 @@ function Settings({ session, prefs }) {
         <div className="msection" style={{ marginTop: 0 }}>
           <div className="mtitle"><span className="sq" /><h2>Account</h2><span className="rule" /></div>
           <div className="panel" style={{ maxWidth: "none" }}>
-            <div className="ptitle"><span className="pchip" style={{ background: "var(--gold)", color: "#1a1400" }}>{I.users}</span> {session.user.email}</div>
+            <div className="ptitle"><span className="pchip" style={{ background: "#f5c542", color: "#3a2b00" }}>{I.users}</span> {session.user.email}</div>
             <div className="note">Role management (owner-assigned), per-employee links, and security options arrive with the People milestone.</div>
             <button className="btn ghost" onClick={() => supabase.auth.signOut()} style={{ marginTop: 12 }}>Sign out</button>
           </div>

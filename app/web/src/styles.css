@@ -244,7 +244,7 @@ h1, h2, h3, .display { font-family: "Figtree", "Inter", sans-serif; }
 .nav button.item svg { width: 17px; height: 17px; flex-shrink: 0; }
 .nav button.item:hover { background: var(--rail-item-hover-bg); color: var(--rail-item-hover); }
 .nav button.item.on { background: var(--rail-active-bg); color: var(--rail-active-ink); font-weight: 700; box-shadow: var(--rail-active-glow); }
-.nav button.item .mtag { margin-left: auto; font-size: 9px; font-weight: 800; letter-spacing: 0.08em; background: var(--gold); color: #1a1400; border-radius: 3px; padding: 1px 5px; }
+.nav button.item .mtag { margin-left: auto; font-size: 9px; font-weight: 800; letter-spacing: 0.08em; background: #f5c542; color: #3a2b00; border-radius: 3px; padding: 1px 5px; }
 .nav button.item.on .mtag { color: #05230f; border-color: rgba(0, 0, 0, 0.3); }
 .nav.closed button.item { justify-content: center; padding: 9px 0; }
 .nav.closed button.item .lbl, .nav.closed button.item .mtag { display: none; }
@@ -350,8 +350,8 @@ input:focus { outline: none; border-color: var(--neon); box-shadow: 0 0 0 3px va
 .pill.ok { background: var(--neon); color: var(--neon-ink); }
 .pill.err { background: var(--red); color: #ffffff; }
 .pill.run { background: var(--amber); color: #1a1400; }
-.pill.dim { background: var(--gold); color: #1a1400; }
-.pill.gold { background: var(--gold); color: #1a1400; }
+.pill.dim { background: #f5c542; color: #3a2b00; }
+.pill.gold { background: #f5c542; color: #3a2b00; }
 .tablewrap { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; box-shadow: var(--shadow-sm); overflow-x: auto; margin-top: 12px; }
 table { width: 100%; border-collapse: collapse; font-size: 13px; }
 th { text-align: left; color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: 0.1em; font-weight: 800; padding: 11px 14px; background: var(--thead); border-bottom: 1px solid var(--line); white-space: nowrap; }
