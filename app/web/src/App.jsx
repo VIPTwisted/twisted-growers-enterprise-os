@@ -77,7 +77,7 @@ const METRIC_GROUPS = [
     items: {
       late_or_at_risk_orders: { label: "Late / At-Risk Orders", icon: I.truck, drill: "orders" },
       unconfirmed_open_orders: { label: "Unconfirmed Open Orders", icon: I.clip, drill: "orders" },
-      open_p0_actions: { label: "Open P0 Actions", icon: I.shield, drill: "audit" },
+      open_p0_actions: { label: "Open P0 Actions", icon: I.shield, drill: "alerts" },
     },
   },
 ];
@@ -373,25 +373,51 @@ function ModuleScreen({ entry }) {
   const [count, setCount] = useState(null);
   const [rows, setRows] = useState(null);
   const [brk, setBrk] = useState(null);
+  const [sample, setSample] = useState(null);
+  const [qLive, setQLive] = useState("");
+  const [q, setQ] = useState("");
+  const [statusSel, setStatusSel] = useState(null);
+  const [dFrom, setDFrom] = useState("");
+  const [dTo, setDTo] = useState("");
+  const [sort, setSort] = useState(null);
+
   useEffect(() => {
-    setCount(null); setRows(null); setBrk(null);
+    setCount(null); setRows(null); setBrk(null); setSample(null);
+    setQ(""); setQLive(""); setStatusSel(null); setDFrom(""); setDTo(""); setSort(null);
     if (!entry.table_ref) { setCount(0); setRows([]); return; }
-    supabase.from(entry.table_ref).select("*", { count: "exact", head: true })
-      .then(({ count: c }) => setCount(c ?? 0));
-    supabase.from(entry.table_ref).select("*").limit(20)
-      .then(({ data }) => setRows(data ?? []));
+    supabase.from(entry.table_ref).select("*").limit(1)
+      .then(({ data }) => setSample(data?.[0] ?? {}));
   }, [entry.view_key, entry.table_ref]);
+
+  const textCols = sample ? Object.keys(sample).filter((k) => typeof sample[k] === "string" && k !== "raw").slice(0, 8) : [];
+  const dateCol = sample ? Object.keys(sample).find((k) => /(_date|_on|_at$|^date)/.test(k)) : null;
+  const statusCol = sample ? STATUS_COLS.find((k) => k in sample) : null;
+  const filtered = !!(q || statusSel || dFrom || dTo);
+
   useEffect(() => {
-    if (!entry.table_ref || !rows?.length) return;
-    const sc = STATUS_COLS.find((k) => k in rows[0]);
-    if (!sc) return;
-    supabase.from(entry.table_ref).select(sc).limit(1000).then(({ data }) => {
+    if (!entry.table_ref || sample === null) return;
+    setRows(null);
+    let qy = supabase.from(entry.table_ref).select("*", { count: "exact" });
+    const term = q.replace(/[%,()]/g, " ").trim();
+    if (term && textCols.length) qy = qy.or(textCols.map((c) => `${c}.ilike.%${term}%`).join(","));
+    if (statusSel && statusCol) qy = qy.eq(statusCol, statusSel);
+    if (dateCol && dFrom) qy = qy.gte(dateCol, dFrom);
+    if (dateCol && dTo) qy = qy.lte(dateCol, dTo);
+    if (sort) qy = qy.order(sort.col, { ascending: sort.asc });
+    qy.limit(100).then(({ data, count: c }) => { setRows(data ?? []); setCount(c ?? 0); });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [entry.table_ref, sample, q, statusSel, dFrom, dTo, sort]);
+
+  useEffect(() => {
+    if (!entry.table_ref || !sample || !statusCol) return;
+    supabase.from(entry.table_ref).select(statusCol).limit(1000).then(({ data }) => {
       if (!data?.length) return;
       const m = {};
-      data.forEach((r) => { const v = r[sc] ?? "—"; m[v] = (m[v] || 0) + 1; });
-      setBrk({ col: sc, parts: Object.entries(m).sort((a, b) => b[1] - a[1]).slice(0, 6) });
+      data.forEach((r) => { const v = r[statusCol] ?? "—"; m[v] = (m[v] || 0) + 1; });
+      setBrk({ col: statusCol, parts: Object.entries(m).sort((a, b) => b[1] - a[1]).slice(0, 6) });
     });
-  }, [rows, entry.table_ref]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [entry.table_ref, sample, statusCol]);
 
   const cols = rows?.length
     ? Object.keys(rows[0]).filter((k) => k !== "raw" && typeof rows[0][k] !== "object").slice(0, 8)
@@ -417,12 +443,34 @@ function ModuleScreen({ entry }) {
           <div className="l">records</div>
         </div>
       </div>
+      {entry.table_ref && sample !== null && (
+        <div className="filterbar">
+          <input className="fsearch" placeholder="Search anything — name, batch, tag…" value={qLive}
+            onChange={(e) => setQLive(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") setQ(qLive); }} />
+          <button className="btn small" onClick={() => setQ(qLive)}>Find</button>
+          {dateCol && (
+            <>
+              <span className="flab">{dateCol.replaceAll("_", " ")}</span>
+              <input type="date" className="fdate" value={dFrom} onChange={(e) => setDFrom(e.target.value)} />
+              <span className="flab">to</span>
+              <input type="date" className="fdate" value={dTo} onChange={(e) => setDTo(e.target.value)} />
+            </>
+          )}
+          {(filtered || sort) && (
+            <button className="btn small ghost" onClick={() => { setQ(""); setQLive(""); setStatusSel(null); setDFrom(""); setDTo(""); setSort(null); }}>Clear</button>
+          )}
+        </div>
+      )}
       {brk && (
         <div className="statchips">
           {brk.parts.map(([v, n]) => (
-            <span key={v} className={`schip ${chipTone(v)}`}><b>{n.toLocaleString()}</b> {String(v).replaceAll("_", " ")}</span>
+            <button key={v} className={`schip ${chipTone(v)} ${statusSel === v ? "sel" : ""}`}
+              onClick={() => setStatusSel(statusSel === v ? null : v)} title="Click to filter">
+              <b>{n.toLocaleString()}</b> {String(v).replaceAll("_", " ")}
+            </button>
           ))}
-          <span className="schl">live breakdown by {brk.col.replaceAll("_", " ")}</span>
+          <span className="schl">live breakdown by {brk.col.replaceAll("_", " ")} — click to filter</span>
         </div>
       )}
       {rows === null ? (
@@ -430,14 +478,20 @@ function ModuleScreen({ entry }) {
       ) : rows.length === 0 ? (
         <div className="empty">
           <div className="eicon">{iconByName(entry.icon)}</div>
-          <b>No records connected yet</b>
-          {entry.milestone ? `The structure is live and waiting — real data loads in ${entry.milestone}. No samples will ever appear here.` : "Records appear here the moment they exist."}
+          <b>{filtered ? "No records match these filters" : "No records connected yet"}</b>
+          {filtered ? "Adjust the search, dates, or status chips — or hit Clear."
+            : entry.milestone ? `The structure is live and waiting — real data loads in ${entry.milestone}. No samples will ever appear here.` : "Records appear here the moment they exist."}
         </div>
       ) : (
         <div className="tablewrap">
           <table>
-            <thead><tr>{cols.map((c) => <th key={c}>{c.replaceAll("_", " ")}</th>)}</tr></thead>
-            <tbody>{rows.map((r, i) => <RawRow key={i} row={r} cols={cols} />)}</tbody>
+            <thead><tr>{cols.map((c) => (
+              <th key={c} style={{ cursor: "pointer" }} title="Sort"
+                onClick={() => setSort((s) => s?.col === c ? { col: c, asc: !s.asc } : { col: c, asc: true })}>
+                {c.replaceAll("_", " ")}{sort?.col === c ? (sort.asc ? " ↑" : " ↓") : ""}
+              </th>
+            ))}</tr></thead>
+            <tbody>{rows.map((r, i) => <RawRow key={r.id ?? i} row={r} cols={cols} />)}</tbody>
           </table>
         </div>
       )}
@@ -674,7 +728,10 @@ function SyncCenter({ session }) {
         <div className="syncpanel">
           <div className="sphead">
             <span>Sync Center</span>
-            <button className="btn small" disabled={busy !== null} onClick={runAll}>Sync all</button>
+            <span style={{ display: "flex", gap: 8 }}>
+              <button className="btn small" disabled={busy !== null} onClick={runAll}>Sync all</button>
+              <button className="btn small ghost" onClick={() => setOpen(false)} title="Close">✕</button>
+            </span>
           </div>
           {SYNC_SOURCES.map((s) => (
             <div key={s.key} className="sprow">
@@ -1093,32 +1150,48 @@ function Help() {
 /* ---------- People (custom module) ---------- */
 function People() {
   const [rows, setRows] = useState(null);
+  const [lookups, setLookups] = useState(null);
   useEffect(() => {
-    supabase.from("employees").select("employee_code, full_name, status, tier").order("full_name")
-      .then(({ data }) => setRows(data ?? []));
+    Promise.all([
+      supabase.from("employees").select("*").order("full_name"),
+      supabase.from("roles_catalog").select("id, name"),
+      supabase.from("departments").select("id, name"),
+    ]).then(([e, r, d]) => {
+      setLookups({
+        roles: Object.fromEntries((r.data ?? []).map((x) => [x.id, x.name])),
+        depts: Object.fromEntries((d.data ?? []).map((x) => [x.id, x.name])),
+      });
+      setRows(e.data ?? []);
+    });
   }, []);
+  const roleOf = (id) => lookups?.roles[id] ?? "—";
+  const deptOf = (id) => lookups?.depts[id] ?? "—";
+  const cols = ["employee_code", "full_name", "position", "departments", "status"];
   return (
     <>
       <div className="pagehead">
         <div>
           <h1>Employees</h1>
-          <div className="sub">Roster, roles, tiers, departments, and per-employee rates — effective-dated and audited. Full editing lands next milestone.</div>
+          <div className="sub">Roster with real positions and departments, per-employee effective-dated rates behind every row. Click a person for the complete record — full in-app editing is the next build.</div>
         </div>
-        <span className="pill gold">data loads M2</span>
       </div>
       {rows === null ? <div className="empty"><div className="eicon">{I.users}</div>Loading…</div> : rows.length === 0 ? (
-        <div className="empty"><div className="eicon">{I.users}</div><b>No employees connected yet</b>The real roster loads from the v5 planner in milestone M2 — no sample people will ever appear here.</div>
+        <div className="empty"><div className="eicon">{I.users}</div><b>No employees connected yet</b>The real roster loads from the v5 planner — no sample people will ever appear here.</div>
       ) : (
         <div className="tablewrap">
           <table>
-            <thead><tr><th>Code</th><th>Name</th><th>Status</th><th>Tier</th></tr></thead>
-            <tbody>{rows.map((r) => (
-              <tr key={r.employee_code}>
-                <td>{r.employee_code}</td><td>{r.full_name}</td>
-                <td><span className={`pill ${r.status === "active" ? "ok" : "dim"}`}>{r.status}</span></td>
-                <td>{r.tier}</td>
-              </tr>
-            ))}</tbody>
+            <thead><tr><th>Code</th><th>Name</th><th>Position</th><th>Departments</th><th>Status</th></tr></thead>
+            <tbody>{rows.map((r) => {
+              const view = {
+                employee_code: r.employee_code,
+                full_name: r.full_name,
+                position: roleOf(r.primary_role_id),
+                departments: [deptOf(r.primary_department_id), r.secondary_department_id ? deptOf(r.secondary_department_id) : null].filter((x) => x && x !== "—").join(" + ") || "—",
+                status: r.status,
+                ...r,
+              };
+              return <RawRow key={r.id} row={view} cols={cols} />;
+            })}</tbody>
           </table>
         </div>
       )}

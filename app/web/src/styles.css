@@ -486,3 +486,21 @@ button.pulse:hover, button.stat:hover { background: var(--row-hover); }
 .syncpanel .spmain { flex: 1; min-width: 0; }
 .syncpanel .spname { font-size: 13.5px; font-weight: 700; display: flex; align-items: center; gap: 8px; }
 .syncpanel .spdesc { font-size: 11.5px; color: var(--muted); line-height: 1.45; margin-top: 2px; }
+
+/* Module filter bar: search, date range, clickable status chips, sortable headers */
+.filterbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+.filterbar .fsearch {
+  flex: 1; min-width: 220px; max-width: 420px;
+  background: var(--input-bg); color: var(--ink); border: 1px solid var(--line);
+  border-radius: 6px; padding: 8px 12px; font-size: 13.5px; font-family: inherit;
+}
+.filterbar .fsearch:focus { outline: none; border-color: var(--neon-line); }
+.filterbar .fdate {
+  background: var(--input-bg); color: var(--ink); border: 1px solid var(--line);
+  border-radius: 6px; padding: 7px 10px; font-size: 12.5px; font-family: inherit;
+  color-scheme: dark;
+}
+:root[data-theme="light"] .filterbar .fdate { color-scheme: light; }
+.filterbar .flab { font-size: 10.5px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.statchips .schip { cursor: pointer; background: none; font-family: inherit; }
+.statchips .schip.sel { background: var(--neon-soft); outline: 2px solid var(--neon-line); }
