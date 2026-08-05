@@ -1396,24 +1396,41 @@ export default function App() {
             <button onClick={() => setOpenCats(Object.fromEntries(cats.map((c) => [c.name, true])))}>Expand all</button>
             <button onClick={() => setOpenCats(Object.fromEntries(cats.map((c) => [c.name, false])))}>Collapse all</button>
           </div>
-          {cats.map((c) => (
-            <div className="cat" key={c.name}>
-              <button className="cathead" onClick={() => setOpenCats({ ...openCats, [c.name]: !isOpen(c.name) })}>
-                <span className="catdot" style={{ background: c.items[0]?.color ?? "var(--neon)" }} />
-                <span className="ctext">{c.name}</span>
-                <span className={`caret ${isOpen(c.name) ? "open" : ""}`}>{I.caret}</span>
-              </button>
-              <div className="items" style={{ display: isOpen(c.name) || prefs.collapsed ? "block" : "none" }}>
-                {c.items.map((e) => (
-                  <button key={e.view_key} className={`item ${view === e.view_key ? "on" : ""}`}
-                    onClick={() => setView(e.view_key)} title={e.label}>
-                    {iconByName(e.icon)}<span className="lbl">{e.label}</span>
-                    {e.milestone && <span className="mtag">SOON</span>}
+          {prefs.collapsed ? (
+            <div className="railcats">
+              {cats.map((c) => {
+                const col = c.items[0]?.color ?? "";
+                const flat = col && !col.includes("gradient") && !col.startsWith("var") ? col : undefined;
+                const active = c.items.some((e) => e.view_key === view);
+                return (
+                  <button key={c.name} className={`railcat ${active ? "on" : ""}`} title={c.name}
+                    onClick={() => { prefs.setCollapsed(false); setOpenCats({ ...openCats, [c.name]: true }); }}>
+                    <span className="rcicon" style={flat ? { color: flat } : undefined}>{iconByName(c.items[0]?.icon)}</span>
+                    <span className="rclabel">{c.name}</span>
                   </button>
-                ))}
-              </div>
+                );
+              })}
             </div>
-          ))}
+          ) : (
+            cats.map((c) => (
+              <div className="cat" key={c.name}>
+                <button className="cathead" onClick={() => setOpenCats({ ...openCats, [c.name]: !isOpen(c.name) })}>
+                  <span className="catdot" style={{ background: c.items[0]?.color ?? "var(--neon)" }} />
+                  <span className="ctext">{c.name}</span>
+                  <span className={`caret ${isOpen(c.name) ? "open" : ""}`}>{I.caret}</span>
+                </button>
+                <div className="items" style={{ display: isOpen(c.name) ? "block" : "none" }}>
+                  {c.items.map((e) => (
+                    <button key={e.view_key} className={`item ${view === e.view_key ? "on" : ""}`}
+                      onClick={() => setView(e.view_key)} title={e.label}>
+                      {iconByName(e.icon)}<span className="lbl">{e.label}</span>
+                      {e.milestone && <span className="mtag">SOON</span>}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ))
+          )}
           <button className="burger navburger" onClick={() => prefs.setCollapsed(!prefs.collapsed)} title="Collapse / expand menu">{I.burger}</button>
           <div className="railfoot"><RailMetrc /></div>
           {!prefs.collapsed && (
