@@ -1752,14 +1752,16 @@ function PlannerScreen({ go, session }) {
     const none = Promise.resolve({ data: [] });
     Promise.all([
       allowed("harvest") ? supabase.from("harvest_schedule").select("harvest_date,cultivar,flower_room").gte("harvest_date", start).lte("harvest_date", end) : none,
+      allowed("harvest") ? supabase.from("harvest_pulls").select("harvest_date,flower_room,pull_no,cultivars").gte("harvest_date", start).lte("harvest_date", end) : none,
       allowed("shipment") ? supabase.from("shipments").select("scheduled_ship_on,shipment_code,status").gte("scheduled_ship_on", start).lte("scheduled_ship_on", end) : none,
       allowed("work_order") ? supabase.from("work_orders").select("planned_start,wo_code,status").gte("planned_start", start).lte("planned_start", end) : none,
       allowed("expiry") ? supabase.from("product_inventory").select("expiration_date,strain_flavor,production_batch").gte("expiration_date", start).lte("expiration_date", end) : none,
       allowed("shift") ? supabase.from("employee_schedules").select("work_date,zone,status").gte("work_date", start).lte("work_date", end) : none,
-    ]).then(([h, s, w, x, es]) => {
+    ]).then(([h, hp, s, w, x, es]) => {
       const ev = {};
       const add = (date, type, label, drill, color) => { if (!date) return; (ev[date] = ev[date] ?? []).push({ type, label, drill, color }); };
-      (h.data ?? []).forEach((r) => add(r.harvest_date, "Harvest", `${r.cultivar ?? ""} · ${r.flower_room ?? ""}`, "harvest_schedule", "#5cff92"));
+      (h.data ?? []).forEach((r) => add(r.harvest_date, "Harvest", `${r.cultivar ?? "Harvest"} · ${r.flower_room ?? "room TBD"}`, "harvest_schedule", "#5cff92"));
+      (hp.data ?? []).forEach((r) => add(r.harvest_date, "Harvest", `Pull #${r.pull_no} · ${r.flower_room} — ${r.cultivars ?? ""}`, "harvest_pulls", "#5cff92"));
       (s.data ?? []).forEach((r) => add(r.scheduled_ship_on, "Shipment", `${r.shipment_code ?? ""} · ${r.status ?? ""}`, "shipping", "#e2bd63"));
       (w.data ?? []).forEach((r) => add(r.planned_start, "Work order", `${r.wo_code ?? ""} · ${r.status ?? ""}`, "work_orders", "#ffea00"));
       (x.data ?? []).forEach((r) => add(r.expiration_date, "Expiry", r.strain_flavor ?? r.production_batch ?? "lot", "inv_summary", "#ff8a00"));
@@ -1832,7 +1834,8 @@ function PlannerScreen({ go, session }) {
                 <button key={k} className={`calcell ${k === todayIso ? "today" : ""} ${sel === k ? "sel" : ""}`} onClick={() => setSel(sel === k ? null : k)}>
                   <span className="caldate">{d}</span>
                   {list.slice(0, 3).map((e, j) => (
-                    <span key={j} className="calev" style={{ borderLeftColor: e.color }}>{e.label}</span>
+                    <span key={j} className="calev" style={{ borderLeftColor: e.color }} title={`${e.type}: ${e.label} — click for the full page`}
+                      onClick={(ce) => { ce.stopPropagation(); go(e.drill); }}>{e.label}</span>
                   ))}
                   {list.length > 3 && <span className="calmore">+{list.length - 3} more</span>}
                 </button>
