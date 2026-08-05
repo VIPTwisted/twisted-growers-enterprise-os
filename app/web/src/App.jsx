@@ -475,11 +475,61 @@ function DetailGrid({ obj, depth = 0 }) {
     </div>
   );
 }
+/* Forensic seed-to-sale trace — available from every row on every page. */
+const TRACE_KEYS = ["tag", "package_tag", "harvest", "harvest_name", "manifest_number", "identifier",
+  "name", "strain", "cultivar", "item", "item_name", "material_name", "customer", "room", "location"];
+function TraceDrawer({ term, onClose }) {
+  const [rows, setRows] = useState(null);
+  useEffect(() => {
+    supabase.rpc("tg_trace", { p_term: term }).then(({ data, error }) => setRows(error ? [] : (data ?? [])));
+  }, [term]);
+  const phases = rows ? [...new Set(rows.map((r) => r.phase))].sort() : [];
+  return (
+    <div className="vedrawerwrap" onClick={onClose}>
+      <div className="vedrawer" style={{ width: "min(760px, 96vw)" }} onClick={(e) => e.stopPropagation()}>
+        <div className="srhead">
+          <span className="srtitle">Seed to sale history — {term}</span>
+          <button className="btn small ghost" onClick={onClose}>✕</button>
+        </div>
+        {rows === null ? <div className="note" style={{ padding: 14 }}>Tracing every record…</div>
+          : rows.length === 0 ? <div className="empty"><div className="eicon">{I.dna}</div><b>Nothing traced</b>No linked records found for this term.</div>
+          : (
+            <>
+              <div className="statchips" style={{ margin: "8px 0 12px" }}>
+                {phases.map((ph) => <span key={ph} className="schip info"><b>{rows.filter((r) => r.phase === ph).length}</b> {ph.replace(/^\d\s/, "")}</span>)}
+                <span className="schl">{rows.length} events in the chain</span>
+              </div>
+              <div className="tablewrap"><table>
+                <thead><tr><th>Date</th><th>Stage</th><th>Event</th><th>Quantity</th><th>Location</th><th>Status</th><th>Document</th></tr></thead>
+                <tbody>{rows.map((r, i) => (
+                  <tr key={i}>
+                    <td style={{ whiteSpace: "nowrap" }}>{r.event_date ?? "—"}</td>
+                    <td><span className="schip info">{String(r.phase).replace(/^\d\s/, "")}</span></td>
+                    <td>{r.event}{r.subject ? <div className="note">{r.subject}</div> : null}</td>
+                    <td style={{ fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>
+                      {r.quantity != null ? `${Number(r.quantity).toLocaleString()} ${r.uom ?? ""}` : "—"}</td>
+                    <td className="note">{r.location ?? "—"}</td>
+                    <td>{r.status ? <span className={`schip ${chipTone(r.status)}`}>{r.status}</span> : "—"}</td>
+                    <td>{r.document_link
+                      ? <a className="btn small ghost" href={r.document_link} target="_blank" rel="noreferrer">Open</a>
+                      : "—"}</td>
+                  </tr>
+                ))}</tbody>
+              </table></div>
+            </>
+          )}
+      </div>
+    </div>
+  );
+}
 function RawRow({ row, cols }) {
   const [open, setOpen] = useState(false);
   const [showRaw, setShowRaw] = useState(false);
+  const [trace, setTrace] = useState(null);
+  const traceTerm = TRACE_KEYS.map((k) => row[k]).find((v) => typeof v === "string" && v.trim().length > 2);
   return (
     <>
+      {trace && <TraceDrawer term={trace} onClose={() => setTrace(null)} />}
       <tr onClick={() => setOpen(!open)} style={{ cursor: "pointer" }}>
         {cols.map((c) => <td key={c}>{cellView(c, row[c])}</td>)}
       </tr>
@@ -488,6 +538,12 @@ function RawRow({ row, cols }) {
           <td colSpan={cols.length} className="detailcell">
             <div className="dhead">
               <span className="dtitle">Full record — every field, microscopic</span>
+              {traceTerm && (
+                <button className="dtoggle" style={{ borderColor: "var(--neon-line)", color: "var(--neon)" }}
+                  onClick={(e) => { e.stopPropagation(); setTrace(traceTerm); }}>
+                  Seed to sale history
+                </button>
+              )}
               <button className="dtoggle" onClick={(e) => { e.stopPropagation(); setShowRaw(!showRaw); }}>
                 {showRaw ? "Readable view" : "Raw payload (audit)"}
               </button>
