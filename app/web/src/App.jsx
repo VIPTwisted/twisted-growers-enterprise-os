@@ -429,7 +429,8 @@ function ModuleScreen({ entry }) {
   }, [entry.table_ref, sample, statusCol]);
 
   const cols = rows?.length
-    ? Object.keys(rows[0]).filter((k) => k !== "raw" && typeof rows[0][k] !== "object").slice(0, 8)
+    ? Object.keys(rows[0]).filter((k) =>
+        k !== "raw" && k !== "id" && !k.endsWith("_id") && typeof rows[0][k] !== "object").slice(0, 9)
     : [];
 
   return (
@@ -536,7 +537,8 @@ function MetrcMirror() {
       .then(({ data }) => setRows(data ?? []));
   }, [tab]);
   const cols = rows?.length
-    ? Object.keys(rows[0]).filter((k) => k !== "raw" && typeof rows[0][k] !== "object").slice(0, 8)
+    ? Object.keys(rows[0]).filter((k) =>
+        k !== "raw" && k !== "id" && !k.endsWith("_id") && typeof rows[0][k] !== "object").slice(0, 9)
     : [];
   return (
     <>
