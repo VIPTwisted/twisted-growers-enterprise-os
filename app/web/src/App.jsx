@@ -191,7 +191,7 @@ const METRIC_GROUPS = [
     title: "Compliance & Testing",
     items: {
       testing_overdue: { label: "Testing Overdue", icon: I.flask, drill: "testing" },
-      lots_rts_missing_coa: { label: "RTS Lots Missing COA", icon: I.shield, drill: "lots" },
+      lots_rts_missing_coa: { label: "Ready-To-Ship Lots Missing Certificate of Analysis", icon: I.shield, drill: "lots" },
       licenses_expiring_60d: { label: "Licenses Expiring ≤60d", icon: I.clock, drill: "licenses" },
       metrc_reconciliation_open: { label: "Open Metrc Exceptions", icon: I.plug, drill: "metrc_mirror" },
     },
@@ -481,7 +481,7 @@ function RawRow({ row, cols }) {
   return (
     <>
       <tr onClick={() => setOpen(!open)} style={{ cursor: "pointer" }}>
-        {cols.map((c) => <td key={c}>{formatCell(row[c])}</td>)}
+        {cols.map((c) => <td key={c}>{cellView(c, row[c])}</td>)}
       </tr>
       {open && (
         <tr>
@@ -516,6 +516,18 @@ const chipTone = (v) => {
   if (/(pend|hold|submit|due|risk|late|await|review|quarant)/.test(s)) return "warn";
   if (/(active|released|passed|complete|done|ok|connected|approved|worked|scheduled|finished|rts|paid)/.test(s)) return "good";
   return "info";
+};
+/* Sitewide color code inside every table: red = issue, green = good, amber = watch, blue = neutral info */
+const ISSUE_COL = /(violation|overdue|blocked|late|missing|error|exception|flag|alert|expired|discrepan)/;
+const cellView = (col, v) => {
+  if (v === true || v === false) {
+    if (ISSUE_COL.test(col)) return <span className={`schip ${v ? "bad" : "good"}`}>{v ? "ISSUE" : "OK"}</span>;
+    return v ? "yes" : "no";
+  }
+  if (v != null && v !== "" && typeof v === "string" && (STATUS_COLS.includes(col) || ISSUE_COL.test(col))) {
+    return <span className={`schip ${chipTone(v)}`}>{formatCell(v)}</span>;
+  }
+  return formatCell(v);
 };
 /* QuickBooks-style date ranges — one dropdown, every date filter in the OS */
 const DATE_PRESETS = [
@@ -833,7 +845,7 @@ const TODAY_BOARDS = [
       const { data, count } = await supabase.from("coas")
         .select("coa_number,status,submitted_on", { count: "exact" })
         .order("submitted_on", { ascending: false, nullsFirst: false }).limit(4);
-      return { n: count ?? 0, unit: "COAs tracked", lines: (data ?? []).map((r) => [r.coa_number ?? "COA", `${r.status ?? "—"}${r.submitted_on ? ` · ${r.submitted_on}` : ""}`]) };
+      return { n: count ?? 0, unit: "Certificates of Analysis tracked", lines: (data ?? []).map((r) => [r.coa_number ?? "COA", `${r.status ?? "—"}${r.submitted_on ? ` · ${r.submitted_on}` : ""}`]) };
     } },
   { key: "alloc", title: "Material Allocations", drill: "allocations", color: "#00d4ff", icon: "scale",
     load: async () => {
@@ -1141,7 +1153,7 @@ function ControlTower({ go, session }) {
 }
 
 /* ---------- TG Brain: the company's mind — intro, role personalization; engine lands M5 ---------- */
-const BRAIN_ROLES = ["Owner / CEO", "COO / Operations", "CFO / Finance", "Cultivation", "Manufacturing", "Sales", "Human Resources", "Compliance / QA"];
+const BRAIN_ROLES = ["Owner / CEO", "COO / Operations", "CFO / Finance", "Cultivation", "Manufacturing", "Sales", "Human Resources", "Compliance / Quality Assurance"];
 const BRAIN_ORBIT = [
   { icon: "leafline", label: "Cultivation" }, { icon: "box", label: "Inventory" },
   { icon: "flask", label: "Testing" }, { icon: "truck", label: "Transfers" },
