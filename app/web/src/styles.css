@@ -784,3 +784,14 @@ button.teamcard:hover { border-color: var(--neon-line); }
 .uitem.dim { opacity: 0.55; cursor: default; }
 .uitem.dim:hover { background: none; color: var(--rail-item); }
 .uitem .mtag { margin-left: auto; }
+
+/* Print: clean paper output on every page */
+@media print {
+  .topnav, .nav, .filterbar, .navtools, .dragbar, .railfoot, .syncwrap, .btn,
+  .statchips .schl, .umenu, .launcher, .timepill { display: none !important; }
+  body { background: #fff !important; color: #000 !important; }
+  .below { display: block !important; }
+  .main { padding: 0 !important; }
+  .tablewrap { overflow: visible !important; }
+  .card, .ttile, .panel, .teamcard, .calcell { break-inside: avoid; }
+}

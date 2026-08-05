@@ -610,6 +610,28 @@ function ModuleScreen({ entry, actions }) {
           {(filtered || sort) && (
             <button className="btn small ghost" onClick={() => { setQ(""); setQLive(""); setStatusSel(null); setDFrom(""); setDTo(""); setSort(null); }}>Clear</button>
           )}
+          <span style={{ flex: 1 }} />
+          <button className="btn small ghost" onClick={async () => {
+            let qy = supabase.from(entry.table_ref).select("*");
+            const term = q.replace(/[%,()]/g, " ").trim();
+            if (term && textCols.length) qy = qy.or(textCols.map((c) => `${c}.ilike.%${term}%`).join(","));
+            if (statusSel && statusCol) qy = qy.eq(statusCol, statusSel);
+            if (dateCol && dFrom) qy = qy.gte(dateCol, dFrom);
+            if (dateCol && dTo) qy = qy.lte(dateCol, dTo);
+            if (sort) qy = qy.order(sort.col, { ascending: sort.asc });
+            const { data } = await qy.limit(1000);
+            const rowsX = data ?? [];
+            if (!rowsX.length) return;
+            const keys = Object.keys(rowsX[0]).filter((k) => k !== "raw" && typeof rowsX[0][k] !== "object");
+            const esc = (v) => v == null ? "" : /[",\n]/.test(String(v)) ? '"' + String(v).replaceAll('"', '""') + '"' : String(v);
+            const csv = [keys.join(","), ...rowsX.map((r) => keys.map((k) => esc(r[k])).join(","))].join("\n");
+            const a = document.createElement("a");
+            a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
+            a.download = `${entry.view_key}-${new Date().toISOString().slice(0, 10)}.csv`;
+            a.click();
+            URL.revokeObjectURL(a.href);
+          }}>Export CSV</button>
+          <button className="btn small ghost" onClick={() => window.print()}>Print</button>
         </div>
       )}
       {brk && (
@@ -1478,21 +1500,42 @@ function DashboardsScreen({ session, go }) {
 const PLANNER_LEGEND = [
   ["Harvest", "#5cff92"], ["Shipment", "#e2bd63"], ["Work order", "#ffea00"], ["Expiry", "#ff8a00"], ["Shift", "#b026ff"],
 ];
-function PlannerScreen({ go }) {
+function PlannerScreen({ go, session }) {
   const [ym, setYm] = useState(() => { const d = new Date(); return { y: d.getFullYear(), m: d.getMonth() }; });
   const [events, setEvents] = useState(null);
   const [sel, setSel] = useState(null);
+  const [planners, setPlanners] = useState([]);
+  const [plan, setPlan] = useState(null);
+  const [pform, setPform] = useState({ name: "", srcs: ["harvest", "shipment", "work_order", "expiry", "shift"], creating: false });
+  const [pver, setPver] = useState(0);
+  useEffect(() => {
+    supabase.from("planners").select("*").order("created_at").then(({ data }) => {
+      setPlanners(data ?? []);
+      setPlan((p) => p ?? (data ?? [])[0] ?? null);
+    });
+  }, [pver]);
+  const allowed = (src) => !plan || (plan.sources ?? []).includes(src);
+  const createPlanner = async () => {
+    if (!pform.name.trim() || !pform.srcs.length) return;
+    const { data } = await supabase.from("planners")
+      .insert({ name: pform.name.trim(), sources: pform.srcs, is_private: true, created_by: session?.user?.id })
+      .select("*").single();
+    setPform({ name: "", srcs: ["harvest", "shipment", "work_order", "expiry", "shift"], creating: false });
+    setPver((v) => v + 1);
+    if (data) setPlan(data);
+  };
   useEffect(() => {
     setEvents(null); setSel(null);
     const start = `${ym.y}-${String(ym.m + 1).padStart(2, "0")}-01`;
     const endD = new Date(ym.y, ym.m + 1, 0).getDate();
     const end = `${ym.y}-${String(ym.m + 1).padStart(2, "0")}-${String(endD).padStart(2, "0")}`;
+    const none = Promise.resolve({ data: [] });
     Promise.all([
-      supabase.from("harvest_schedule").select("harvest_date,cultivar,flower_room").gte("harvest_date", start).lte("harvest_date", end),
-      supabase.from("shipments").select("scheduled_ship_on,shipment_code,status").gte("scheduled_ship_on", start).lte("scheduled_ship_on", end),
-      supabase.from("work_orders").select("planned_start,wo_code,status").gte("planned_start", start).lte("planned_start", end),
-      supabase.from("product_inventory").select("expiration_date,strain_flavor,production_batch").gte("expiration_date", start).lte("expiration_date", end),
-      supabase.from("employee_schedules").select("work_date,zone,status").gte("work_date", start).lte("work_date", end),
+      allowed("harvest") ? supabase.from("harvest_schedule").select("harvest_date,cultivar,flower_room").gte("harvest_date", start).lte("harvest_date", end) : none,
+      allowed("shipment") ? supabase.from("shipments").select("scheduled_ship_on,shipment_code,status").gte("scheduled_ship_on", start).lte("scheduled_ship_on", end) : none,
+      allowed("work_order") ? supabase.from("work_orders").select("planned_start,wo_code,status").gte("planned_start", start).lte("planned_start", end) : none,
+      allowed("expiry") ? supabase.from("product_inventory").select("expiration_date,strain_flavor,production_batch").gte("expiration_date", start).lte("expiration_date", end) : none,
+      allowed("shift") ? supabase.from("employee_schedules").select("work_date,zone,status").gte("work_date", start).lte("work_date", end) : none,
     ]).then(([h, s, w, x, es]) => {
       const ev = {};
       const add = (date, type, label, drill, color) => { if (!date) return; (ev[date] = ev[date] ?? []).push({ type, label, drill, color }); };
@@ -1503,7 +1546,8 @@ function PlannerScreen({ go }) {
       (es.data ?? []).forEach((r) => add(r.work_date, "Shift", `${r.zone ?? "—"} · ${r.status}`, "emp_schedule", "#b026ff"));
       setEvents(ev);
     });
-  }, [ym.y, ym.m]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ym.y, ym.m, plan?.id]);
   const first = new Date(ym.y, ym.m, 1);
   const cells = [...Array(first.getDay()).fill(null),
     ...Array.from({ length: new Date(ym.y, ym.m + 1, 0).getDate() }, (_, i) => i + 1)];
@@ -1524,8 +1568,37 @@ function PlannerScreen({ go }) {
           <button className="btn small" onClick={() => { const d = new Date(); setYm({ y: d.getFullYear(), m: d.getMonth() }); }}>Today</button>
         </div>
       </div>
+      <div className="filterbar">
+        <span className="flab">Planner</span>
+        <select className="fdate" style={{ width: 230 }} value={plan?.id ?? ""} onChange={(e) => setPlan(planners.find((p) => p.id === e.target.value) ?? null)}>
+          {planners.map((p) => <option key={p.id} value={p.id}>{p.name}{p.is_private ? " (private)" : ""}</option>)}
+        </select>
+        {!pform.creating ? (
+          <button className="btn small ghost" onClick={() => setPform({ ...pform, creating: true })}>+ New planner</button>
+        ) : (
+          <>
+            <input className="fsearch" style={{ maxWidth: 220 }} placeholder="Planner name…" value={pform.name}
+              onChange={(e) => setPform({ ...pform, name: e.target.value })} />
+            {PLANNER_LEGEND.map(([label], i) => {
+              const key = ["harvest", "shipment", "work_order", "expiry", "shift"][i];
+              const on = pform.srcs.includes(key);
+              return (
+                <button key={key} className={`schip ${on ? "good sel" : "info"}`}
+                  onClick={() => setPform({ ...pform, srcs: on ? pform.srcs.filter((s) => s !== key) : [...pform.srcs, key] })}>
+                  {label}
+                </button>
+              );
+            })}
+            <button className="btn small" onClick={createPlanner}>Create</button>
+            <button className="btn small ghost" onClick={() => setPform({ ...pform, creating: false })}>✕</button>
+          </>
+        )}
+      </div>
       <div className="callegend">
-        {PLANNER_LEGEND.map(([l, c]) => <span key={l} className="cl"><i style={{ background: c }} />{l}</span>)}
+        {PLANNER_LEGEND.map(([l, c], i) => {
+          const key = ["harvest", "shipment", "work_order", "expiry", "shift"][i];
+          return allowed(key) ? <span key={l} className="cl"><i style={{ background: c }} />{l}</span> : null;
+        })}
       </div>
       {events === null ? <div className="empty"><div className="eicon">{I.clock}</div>Loading the month…</div> : (
         <>
@@ -2245,7 +2318,7 @@ export default function App() {
     alerts: <AlertsScreen go={setView} />,
     brain: <BrainScreen session={session} go={setView} isExec={isExec} dictation={dictation} />,
     teams: <TeamsScreen session={session} isExec={isExec} />,
-    planner: <PlannerScreen go={setView} />,
+    planner: <PlannerScreen go={setView} session={session} />,
     dashboards: <DashboardsScreen session={session} go={setView} />,
     whiteboards: <WhiteboardsScreen session={session} />,
     tasks: <TasksScreen session={session} />,
