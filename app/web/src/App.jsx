@@ -40,6 +40,8 @@ const I = {
   dna: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 3c0 6 12 6 12 12M18 3c0 6-12 6-12 12M6 15c0 3 2 6 6 6M18 15c0 3-2 6-6 6M8 7h8M8 11h8" /></svg>),
   help: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="8.5" /><path d="M9.5 9.2a2.6 2.6 0 0 1 5.1.7c0 1.7-2.4 2.2-2.4 3.6" /><circle cx="12" cy="17" r="0.4" fill="currentColor" /></svg>),
   burger: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M4 7h16M4 12h16M4 17h16" /></svg>),
+  bell: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 9a6 6 0 1 0-12 0c0 6-2.5 7-2.5 7h17S18 15 18 9" /><path d="M10 20a2.2 2.2 0 0 0 4 0" /></svg>),
+  mail: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="5" width="18" height="14" rx="1.5" /><path d="m3.5 7 8.5 6 8.5-6" /></svg>),
   caret: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="m9 6 6 6-6 6" /></svg>),
 };
 const iconByName = (n) => I[n] ?? I.gauge;
@@ -60,7 +62,7 @@ const METRIC_GROUPS = [
     items: {
       harvest_mass_balance_exceptions: { label: "Mass-Balance Exceptions", icon: I.scale, drill: "harvests" },
       lots_expired_sellable: { label: "Expired Lots in Sellable Status", icon: I.box, drill: "lots" },
-      pending_allocations: { label: "Pending Allocations (Vincent)", icon: I.users, drill: "allocations" },
+      pending_allocations: { label: "Pending Allocations", icon: I.users, drill: "allocations" },
       blocked_work_orders: { label: "Blocked Work Orders", icon: I.gauge, drill: "work_orders" },
     },
   },
@@ -112,7 +114,16 @@ function usePrefs(session) {
   }, [session]);
   const setTheme = useCallback((t) => { setThemeState(t); persist({ theme: t }); }, [persist]);
   const setCollapsed = useCallback((c) => { setCollapsedState(c); persist({ sidebar_collapsed: c }); }, [persist]);
-  return { theme, setTheme, collapsed, setCollapsed };
+  const [navWidth, setNavWidthState] = useState(() => Number(localStorage.getItem("tg-navw")) || 246);
+  useEffect(() => { localStorage.setItem("tg-navw", String(navWidth)); }, [navWidth]);
+  useEffect(() => {
+    if (!session) return;
+    supabase.from("user_settings").select("sidebar_width").eq("user_id", session.user.id).maybeSingle()
+      .then(({ data }) => { if (data?.sidebar_width) setNavWidthState(data.sidebar_width); });
+  }, [session]);
+  const setNavWidthLive = useCallback((w) => setNavWidthState(Math.min(380, Math.max(170, w))), []);
+  const commitNavWidth = useCallback((w) => persist({ sidebar_width: Math.min(380, Math.max(170, Math.round(w))) }), [persist]);
+  return { theme, setTheme, collapsed, setCollapsed, navWidth, setNavWidthLive, commitNavWidth };
 }
 
 function useNav() {
@@ -189,7 +200,7 @@ function Auth() {
   return (
     <div className="auth-wrap">
       <div className="auth-brand">
-        <HexLogo size={64} />
+        <img src="/tg-logo.png" alt="Twisted Growers" style={{ width: 150, marginBottom: 26 }} />
         <h2>Twisted Growers <em>Enterprise OS</em></h2>
         <div className="tag">One system for the entire operation — cultivation to cash, Metrc-verified, nothing hidden, nothing hardwired.</div>
         <div className="laws">
@@ -362,8 +373,28 @@ function MetrcMirror() {
   );
 }
 
+/* ---------- Live data KPIs (real counts only) ---------- */
+const KPI_TABLES = [
+  ["metrc_packages", "Metrc Packages", "#00d4ff"],
+  ["metrc_plants", "Metrc Plants", "#5cff92"],
+  ["metrc_harvests", "Metrc Harvests", "#b366ff"],
+  ["metrc_transfers", "Transfers", "#ffea00"],
+  ["lots", "Lots", "#ff8a00"],
+  ["employees", "Employees", "#ff2e9e"],
+];
+function useLiveCounts() {
+  const [c, setC] = useState(null);
+  useEffect(() => {
+    Promise.all(KPI_TABLES.map(([t]) =>
+      supabase.from(t).select("*", { count: "exact", head: true }).then(({ count }) => count ?? 0)
+    )).then((counts) => setC(KPI_TABLES.map(([t, l, col], i) => ({ t, l, col, n: counts[i] }))));
+  }, []);
+  return c;
+}
+
 /* ---------- Control Tower ---------- */
 function ControlTower({ go }) {
+  const kpis = useLiveCounts();
   const [rows, setRows] = useState(null);
   const [err, setErr] = useState(null);
   const sync = useSyncSummary();
@@ -402,6 +433,22 @@ function ControlTower({ go }) {
             <div className="stat"><div className="sl">Last sync</div><div className="sv">{sync == null ? "…" : sync.lastOkAt ? timeAgo(sync.lastOkAt) : <small>never</small>}</div></div>
             <div className="stat"><div className="sl">Records synced</div><div className="sv">{sync == null ? "…" : sync.totalRecords.toLocaleString()}</div></div>
             <div className="stat"><div className="sl">Cash data age</div><div className="sv">{cashDays >= 999 ? <small>never updated</small> : `${cashDays}d`}</div></div>
+          </div>
+        </div>
+      )}
+      {kpis && (
+        <div className="msection" style={{ marginTop: 0 }}>
+          <div className="mtitle"><span className="sq" /><h2>Live Data KPIs</h2><span className="rule" /></div>
+          <div className="grid">
+            {kpis.map((k) => (
+              <div key={k.t} className="card ok" style={{ borderLeftColor: k.col }}>
+                <div className="chip" style={{ background: `${k.col}22`, color: k.col }}>{I.gauge}</div>
+                <div className="body">
+                  <div className="metric">{k.l}</div>
+                  <div className="vrow"><div className="value">{k.n.toLocaleString()}</div><div className="state" style={{ color: k.col }}>records</div></div>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       )}
@@ -723,6 +770,15 @@ export default function App() {
   const nav = useNav();
   const [view, setView] = useState("tower");
   const [openCats, setOpenCats] = useState({});
+  const [dragging, setDragging] = useState(false);
+  useEffect(() => {
+    if (!dragging) return;
+    const move = (e) => prefs.setNavWidthLive(e.clientX);
+    const up = (e) => { setDragging(false); prefs.commitNavWidth(e.clientX); };
+    document.addEventListener("mousemove", move);
+    document.addEventListener("mouseup", up);
+    return () => { document.removeEventListener("mousemove", move); document.removeEventListener("mouseup", up); };
+  }, [dragging, prefs]);
   if (session === undefined) return null;
   if (!session) return <Auth />;
 
@@ -750,23 +806,29 @@ export default function App() {
   return (
     <div className="frame">
       <header className="topnav">
-        <button className="burger" onClick={() => prefs.setCollapsed(!prefs.collapsed)} title="Collapse menu">{I.burger}</button>
-        <div className="tlogo"><HexLogo /><span className="tword">Twisted <b>Growers</b></span></div>
+        <div className="tlogo"><img src="/tg-mark.png" alt="Twisted Growers" style={{ width: 34, height: 34, borderRadius: "50%" }} /><span className="tword">Twisted <b>Growers</b></span></div>
         <div className="tdivider" />
         <div className="tcrumb">{current ? `${current.category} / ${current.label}` : "Command / Control Tower"}</div>
         <div className="tspacer" />
-        <span className="tpill"><span className="d" /> LIVE SYSTEM</span>
+        <span className="tpill"><span className="d" /> LIVE</span>
         <div className="tuser">
-          <div className="avatar">{(email[0] ?? "T").toUpperCase()}</div>
-          <span className="tmail">{email}</span>
-          <button onClick={() => supabase.auth.signOut()} title="Sign out">{I.out}</button>
+          <button className="tibtn" title="Alerts & Reminders" onClick={() => setView("alerts")}>{I.bell}</button>
+          <button className="tibtn" title="Messages" onClick={() => setView("messages")}>{I.mail}</button>
+          <button className="tibtn" title="Help & Support" onClick={() => setView("help")}>{I.help}</button>
+          <button className="avatar" title={`${email} — Settings`} onClick={() => setView("settings")}>{(email[0] ?? "T").toUpperCase()}</button>
         </div>
       </header>
       <div className="below">
-        <nav className={`nav ${prefs.collapsed ? "closed" : ""}`}>
+        <nav className={`nav ${prefs.collapsed ? "closed" : ""} ${dragging ? "dragging" : ""}`}
+          style={prefs.collapsed ? undefined : { width: prefs.navWidth }}>
+          <div className="navtools">
+            <button onClick={() => setOpenCats(Object.fromEntries(cats.map((c) => [c.name, true])))}>Expand all</button>
+            <button onClick={() => setOpenCats(Object.fromEntries(cats.map((c) => [c.name, false])))}>Collapse all</button>
+          </div>
           {cats.map((c) => (
             <div className="cat" key={c.name}>
               <button className="cathead" onClick={() => setOpenCats({ ...openCats, [c.name]: !isOpen(c.name) })}>
+                <span className="catdot" style={{ background: c.items[0]?.color ?? "var(--neon)" }} />
                 <span className="ctext">{c.name}</span>
                 <span className={`caret ${isOpen(c.name) ? "open" : ""}`}>{I.caret}</span>
               </button>
@@ -775,13 +837,17 @@ export default function App() {
                   <button key={e.view_key} className={`item ${view === e.view_key ? "on" : ""}`}
                     onClick={() => setView(e.view_key)} title={e.label}>
                     {iconByName(e.icon)}<span className="lbl">{e.label}</span>
-                    {e.milestone && <span className="mtag">{e.milestone}</span>}
+                    {e.milestone && <span className="mtag">SOON</span>}
                   </button>
                 ))}
               </div>
             </div>
           ))}
+          <button className="burger navburger" onClick={() => prefs.setCollapsed(!prefs.collapsed)} title="Collapse / expand menu">{I.burger}</button>
           <div className="railfoot"><RailMetrc /></div>
+          {!prefs.collapsed && (
+            <div className="dragbar" onMouseDown={(e) => { e.preventDefault(); setDragging(true); }} title="Drag to resize" />
+          )}
         </nav>
         <main className="main">
           <Boundary resetKey={view}>{body}</Boundary>
