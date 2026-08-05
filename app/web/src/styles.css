@@ -192,8 +192,11 @@ h1, h2, h3, .display { font-family: "Space Grotesk", "Inter", sans-serif; }
 }
 .nav.closed { width: 66px; }
 .nav.dragging { transition: none; }
-.dragbar { position: absolute; top: 0; right: -3px; width: 7px; height: 100%; cursor: col-resize; z-index: 6; }
-.dragbar:hover, .dragbar.active { background: linear-gradient(180deg, transparent, var(--neon-line), transparent); }
+.dragbar { position: absolute; top: 0; right: -6px; width: 12px; height: 100%; cursor: col-resize; z-index: 6; }
+.dragbar::after { content: ""; position: absolute; top: 0; bottom: 0; left: 5px; width: 2px; background: var(--rail-border); }
+.dragbar::before { content: ""; position: absolute; top: 50%; left: 2px; width: 8px; height: 52px; transform: translateY(-50%); border-radius: 5px; background: var(--rail-border); border: 1px solid var(--line); }
+.dragbar:hover::after, .dragbar.active::after { background: var(--neon); box-shadow: 0 0 10px var(--neon); }
+.dragbar:hover::before, .dragbar.active::before { background: var(--neon-line); }
 .nav .cat { margin-top: 6px; }
 .nav .cathead {
   width: 100%; display: flex; align-items: center; gap: 8px;
