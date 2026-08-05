@@ -1604,6 +1604,144 @@ function TasksScreen({ session }) {
   );
 }
 
+/* ---------- Where Is Everything: item-level seed-to-sale locator with unit conversion ---------- */
+const G_PER = { g: 1, oz: 28.3495, lb: 453.592, kg: 1000 };
+const COUNT_UOMS = new Set(["ea", "plants", "each", "units", "count"]);
+function convertWeight(qty, uom, target) {
+  const n = Number(qty ?? 0);
+  if (!uom || COUNT_UOMS.has(String(uom).toLowerCase())) return { n, u: uom ?? "" };
+  const grams = n * (G_PER[String(uom).toLowerCase()] ?? 1);
+  if (target === "auto") {
+    if (grams >= 453592) return { n: grams / 453592, u: "tons" };
+    if (grams >= 4535.92) return { n: grams / 453.592, u: "lb" };
+    if (grams >= 283.495) return { n: grams / 28.3495, u: "oz" };
+    return { n: grams, u: "g" };
+  }
+  return { n: grams / G_PER[target], u: target };
+}
+const fmtQty = (v) => (v >= 1000 ? Math.round(v).toLocaleString() : v >= 10 ? v.toFixed(1) : v.toFixed(2));
+function InventoryLocator({ go }) {
+  const [rows, setRows] = useState(null);
+  const [aging, setAging] = useState([]);
+  const [unit, setUnit] = useState("auto");
+  const [cat, setCat] = useState("");
+  const [loc, setLoc] = useState("");
+  const [q, setQ] = useState("");
+  const [group, setGroup] = useState("location");
+  const [open, setOpen] = useState({});
+  useEffect(() => {
+    supabase.from("v_inventory_locator").select("*").limit(5000).then(({ data }) => setRows(data ?? []));
+    supabase.from("v_inventory_aging").select("*").not("severity", "is", null).limit(2000).then(({ data }) => setAging(data ?? []));
+  }, []);
+  if (rows === null) return <div className="empty"><div className="eicon">{I.box}</div>Loading the facility…</div>;
+  const sevOf = (r) => aging.find((a) => a.identifier === r.identifier && a.location === r.location)?.severity ?? null;
+  const actOf = (r) => aging.find((a) => a.identifier === r.identifier && a.location === r.location)?.action ?? null;
+  const cats = [...new Set(rows.map((r) => r.category))];
+  const locs = [...new Set(rows.map((r) => r.location))].sort();
+  const filtered = rows.filter((r) =>
+    (!cat || r.category === cat) && (!loc || r.location === loc) &&
+    (!q || `${r.item} ${r.identifier} ${r.location} ${r.stage} ${r.detail ?? ""} ${r.source_lineage ?? ""}`.toLowerCase().includes(q.toLowerCase())));
+  const weightOf = (list) => list.filter((r) => !COUNT_UOMS.has(String(r.uom).toLowerCase()))
+    .reduce((a, r) => a + Number(r.quantity ?? 0) * (G_PER[String(r.uom).toLowerCase()] ?? 1), 0);
+  const countOf = (list) => list.filter((r) => COUNT_UOMS.has(String(r.uom).toLowerCase())).reduce((a, r) => a + Number(r.quantity ?? 0), 0);
+  const showW = (grams) => { const c = convertWeight(grams, "g", unit); return `${fmtQty(c.n)} ${c.u}`; };
+  const crit = aging.filter((a) => a.severity === "critical");
+  const elev = aging.filter((a) => a.severity === "elevated");
+  const groups = {};
+  for (const r of filtered) {
+    const k = group === "location" ? r.location : group === "category" ? r.category : r.stage;
+    (groups[k] = groups[k] ?? []).push(r);
+  }
+  const orderedGroups = Object.entries(groups).sort((a, b) => weightOf(b[1]) - weightOf(a[1]));
+  const kpis = [
+    { t: "Live plants", v: countOf(filtered.filter((r) => r.category === "Plants" || r.category === "Plant batches")).toLocaleString(), s: "in rooms and propagation" },
+    { t: "Drying & curing", v: showW(weightOf(filtered.filter((r) => r.category === "Harvest lots"))), s: `${filtered.filter((r) => r.category === "Harvest lots").length} harvest lots` },
+    { t: "Packaged on hand", v: showW(weightOf(filtered.filter((r) => r.category === "Packages"))), s: `${filtered.filter((r) => r.category === "Packages").length} packages` },
+    { t: "In transit", v: showW(weightOf(filtered.filter((r) => r.category === "In transit"))), s: `${filtered.filter((r) => r.category === "In transit").length} leaving` },
+    { t: "Needs action now", v: crit.length, s: "critical aging items", hot: crit.length > 0 },
+    { t: "Watch list", v: elev.length, s: "elevated aging items", hot: elev.length > 0 },
+  ];
+  return (
+    <>
+      <div className="pagehead">
+        <div><h1>Where Is Everything</h1>
+          <div className="sub">Seed to sale, item by item — every plant, harvest lot, package, and outbound manifest, exactly where it sits in the facility right now, with how long it has been there.</div></div>
+      </div>
+      <div className="qcards dashgrid" style={{ marginTop: 0 }}>
+        {kpis.map((k) => (
+          <div key={k.t} className="qcard dwc">
+            <span className="dwbody" style={{ cursor: "default" }}>
+              <span className="qt">{k.t}</span>
+              <span className={`qn ${k.hot ? "hot" : ""}`}>{k.v}</span>
+              <span className="note">{k.s}</span>
+            </span>
+          </div>
+        ))}
+      </div>
+      <div className="filterbar" style={{ marginTop: 14 }}>
+        <input className="fsearch" placeholder="Search item, tag, room, strain, source harvest…" value={q} onChange={(e) => setQ(e.target.value)} />
+        <span className="flab">Show weights in</span>
+        <select className="fdate" value={unit} onChange={(e) => setUnit(e.target.value)}>
+          <option value="auto">Best fit</option><option value="g">Grams</option><option value="oz">Ounces</option>
+          <option value="lb">Pounds</option><option value="kg">Kilograms</option>
+        </select>
+        <span className="flab">Group by</span>
+        <select className="fdate" value={group} onChange={(e) => setGroup(e.target.value)}>
+          <option value="location">Location</option><option value="category">Type</option><option value="stage">Stage</option>
+        </select>
+        <select className="fdate" value={cat} onChange={(e) => setCat(e.target.value)}>
+          <option value="">All types</option>{cats.map((c) => <option key={c}>{c}</option>)}
+        </select>
+        <select className="fdate" value={loc} onChange={(e) => setLoc(e.target.value)}>
+          <option value="">All locations</option>{locs.map((l) => <option key={l}>{l}</option>)}
+        </select>
+        {(q || cat || loc) && <button className="btn small ghost" onClick={() => { setQ(""); setCat(""); setLoc(""); }}>Clear</button>}
+        <span style={{ flex: 1 }} />
+        <span className="note">{filtered.length} items</span>
+      </div>
+      {orderedGroups.map(([name, list]) => {
+        const w = weightOf(list), c = countOf(list);
+        const worst = list.map(sevOf).find((s) => s === "critical") ?? list.map(sevOf).find((s) => s === "elevated");
+        const isOpen = open[name] !== false;
+        return (
+          <div key={name} className="msection vegroup">
+            <button className="vegrouphead" onClick={() => setOpen((s) => ({ ...s, [name]: !isOpen }))}>
+              <span className="vegchip" style={{ background: worst === "critical" ? "var(--red)" : worst === "elevated" ? "var(--alert-elevated)" : "var(--neon)", color: worst ? "#fff" : "var(--neon-ink)" }}>{name}</span>
+              <span className="note">{list.length} item{list.length === 1 ? "" : "s"}{w > 0 ? ` · ${showW(w)}` : ""}{c > 0 ? ` · ${c.toLocaleString()} plants` : ""}</span>
+              <span className="note" style={{ marginLeft: "auto" }}>{isOpen ? "▾" : "▸"}</span>
+            </button>
+            {isOpen && (
+              <div className="tablewrap">
+                <table>
+                  <thead><tr><th>Item</th><th>Identifier</th><th>Type</th><th>Stage</th><th>Quantity</th><th>Days here</th><th>Laboratory</th><th>Source</th><th>Action</th></tr></thead>
+                  <tbody>{list.sort((a, b) => (b.days_here ?? 0) - (a.days_here ?? 0)).map((r, i) => {
+                    const sev = sevOf(r); const act = actOf(r);
+                    const cv = convertWeight(r.quantity, r.uom, unit);
+                    return (
+                      <tr key={`${r.identifier}-${i}`}>
+                        <td>{r.item}</td>
+                        <td className="note">{String(r.identifier ?? "").length > 24 ? `…${String(r.identifier).slice(-12)}` : r.identifier}</td>
+                        <td>{r.category}</td>
+                        <td><span className="schip good" style={{ background: "transparent", borderColor: "var(--line)", color: "var(--ink-2)" }}>{r.stage}</span></td>
+                        <td style={{ fontVariantNumeric: "tabular-nums" }}>{fmtQty(cv.n)} {cv.u}</td>
+                        <td style={{ color: sev === "critical" ? "var(--red)" : sev === "elevated" ? "var(--alert-elevated)" : undefined }}>{r.days_here ?? "—"}</td>
+                        <td className="note">{r.lab_state ?? "—"}</td>
+                        <td className="note">{r.source_lineage ? String(r.source_lineage).slice(0, 28) : "—"}</td>
+                        <td className="note" style={{ color: sev === "critical" ? "var(--red)" : undefined }}>{act ?? "—"}</td>
+                      </tr>
+                    );
+                  })}</tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        );
+      })}
+      {filtered.length === 0 && <div className="empty"><div className="eicon">{I.box}</div><b>Nothing matches</b>Clear a filter to see the whole facility.</div>}
+    </>
+  );
+}
+
 /* ---------- Allocation Requests: staff request, an approver decides ---------- */
 function AllocationRequests({ session, isExec }) {
   const [rows, setRows] = useState(null);
@@ -3423,6 +3561,7 @@ export default function App() {
     metrc_report_import: <MetrcReportImport session={session} />,
     action_register: <RegisterScreen isExec={isExec} />,
     allocation_requests: <AllocationRequests session={session} isExec={isExec} />,
+    inventory_locator: <InventoryLocator go={setView} />,
     menu_manager: isExec
       ? <MenuManager onChanged={() => setNavVersion((v) => v + 1)} />
       : <div className="empty"><div className="eicon">{I.shield}</div><b>Admin area</b>Menu Manager is restricted to executives. Ask an owner if a menu change is needed.</div>,
