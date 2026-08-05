@@ -3,6 +3,10 @@
   command = "npm install && npm run build"
   publish = "dist"
 
+[build.environment]
+  # Supabase URL + publishable (anon) key are public-by-design client values.
+  SECRETS_SCAN_OMIT_KEYS = "VITE_SUPABASE_ANON_KEY,VITE_SUPABASE_URL"
+
 [[redirects]]
   from = "/*"
   to = "/index.html"
