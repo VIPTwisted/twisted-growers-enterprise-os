@@ -6,13 +6,13 @@
    ============================================================ */
 :root, :root[data-theme="dark"] {
   --canvas: #0a0c0b;
-  /* Figma-style neon mesh per owner reference: green -> yellow -> neon aqua, luminous blobs
-     blending from the very top, dissolving into black by mid-page. */
+  /* Figma-style neon mesh: green -> yellow -> neon aqua from the very top, dissolving by mid-page.
+     Colors come from the user's saved canvas theme (Settings) via --mesh-d1..d3; neon defaults. */
   --canvas-glow:
-    linear-gradient(180deg, rgba(10, 12, 11, 0) 0%, rgba(10, 12, 11, 0.70) 34%, #0a0c0b 54%),
-    radial-gradient(120% 70% at 12% -10%, rgba(57, 255, 20, 0.36), transparent 60%),
-    radial-gradient(110% 65% at 50% -12%, rgba(255, 240, 0, 0.28), transparent 62%),
-    radial-gradient(120% 70% at 92% -8%, rgba(0, 229, 255, 0.32), transparent 60%);
+    linear-gradient(180deg, rgba(10, 12, 11, 0) 0%, rgba(10, 12, 11, 0.40) 45%, rgba(10, 12, 11, 0.78) 78%, #0a0c0b 100%),
+    radial-gradient(140% 130% at 12% -10%, color-mix(in srgb, var(--mesh-d1, #39ff14) 36%, transparent), transparent 78%),
+    radial-gradient(130% 120% at 50% -12%, color-mix(in srgb, var(--mesh-d2, #fff000) 28%, transparent), transparent 80%),
+    radial-gradient(140% 130% at 92% -8%, color-mix(in srgb, var(--mesh-d3, #00e5ff) 32%, transparent), transparent 78%);
   --surface: #111513;
   --surface-2: #181d1a;
   --ink: #ffffff;
@@ -55,13 +55,13 @@
 }
 :root[data-theme="light"] {
   --canvas: #fdfefd;
-  /* Figma-style neon mesh per owner reference: green -> yellow -> neon aqua, bright and smooth,
-     dissolving into white by mid-page. */
+  /* Figma-style neon mesh in light: bright and smooth, dissolving to white by mid-page.
+     Colors come from the user's saved canvas theme (Settings) via --mesh-l1..l3; neon defaults. */
   --canvas-glow:
-    linear-gradient(180deg, rgba(253, 254, 253, 0) 0%, rgba(253, 254, 253, 0.62) 32%, #fdfefd 52%),
-    radial-gradient(120% 70% at 12% -10%, rgba(57, 255, 20, 0.50), transparent 60%),
-    radial-gradient(110% 65% at 50% -12%, rgba(250, 255, 0, 0.52), transparent 62%),
-    radial-gradient(120% 70% at 92% -8%, rgba(0, 229, 255, 0.46), transparent 60%);
+    linear-gradient(180deg, rgba(253, 254, 253, 0) 0%, rgba(253, 254, 253, 0.38) 45%, rgba(253, 254, 253, 0.72) 78%, #fdfefd 100%),
+    radial-gradient(140% 130% at 12% -10%, color-mix(in srgb, var(--mesh-l1, #39ff14) 50%, transparent), transparent 78%),
+    radial-gradient(130% 120% at 50% -12%, color-mix(in srgb, var(--mesh-l2, #faff00) 52%, transparent), transparent 80%),
+    radial-gradient(140% 130% at 92% -8%, color-mix(in srgb, var(--mesh-l3, #00e5ff) 46%, transparent), transparent 78%);
   --surface: #ffffff;
   --surface-2: #eef1ee;
   --ink: #101312;
@@ -190,7 +190,10 @@ h1, h2, h3, .display { font-family: "Space Grotesk", "Inter", sans-serif; }
 .nav {
   position: relative;
   width: 246px; flex-shrink: 0;
-  background: linear-gradient(180deg, var(--rail) 0%, var(--rail-2) 100%);
+  /* Translucent over the fixed mesh: the page gradient flows behind the menu too — nothing contains it. */
+  background: linear-gradient(180deg, rgba(4, 6, 5, 0.30), rgba(4, 6, 5, 0.48));
+  backdrop-filter: blur(9px);
+  -webkit-backdrop-filter: blur(9px);
   color: #e9efeb;
   display: flex; flex-direction: column;
   border-right: 1px solid rgba(45, 242, 106, 0.13);
@@ -843,4 +846,9 @@ button.teamcard:hover { border-color: var(--neon-line); }
 /* Light mode: translucent white top bar so the same neon wash shows through it. */
 :root[data-theme="light"] .topnav {
   background: linear-gradient(180deg, rgba(253, 254, 253, 0.28), rgba(253, 254, 253, 0.55));
+}
+
+/* Light mode: translucent white side menu so the same full-page wash flows behind it. */
+:root[data-theme="light"] .nav {
+  background: linear-gradient(180deg, rgba(253, 254, 253, 0.30), rgba(253, 254, 253, 0.55));
 }

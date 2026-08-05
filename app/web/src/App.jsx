@@ -2330,15 +2330,44 @@ function Integrations({ session }) {
 }
 
 /* ---------- Settings ---------- */
+const CANVAS_DEF = { dark: { c1: "#39ff14", c2: "#fff000", c3: "#00e5ff" }, light: { c1: "#39ff14", c2: "#faff00", c3: "#00e5ff" } };
+const CANVAS_PRESETS = [
+  { name: "TG Neon", c: ["#39ff14", "#fff000", "#00e5ff"] },
+  { name: "Citrus Punch", c: ["#c6ff00", "#ffea00", "#ff9100"] },
+  { name: "Beach Day", c: ["#18ffff", "#ffff00", "#00e676"] },
+  { name: "Island Heat", c: ["#00e676", "#ffea00", "#ff6d00"] },
+  { name: "Miami Surf", c: ["#00e676", "#1de9b6", "#00b0ff"] },
+  { name: "Sunset Pop", c: ["#ffea00", "#ff9100", "#ff3d81"] },
+  { name: "Tropical Lagoon", c: ["#00e5ff", "#00e676", "#ffea00"] },
+  { name: "Tropical Punch", c: ["#ff3d81", "#ff9100", "#00e676"] },
+  { name: "Mango Tango", c: ["#ffea00", "#ff9100", "#ff5252"] },
+  { name: "Palm Paradise", c: ["#00e676", "#76ff03", "#00b0ff"] },
+];
+function applyCanvasTheme(ct) {
+  const r = document.documentElement.style;
+  const set = (k, v) => (v ? r.setProperty(k, v) : r.removeProperty(k));
+  set("--mesh-d1", ct?.dark?.c1); set("--mesh-d2", ct?.dark?.c2); set("--mesh-d3", ct?.dark?.c3);
+  set("--mesh-l1", ct?.light?.c1); set("--mesh-l2", ct?.light?.c2); set("--mesh-l3", ct?.light?.c3);
+}
 function Settings({ session, prefs }) {
   const { theme, setTheme } = prefs;
   const [avatarUrl, setAvatarUrl] = useState(null);
   const [avMsg, setAvMsg] = useState(null);
+  const [ct, setCt] = useState(null);
   const avRef = React.useRef(null);
   useEffect(() => {
-    supabase.from("user_settings").select("avatar_url").eq("user_id", session.user.id).maybeSingle()
-      .then(({ data }) => setAvatarUrl(data?.avatar_url ?? null));
+    supabase.from("user_settings").select("avatar_url, canvas_theme").eq("user_id", session.user.id).maybeSingle()
+      .then(({ data }) => { setAvatarUrl(data?.avatar_url ?? null); setCt(data?.canvas_theme ?? null); });
   }, [session.user.id]);
+  const saveCt = async (next) => {
+    setCt(next); applyCanvasTheme(next);
+    await supabase.from("user_settings").upsert({ user_id: session.user.id, canvas_theme: next }, { onConflict: "user_id" });
+  };
+  const choosePreset = (p) => saveCt({ preset: p.name, dark: { c1: p.c[0], c2: p.c[1], c3: p.c[2] }, light: { c1: p.c[0], c2: p.c[1], c3: p.c[2] } });
+  const setColor = (mode, k, v) => {
+    const base = ct ?? { preset: "custom", ...CANVAS_DEF };
+    saveCt({ ...base, preset: "custom", [mode]: { ...(base[mode] ?? CANVAS_DEF[mode]), [k]: v } });
+  };
   const uploadAvatar = async (e) => {
     const f = e.target.files?.[0];
     if (!f) return;
@@ -2390,6 +2419,31 @@ function Settings({ session, prefs }) {
               </button>
             </div>
             <div className="note">Saved to your account instantly. The rail and top bar stay black in both — that's the brand.</div>
+          </div>
+        </div>
+        <div className="msection" style={{ marginTop: 0 }}>
+          <div className="mtitle"><span className="sq" /><h2>Canvas gradient</h2><span className="rule" /></div>
+          <div className="panel" style={{ maxWidth: "none" }}>
+            <div className="note" style={{ marginBottom: 8 }}>Summer presets — one click sets both modes. Then fine-tune each color per mode; everything saves to your account and applies instantly.</div>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              {CANVAS_PRESETS.map((p) => (
+                <button key={p.name} className={`btn small ghost ${ct?.preset === p.name ? "sel" : ""}`}
+                  style={{ backgroundImage: `linear-gradient(100deg, ${p.c[0]}55, ${p.c[1]}55, ${p.c[2]}55)` }}
+                  onClick={() => choosePreset(p)}>{p.name}{ct?.preset === p.name ? " ✓" : ""}</button>
+              ))}
+            </div>
+            {["dark", "light"].map((mode) => (
+              <div key={mode} style={{ display: "flex", gap: 10, alignItems: "center", marginTop: 12 }}>
+                <span className="note" style={{ width: 96, textTransform: "capitalize" }}>{mode} colors</span>
+                {["c1", "c2", "c3"].map((k) => (
+                  <input key={k} type="color" value={ct?.[mode]?.[k] ?? CANVAS_DEF[mode][k]}
+                    onChange={(e) => setColor(mode, k, e.target.value)}
+                    style={{ width: 44, height: 30, padding: 0, border: "1px solid var(--line)", borderRadius: 4, background: "none", cursor: "pointer" }} />
+                ))}
+                <span className="note">left · middle · right of the mesh</span>
+              </div>
+            ))}
+            {ct && <button className="btn small ghost" style={{ marginTop: 12 }} onClick={() => saveCt(null) || applyCanvasTheme(null)}>Reset to brand default</button>}
           </div>
         </div>
         <div className="msection" style={{ marginTop: 0 }}>
@@ -2545,8 +2599,8 @@ export default function App() {
   const fileRef = React.useRef(null);
   useEffect(() => {
     if (!session?.user?.id) return;
-    supabase.from("user_settings").select("avatar_url").eq("user_id", session.user.id).maybeSingle()
-      .then(({ data }) => setAvatarUrl(data?.avatar_url ?? null));
+    supabase.from("user_settings").select("avatar_url, canvas_theme").eq("user_id", session.user.id).maybeSingle()
+      .then(({ data }) => { setAvatarUrl(data?.avatar_url ?? null); applyCanvasTheme(data?.canvas_theme ?? null); });
   }, [session?.user?.id]);
   useEffect(() => {
     const h = (e) => setAvatarUrl(e.detail);
