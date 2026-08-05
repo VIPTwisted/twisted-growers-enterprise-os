@@ -84,3 +84,28 @@ Their tasks float free; ours attach to regulated objects with gates (a task on a
 the lot's COA state). Their automations end at notifications; ours can enforce compliance
 (auto-quarantine on failed COA). Their time tracking bills clients; ours costs batches at
 real per-employee rates. Work management fused with the system of record — that's the moat.
+
+## Deep-spec: Goals & Scorecards (parsed from the goals feature page, 2026-08-05 — capabilities re-specified, nothing copied)
+
+**Target types:** number · currency · percent · true/false · task-completion — plus the
+TG-exclusive **live-metric target**: bind a target to any OS measure (lbs harvested, OTIF %,
+COA pass streak, revenue) and progress computes itself from operations. Their goals wait for
+humans to update tasks; ours read the business.
+
+**Structure:** a Goal holds multiple targets; goal progress = roll-up % across its targets.
+Goals group into **folders** — harvest cycles, OKR periods, weekly employee scorecards —
+with a folder view showing every member goal's percentage on one screen.
+
+**Accountability:** one or multiple owners per goal · deadlines tracked · view/edit
+**permissions** per user or group (rides the CODE-022 permission framework).
+
+**Cycle goals:** link a harvest cycle's or production week's work to a single goal — the
+sprint pattern, translated to cultivation reality.
+
+**Scorecards:** periodic (weekly) roll-ups per person/team/department, fed by the KPI layer.
+
+**Dashboards module (paired):** per-user widget grids — drag, drop, resize, arrange; layouts
+persisted per account; widget types: metric card, chart, view embed, goal progress, workload.
+
+**Schema (migration 0012, M4):** goals · goal_targets · goal_folders · dashboard_layouts.
+Both modules registered in the nav (Command) with honest M4 tags.
