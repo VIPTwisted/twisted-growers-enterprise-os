@@ -1604,6 +1604,115 @@ function TasksScreen({ session }) {
   );
 }
 
+/* ---------- Metrc Report Import: pull data straight from Metrc's reports ---------- */
+function parseCSV(text) {
+  const rows = [];
+  let cur = [""], inQ = false, row = cur;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (inQ) {
+      if (c === '"') { if (text[i + 1] === '"') { row[row.length - 1] += '"'; i++; } else inQ = false; }
+      else row[row.length - 1] += c;
+    } else if (c === '"') inQ = true;
+    else if (c === ",") row.push("");
+    else if (c === "\n" || c === "\r") {
+      if (c === "\r" && text[i + 1] === "\n") i++;
+      if (row.length > 1 || row[0] !== "") rows.push(row);
+      row = [""]; if (rows.length > 25000) break;
+    } else row[row.length - 1] += c;
+  }
+  if (row.length > 1 || row[0] !== "") rows.push(row);
+  if (!rows.length) return [];
+  const headers = rows[0].map((h, i) => (h || `col${i}`).trim());
+  return rows.slice(1).map((r) => Object.fromEntries(headers.map((h, i) => [h, r[i] ?? ""])));
+}
+const REPORT_TYPES = [
+  ["items", "Items (Admin grid export) — fills Metrc Items"],
+  ["strains", "Strains (Admin grid export) — fills Metrc Strains"],
+  ["locations", "Locations (Admin grid export) — fills Metrc Locations"],
+  ["harvests", "Harvests report"], ["inventory", "Inventory Point-in-Time report"],
+  ["lab_results", "Lab Results report"], ["plants_inventory", "Monthly Plants Inventory report"],
+  ["packages", "Packages report/grid"], ["transfers", "Transfers report/grid"], ["other", "Other Metrc report"],
+];
+function MetrcReportImport({ session }) {
+  const [license, setLicense] = useState("MC281714");
+  const [rtype, setRtype] = useState("items");
+  const [parsed, setParsed] = useState(null);
+  const [fileName, setFileName] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState(null);
+  const [history, setHistory] = useState(null);
+  const fRef = React.useRef(null);
+  const loadHistory = () => supabase.from("metrc_report_imports").select("*").order("imported_at", { ascending: false }).limit(20)
+    .then(({ data }) => setHistory(data ?? []));
+  useEffect(() => { loadHistory(); }, []);
+  const onFile = async (e) => {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    setFileName(f.name); setResult(null);
+    const text = await f.text();
+    setParsed(parseCSV(text));
+  };
+  const runImport = async () => {
+    if (!parsed?.length) return;
+    setBusy(true); setResult(null);
+    try {
+      const r = await fetch(`${FUNCTIONS_URL}/metrc-report-import`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ report_type: rtype, license, file_name: fileName, rows: parsed }),
+      });
+      const j = await r.json();
+      setResult(j.ok ? `Imported: ${j.results.stored}; ${j.results.mapped}${j.results.map_errors?.length ? `; errors: ${j.results.map_errors.join(" · ")}` : ""}` : `Failed: ${j.error}`);
+      if (j.ok) { setParsed(null); setFileName(null); if (fRef.current) fRef.current.value = ""; loadHistory(); }
+    } catch (e) { setResult(`Failed: ${String(e)}`); }
+    setBusy(false);
+  };
+  return (
+    <>
+      <div className="pagehead">
+        <div><h1>Metrc Report Import</h1>
+          <div className="sub">The confirmed data path: in Metrc, open Reports (or any Admin grid), export CSV, drop it here. Items, Strains, and Locations map straight into their live tables — everything else is stored row-for-row, nothing lost.</div></div>
+      </div>
+      <div className="panel" style={{ maxWidth: "none" }}>
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+          <span className="flab">License</span>
+          <select className="fdate" value={license} onChange={(e) => setLicense(e.target.value)}>
+            <option value="MC281714">MC281714 — Cultivation</option>
+            <option value="MP281909">MP281909 — Manufacturing</option>
+          </select>
+          <span className="flab">Report</span>
+          <select className="fdate" style={{ minWidth: 280 }} value={rtype} onChange={(e) => setRtype(e.target.value)}>
+            {REPORT_TYPES.map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+          </select>
+          <input ref={fRef} type="file" accept=".csv,text/csv" onChange={onFile} />
+        </div>
+        {parsed && (
+          <div style={{ marginTop: 12 }}>
+            <div className="note">{fileName}: <b>{parsed.length.toLocaleString()} rows</b> parsed · columns: {Object.keys(parsed[0] ?? {}).slice(0, 8).join(", ")}{Object.keys(parsed[0] ?? {}).length > 8 ? "…" : ""}</div>
+            <button className="btn" style={{ marginTop: 10 }} disabled={busy} onClick={runImport}>{busy ? "Importing…" : `Import ${parsed.length.toLocaleString()} rows`}</button>
+          </div>
+        )}
+        {result && <div className="note" style={{ marginTop: 10 }}>{result}</div>}
+      </div>
+      <div className="msection">
+        <div className="mtitle"><span className="sq" /><h2>Import history</h2><span className="rule" /></div>
+        {history === null ? <div className="empty"><div className="eicon">{I.plug}</div>Loading…</div> : history.length === 0 ? (
+          <div className="empty"><div className="eicon">{I.plug}</div><b>No reports imported yet</b>Your first Metrc report lands here the moment you import it.</div>
+        ) : (
+          <div className="tablewrap"><table>
+            <thead><tr><th>When</th><th>Report</th><th>License</th><th>File</th><th>Rows</th><th>Mapped to</th><th>By</th></tr></thead>
+            <tbody>{history.map((h) => (
+              <tr key={h.id}><td>{new Date(h.imported_at).toLocaleString()}</td><td>{h.report_type}</td><td>{h.license ?? "—"}</td>
+                <td>{h.file_name ?? "—"}</td><td>{h.row_count}</td><td>{h.mapped_to ?? "generic"}</td><td>{h.imported_by}</td></tr>
+            ))}</tbody>
+          </table></div>
+        )}
+      </div>
+    </>
+  );
+}
+
 /* ---------- Whiteboards: real pen + sticky notes, persisted ---------- */
 const WB_COLORS = ["#2df26a", "#ffea00", "#57a9ff", "#ff2e5f", "#ffffff"];
 function WhiteboardEditor({ board, onBack }) {
@@ -2955,6 +3064,7 @@ export default function App() {
     metrc_mc: <MetrcMirror license="MC281714" />,
     metrc_mp: <MetrcMirror license="MP281909" />,
     golive: <GoLiveScreen isExec={isExec} go={setView} />,
+    metrc_report_import: <MetrcReportImport session={session} />,
     menu_manager: isExec
       ? <MenuManager onChanged={() => setNavVersion((v) => v + 1)} />
       : <div className="empty"><div className="eicon">{I.shield}</div><b>Admin area</b>Menu Manager is restricted to executives. Ask an owner if a menu change is needed.</div>,
