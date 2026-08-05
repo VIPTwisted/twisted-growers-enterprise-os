@@ -1660,6 +1660,82 @@ function TeamsScreen({ session, isExec }) {
   );
 }
 
+/* ---------- Chat v1: real channels, real messages ---------- */
+function ChatScreen({ session }) {
+  const [channels, setChannels] = useState(null);
+  const [chan, setChan] = useState(null);
+  const [msgs, setMsgs] = useState(null);
+  const [draft, setDraft] = useState("");
+  const endRef = React.useRef(null);
+  useEffect(() => {
+    supabase.from("channels").select("*").order("name").then(({ data }) => {
+      setChannels(data ?? []);
+      setChan((c) => c ?? (data ?? []).find((x) => x.name === "general") ?? (data ?? [])[0] ?? null);
+    });
+  }, []);
+  useEffect(() => {
+    if (!chan) return;
+    let on = true;
+    const load = () =>
+      supabase.from("messages").select("*").eq("channel_id", chan.id)
+        .order("created_at", { ascending: false }).limit(100)
+        .then(({ data }) => { if (on) setMsgs((data ?? []).reverse()); });
+    load();
+    const id = setInterval(load, 5000);
+    return () => { on = false; clearInterval(id); };
+  }, [chan?.id]);
+  useEffect(() => { endRef.current?.scrollIntoView({ block: "end" }); }, [msgs?.length, chan?.id]);
+  const send = async () => {
+    const body = draft.trim();
+    if (!body || !chan) return;
+    setDraft("");
+    await supabase.from("messages").insert({
+      channel_id: chan.id, user_id: session.user.id,
+      author: (session.user.email ?? "user").split("@")[0], body,
+    });
+    const { data } = await supabase.from("messages").select("*").eq("channel_id", chan.id)
+      .order("created_at", { ascending: false }).limit(100);
+    setMsgs((data ?? []).reverse());
+  };
+  return (
+    <>
+      <div className="pagehead">
+        <div><h1>Messages</h1><div className="sub">Company chat, one channel per department. Append-only history, executive-only deletion. Threads, reactions, attachments, and DMs grow in with the Work Layer.</div></div>
+      </div>
+      <div className="chatwrap">
+        <div className="chanrail">
+          {(channels ?? []).map((c) => (
+            <button key={c.id} className={`chanbtn ${chan?.id === c.id ? "on" : ""}`} onClick={() => { setMsgs(null); setChan(c); }}>
+              <span className="chh">#</span>{c.name}
+            </button>
+          ))}
+        </div>
+        <div className="chatmain">
+          <div className="chatfeed">
+            {msgs === null ? <div className="bnote">Loading #{chan?.name}…</div>
+              : msgs.length === 0 ? <div className="bnote">Nothing in #{chan?.name} yet — say the first word.</div>
+              : msgs.map((m) => (
+                <div key={m.id} className="chatmsg">
+                  <span className="tcavatar">{m.author[0]?.toUpperCase()}</span>
+                  <div>
+                    <div className="cmh"><b>{m.author}</b><em>{new Date(m.created_at).toLocaleString()}</em></div>
+                    <div className="cmb">{m.body}</div>
+                  </div>
+                </div>
+              ))}
+            <div ref={endRef} />
+          </div>
+          <div className="chatbox">
+            <input value={draft} placeholder={chan ? `Message #${chan.name}…` : "Pick a channel"}
+              onChange={(e) => setDraft(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") send(); }} />
+            <button className="btn" onClick={send}>Send</button>
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
+
 /* ---------- Alerts & Reminders: computed live from operating records, never manual ---------- */
 const METRIC_META = Object.assign({}, ...METRIC_GROUPS.map((g) => g.items));
 function AlertsScreen({ go }) {
@@ -2158,6 +2234,7 @@ export default function App() {
     dashboards: <DashboardsScreen session={session} go={setView} />,
     whiteboards: <WhiteboardsScreen session={session} />,
     tasks: <TasksScreen session={session} />,
+    messages: <ChatScreen session={session} />,
     people: <People />,
     integrations: <Integrations session={session} />,
     settings: <Settings session={session} prefs={prefs} />,
