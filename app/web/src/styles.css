@@ -780,3 +780,7 @@ button.teamcard:hover { border-color: var(--neon-line); }
 .chatbox { display: flex; gap: 10px; border-top: 1px solid var(--line); padding: 12px; }
 .chatbox input { flex: 1; background: var(--input-bg); color: var(--ink); border: 1px solid var(--line); border-radius: 7px; padding: 10px 13px; font-size: 13.5px; font-family: inherit; }
 .chatbox input:focus { outline: none; border-color: var(--neon-line); }
+
+.uitem.dim { opacity: 0.55; cursor: default; }
+.uitem.dim:hover { background: none; color: var(--rail-item); }
+.uitem .mtag { margin-left: auto; }

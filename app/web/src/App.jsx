@@ -105,6 +105,11 @@ function beep() {
 }
 function TimeTools({ session }) {
   const [open, setOpen] = useState(false);
+  useEffect(() => {
+    const h = () => setOpen(true);
+    window.addEventListener("tg-open-timetools", h);
+    return () => window.removeEventListener("tg-open-timetools", h);
+  }, []);
   const [track, setTrack] = useState(null);
   const [note, setNote] = useState("");
   const [timerEnd, setTimerEnd] = useState(null);
@@ -2283,17 +2288,33 @@ export default function App() {
                   <button className={prefs.theme === "light" ? "on" : ""} onClick={() => prefs.setTheme("light")}>{I.sun} Light</button>
                 </div>
                 <div className="usep" />
+                <button className="uitem dim" disabled title="Presence status arrives with the notifications engine">{I.users} Set status <span className="mtag">SOON</span></button>
+                <button className="uitem dim" disabled title="Per-user notification preferences arrive with the inbox">{I.bell} Mute notifications <span className="mtag">SOON</span></button>
+                <div className="usep" />
+                <button className="uitem" onClick={() => { setUserMenu(false); setView("settings"); }}>{I.gear} Settings</button>
+                <button className="uitem" onClick={() => { setUserMenu(false); setView("alerts"); }}>{I.bell} Notifications</button>
+                <button className="uitem dim" disabled title="Cheat-sheet of shortcuts ships with the views engine">{I.clip} Keyboard shortcuts <span className="mtag">SOON</span></button>
+                <button className="uitem dim" disabled title="Installable mobile app (PWA) is registered">{I.out} Get the app <span className="mtag">SOON</span></button>
+                <button className="uitem" onClick={() => { setUserMenu(false); setView("help"); }}>{I.help} Help & Support</button>
+                <div className="usep" />
                 <div className="ulabel">Personal tools</div>
                 <button className="uitem" onClick={() => { setUserMenu(false); setView("tasks"); }}>{I.check} Create task</button>
-                <button className="uitem" onClick={() => { setUserMenu(false); setView("whiteboards"); }}>{I.board} Create whiteboard</button>
-                <button className="uitem" onClick={() => { setUserMenu(false); setView("dashboards"); }}>{I.grid} My dashboard</button>
-                <button className="uitem" onClick={() => { setUserMenu(false); setView("planner"); }}>{I.clock} Planner</button>
+                <button className="uitem dim" disabled title="Personal My Work home is a registered P0">{I.box} My Work <span className="mtag">SOON</span></button>
+                <button className="uitem" onClick={() => { setUserMenu(false); window.dispatchEvent(new CustomEvent("tg-open-timetools")); }}>{I.stopwatch} Track time</button>
+                <button className="uitem dim" disabled title="Notepad rides the docs engine">{I.clip} Notepad <span className="mtag">SOON</span></button>
+                <button className="uitem dim" disabled title="Screen + voice clips are registered">{I.board} Record a clip <span className="mtag">SOON</span></button>
                 <button className="uitem" onClick={() => { setUserMenu(false); startMic(); }}>{I.mic} Talk to text</button>
+                <button className="uitem dim" disabled title="Personal reminders ride the notifications engine">{I.clock} Create reminder <span className="mtag">SOON</span></button>
+                <button className="uitem dim" disabled title="Docs engine is registered (CODE-016)">{I.clip} Create doc <span className="mtag">SOON</span></button>
+                <button className="uitem" onClick={() => { setUserMenu(false); setView("whiteboards"); }}>{I.board} Create whiteboard</button>
+                <button className="uitem" onClick={() => { setUserMenu(false); setView("people"); }}>{I.users} View people</button>
+                <button className="uitem" onClick={() => { setUserMenu(false); setView("dashboards"); }}>{I.grid} Create dashboard</button>
+                <button className="uitem" onClick={() => { setUserMenu(false); setView("planner"); }}>{I.clock} Planner</button>
                 <button className="uitem" onClick={() => { setUserMenu(false); setView("brain"); }}>{I.dna} Ask Brain</button>
+                <button className="uitem dim" disabled title="AI notetaker arrives with Meetings + M5 Brain">{I.dna} AI Notetaker <span className="mtag">M5</span></button>
                 <div className="usep" />
-                <button className="uitem" onClick={() => { setUserMenu(false); setView("people"); }}>{I.users} Employee directory</button>
-                <button className="uitem" onClick={() => { setUserMenu(false); setView("settings"); }}>{I.gear} Settings</button>
                 {isExec && <button className="uitem" onClick={() => { setUserMenu(false); setView("menu_manager"); }}>{I.burger} Menu Manager</button>}
+                {isExec && <button className="uitem dim" disabled title="Soft-delete Trash with restore window is in the Admin Console build">{I.out} Trash <span className="mtag">SOON</span></button>}
                 <div className="usep" />
                 <button className="uitem uout" onClick={() => supabase.auth.signOut()}>{I.out} Sign out</button>
               </div>
