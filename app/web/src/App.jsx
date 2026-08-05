@@ -1277,6 +1277,7 @@ function ControlTower({ go, session }) {
               );
             })}
           </div>
+          )}
         </div>
       ))}
       {rows && <div className="note" style={{ marginTop: 18 }}>Zeros before operating data is connected mean “no records yet”, not “all clear”. Connect Metrc and load operations to make this board speak.</div>}
@@ -2601,6 +2602,40 @@ function GoLiveScreen({ isExec, go }) {
 }
 
 /* ---------- Planner: the operations calendar, already full of live events ---------- */
+const PLANNER_SPANS = [["day","Day"],["week","Week"],["month","Month"],["quarter","Quarter"],["half","Semi-annual"],["year","Annual"]];
+const isoD = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+function spanWindow(span, anchor) {
+  const y = anchor.getFullYear(), m = anchor.getMonth(), d = anchor.getDate(), dow = anchor.getDay();
+  const q = Math.floor(m / 3);
+  switch (span) {
+    case "day": return { start: isoD(anchor), end: isoD(anchor) };
+    case "week": return { start: isoD(new Date(y, m, d - dow)), end: isoD(new Date(y, m, d - dow + 6)) };
+    case "quarter": return { start: isoD(new Date(y, q*3, 1)), end: isoD(new Date(y, q*3+3, 0)) };
+    case "half": return m < 6 ? { start: isoD(new Date(y,0,1)), end: isoD(new Date(y,5,30)) }
+                              : { start: isoD(new Date(y,6,1)), end: isoD(new Date(y,11,31)) };
+    case "year": return { start: isoD(new Date(y,0,1)), end: isoD(new Date(y,11,31)) };
+    default: return { start: isoD(new Date(y, m, 1)), end: isoD(new Date(y, m+1, 0)) };
+  }
+}
+function spanShift(span, anchor, dir) {
+  const y = anchor.getFullYear(), m = anchor.getMonth(), d = anchor.getDate();
+  switch (span) {
+    case "day": return new Date(y, m, d + dir);
+    case "week": return new Date(y, m, d + 7*dir);
+    case "quarter": return new Date(y, m + 3*dir, 1);
+    case "half": return new Date(y, m + 6*dir, 1);
+    case "year": return new Date(y + dir, m, 1);
+    default: return new Date(y, m + dir, 1);
+  }
+}
+function spanLabel(span, anchor) {
+  const { start, end } = spanWindow(span, anchor);
+  const f = (x) => new Date(x + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  if (span === "day") return f(start);
+  if (span === "month") return anchor.toLocaleDateString("en-US", { month: "long", year: "numeric" });
+  if (span === "year") return String(anchor.getFullYear());
+  return `${f(start)} — ${f(end)}`;
+}
 const PLANNER_LEGEND = [
   ["Harvest", "#5cff92"], ["On plan", "#2df26a"], ["Late / deadline blown", "#ff4245"],
   ["Due or at risk", "#ff8a00"], ["Complete", "#57a9ff"],
@@ -2612,6 +2647,9 @@ function PlannerScreen({ go, session }) {
   const [sel, setSel] = useState(null);
   const [rangeEnd, setRangeEnd] = useState(null);
   const [detail, setDetail] = useState(null);
+  const [span, setSpan] = useState("month");
+  const [layout, setLayout] = useState("calendar");
+  const [anchor, setAnchor] = useState(() => new Date());
   const [planners, setPlanners] = useState([]);
   const [plan, setPlan] = useState(null);
   const [pform, setPform] = useState({ name: "", srcs: ["harvest", "shipment", "work_order", "expiry", "shift"], creating: false });
@@ -2634,9 +2672,7 @@ function PlannerScreen({ go, session }) {
   };
   useEffect(() => {
     setEvents(null); setSel(null);
-    const start = `${ym.y}-${String(ym.m + 1).padStart(2, "0")}-01`;
-    const endD = new Date(ym.y, ym.m + 1, 0).getDate();
-    const end = `${ym.y}-${String(ym.m + 1).padStart(2, "0")}-${String(endD).padStart(2, "0")}`;
+    const { start, end } = spanWindow(span, anchor);
     const none = Promise.resolve({ data: [] });
     Promise.all([
       allowed("harvest") ? supabase.from("harvest_schedule").select("harvest_date,cultivar,flower_room").gte("harvest_date", start).lte("harvest_date", end) : none,
@@ -2645,8 +2681,12 @@ function PlannerScreen({ go, session }) {
       allowed("shipment") ? supabase.from("shipments").select("scheduled_ship_on,shipment_code,status").gte("scheduled_ship_on", start).lte("scheduled_ship_on", end) : none,
       allowed("work_order") ? supabase.from("work_orders").select("planned_start,wo_code,status").gte("planned_start", start).lte("planned_start", end) : none,
       allowed("expiry") ? supabase.from("product_inventory").select("expiration_date,strain_flavor,production_batch").gte("expiration_date", start).lte("expiration_date", end) : none,
-      allowed("shift") ? supabase.from("employee_schedules").select("work_date,zone,status").gte("work_date", start).lte("work_date", end) : none,
-    ]).then(([h, hp, lc, s, w, x, es]) => {
+      allowed("shift") ? supabase.from("employee_schedules")
+        .select("work_date,zone,status,employee_id,employees(full_name,primary_department_id,secondary_department_id)")
+        .gte("work_date", start).lte("work_date", end) : none,
+      supabase.from("departments").select("id,name"),
+    ]).then(([h, hp, lc, s, w, x, es, dp]) => {
+      const deptName = Object.fromEntries((dp?.data ?? []).map((d) => [d.id, d.name]));
       const ev = {};
       const add = (date, type, label, drill, color, row) => { if (!date) return; (ev[date] = ev[date] ?? []).push({ type, label, drill, color, row }); };
       (h.data ?? []).forEach((r) => add(r.harvest_date, "Harvest", `${r.cultivar ?? "Harvest"} · ${r.flower_room ?? "room TBD"}`, "harvest_schedule", "#5cff92", r));
@@ -2654,7 +2694,13 @@ function PlannerScreen({ go, session }) {
       (s.data ?? []).forEach((r) => add(r.scheduled_ship_on, "Shipment", `${r.shipment_code ?? ""} · ${r.status ?? ""}`, "shipping", "#e2bd63", r));
       (w.data ?? []).forEach((r) => add(r.planned_start, "Work order", `${r.wo_code ?? ""} · ${r.status ?? ""}`, "work_orders", "#ffea00", r));
       (x.data ?? []).forEach((r) => add(r.expiration_date, "Expiry", r.strain_flavor ?? r.production_batch ?? "lot", "inv_summary", "#ff8a00", r));
-      (es.data ?? []).forEach((r) => add(r.work_date, "Shift", `${r.zone ?? "—"} · ${r.status}`, "emp_schedule", "#57a9ff", r));
+      (es.data ?? []).forEach((r) => {
+        const emp = r.employees ?? {};
+        const dept = deptName[emp.primary_department_id] ?? deptName[emp.secondary_department_id] ?? "no department";
+        add(r.work_date, "Shift",
+          `${emp.full_name ?? "unassigned"} · ${dept}${r.zone ? ` · zone ${r.zone}` : ""} · ${r.status}`,
+          "emp_schedule", "#57a9ff", { ...r, employee: emp.full_name, department: dept });
+      });
       // Takedowns and dry-room deadlines, coloured by whether we held the schedule
       const ON = "#2df26a", LATE = "#ff4245", RISK = "#ff8a00", DONE = "#57a9ff";
       (lc.data ?? []).forEach((r) => {
@@ -2680,7 +2726,7 @@ function PlannerScreen({ go, session }) {
       setEvents(ev);
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ym.y, ym.m, plan?.id]);
+  }, [span, anchor, plan?.id]);
   const first = new Date(ym.y, ym.m, 1);
   const cells = [...Array(first.getDay()).fill(null),
     ...Array.from({ length: new Date(ym.y, ym.m + 1, 0).getDate() }, (_, i) => i + 1)];
@@ -2695,10 +2741,10 @@ function PlannerScreen({ go, session }) {
           <div className="sub">The whole operation on one calendar, straight from live records — nothing here is typed in twice. Connect Google or Outlook calendars from Integrations when the keys are in.</div>
         </div>
         <div className="calnav">
-          <button className="btn small ghost" onClick={() => shift(-1)}>‹</button>
-          <span className="calmonth">{first.toLocaleString("en-US", { month: "long", year: "numeric" })}</span>
-          <button className="btn small ghost" onClick={() => shift(1)}>›</button>
-          <button className="btn small" onClick={() => { const d = new Date(); setYm({ y: d.getFullYear(), m: d.getMonth() }); }}>Today</button>
+          <button className="btn small ghost" onClick={() => setAnchor((a) => spanShift(span, a, -1))}>‹</button>
+          <span className="calmonth">{spanLabel(span, anchor)}</span>
+          <button className="btn small ghost" onClick={() => setAnchor((a) => spanShift(span, a, 1))}>›</button>
+          <button className="btn small" onClick={() => setAnchor(new Date())}>Today</button>
         </div>
       </div>
       <div className="filterbar">
@@ -2727,6 +2773,22 @@ function PlannerScreen({ go, session }) {
           </>
         )}
       </div>
+      <div className="filterbar">
+        <span className="flab">View</span>
+        <select className="fdate" value={span} onChange={(e) => setSpan(e.target.value)}>
+          {PLANNER_SPANS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+        </select>
+        <span className="flab">Layout</span>
+        <span className="vetabs" style={{ border: "none", margin: 0 }}>
+          <button className={`vetab ${layout === "calendar" ? "on" : ""}`} onClick={() => setLayout("calendar")}>Calendar</button>
+          <button className={`vetab ${layout === "list" ? "on" : ""}`} onClick={() => setLayout("list")}>List</button>
+        </span>
+        <span className="flab">Jump to</span>
+        <input type="date" className="fdate" value={isoD(anchor)}
+          onChange={(e) => e.target.value && setAnchor(new Date(e.target.value + "T12:00:00"))} />
+        <span style={{ flex: 1 }} />
+        <span className="note">{events ? Object.values(events).reduce((a, v) => a + v.length, 0) : 0} events in view</span>
+      </div>
       <div className="callegend">
         {PLANNER_LEGEND.map(([l, c], i) => {
           const key = ["harvest", "shipment", "work_order", "expiry", "shift"][i];
@@ -2735,6 +2797,27 @@ function PlannerScreen({ go, session }) {
       </div>
       {events === null ? <div className="empty"><div className="eicon">{I.clock}</div>Loading the month…</div> : (
         <>
+          {layout === "list" ? (
+            <div className="glist">
+              {Object.keys(events).sort().map((day) => (
+                <div key={day} className="msection" style={{ marginTop: 8 }}>
+                  <div className="mtitle"><span className="sq" />
+                    <h2>{new Date(day + "T12:00:00").toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" })}</h2>
+                    <span className="rule" /><span className="note">{events[day].length}</span>
+                  </div>
+                  {events[day].map((e, i) => (
+                    <button key={i} className="bres" onClick={() => setDetail({ ...e, date: day })}>
+                      <span className="brl" style={{ color: e.color }}>{e.type}</span>
+                      <span className="brs">{e.label}</span><span className="bra">{I.caret}</span>
+                    </button>
+                  ))}
+                </div>
+              ))}
+              {Object.keys(events).length === 0 && (
+                <div className="empty"><div className="eicon">{I.clock}</div><b>Nothing scheduled in this range</b>Widen the view or move the date.</div>
+              )}
+            </div>
+          ) : (
           <div className="calgrid">
             {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => <div key={d} className="caldow">{d}</div>)}
             {cells.map((d, i) => {
@@ -2758,6 +2841,8 @@ function PlannerScreen({ go, session }) {
               );
             })}
           </div>
+          )}
+          )}
           {detail && (
             <div className="vedrawerwrap" onClick={() => setDetail(null)}>
               <div className="vedrawer" onClick={(e) => e.stopPropagation()}>
