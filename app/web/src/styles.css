@@ -865,3 +865,30 @@ button.teamcard:hover { border-color: var(--neon-line); }
 /* Light-mode readability (owner 2026-08-05, revised): NO darkening filters, NO pastels.
    Color identity lives in solid vivid tiles; numbers are crisp ink in both themes. */
 :root[data-theme="light"] .card .value { color: var(--ink); }
+
+/* Views engine: tabbed saved views over tasks */
+.vetabs { display: flex; gap: 4px; flex-wrap: wrap; border-bottom: 1px solid var(--line); margin-bottom: 12px; }
+.vetab { display: inline-flex; align-items: center; gap: 7px; background: none; border: none; border-bottom: 2px solid transparent; color: var(--muted); font-family: inherit; font-size: 13px; font-weight: 700; padding: 8px 12px; cursor: pointer; }
+.vetab:hover { color: var(--ink); }
+.vetab.on { color: var(--neon); border-bottom-color: var(--neon); }
+.vetab.add { color: var(--muted); font-weight: 600; }
+.vetab .vex { margin-left: 2px; color: var(--muted); }
+.vetab .vex:hover { color: var(--red); }
+.veadd { display: inline-flex; align-items: center; gap: 6px; padding: 4px 0; }
+.veadd input { background: var(--input-bg); border: 1px solid var(--line); border-radius: 5px; color: var(--ink); font-family: inherit; padding: 5px 9px; font-size: 13px; }
+.vegrouphead { display: flex; align-items: center; gap: 10px; width: 100%; background: none; border: none; cursor: pointer; font-family: inherit; padding: 6px 0; }
+.vegchip { font-size: 10.5px; font-weight: 800; letter-spacing: 0.07em; text-transform: uppercase; padding: 4px 10px; border-radius: 4px; }
+.veqa { display: block; width: 100%; background: none; border: 1px dashed var(--line); border-radius: 6px; color: var(--ink); font-family: inherit; font-size: 12.5px; padding: 7px 10px; margin-top: 6px; }
+.veqa:focus { outline: none; border-color: var(--neon-line); }
+.vest { border: none; border-radius: 4px; font-family: inherit; font-size: 10px; font-weight: 800; letter-spacing: 0.06em; padding: 4px 9px; cursor: pointer; }
+.vecols { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(230px, 1fr); gap: 10px; overflow-x: auto; align-items: start; padding-bottom: 8px; }
+.vecol { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 8px; display: flex; flex-direction: column; gap: 7px; }
+.vecolhead { font-size: 11px; font-weight: 800; letter-spacing: 0.07em; text-transform: uppercase; padding: 6px 10px; border-radius: 5px; display: flex; justify-content: space-between; }
+.vecard { text-align: left; background: var(--surface-2); border: 1px solid var(--line); border-radius: 6px; padding: 9px 10px; cursor: pointer; font-family: inherit; color: var(--ink); display: flex; flex-direction: column; gap: 6px; }
+.vecard:hover { border-color: var(--neon-line); }
+.vecard .vct { font-size: 13px; font-weight: 600; }
+.vecard .vcm { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; font-size: 11.5px; }
+.vedrawerwrap { position: fixed; inset: 0; z-index: 190; background: rgba(0, 0, 0, 0.45); }
+.vedrawer { position: absolute; top: 0; right: 0; bottom: 0; width: min(420px, 92vw); background: var(--surface); border-left: 1px solid var(--line); padding: 18px; overflow-y: auto; }
+.vedrawer label { display: block; font-size: 10.5px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin: 12px 0 4px; }
+.vedrawer input, .vedrawer select, .vedrawer textarea { width: 100%; background: var(--input-bg); border: 1px solid var(--line); border-radius: 6px; color: var(--ink); font-family: inherit; font-size: 13.5px; padding: 8px 10px; }

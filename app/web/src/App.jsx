@@ -1322,12 +1322,34 @@ function BrainScreen({ session, go, isExec, dictation }) {
 }
 
 /* ---------- Tasks v1: the Work Layer's first live slice ---------- */
+/* ---------- Views engine: the OS working like ClickUp — tabbed saved views over tasks ---------- */
 const TASK_STATUSES = [["todo", "TO DO"], ["in_progress", "IN PROGRESS"], ["blocked", "BLOCKED"], ["done", "DONE"]];
+const VE_STATUS_COLOR = { todo: "#8d9a93", in_progress: "#57a9ff", blocked: "#f5222d", done: "#2df26a" };
+const VE_FIELDS = [
+  ["status", "Status"], ["assignee", "Owner"], ["priority", "Priority"], ["start_on", "Start"],
+  ["due_on", "Due date"], ["tags", "Tags"], ["budget", "Budget"], ["updated_at", "Last updated"], ["description", "Notes"],
+];
+const VE_GROUPS = [["status", "Status"], ["priority", "Priority"], ["assignee", "Owner"], ["none", "No grouping"]];
+const VE_TYPES = [["list", "List"], ["board", "Board"], ["table", "Table"], ["calendar", "Calendar"]];
 function TasksScreen({ session }) {
+  const uid = session.user.id;
+  const [views, setViews] = useState(null);
+  const [active, setActive] = useState(null);
   const [tasks, setTasks] = useState(null);
   const [emps, setEmps] = useState([]);
-  const [form, setForm] = useState({ title: "", assignee: "", due: "", priority: "P2", tags: "" });
   const [ver, setVer] = useState(0);
+  const [fieldsOpen, setFieldsOpen] = useState(false);
+  const [newView, setNewView] = useState(null);
+  const [q, setQ] = useState("");
+  const [showClosed, setShowClosed] = useState(true);
+  const [collapsed, setCollapsed] = useState({});
+  const [drawer, setDrawer] = useState(null);
+  const [quickAdd, setQuickAdd] = useState({});
+  const [calYm, setCalYm] = useState(() => { const d = new Date(); return { y: d.getFullYear(), m: d.getMonth() }; });
+  useEffect(() => {
+    supabase.from("saved_views").select("*").eq("collection", "tasks").order("position")
+      .then(({ data }) => { setViews(data ?? []); setActive((a) => a ?? (data ?? [])[0] ?? null); });
+  }, []);
   useEffect(() => {
     Promise.all([
       supabase.from("tasks").select("*").order("created_at", { ascending: false }),
@@ -1335,63 +1357,248 @@ function TasksScreen({ session }) {
     ]).then(([t, e]) => { setTasks(t.data ?? []); setEmps(e.data ?? []); });
   }, [ver]);
   const empName = (id) => emps.find((e) => e.id === id)?.full_name ?? null;
-  const create = async (e) => {
-    e.preventDefault();
-    if (!form.title.trim()) return;
-    await supabase.from("tasks").insert({
-      title: form.title.trim(), created_by: session.user.id,
-      assignee_employee_id: form.assignee || null, due_on: form.due || null,
-      priority: form.priority,
-      tags: form.tags.split(",").map((t) => t.trim()).filter(Boolean),
-    });
-    setForm({ title: "", assignee: "", due: "", priority: "P2", tags: "" }); setVer((v) => v + 1);
+  const today = new Date().toISOString().slice(0, 10);
+  const shown = active?.shown_fields ?? ["status", "assignee", "priority", "due_on", "tags"];
+  const groupBy = active?.group_by ?? "status";
+  const mineView = active && active.owner === uid;
+  const persistView = async (patch) => {
+    if (!active) return;
+    const next = { ...active, ...patch };
+    setActive(next);
+    setViews((s) => s.map((v) => (v.id === next.id ? next : v)));
+    if (mineView) await supabase.from("saved_views").update(patch).eq("id", active.id);
   };
-  const advance = async (t) => {
-    const next = t.status === "todo" ? "in_progress" : t.status === "in_progress" ? "done" : "todo";
-    await supabase.from("tasks").update({ status: next, completed_at: next === "done" ? new Date().toISOString() : null }).eq("id", t.id);
+  const createView = async (type) => {
+    const name = (newView?.name ?? "").trim() || VE_TYPES.find(([k]) => k === type)?.[1] || "View";
+    const { data } = await supabase.from("saved_views").insert({
+      collection: "tasks", name, view_type: type, owner: uid, is_private: true,
+      group_by: type === "board" ? "status" : type === "table" || type === "calendar" ? "none" : "status",
+      position: 200,
+    }).select().single();
+    if (data) { setViews((s) => [...s, data]); setActive(data); }
+    setNewView(null);
+  };
+  const deleteView = async (v) => {
+    if (!window.confirm(`Delete view "${v.name}"?`)) return;
+    await supabase.from("saved_views").delete().eq("id", v.id);
+    setViews((s) => s.filter((x) => x.id !== v.id));
+    if (active?.id === v.id) setActive(views.find((x) => x.id !== v.id) ?? null);
+  };
+  const saveTask = async (id, patch) => {
+    await supabase.from("tasks").update({ ...patch, updated_at: new Date().toISOString() }).eq("id", id);
     setVer((v) => v + 1);
   };
-  const today = new Date().toISOString().slice(0, 10);
+  const advance = (t) => {
+    const order = ["todo", "in_progress", "blocked", "done"];
+    const next = order[(order.indexOf(t.status) + 1) % order.length];
+    saveTask(t.id, { status: next, completed_at: next === "done" ? new Date().toISOString() : null });
+  };
+  const addTask = async (groupKey, groupVal) => {
+    const title = (quickAdd[groupKey] ?? "").trim();
+    if (!title) return;
+    const row = { title, created_by: uid, status: "todo", priority: "P2" };
+    if (groupBy === "status" && groupVal) row.status = groupVal;
+    if (groupBy === "priority" && groupVal) row.priority = groupVal;
+    if (groupBy === "assignee" && groupVal && groupVal !== "unassigned") row.assignee_employee_id = groupVal;
+    await supabase.from("tasks").insert(row);
+    setQuickAdd((s) => ({ ...s, [groupKey]: "" }));
+    setVer((v) => v + 1);
+  };
+  if (views === null || tasks === null) return <div className="empty"><div className="eicon">{I.check}</div>Loading…</div>;
+  const vf = active?.filters ?? {};
+  const filtered = tasks.filter((t) =>
+    (showClosed || t.status !== "done") &&
+    (!vf.statuses?.length || vf.statuses.includes(t.status)) &&
+    (!vf.priorities?.length || vf.priorities.includes(t.priority ?? "P2")) &&
+    (!vf.needs_attention || t.status === "blocked" || ((t.priority === "P0" || t.priority === "P1") && t.status !== "done") || (t.due_on && t.due_on < today && t.status !== "done")) &&
+    (!q || (t.title + " " + (t.tags ?? []).join(" ") + " " + (empName(t.assignee_employee_id) ?? "")).toLowerCase().includes(q.toLowerCase())));
+  const groups = (() => {
+    if (groupBy === "none") return [["all", "All tasks", null, filtered]];
+    if (groupBy === "priority") {
+      return ["P0", "P1", "P2", "P3"].map((p) => [p, p, p === "P0" ? "#f5222d" : p === "P1" ? "#ffea00" : "#57a9ff", filtered.filter((t) => (t.priority ?? "P2") === p)]);
+    }
+    if (groupBy === "assignee") {
+      const ids = [...new Set(filtered.map((t) => t.assignee_employee_id ?? "unassigned"))];
+      return ids.map((id) => [id, id === "unassigned" ? "Unassigned" : empName(id) ?? "Unknown", "#57a9ff", filtered.filter((t) => (t.assignee_employee_id ?? "unassigned") === id)]);
+    }
+    return TASK_STATUSES.map(([k, label]) => [k, label, VE_STATUS_COLOR[k], filtered.filter((t) => t.status === k)]);
+  })();
+  const cell = (t, f) => {
+    switch (f) {
+      case "status": return <button key={f} className="vest" style={{ background: VE_STATUS_COLOR[t.status], color: t.status === "todo" ? "#0a0c0b" : "#07130b" }} onClick={(e) => { e.stopPropagation(); advance(t); }}>{TASK_STATUSES.find(([k]) => k === t.status)?.[1] ?? t.status}</button>;
+      case "assignee": { const n = empName(t.assignee_employee_id); return n ? <span key={f} className="tkass"><span className="tcavatar">{n[0]}</span>{n}</span> : <span key={f} className="note">—</span>; }
+      case "priority": return <span key={f} className={`schip ${t.priority === "P0" ? "bad" : t.priority === "P1" ? "warn" : "info"}`}>{t.priority ?? "P2"}</span>;
+      case "start_on": return <span key={f} className="note">{t.start_on ?? "—"}</span>;
+      case "due_on": return <span key={f} className={`tkdue ${t.due_on && t.due_on < today && t.status !== "done" ? "over" : ""}`}>{t.due_on ?? "—"}</span>;
+      case "tags": return <span key={f}>{(t.tags ?? []).map((tag) => <span key={tag} className="tktag">#{tag}</span>)}</span>;
+      case "budget": return <span key={f} className="note">{t.budget != null ? "$" + Number(t.budget).toLocaleString() : "—"}</span>;
+      case "updated_at": return <span key={f} className="note">{t.updated_at ? new Date(t.updated_at).toLocaleDateString() : "—"}</span>;
+      case "description": return <span key={f} className="note" style={{ maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.description ?? "—"}</span>;
+      default: return null;
+    }
+  };
+  const iso = (d) => `${calYm.y}-${String(calYm.m + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
   return (
     <>
       <div className="pagehead">
-        <div><h1>Tasks & Boards</h1><div className="sub">Live tasks with real assignees from the roster. Click the status chip to advance a task. Board, calendar, subtasks, and automations grow in with the Work Layer.</div></div>
+        <div><h1>Tasks & Boards</h1><div className="sub">Your work, your views — list, board, table, calendar. Views are private by default; share one and the whole team sees it.</div></div>
       </div>
-      <form className="teamform taskform" onSubmit={create}>
-        <input style={{ flex: 2 }} placeholder="Task name…" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
-        <select value={form.assignee} onChange={(e) => setForm({ ...form, assignee: e.target.value })}>
-          <option value="">Assignee…</option>
-          {emps.map((p) => <option key={p.id} value={p.id}>{p.full_name}</option>)}
+      <div className="vetabs">
+        {views.map((v) => (
+          <button key={v.id} className={`vetab ${active?.id === v.id ? "on" : ""}`} onClick={() => setActive(v)}>
+            {v.name}{v.is_private && v.owner === uid ? <span className="mtag">PRIVATE</span> : null}
+            {v.owner === uid && active?.id === v.id && <span className="vex" onClick={(e) => { e.stopPropagation(); deleteView(v); }}>×</span>}
+          </button>
+        ))}
+        {newView === null
+          ? <button className="vetab add" onClick={() => setNewView({ name: "" })}>+ View</button>
+          : (
+            <span className="veadd">
+              <input autoFocus placeholder="View name…" value={newView.name} onChange={(e) => setNewView({ name: e.target.value })} />
+              {VE_TYPES.map(([k, l]) => <button key={k} className="btn small ghost" onClick={() => createView(k)}>{l}</button>)}
+              <button className="btn small ghost" onClick={() => setNewView(null)}>✕</button>
+            </span>
+          )}
+      </div>
+      <div className="filterbar">
+        <span className="flab">Group by</span>
+        <select className="fdate" value={groupBy} onChange={(e) => persistView({ group_by: e.target.value })}>
+          {VE_GROUPS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}
         </select>
-        <input type="date" value={form.due} onChange={(e) => setForm({ ...form, due: e.target.value })} />
-        <select value={form.priority} onChange={(e) => setForm({ ...form, priority: e.target.value })}>
-          {["P0", "P1", "P2", "P3"].map((p) => <option key={p}>{p}</option>)}
-        </select>
-        <input placeholder="tags, comma, separated" value={form.tags} onChange={(e) => setForm({ ...form, tags: e.target.value })} />
-        <button className="btn" type="submit">Create task</button>
-      </form>
-      {tasks === null ? <div className="empty"><div className="eicon">{I.check}</div>Loading…</div> : (
-        TASK_STATUSES.map(([key, label]) => {
-          const list = tasks.filter((t) => t.status === key);
-          if (!list.length && key === "blocked") return null;
-          return (
-            <div className="msection" key={key}>
-              <div className="mtitle"><span className="sq" /><h2>{label} — {list.length}</h2><span className="rule" /></div>
-              {list.length === 0 ? <p className="bnote">Nothing here.</p> : list.map((t) => (
-                <div key={t.id} className="tkrow">
-                  <button className={`tkstatus ${t.status}`} onClick={() => advance(t)} title="Click to advance">
-                    {t.status === "done" ? I.check : t.status === "in_progress" ? "▶" : t.status === "blocked" ? "■" : "○"}
-                  </button>
-                  <span className={`tktitle ${t.status === "done" ? "donetxt" : ""}`}>{t.title}</span>
-                  <span className={`schip ${t.priority === "P0" ? "bad" : t.priority === "P1" ? "warn" : "info"}`}>{t.priority}</span>
-                  {empName(t.assignee_employee_id) && <span className="tkass"><span className="tcavatar">{empName(t.assignee_employee_id)[0]}</span>{empName(t.assignee_employee_id)}</span>}
-                  {t.due_on && <span className={`tkdue ${t.due_on < today && t.status !== "done" ? "over" : ""}`}>{t.due_on}</span>}
-                  {t.tags?.map((tag) => <span key={tag} className="tktag">#{tag}</span>)}
-                </div>
+        <input className="fsearch" style={{ maxWidth: 260 }} placeholder="Search tasks, tags, owners…" value={q} onChange={(e) => setQ(e.target.value)} />
+        <button className={`btn small ${showClosed ? "ghost" : ""}`} onClick={() => setShowClosed(!showClosed)}>{showClosed ? "Hide closed" : "Show closed"}</button>
+        <button className="btn small ghost" onClick={() => setFieldsOpen(!fieldsOpen)}>Fields</button>
+        {mineView && <button className="btn small ghost" onClick={() => persistView({ is_private: !active.is_private })}>{active.is_private ? "Share view" : "Make private"}</button>}
+        <span style={{ flex: 1 }} />
+        <span className="note">{filtered.length} task{filtered.length === 1 ? "" : "s"}</span>
+      </div>
+      {fieldsOpen && (
+        <div className="panel" style={{ maxWidth: "none", marginBottom: 12 }}>
+          <div className="note" style={{ marginBottom: 6 }}>Shown fields{mineView ? " — saved to this view" : " — session only (shared view)"}</div>
+          <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+            {VE_FIELDS.map(([k, l]) => (
+              <label key={k} className="note" style={{ display: "flex", gap: 5, alignItems: "center", cursor: "pointer" }}>
+                <input type="checkbox" checked={shown.includes(k)}
+                  onChange={() => persistView({ shown_fields: shown.includes(k) ? shown.filter((x) => x !== k) : [...shown, k] })} /> {l}
+              </label>
+            ))}
+          </div>
+        </div>
+      )}
+      {active?.view_type === "board" ? (
+        <div className="vecols">
+          {groups.map(([gk, glabel, gcolor, list]) => (
+            <div key={gk} className="vecol">
+              <div className="vecolhead" style={{ background: gcolor ?? "var(--surface-2)", color: "#07130b" }}>{glabel} <b>{list.length}</b></div>
+              {list.map((t) => (
+                <button key={t.id} className="vecard" onClick={() => setDrawer(t)}>
+                  <span className="vct">{t.title}</span>
+                  <span className="vcm">{shown.filter((f) => f !== "status").map((f) => cell(t, f))}</span>
+                </button>
               ))}
+              <input className="veqa" placeholder="+ Add task" value={quickAdd[gk] ?? ""}
+                onChange={(e) => setQuickAdd((s) => ({ ...s, [gk]: e.target.value }))}
+                onKeyDown={(e) => { if (e.key === "Enter") addTask(gk, gk); }} />
             </div>
-          );
-        })
+          ))}
+        </div>
+      ) : active?.view_type === "table" ? (
+        <div className="tablewrap">
+          <table>
+            <thead><tr><th>Task</th>{shown.map((f) => <th key={f}>{VE_FIELDS.find(([k]) => k === f)?.[1] ?? f}</th>)}</tr></thead>
+            <tbody>
+              {filtered.map((t) => (
+                <tr key={t.id} onClick={() => setDrawer(t)} style={{ cursor: "pointer" }}>
+                  <td>{t.title}</td>
+                  {shown.map((f) => <td key={f}>{cell(t, f)}</td>)}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : active?.view_type === "calendar" ? (
+        <>
+          <div className="calnav" style={{ marginBottom: 10 }}>
+            <button className="btn small ghost" onClick={() => setCalYm(({ y, m }) => { const d = new Date(y, m - 1, 1); return { y: d.getFullYear(), m: d.getMonth() }; })}>‹</button>
+            <span className="calmonth">{new Date(calYm.y, calYm.m, 1).toLocaleString("en-US", { month: "long", year: "numeric" })}</span>
+            <button className="btn small ghost" onClick={() => setCalYm(({ y, m }) => { const d = new Date(y, m + 1, 1); return { y: d.getFullYear(), m: d.getMonth() }; })}>›</button>
+          </div>
+          <div className="calgrid">
+            {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => <div key={d} className="caldow">{d}</div>)}
+            {[...Array(new Date(calYm.y, calYm.m, 1).getDay()).fill(null), ...Array.from({ length: new Date(calYm.y, calYm.m + 1, 0).getDate() }, (_, i) => i + 1)].map((d, i) => {
+              if (d === null) return <div key={`b${i}`} className="calcell blank" />;
+              const k = iso(d);
+              const list = filtered.filter((t) => t.due_on === k);
+              return (
+                <div key={k} className={`calcell ${k === today ? "today" : ""}`}>
+                  <span className="caldate">{d}</span>
+                  {list.slice(0, 4).map((t) => (
+                    <span key={t.id} className="calev" style={{ borderLeftColor: VE_STATUS_COLOR[t.status], cursor: "pointer" }} onClick={() => setDrawer(t)}>{t.title}</span>
+                  ))}
+                  {list.length > 4 && <span className="calmore">+{list.length - 4} more</span>}
+                </div>
+              );
+            })}
+          </div>
+        </>
+      ) : (
+        groups.map(([gk, glabel, gcolor, list]) => (
+          <div className="msection vegroup" key={gk}>
+            <button className="vegrouphead" onClick={() => setCollapsed((s) => ({ ...s, [gk]: !s[gk] }))}>
+              <span className="vegchip" style={{ background: gcolor ?? "var(--surface-2)", color: "#07130b" }}>{glabel}</span>
+              <span className="note">{list.length}</span>
+              <span className="note" style={{ marginLeft: "auto" }}>{collapsed[gk] ? "▸" : "▾"}</span>
+            </button>
+            {!collapsed[gk] && (
+              <>
+                {list.map((t) => (
+                  <div key={t.id} className="tkrow" onClick={() => setDrawer(t)} style={{ cursor: "pointer" }}>
+                    <span className={`tktitle ${t.status === "done" ? "donetxt" : ""}`}>{t.title}</span>
+                    {shown.map((f) => cell(t, f))}
+                  </div>
+                ))}
+                <input className="veqa" placeholder="+ Add task" value={quickAdd[gk] ?? ""}
+                  onChange={(e) => setQuickAdd((s) => ({ ...s, [gk]: e.target.value }))}
+                  onKeyDown={(e) => { if (e.key === "Enter") addTask(gk, gk); }} />
+              </>
+            )}
+          </div>
+        ))
+      )}
+      {drawer && (
+        <div className="vedrawerwrap" onClick={() => setDrawer(null)}>
+          <div className="vedrawer" onClick={(e) => e.stopPropagation()}>
+            <div className="srhead"><span className="srtitle">Task detail</span><button className="btn small ghost" onClick={() => setDrawer(null)}>✕</button></div>
+            <label>Name</label>
+            <input defaultValue={drawer.title} onBlur={(e) => e.target.value.trim() && e.target.value !== drawer.title && saveTask(drawer.id, { title: e.target.value.trim() })} />
+            <label>Status</label>
+            <select defaultValue={drawer.status} onChange={(e) => saveTask(drawer.id, { status: e.target.value, completed_at: e.target.value === "done" ? new Date().toISOString() : null })}>
+              {TASK_STATUSES.map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+            </select>
+            <label>Owner</label>
+            <select defaultValue={drawer.assignee_employee_id ?? ""} onChange={(e) => saveTask(drawer.id, { assignee_employee_id: e.target.value || null })}>
+              <option value="">Unassigned</option>
+              {emps.map((p) => <option key={p.id} value={p.id}>{p.full_name}</option>)}
+            </select>
+            <label>Priority</label>
+            <select defaultValue={drawer.priority ?? "P2"} onChange={(e) => saveTask(drawer.id, { priority: e.target.value })}>
+              {["P0", "P1", "P2", "P3"].map((p) => <option key={p}>{p}</option>)}
+            </select>
+            <div style={{ display: "flex", gap: 10 }}>
+              <span style={{ flex: 1 }}><label>Start</label>
+                <input type="date" defaultValue={drawer.start_on ?? ""} onChange={(e) => saveTask(drawer.id, { start_on: e.target.value || null })} /></span>
+              <span style={{ flex: 1 }}><label>Due</label>
+                <input type="date" defaultValue={drawer.due_on ?? ""} onChange={(e) => saveTask(drawer.id, { due_on: e.target.value || null })} /></span>
+            </div>
+            <label>Budget ($)</label>
+            <input type="number" defaultValue={drawer.budget ?? ""} onBlur={(e) => saveTask(drawer.id, { budget: e.target.value === "" ? null : Number(e.target.value) })} />
+            <label>Tags (comma separated)</label>
+            <input defaultValue={(drawer.tags ?? []).join(", ")} onBlur={(e) => saveTask(drawer.id, { tags: e.target.value.split(",").map((x) => x.trim()).filter(Boolean) })} />
+            <label>Notes</label>
+            <textarea rows={5} defaultValue={drawer.description ?? ""} onBlur={(e) => saveTask(drawer.id, { description: e.target.value || null })} />
+            <div className="note" style={{ marginTop: 8 }}>Changes save as you leave each field. Last updated {drawer.updated_at ? new Date(drawer.updated_at).toLocaleString() : "—"}.</div>
+          </div>
+        </div>
       )}
     </>
   );
