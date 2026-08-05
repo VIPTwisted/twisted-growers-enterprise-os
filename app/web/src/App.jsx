@@ -268,9 +268,18 @@ function usePrefs(session) {
 function useNav(version) {
   const [nav, setNav] = useState(null);
   useEffect(() => {
-    supabase.from("nav_registry").select("*").eq("enabled", true)
-      .order("category_order").order("item_order")
-      .then(({ data }) => setNav(data ?? []));
+    (async () => {
+      const { data: auth } = await supabase.auth.getUser();
+      const uid = auth?.user?.id;
+      const [{ data: rows }, { data: me }] = await Promise.all([
+        supabase.from("nav_registry").select("*").eq("enabled", true).order("category_order").order("item_order"),
+        uid ? supabase.from("app_users").select("role").eq("user_id", uid).maybeSingle() : Promise.resolve({ data: null }),
+      ]);
+      const role = me?.role ?? "guest";
+      const { data: vis } = await supabase.from("nav_role_visibility").select("view_key, visible").eq("role", role);
+      const hidden = new Set((vis ?? []).filter((v) => !v.visible).map((v) => v.view_key));
+      setNav((rows ?? []).filter((r) => !hidden.has(r.view_key)));
+    })();
   }, [version]);
   return nav;
 }
@@ -2637,7 +2646,7 @@ function spanLabel(span, anchor) {
   return `${f(start)} — ${f(end)}`;
 }
 const PLANNER_LEGEND = [
-  ["Harvest", "#5cff92"], ["On plan", "#2df26a"], ["Late / deadline blown", "#ff4245"],
+  ["Harvest", "#5cff92"], ["Inventory to sheet", "#00e5ff"], ["On plan", "#2df26a"], ["Late / deadline blown", "#ff4245"],
   ["Due or at risk", "#ff8a00"], ["Complete", "#57a9ff"],
   ["Shipment", "#e2bd63"], ["Work order", "#ffea00"], ["Expiry", "#ff8a00"], ["Shift", "#57a9ff"],
 ];
@@ -2685,7 +2694,10 @@ function PlannerScreen({ go, session }) {
         .select("work_date,zone,status,employee_id,employees(full_name,primary_department_id,secondary_department_id)")
         .gte("work_date", start).lte("work_date", end) : none,
       supabase.from("departments").select("id,name"),
-    ]).then(([h, hp, lc, s, w, x, es, dp]) => {
+      allowed("inventory") ? supabase.from("product_inventory")
+        .select("creation_date,strain_flavor,product_description,category,current_status,production_batch,total_units,total_gram_equivalent,case_size,cases_available,final_metrc_tag,bulk_metrc_tag,expiration_date,source_sheet,tac_pct,thca_pct")
+        .gte("creation_date", start).lte("creation_date", end).limit(400) : none,
+    ]).then(([h, hp, lc, s, w, x, es, dp, inv]) => {
       const deptName = Object.fromEntries((dp?.data ?? []).map((d) => [d.id, d.name]));
       const ev = {};
       const add = (date, type, label, drill, color, row) => { if (!date) return; (ev[date] = ev[date] ?? []).push({ type, label, drill, color, row }); };
@@ -2694,6 +2706,9 @@ function PlannerScreen({ go, session }) {
       (s.data ?? []).forEach((r) => add(r.scheduled_ship_on, "Shipment", `${r.shipment_code ?? ""} · ${r.status ?? ""}`, "shipping", "#e2bd63", r));
       (w.data ?? []).forEach((r) => add(r.planned_start, "Work order", `${r.wo_code ?? ""} · ${r.status ?? ""}`, "work_orders", "#ffea00", r));
       (x.data ?? []).forEach((r) => add(r.expiration_date, "Expiry", r.strain_flavor ?? r.production_batch ?? "lot", "inv_summary", "#ff8a00", r));
+      (inv?.data ?? []).forEach((r) => add(r.creation_date, "Inventory",
+        `${r.strain_flavor ?? r.product_description ?? "lot"} · ${r.category ?? ""} · ${r.total_units ?? 0} units${r.current_status ? ` · ${r.current_status}` : ""}`,
+        "fg_inventory", "#00e5ff", r));
       (es.data ?? []).forEach((r) => {
         const emp = r.employees ?? {};
         const dept = deptName[emp.primary_department_id] ?? deptName[emp.secondary_department_id] ?? "no department";
@@ -2791,7 +2806,7 @@ function PlannerScreen({ go, session }) {
       </div>
       <div className="callegend">
         {PLANNER_LEGEND.map(([l, c], i) => {
-          const key = ["harvest", "shipment", "work_order", "expiry", "shift"][i];
+          const key = ["harvest", "inventory", "harvest", "harvest", "harvest", "shipment", "work_order", "expiry", "shift"][i];
           return allowed(key) ? <span key={l} className="cl"><i style={{ background: c }} />{l}</span> : null;
         })}
       </div>
