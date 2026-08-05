@@ -43,7 +43,102 @@ const I = {
   bell: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 9a6 6 0 1 0-12 0c0 6-2.5 7-2.5 7h17S18 15 18 9" /><path d="M10 20a2.2 2.2 0 0 0 4 0" /></svg>),
   mail: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="5" width="18" height="14" rx="1.5" /><path d="m3.5 7 8.5 6 8.5-6" /></svg>),
   caret: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="m9 6 6 6-6 6" /></svg>),
+  grid: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3.5" y="3.5" width="7" height="7" rx="1.5" /><rect x="13.5" y="3.5" width="7" height="7" rx="1.5" /><rect x="3.5" y="13.5" width="7" height="7" rx="1.5" /><rect x="13.5" y="13.5" width="7" height="7" rx="1.5" /></svg>),
+  board: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="14" rx="1.5" /><path d="M7 14c2-3 4 1 6-2s3-1 4-2" /><path d="M9 21h6" /></svg>),
+  mic: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="3" width="6" height="11" rx="3" /><path d="M5 11a7 7 0 0 0 14 0M12 18v3" /></svg>),
+  stopwatch: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="13.5" r="7.5" /><path d="M12 13.5V9.5M10 2.5h4M17.5 6.5l1.5-1.5" /></svg>),
 };
+const fmtHMS = (s) => {
+  const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), x = s % 60;
+  return `${h}:${String(m).padStart(2, "0")}:${String(x).padStart(2, "0")}`;
+};
+function beep() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    [0, 0.35, 0.7].forEach((t) => {
+      const o = ctx.createOscillator(), g = ctx.createGain();
+      o.connect(g); g.connect(ctx.destination);
+      o.frequency.value = 880; g.gain.setValueAtTime(0.25, ctx.currentTime + t);
+      g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + t + 0.28);
+      o.start(ctx.currentTime + t); o.stop(ctx.currentTime + t + 0.3);
+    });
+  } catch { /* audio unavailable */ }
+}
+function TimeTools({ session }) {
+  const [open, setOpen] = useState(false);
+  const [track, setTrack] = useState(null);
+  const [note, setNote] = useState("");
+  const [timerEnd, setTimerEnd] = useState(null);
+  const [timerMin, setTimerMin] = useState("15");
+  const [rang, setRang] = useState(false);
+  const [, setTick] = useState(0);
+  const [todaySec, setTodaySec] = useState(0);
+  useEffect(() => {
+    if (!track && !timerEnd) return;
+    const id = setInterval(() => {
+      setTick((t) => t + 1);
+      if (timerEnd && Date.now() >= timerEnd) {
+        setTimerEnd(null); setRang(true); beep();
+        if ("Notification" in window && Notification.permission === "granted") {
+          new Notification("TG Timer", { body: "Time's up." });
+        }
+      }
+    }, 1000);
+    return () => clearInterval(id);
+  }, [track, timerEnd]);
+  useEffect(() => {
+    const start = new Date(); start.setHours(0, 0, 0, 0);
+    supabase.from("time_tracks").select("seconds").eq("user_id", session.user.id).gte("started_at", start.toISOString())
+      .then(({ data }) => setTodaySec((data ?? []).reduce((a, r) => a + r.seconds, 0)));
+  }, [session.user.id, track]);
+  const stopTrack = async () => {
+    const seconds = Math.round((Date.now() - track) / 1000);
+    await supabase.from("time_tracks").insert({
+      user_id: session.user.id, started_at: new Date(track).toISOString(),
+      ended_at: new Date().toISOString(), seconds, note: note.trim() || null,
+    });
+    setTrack(null); setNote("");
+  };
+  const startTimer = () => {
+    const mins = parseFloat(timerMin);
+    if (!Number.isFinite(mins) || mins <= 0) return;
+    if ("Notification" in window && Notification.permission === "default") Notification.requestPermission();
+    setRang(false); setTimerEnd(Date.now() + mins * 60000);
+  };
+  const live = track ? fmtHMS(Math.round((Date.now() - track) / 1000))
+    : timerEnd ? fmtHMS(Math.max(0, Math.round((timerEnd - Date.now()) / 1000))) : null;
+  return (
+    <div className="uwrap">
+      <button className={`tibtn ${rang ? "ringing" : ""}`} title="Track time & timer" onClick={() => { setOpen((v) => !v); setRang(false); }}>
+        {I.stopwatch}
+      </button>
+      {live && <button className={`timepill ${timerEnd ? "cd" : ""}`} onClick={() => setOpen(true)}>{live}</button>}
+      {open && (
+        <div className="umenu timepanel" onMouseLeave={() => setOpen(false)}>
+          <div className="ulabel">Track time</div>
+          <div className="ttrow">
+            <span className="ttbig">{track ? fmtHMS(Math.round((Date.now() - track) / 1000)) : "0:00:00"}</span>
+            {track
+              ? <button className="btn small" onClick={stopTrack}>Stop & save</button>
+              : <button className="btn small" onClick={() => setTrack(Date.now())}>Start</button>}
+          </div>
+          <input className="ttnote" placeholder="What are you working on? (optional)" value={note} onChange={(e) => setNote(e.target.value)} />
+          <div className="ttsub">Tracked today: {fmtHMS(todaySec)} — saved to your account; payroll timesheets wire in with the Work Layer.</div>
+          <div className="usep" />
+          <div className="ulabel">Timer</div>
+          <div className="ttrow">
+            <input className="ttmin" type="number" min="1" value={timerMin} onChange={(e) => setTimerMin(e.target.value)} />
+            <span className="ttsub" style={{ margin: 0 }}>minutes</span>
+            {timerEnd
+              ? <button className="btn small ghost" onClick={() => setTimerEnd(null)}>Cancel</button>
+              : <button className="btn small" onClick={startTimer}>Start timer</button>}
+          </div>
+          <div className="ttsub">Beeps and sends a browser notification when it hits zero.</div>
+        </div>
+      )}
+    </div>
+  );
+}
 const iconByName = (n) => I[n] ?? I.gauge;
 
 /* ---------- Control Tower metadata: compliance first, drill targets ---------- */
@@ -865,6 +960,667 @@ function ControlTower({ go, session }) {
   );
 }
 
+/* ---------- TG Brain: the company's mind — intro, role personalization; engine lands M5 ---------- */
+const BRAIN_ROLES = ["Owner / CEO", "COO / Operations", "CFO / Finance", "Cultivation", "Manufacturing", "Sales", "Human Resources", "Compliance / QA"];
+const BRAIN_ORBIT = [
+  { icon: "leafline", label: "Cultivation" }, { icon: "box", label: "Inventory" },
+  { icon: "flask", label: "Testing" }, { icon: "truck", label: "Transfers" },
+  { icon: "dollar", label: "Cash" }, { icon: "users", label: "People" },
+  { icon: "shield", label: "Compliance" }, { icon: "clock", label: "Schedules" },
+];
+/* eslint-disable react-hooks/exhaustive-deps */
+const BRAIN_FINDERS = [
+  { key: "packages", label: "Metrc packages", drill: "metrc_mirror",
+    run: (q) => supabase.from("metrc_packages").select("tag,item_name,quantity,uom").or(`tag.ilike.%${q}%,item_name.ilike.%${q}%`).limit(5),
+    line: (r) => [`…${String(r.tag).slice(-8)}`, `${r.item_name ?? ""} · ${r.quantity ?? ""} ${r.uom ?? ""}`] },
+  { key: "fg", label: "Finished goods", drill: "fg_inventory",
+    run: (q) => supabase.from("product_inventory").select("strain_flavor,production_batch,current_status").or(`strain_flavor.ilike.%${q}%,production_batch.ilike.%${q}%`).limit(5),
+    line: (r) => [r.strain_flavor ?? r.production_batch, `${r.production_batch ?? ""} · ${r.current_status ?? ""}`] },
+  { key: "harvest", label: "Harvest calendar", drill: "harvest_schedule",
+    run: (q) => supabase.from("harvest_schedule").select("cultivar,flower_room,harvest_date").ilike("cultivar", `%${q}%`).limit(5),
+    line: (r) => [r.cultivar, `${r.flower_room ?? ""} · ${r.harvest_date}`] },
+  { key: "people", label: "People", drill: "people",
+    run: (q) => supabase.from("employees").select("full_name,employee_code").ilike("full_name", `%${q}%`).limit(5),
+    line: (r) => [r.full_name, r.employee_code] },
+  { key: "plants", label: "Metrc plants", drill: "metrc_mirror",
+    run: (q) => supabase.from("metrc_plants").select("tag,strain,room").or(`strain.ilike.%${q}%,tag.ilike.%${q}%`).limit(5),
+    line: (r) => [r.strain ?? `…${String(r.tag).slice(-8)}`, `${r.room ?? ""}`] },
+];
+function BrainScreen({ session, go, isExec, dictation }) {
+  const [roleSel, setRoleSel] = useState(null);
+  const [saved, setSaved] = useState(false);
+  const [q, setQ] = useState("");
+  const [results, setResults] = useState(null);
+  const [searching, setSearching] = useState(false);
+  const [quick, setQuick] = useState({});
+  const [mem, setMem] = useState("");
+  const [memSaved, setMemSaved] = useState(false);
+  useEffect(() => {
+    supabase.from("user_settings").select("brain_role").eq("user_id", session.user.id).maybeSingle()
+      .then(({ data }) => { if (data?.brain_role) { setRoleSel(data.brain_role); setSaved(true); } });
+    const in30 = new Date(Date.now() + 30 * 864e5).toISOString().slice(0, 10);
+    Promise.all([
+      supabase.from("actions_register").select("id", { count: "exact", head: true }).eq("status", "open").eq("priority", "P0"),
+      supabase.from("product_inventory").select("id", { count: "exact", head: true }).lt("expiration_date", in30),
+      supabase.from("harvest_schedule").select("id", { count: "exact", head: true }).like("room_cycle_flag", "%VIOLATION%"),
+      supabase.from("v_material_aging").select("lot_code", { count: "exact", head: true }).eq("aging_alert", "CAPITAL TIED UP"),
+    ]).then(([a, b, c, d]) => setQuick({ p0: a.count ?? 0, exp: b.count ?? 0, cad: c.count ?? 0, tied: d.count ?? 0 }));
+  }, [session.user.id]);
+  const ask = async (termArg) => {
+    const term = String(termArg ?? q).replace(/[%,()]/g, " ").trim();
+    if (!term) return;
+    setSearching(true); setResults(null);
+    const found = await Promise.all(BRAIN_FINDERS.map(async (f) => {
+      try { const { data } = await f.run(term); return { f, rows: data ?? [] }; }
+      catch { return { f, rows: [] }; }
+    }));
+    setResults(found.filter((x) => x.rows.length));
+    setSearching(false);
+  };
+  const pick = async (r) => {
+    setRoleSel(r); setSaved(false);
+    await supabase.from("user_settings").upsert({ user_id: session.user.id, brain_role: r }, { onConflict: "user_id" });
+    setSaved(true);
+  };
+  const saveMem = async () => {
+    if (!mem.trim()) return;
+    await supabase.from("configurations").upsert({
+      key: "brain_memory",
+      value: { text: mem.trim().slice(0, 8000), saved_by: session.user.email, saved_at: new Date().toISOString() },
+    }, { onConflict: "key" });
+    setMemSaved(true);
+  };
+  useEffect(() => {
+    if (dictation && dictation !== "__unsupported__") { setQ(dictation); ask(dictation); }
+  }, [dictation]);
+  const QUICK = [
+    { icon: "shield", title: "Open P0 actions", n: quick.p0, drill: "action_register" },
+    { icon: "clock", title: "Lots expiring 30d", n: quick.exp, drill: "inv_summary" },
+    { icon: "leafline", title: "Cadence violations", n: quick.cad, drill: "harvest_schedule" },
+    { icon: "dollar", title: "Capital tied up", n: quick.tied, drill: "materials" },
+  ];
+  return (
+    <>
+      <div className="brainhero">
+        <div className="orbitfield">
+          {BRAIN_ORBIT.map((o, i) => (
+            <span key={o.label} className="orbchip" style={{ "--i": i }}>{iconByName(o.icon)}<em>{o.label}</em></span>
+          ))}
+          <div className="braincore"><img src="/tg-mark.png" alt="" /></div>
+        </div>
+        <h1>TG <b>Brain</b></h1>
+        <p className="bsub">Every record this company generates — Metrc, the rooms, the floor, the sheets, the money — one mind. It answers from live data only, never from guesses.</p>
+        <div className="askwrap">
+          <div className="asktabs">
+            <button className="on">{I.dna} Ask / Find</button>
+            <button disabled title="Loop agents arrive in M5">{I.gear} Agents <span className="mtag">M5</span></button>
+          </div>
+          <div className="askbar">
+            <input value={q} placeholder="Search the whole operation — a tag, a strain, a batch, a person…"
+              onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") ask(); }} />
+            <button className="btn" onClick={() => ask()}>{searching ? "…" : "Ask"}</button>
+          </div>
+        </div>
+        <div className="qcards">
+          {QUICK.map((c) => (
+            <button key={c.title} className="qcard" onClick={() => go(c.drill)}>
+              <span className="qi">{iconByName(c.icon)}</span>
+              <span className="qt">{c.title}</span>
+              <span className={`qn ${Number(c.n) > 0 ? "hot" : ""}`}>{c.n ?? "…"}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+      {results !== null && (
+        <div className="msection">
+          <div className="mtitle"><span className="sq" /><h2>Found in the operation</h2><span className="rule" /></div>
+          {results.length === 0 ? (
+            <div className="empty"><div className="eicon">{I.dna}</div><b>No live records match</b>Brain only answers from real data — try a tag, strain, batch code, or name.</div>
+          ) : results.map(({ f, rows }) => (
+            <div key={f.key} className="bresgroup">
+              <div className="brh">{f.label}</div>
+              {rows.map((r, i) => {
+                const [l, s] = f.line(r);
+                return (
+                  <button key={i} className="bres" onClick={() => go(f.drill)}>
+                    <span className="brl">{l}</span><span className="brs">{s}</span><span className="bra">{I.caret}</span>
+                  </button>
+                );
+              })}
+            </div>
+          ))}
+        </div>
+      )}
+      <div className="msection">
+        <div className="mtitle"><span className="sq" /><h2>What do you run?</h2><span className="rule" /></div>
+        <p className="bnote">Brain tailors briefings, alerts, and your Control Tower to your seat. Saved to your account as data — change it any time.</p>
+        <div className="rolegrid">
+          {BRAIN_ROLES.map((r) => (
+            <button key={r} className={`rolechip ${roleSel === r ? "on" : ""}`} onClick={() => pick(r)}>{r}</button>
+          ))}
+        </div>
+        {saved && roleSel && <div className="bsaved">{I.check} Tailored for <b>{roleSel}</b> — your boards and briefings will lead with what you run.</div>}
+      </div>
+      <div className="msection">
+        <div className="mtitle"><span className="sq" /><h2>Connected sources</h2><span className="rule" /></div>
+        <p className="bnote">What Brain can read. Connections are controlled by admin settings and user permissions.</p>
+        <div className="connrows">
+          <div className="connrow"><span className="cn">Metrc (state system)</span><span className="cs on">CONNECTED</span></div>
+          <div className="connrow"><span className="cn">Finished-Goods Google Sheet</span><span className="cs on">CONNECTED</span></div>
+          <div className="connrow"><span className="cn">QuickBooks Online</span>
+            {isExec ? <button className="btn small" onClick={() => go("integrations")}>Set up</button> : <span className="cs">ADMIN CONTROLLED</span>}</div>
+          <div className="connrow"><span className="cn">Monday.com</span>
+            {isExec ? <button className="btn small" onClick={() => go("integrations")}>Set up</button> : <span className="cs">ADMIN CONTROLLED</span>}</div>
+        </div>
+      </div>
+      {isExec && (
+        <div className="msection">
+          <div className="mtitle"><span className="sq" /><h2>Import memory</h2><span className="rule" /></div>
+          <p className="bnote">Admin only. Paste standing context — how the company runs, preferences, priorities. Stored as data and fed to the M5 reasoning engine so Brain is personal from day one.</p>
+          <textarea className="memta" rows={5} value={mem} onChange={(e) => { setMem(e.target.value); setMemSaved(false); }}
+            placeholder="Paste company context, preferences, standing priorities…" />
+          <div style={{ marginTop: 10, display: "flex", gap: 10, alignItems: "center" }}>
+            <button className="btn" onClick={saveMem}>Import memory</button>
+            {memSaved && <span className="bsaved">{I.check} Stored — audited, admin-only.</span>}
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
+/* ---------- Tasks v1: the Work Layer's first live slice ---------- */
+const TASK_STATUSES = [["todo", "TO DO"], ["in_progress", "IN PROGRESS"], ["blocked", "BLOCKED"], ["done", "DONE"]];
+function TasksScreen({ session }) {
+  const [tasks, setTasks] = useState(null);
+  const [emps, setEmps] = useState([]);
+  const [form, setForm] = useState({ title: "", assignee: "", due: "", priority: "P2", tags: "" });
+  const [ver, setVer] = useState(0);
+  useEffect(() => {
+    Promise.all([
+      supabase.from("tasks").select("*").order("created_at", { ascending: false }),
+      supabase.from("employees").select("id, full_name").is("terminated_on", null).order("full_name"),
+    ]).then(([t, e]) => { setTasks(t.data ?? []); setEmps(e.data ?? []); });
+  }, [ver]);
+  const empName = (id) => emps.find((e) => e.id === id)?.full_name ?? null;
+  const create = async (e) => {
+    e.preventDefault();
+    if (!form.title.trim()) return;
+    await supabase.from("tasks").insert({
+      title: form.title.trim(), created_by: session.user.id,
+      assignee_employee_id: form.assignee || null, due_on: form.due || null,
+      priority: form.priority,
+      tags: form.tags.split(",").map((t) => t.trim()).filter(Boolean),
+    });
+    setForm({ title: "", assignee: "", due: "", priority: "P2", tags: "" }); setVer((v) => v + 1);
+  };
+  const advance = async (t) => {
+    const next = t.status === "todo" ? "in_progress" : t.status === "in_progress" ? "done" : "todo";
+    await supabase.from("tasks").update({ status: next, completed_at: next === "done" ? new Date().toISOString() : null }).eq("id", t.id);
+    setVer((v) => v + 1);
+  };
+  const today = new Date().toISOString().slice(0, 10);
+  return (
+    <>
+      <div className="pagehead">
+        <div><h1>Tasks & Boards</h1><div className="sub">Live tasks with real assignees from the roster. Click the status chip to advance a task. Board, calendar, subtasks, and automations grow in with the Work Layer.</div></div>
+      </div>
+      <form className="teamform taskform" onSubmit={create}>
+        <input style={{ flex: 2 }} placeholder="Task name…" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
+        <select value={form.assignee} onChange={(e) => setForm({ ...form, assignee: e.target.value })}>
+          <option value="">Assignee…</option>
+          {emps.map((p) => <option key={p.id} value={p.id}>{p.full_name}</option>)}
+        </select>
+        <input type="date" value={form.due} onChange={(e) => setForm({ ...form, due: e.target.value })} />
+        <select value={form.priority} onChange={(e) => setForm({ ...form, priority: e.target.value })}>
+          {["P0", "P1", "P2", "P3"].map((p) => <option key={p}>{p}</option>)}
+        </select>
+        <input placeholder="tags, comma, separated" value={form.tags} onChange={(e) => setForm({ ...form, tags: e.target.value })} />
+        <button className="btn" type="submit">Create task</button>
+      </form>
+      {tasks === null ? <div className="empty"><div className="eicon">{I.check}</div>Loading…</div> : (
+        TASK_STATUSES.map(([key, label]) => {
+          const list = tasks.filter((t) => t.status === key);
+          if (!list.length && key === "blocked") return null;
+          return (
+            <div className="msection" key={key}>
+              <div className="mtitle"><span className="sq" /><h2>{label} — {list.length}</h2><span className="rule" /></div>
+              {list.length === 0 ? <p className="bnote">Nothing here.</p> : list.map((t) => (
+                <div key={t.id} className="tkrow">
+                  <button className={`tkstatus ${t.status}`} onClick={() => advance(t)} title="Click to advance">
+                    {t.status === "done" ? I.check : t.status === "in_progress" ? "▶" : t.status === "blocked" ? "■" : "○"}
+                  </button>
+                  <span className={`tktitle ${t.status === "done" ? "donetxt" : ""}`}>{t.title}</span>
+                  <span className={`schip ${t.priority === "P0" ? "bad" : t.priority === "P1" ? "warn" : "info"}`}>{t.priority}</span>
+                  {empName(t.assignee_employee_id) && <span className="tkass"><span className="tcavatar">{empName(t.assignee_employee_id)[0]}</span>{empName(t.assignee_employee_id)}</span>}
+                  {t.due_on && <span className={`tkdue ${t.due_on < today && t.status !== "done" ? "over" : ""}`}>{t.due_on}</span>}
+                  {t.tags?.map((tag) => <span key={tag} className="tktag">#{tag}</span>)}
+                </div>
+              ))}
+            </div>
+          );
+        })
+      )}
+    </>
+  );
+}
+
+/* ---------- Whiteboards: real pen + sticky notes, persisted ---------- */
+const WB_COLORS = ["#2df26a", "#ffea00", "#57a9ff", "#ff2e5f", "#ffffff"];
+function WhiteboardEditor({ board, onBack }) {
+  const [strokes, setStrokes] = useState(board.content?.strokes ?? []);
+  const [notes, setNotes] = useState(board.content?.notes ?? []);
+  const [color, setColor] = useState(WB_COLORS[0]);
+  const [cur, setCur] = useState(null);
+  const [savedAt, setSavedAt] = useState(null);
+  const dragRef = React.useRef(null);
+  const wrapRef = React.useRef(null);
+  const pos = (e) => {
+    const r = wrapRef.current.getBoundingClientRect();
+    return [Math.round(e.clientX - r.left), Math.round(e.clientY - r.top)];
+  };
+  const down = (e) => { if (e.target.closest(".wbnote")) return; setCur({ color, pts: [pos(e)] }); };
+  const move = (e) => {
+    if (dragRef.current !== null) {
+      const [x, y] = pos(e);
+      const { i, dx, dy } = dragRef.current;
+      setNotes((n) => n.map((nt, j) => j === i ? { ...nt, x: x - dx, y: y - dy } : nt));
+      return;
+    }
+    if (!cur) return;
+    const [x, y] = pos(e);
+    const last = cur.pts[cur.pts.length - 1];
+    if (Math.abs(x - last[0]) + Math.abs(y - last[1]) < 3) return;
+    setCur((c) => ({ ...c, pts: [...c.pts, [x, y]] }));
+  };
+  const up = () => {
+    if (cur && cur.pts.length > 1) setStrokes((s) => [...s, cur]);
+    setCur(null); dragRef.current = null;
+  };
+  const save = async () => {
+    await supabase.from("whiteboards").update({ content: { strokes, notes }, updated_at: new Date().toISOString() }).eq("id", board.id);
+    setSavedAt(new Date().toLocaleTimeString());
+  };
+  return (
+    <>
+      <div className="pagehead">
+        <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+          <button className="btn small ghost" onClick={onBack}>‹ Boards</button>
+          <h1 style={{ fontSize: 26 }}>{board.name}</h1>
+        </div>
+        <div className="wbtools">
+          {WB_COLORS.map((c) => (
+            <button key={c} className={`wbswatch ${color === c ? "on" : ""}`} style={{ background: c }} onClick={() => setColor(c)} title="Pen color" />
+          ))}
+          <button className="btn small ghost" onClick={() => setNotes((n) => [...n, { x: 60 + n.length * 26, y: 60 + n.length * 20, text: "", color: "#ffea00" }])}>+ Note</button>
+          <button className="btn small ghost" onClick={() => setStrokes((s) => s.slice(0, -1))}>Undo</button>
+          <button className="btn small" onClick={save}>Save</button>
+          {savedAt && <span className="bnote" style={{ margin: 0 }}>saved {savedAt}</span>}
+        </div>
+      </div>
+      <div ref={wrapRef} className="wbwrap" onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerLeave={up}>
+        <svg className="wbcanvas">
+          {[...strokes, ...(cur ? [cur] : [])].map((s, i) => (
+            <polyline key={i} points={s.pts.map((p) => p.join(",")).join(" ")} fill="none" stroke={s.color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+          ))}
+        </svg>
+        {notes.map((n, i) => (
+          <div key={i} className="wbnote" style={{ left: n.x, top: n.y, background: n.color }}>
+            <div className="wbnh" onPointerDown={(e) => { const [x, y] = pos(e); dragRef.current = { i, dx: x - n.x, dy: y - n.y }; }}>
+              ⣿ <button onClick={() => setNotes((s) => s.filter((_, j) => j !== i))}>✕</button>
+            </div>
+            <textarea value={n.text} placeholder="Note…" onChange={(e) => setNotes((s) => s.map((nt, j) => j === i ? { ...nt, text: e.target.value } : nt))} />
+          </div>
+        ))}
+      </div>
+    </>
+  );
+}
+function WhiteboardsScreen({ session }) {
+  const [boards, setBoards] = useState(null);
+  const [open, setOpen] = useState(null);
+  const [form, setForm] = useState({ name: "", priv: false });
+  const [ver, setVer] = useState(0);
+  useEffect(() => {
+    supabase.from("whiteboards").select("*").order("updated_at", { ascending: false })
+      .then(({ data }) => setBoards(data ?? []));
+  }, [ver]);
+  const create = async (e) => {
+    e.preventDefault();
+    if (!form.name.trim()) return;
+    const { data } = await supabase.from("whiteboards")
+      .insert({ name: form.name.trim(), is_private: form.priv, created_by: session.user.id }).select("*").single();
+    setForm({ name: "", priv: false }); setVer((v) => v + 1);
+    if (data) setOpen(data);
+  };
+  if (open) return <WhiteboardEditor board={open} onBack={() => { setOpen(null); setVer((v) => v + 1); }} />;
+  return (
+    <>
+      <div className="pagehead">
+        <div><h1>Whiteboards</h1><div className="sub">Sketch, plan, and pin notes — saved to the database, private or shared. Live multi-user cursors arrive with the Work Layer.</div></div>
+      </div>
+      <form className="teamform" onSubmit={create}>
+        <input placeholder="Name this whiteboard…" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+        <label className="wbpriv"><input type="checkbox" checked={form.priv} onChange={(e) => setForm({ ...form, priv: e.target.checked })} /> Private</label>
+        <button className="btn" type="submit">Create whiteboard</button>
+      </form>
+      {boards === null ? <div className="empty"><div className="eicon">{I.board}</div>Loading…</div> : boards.length === 0 ? (
+        <div className="empty"><div className="eicon">{I.board}</div><b>No whiteboards yet</b>Create one above — draw with the pen, drop sticky notes, hit Save.</div>
+      ) : (
+        <div className="teamgrid">
+          {boards.map((b) => (
+            <button key={b.id} className="teamcard tplcard" onClick={() => setOpen(b)}>
+              <span className="tcname">{b.name}{b.is_private && <span className="mtag">PRIVATE</span>}</span>
+              <span className="tpldesc">{(b.content?.strokes?.length ?? 0)} strokes · {(b.content?.notes?.length ?? 0)} notes</span>
+              <span className="tccount">updated {new Date(b.updated_at).toLocaleDateString()}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </>
+  );
+}
+
+/* ---------- Dashboards: template gallery, every widget live ---------- */
+const count = (t, mod) => async () => {
+  let q = supabase.from(t).select("*", { count: "exact", head: true });
+  if (mod) q = mod(q);
+  const { count: c } = await q;
+  return c ?? 0;
+};
+const in30 = () => new Date(Date.now() + 30 * 864e5).toISOString().slice(0, 10);
+const DASH_TEMPLATES = [
+  { key: "exec", title: "Executive Overview", desc: "Compliance, cash, and the whole operation at a glance", widgets: [
+    { t: "Open P0 actions", drill: "action_register", icon: "shield", load: count("actions_register", (q) => q.eq("status", "open").eq("priority", "P0")) },
+    { t: "Metrc packages", drill: "metrc_mirror", icon: "box", load: count("metrc_packages") },
+    { t: "Plants in the rooms", drill: "metrc_mirror", icon: "leafline", load: count("metrc_plants") },
+    { t: "Finished-goods lots", drill: "fg_inventory", icon: "box", load: count("product_inventory") },
+    { t: "Expiring within 30d", drill: "inv_summary", icon: "clock", load: count("product_inventory", (q) => q.lt("expiration_date", in30())) },
+    { t: "Harvest events next 30d", drill: "harvest_schedule", icon: "leafline", load: count("harvest_schedule", (q) => q.gte("harvest_date", todayISO()).lte("harvest_date", in30())) },
+  ] },
+  { key: "cultivation", title: "Cultivation", desc: "Rooms, plants, cadence, and plan vs actual", widgets: [
+    { t: "Plants (Metrc)", drill: "metrc_mirror", icon: "leafline", load: count("metrc_plants") },
+    { t: "Harvests recorded", drill: "harvest_recon", icon: "scale", load: count("metrc_harvests") },
+    { t: "Calendar events ahead", drill: "harvest_schedule", icon: "clock", load: count("harvest_schedule", (q) => q.gte("harvest_date", todayISO())) },
+    { t: "Cadence violations", drill: "harvest_schedule", icon: "shield", load: count("harvest_schedule", (q) => q.like("room_cycle_flag", "%VIOLATION%")) },
+    { t: "Missing in Metrc", drill: "harvest_recon", icon: "shield", load: count("v_harvest_reconciliation", (q) => q.eq("reconciliation", "MISSING IN METRC")) },
+  ] },
+  { key: "inv_sales", title: "Inventory & Sales", desc: "What's sellable, aging, and moving", widgets: [
+    { t: "Finished-goods lots", drill: "fg_inventory", icon: "box", load: count("product_inventory") },
+    { t: "Ready To Ship", drill: "fg_inventory", icon: "check", load: count("product_inventory", (q) => q.eq("current_status", "Ready To Ship")) },
+    { t: "Expiring within 30d", drill: "inv_summary", icon: "clock", load: count("product_inventory", (q) => q.lt("expiration_date", in30())) },
+    { t: "3rd-party lots on site", drill: "third_party", icon: "truck", load: count("third_party_material") },
+    { t: "Transfer manifests", drill: "metrc_mirror", icon: "truck", load: count("metrc_transfers") },
+    { t: "Capital tied up", drill: "materials", icon: "dollar", load: count("v_material_aging", (q) => q.eq("aging_alert", "CAPITAL TIED UP")) },
+  ] },
+  { key: "hr", title: "HR & Labor", desc: "Headcount, schedules, exceptions, cost", widgets: [
+    { t: "Active employees", drill: "people", icon: "users", load: count("employees", (q) => q.is("terminated_on", null)) },
+    { t: "Scheduled today", drill: "emp_schedule", icon: "clock", load: count("employee_schedules", (q) => q.eq("work_date", todayISO())) },
+    { t: "Exceptions today", drill: "time", icon: "bell", load: count("time_entries", (q) => q.eq("work_date", todayISO()).not("exception_code", "is", null)) },
+    { t: "Weekly loaded payroll", drill: "plan_payroll", icon: "dollar", load: async () => {
+      const { data } = await supabase.from("v_payroll_forecast").select("loaded_weekly_cost");
+      return "$" + Math.round((data ?? []).reduce((a, r) => a + Number(r.loaded_weekly_cost ?? 0), 0)).toLocaleString();
+    } },
+  ] },
+];
+function DashboardsScreen({ session, go }) {
+  const [tpl, setTpl] = useState(undefined);
+  const [vals, setVals] = useState({});
+  useEffect(() => {
+    supabase.from("user_settings").select("dashboard_template").eq("user_id", session.user.id).maybeSingle()
+      .then(({ data }) => setTpl(data?.dashboard_template ?? null));
+  }, [session.user.id]);
+  const active = DASH_TEMPLATES.find((d) => d.key === tpl);
+  useEffect(() => {
+    if (!active) return;
+    setVals({});
+    active.widgets.forEach((w) => w.load().then((v) => setVals((s) => ({ ...s, [w.t]: v }))));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tpl]);
+  const choose = async (k) => {
+    setTpl(k);
+    await supabase.from("user_settings").upsert({ user_id: session.user.id, dashboard_template: k }, { onConflict: "user_id" });
+  };
+  if (tpl === undefined) return <div className="empty"><div className="eicon">{I.gauge}</div>Loading…</div>;
+  if (!active) return (
+    <>
+      <div className="pagehead"><div><h1>Choose a Dashboard</h1>
+        <div className="sub">Pick a template and it builds itself from live records this second — or wait for the custom drag-drop builder in M4. Your choice saves to your account.</div></div></div>
+      <div className="teamgrid">
+        {DASH_TEMPLATES.map((d) => (
+          <button key={d.key} className="teamcard tplcard" onClick={() => choose(d.key)}>
+            <span className="tcname">{d.title}</span>
+            <span className="tpldesc">{d.desc}</span>
+            <span className="tccount">{d.widgets.length} live widgets</span>
+          </button>
+        ))}
+        <div className="teamcard tplcard dim">
+          <span className="tcname">Start from scratch <span className="mtag">M4</span></span>
+          <span className="tpldesc">Drag, drop, and resize your own widgets — arrives with dashboard layouts.</span>
+        </div>
+      </div>
+    </>
+  );
+  return (
+    <>
+      <div className="pagehead">
+        <div><h1>{active.title}</h1><div className="sub">{active.desc} — every number live at this moment. Click any widget for full detail.</div></div>
+        <button className="btn small ghost" onClick={() => choose(null) || setTpl(null)}>Change template</button>
+      </div>
+      <div className="qcards dashgrid">
+        {active.widgets.map((w) => (
+          <button key={w.t} className="qcard" onClick={() => go(w.drill)}>
+            <span className="qi">{iconByName(w.icon)}</span>
+            <span className="qt">{w.t}</span>
+            <span className={`qn ${typeof vals[w.t] === "number" && vals[w.t] > 0 && /P0|violation|Missing|Exception|tied|Expir/i.test(w.t) ? "hot" : ""}`}>{vals[w.t] ?? "…"}</span>
+          </button>
+        ))}
+      </div>
+    </>
+  );
+}
+
+/* ---------- Planner: the operations calendar, already full of live events ---------- */
+const PLANNER_LEGEND = [
+  ["Harvest", "#5cff92"], ["Shipment", "#e2bd63"], ["Work order", "#ffea00"], ["Expiry", "#ff8a00"], ["Shift", "#b026ff"],
+];
+function PlannerScreen({ go }) {
+  const [ym, setYm] = useState(() => { const d = new Date(); return { y: d.getFullYear(), m: d.getMonth() }; });
+  const [events, setEvents] = useState(null);
+  const [sel, setSel] = useState(null);
+  useEffect(() => {
+    setEvents(null); setSel(null);
+    const start = `${ym.y}-${String(ym.m + 1).padStart(2, "0")}-01`;
+    const endD = new Date(ym.y, ym.m + 1, 0).getDate();
+    const end = `${ym.y}-${String(ym.m + 1).padStart(2, "0")}-${String(endD).padStart(2, "0")}`;
+    Promise.all([
+      supabase.from("harvest_schedule").select("harvest_date,cultivar,flower_room").gte("harvest_date", start).lte("harvest_date", end),
+      supabase.from("shipments").select("scheduled_ship_on,shipment_code,status").gte("scheduled_ship_on", start).lte("scheduled_ship_on", end),
+      supabase.from("work_orders").select("planned_start,wo_code,status").gte("planned_start", start).lte("planned_start", end),
+      supabase.from("product_inventory").select("expiration_date,strain_flavor,production_batch").gte("expiration_date", start).lte("expiration_date", end),
+      supabase.from("employee_schedules").select("work_date,zone,status").gte("work_date", start).lte("work_date", end),
+    ]).then(([h, s, w, x, es]) => {
+      const ev = {};
+      const add = (date, type, label, drill, color) => { if (!date) return; (ev[date] = ev[date] ?? []).push({ type, label, drill, color }); };
+      (h.data ?? []).forEach((r) => add(r.harvest_date, "Harvest", `${r.cultivar ?? ""} · ${r.flower_room ?? ""}`, "harvest_schedule", "#5cff92"));
+      (s.data ?? []).forEach((r) => add(r.scheduled_ship_on, "Shipment", `${r.shipment_code ?? ""} · ${r.status ?? ""}`, "shipping", "#e2bd63"));
+      (w.data ?? []).forEach((r) => add(r.planned_start, "Work order", `${r.wo_code ?? ""} · ${r.status ?? ""}`, "work_orders", "#ffea00"));
+      (x.data ?? []).forEach((r) => add(r.expiration_date, "Expiry", r.strain_flavor ?? r.production_batch ?? "lot", "inv_summary", "#ff8a00"));
+      (es.data ?? []).forEach((r) => add(r.work_date, "Shift", `${r.zone ?? "—"} · ${r.status}`, "emp_schedule", "#b026ff"));
+      setEvents(ev);
+    });
+  }, [ym.y, ym.m]);
+  const first = new Date(ym.y, ym.m, 1);
+  const cells = [...Array(first.getDay()).fill(null),
+    ...Array.from({ length: new Date(ym.y, ym.m + 1, 0).getDate() }, (_, i) => i + 1)];
+  const iso = (d) => `${ym.y}-${String(ym.m + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+  const todayIso = new Date().toISOString().slice(0, 10);
+  const shift = (n) => setYm(({ y, m }) => { const d = new Date(y, m + n, 1); return { y: d.getFullYear(), m: d.getMonth() }; });
+  return (
+    <>
+      <div className="pagehead">
+        <div>
+          <h1>Planner</h1>
+          <div className="sub">The whole operation on one calendar, straight from live records — nothing here is typed in twice. Connect Google or Outlook calendars from Integrations when the keys are in.</div>
+        </div>
+        <div className="calnav">
+          <button className="btn small ghost" onClick={() => shift(-1)}>‹</button>
+          <span className="calmonth">{first.toLocaleString("en-US", { month: "long", year: "numeric" })}</span>
+          <button className="btn small ghost" onClick={() => shift(1)}>›</button>
+          <button className="btn small" onClick={() => { const d = new Date(); setYm({ y: d.getFullYear(), m: d.getMonth() }); }}>Today</button>
+        </div>
+      </div>
+      <div className="callegend">
+        {PLANNER_LEGEND.map(([l, c]) => <span key={l} className="cl"><i style={{ background: c }} />{l}</span>)}
+      </div>
+      {events === null ? <div className="empty"><div className="eicon">{I.clock}</div>Loading the month…</div> : (
+        <>
+          <div className="calgrid">
+            {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => <div key={d} className="caldow">{d}</div>)}
+            {cells.map((d, i) => {
+              if (d === null) return <div key={`b${i}`} className="calcell blank" />;
+              const k = iso(d);
+              const list = events[k] ?? [];
+              return (
+                <button key={k} className={`calcell ${k === todayIso ? "today" : ""} ${sel === k ? "sel" : ""}`} onClick={() => setSel(sel === k ? null : k)}>
+                  <span className="caldate">{d}</span>
+                  {list.slice(0, 3).map((e, j) => (
+                    <span key={j} className="calev" style={{ borderLeftColor: e.color }}>{e.label}</span>
+                  ))}
+                  {list.length > 3 && <span className="calmore">+{list.length - 3} more</span>}
+                </button>
+              );
+            })}
+          </div>
+          {sel && (
+            <div className="msection">
+              <div className="mtitle"><span className="sq" /><h2>{sel}</h2><span className="rule" /></div>
+              {(events[sel] ?? []).length === 0 ? <p className="bnote">Nothing scheduled from live records this day.</p> :
+                (events[sel] ?? []).map((e, i) => (
+                  <button key={i} className="bres" onClick={() => go(e.drill)}>
+                    <span className="brl" style={{ color: e.color }}>{e.type}</span>
+                    <span className="brs">{e.label}</span><span className="bra">{I.caret}</span>
+                  </button>
+                ))}
+            </div>
+          )}
+        </>
+      )}
+    </>
+  );
+}
+
+/* ---------- Teams Hub: departments are living teams; custom teams staffed in-app ---------- */
+function TeamsScreen({ session, isExec }) {
+  const [depts, setDepts] = useState(null);
+  const [emps, setEmps] = useState([]);
+  const [teams, setTeams] = useState([]);
+  const [members, setMembers] = useState({});
+  const [open, setOpen] = useState(null);
+  const [form, setForm] = useState({ name: "", description: "" });
+  const [ver, setVer] = useState(0);
+  useEffect(() => {
+    Promise.all([
+      supabase.from("departments").select("id, name, color").order("name"),
+      supabase.from("employees").select("id, full_name, status, primary_department_id, secondary_department_id").order("full_name"),
+      supabase.from("teams").select("*").order("created_at"),
+      supabase.from("team_members").select("team_id, employee_id"),
+    ]).then(([d, e, t, m]) => {
+      setDepts(d.data ?? []); setEmps(e.data ?? []); setTeams(t.data ?? []);
+      const map = {};
+      (m.data ?? []).forEach((r) => { (map[r.team_id] = map[r.team_id] ?? new Set()).add(r.employee_id); });
+      setMembers(map);
+    });
+  }, [ver]);
+  const deptMembers = (id) => emps.filter((e) => e.primary_department_id === id || e.secondary_department_id === id);
+  const createTeam = async (e) => {
+    e.preventDefault();
+    if (!form.name.trim()) return;
+    await supabase.from("teams").insert({ name: form.name.trim(), description: form.description.trim() || null, created_by: session.user.id });
+    setForm({ name: "", description: "" }); setVer((v) => v + 1);
+  };
+  const toggleMember = async (teamId, empId) => {
+    if (members[teamId]?.has(empId)) await supabase.from("team_members").delete().eq("team_id", teamId).eq("employee_id", empId);
+    else await supabase.from("team_members").insert({ team_id: teamId, employee_id: empId });
+    setVer((v) => v + 1);
+  };
+  if (depts === null) return <div className="empty"><div className="eicon">{I.users}</div>Loading teams…</div>;
+  return (
+    <>
+      <div className="pagehead">
+        <div>
+          <h1>Teams</h1>
+          <div className="sub">Align the crews and see their work. Departments are living teams fed by the roster; custom teams cross department lines. Task assignment, mentions, and workload views arrive with the Work Layer.</div>
+        </div>
+      </div>
+      <div className="msection" style={{ marginTop: 0 }}>
+        <div className="mtitle"><span className="sq" /><h2>Departments — built-in teams</h2><span className="rule" /></div>
+        <div className="teamgrid">
+          {depts.map((d) => {
+            const list = deptMembers(d.id);
+            const isOpen = open === `d:${d.id}`;
+            return (
+              <div key={d.id} className={`teamcard ${isOpen ? "open" : ""}`} style={{ borderTopColor: d.color ?? "var(--neon)" }}>
+                <button className="tchead" onClick={() => setOpen(isOpen ? null : `d:${d.id}`)}>
+                  <span className="tcname">{d.name}</span>
+                  <span className="tccount">{list.length} member{list.length === 1 ? "" : "s"}</span>
+                </button>
+                {isOpen && (
+                  <div className="tcmembers">
+                    {list.length === 0 ? <div className="tcnone">No one assigned to this department yet.</div>
+                      : list.map((e) => <div key={e.id} className="tcm"><span className="tcavatar">{e.full_name[0]}</span>{e.full_name}{e.status !== "active" && <em>({e.status})</em>}</div>)}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+      <div className="msection">
+        <div className="mtitle"><span className="sq" /><h2>Custom teams</h2><span className="rule" /></div>
+        {isExec && (
+          <form className="teamform" onSubmit={createTeam}>
+            <input placeholder="Team name…" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+            <input placeholder="Description (optional)" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
+            <button className="btn" type="submit">Create team</button>
+          </form>
+        )}
+        {teams.length === 0 ? (
+          <div className="empty"><div className="eicon">{I.users}</div><b>No custom teams yet</b>{isExec ? "Create one above — then staff it from the roster with one click each." : "An executive can create cross-department teams here."}</div>
+        ) : (
+          <div className="teamgrid">
+            {teams.map((t) => {
+              const set = members[t.id] ?? new Set();
+              const isOpen = open === `t:${t.id}`;
+              return (
+                <div key={t.id} className={`teamcard ${isOpen ? "open" : ""}`} style={{ borderTopColor: t.color }}>
+                  <button className="tchead" onClick={() => setOpen(isOpen ? null : `t:${t.id}`)}>
+                    <span className="tcname">{t.name}</span>
+                    <span className="tccount">{set.size} member{set.size === 1 ? "" : "s"}</span>
+                  </button>
+                  {isOpen && (
+                    <div className="tcmembers">
+                      {t.description && <div className="tcdesc">{t.description}</div>}
+                      {emps.map((e) => (
+                        <button key={e.id} className={`tcm pick ${set.has(e.id) ? "in" : ""}`}
+                          disabled={!isExec} onClick={() => toggleMember(t.id, e.id)}
+                          title={isExec ? (set.has(e.id) ? "Remove from team" : "Add to team") : "Admin controlled"}>
+                          <span className="tcavatar">{e.full_name[0]}</span>{e.full_name}
+                          <span className="tcmark">{set.has(e.id) ? I.check : "+"}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </>
+  );
+}
+
 /* ---------- Alerts & Reminders: computed live from operating records, never manual ---------- */
 const METRIC_META = Object.assign({}, ...METRIC_GROUPS.map((g) => g.items));
 function AlertsScreen({ go }) {
@@ -1299,6 +2055,20 @@ export default function App() {
   const [openCats, setOpenCats] = useState({});
   const [dragging, setDragging] = useState(false);
   const [userMenu, setUserMenu] = useState(false);
+  const [listening, setListening] = useState(false);
+  const [dictation, setDictation] = useState(null);
+  const startMic = () => {
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) { setDictation("__unsupported__"); setView("brain"); return; }
+    try {
+      const r = new SR();
+      r.lang = "en-US"; r.interimResults = false;
+      r.onresult = (ev) => { setDictation(ev.results[0][0].transcript); setView("brain"); };
+      r.onend = () => setListening(false);
+      r.onerror = () => setListening(false);
+      setListening(true); r.start();
+    } catch { setListening(false); }
+  };
   const [alertN, setAlertN] = useState(0);
   useEffect(() => {
     if (!session) return;
@@ -1338,6 +2108,12 @@ export default function App() {
     tower: <ControlTower go={setView} session={session} />,
     fg_inventory: <FinishedGoods session={session} />,
     alerts: <AlertsScreen go={setView} />,
+    brain: <BrainScreen session={session} go={setView} isExec={isExec} dictation={dictation} />,
+    teams: <TeamsScreen session={session} isExec={isExec} />,
+    planner: <PlannerScreen go={setView} />,
+    dashboards: <DashboardsScreen session={session} go={setView} />,
+    whiteboards: <WhiteboardsScreen session={session} />,
+    tasks: <TasksScreen session={session} />,
     people: <People />,
     integrations: <Integrations session={session} />,
     settings: <Settings session={session} prefs={prefs} />,
@@ -1359,6 +2135,11 @@ export default function App() {
         <span className="tpill"><span className="d" /> LIVE</span>
         <div className="tuser">
           <button className="tibtn" title="Control Tower" onClick={() => setView("tower")}>{I.gauge}</button>
+          <button className="tibtn" title="Tasks" onClick={() => setView("tasks")}>{I.check}</button>
+          <button className="tibtn" title="Dashboards" onClick={() => setView("dashboards")}>{I.grid}</button>
+          <button className="tibtn" title="Whiteboards" onClick={() => setView("whiteboards")}>{I.board}</button>
+          <button className={`tibtn ${listening ? "listening" : ""}`} title="Talk to type — dictates into Brain" onClick={startMic}>{I.mic}</button>
+          <TimeTools session={session} />
           <button className="tibtn" title="Alerts & Reminders" onClick={() => setView("alerts")}>
             {I.bell}{alertN > 0 && <span className="tbadge">{alertN}</span>}
           </button>
