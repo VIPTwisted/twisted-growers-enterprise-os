@@ -126,14 +126,75 @@ function usePrefs(session) {
   return { theme, setTheme, collapsed, setCollapsed, navWidth, setNavWidthLive, commitNavWidth };
 }
 
-function useNav() {
+function useNav(version) {
   const [nav, setNav] = useState(null);
   useEffect(() => {
     supabase.from("nav_registry").select("*").eq("enabled", true)
       .order("category_order").order("item_order")
       .then(({ data }) => setNav(data ?? []));
-  }, []);
+  }, [version]);
   return nav;
+}
+
+/* ---------- Menu Manager: admin shows/hides any item for all users, instantly ---------- */
+function MenuManager({ onChanged }) {
+  const [rows, setRows] = useState(null);
+  const [msg, setMsg] = useState(null);
+  const load = useCallback(() => {
+    supabase.from("nav_registry").select("*")
+      .order("category_order").order("item_order")
+      .then(({ data }) => setRows(data ?? []));
+  }, []);
+  useEffect(() => { load(); }, [load]);
+  async function toggle(row) {
+    const { error } = await supabase.from("nav_registry")
+      .update({ enabled: !row.enabled }).eq("id", row.id);
+    if (error) setMsg({ kind: "err", text: `Not permitted: ${error.message}` });
+    else { setMsg({ kind: "ok", text: `“${row.label}” is now ${row.enabled ? "hidden from" : "visible to"} all users.` }); load(); onChanged(); }
+  }
+  const cats = [];
+  for (const e of rows ?? []) {
+    let c = cats.find((x) => x.name === e.category);
+    if (!c) { c = { name: e.category, items: [] }; cats.push(c); }
+    c.items.push(e);
+  }
+  return (
+    <>
+      <div className="pagehead">
+        <div>
+          <h1>Menu Manager</h1>
+          <div className="sub">Show, hide, or deactivate any menu item for every user — instantly, no code. Admin-only: the database refuses changes from non-executives.</div>
+        </div>
+      </div>
+      {msg && <div className={`msg ${msg.kind}`} style={{ maxWidth: 640 }}>{msg.text}</div>}
+      {rows === null ? <div className="empty"><div className="eicon">{I.gear}</div>Loading…</div> : (
+        <div className="cols2">
+          {cats.map((c) => (
+            <div key={c.name} className="msection" style={{ marginTop: 0 }}>
+              <div className="mtitle"><span className="catdot" style={{ background: c.items[0]?.color }} /><h2>{c.name}</h2><span className="rule" /></div>
+              <div className="tablewrap" style={{ marginTop: 0 }}>
+                <table>
+                  <tbody>
+                    {c.items.map((r) => (
+                      <tr key={r.id}>
+                        <td style={{ width: "60%" }}>{r.label}</td>
+                        <td><span className={`pill ${r.enabled ? "ok" : "dim"}`}>{r.enabled ? "visible" : "hidden"}</span></td>
+                        <td style={{ textAlign: "right" }}>
+                          <button className="btn ghost" style={{ margin: 0, padding: "5px 12px", fontSize: 12 }} onClick={() => toggle(r)}>
+                            {r.enabled ? "Hide" : "Show"}
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </>
+  );
 }
 
 function useSyncSummary() {
@@ -767,7 +828,8 @@ function RailMetrc() {
 export default function App() {
   const session = useSession();
   const prefs = usePrefs(session ?? null);
-  const nav = useNav();
+  const [navVersion, setNavVersion] = useState(0);
+  const nav = useNav(navVersion);
   const [view, setView] = useState("tower");
   const [openCats, setOpenCats] = useState({});
   const [dragging, setDragging] = useState(false);
@@ -800,6 +862,7 @@ export default function App() {
     settings: <Settings session={session} prefs={prefs} />,
     help: <Help />,
     metrc_mirror: <MetrcMirror />,
+    menu_manager: <MenuManager onChanged={() => setNavVersion((v) => v + 1)} />,
   };
   const body = special[view] ?? (current ? <ModuleScreen entry={current} /> : <ControlTower go={setView} />);
 
