@@ -2343,11 +2343,15 @@ const CANVAS_PRESETS = [
   { name: "Mango Tango", c: ["#ffea00", "#ff9100", "#ff5252"] },
   { name: "Palm Paradise", c: ["#00e676", "#76ff03", "#00b0ff"] },
 ];
+const GLOW_LEVELS = { off: "0", soft: "0.45", standard: "0.75", bold: "1" };
+const GLOW_REACH = { short: "0.7", standard: "1", deep: "1.6", full: "2.4" };
 function applyCanvasTheme(ct) {
   const r = document.documentElement.style;
   const set = (k, v) => (v ? r.setProperty(k, v) : r.removeProperty(k));
   set("--mesh-d1", ct?.dark?.c1); set("--mesh-d2", ct?.dark?.c2); set("--mesh-d3", ct?.dark?.c3);
   set("--mesh-l1", ct?.light?.c1); set("--mesh-l2", ct?.light?.c2); set("--mesh-l3", ct?.light?.c3);
+  set("--glow-i", GLOW_LEVELS[ct?.intensity] ?? null);
+  set("--glow-reach", GLOW_REACH[ct?.reach] ?? null);
 }
 function Settings({ session, prefs }) {
   const { theme, setTheme } = prefs;
@@ -2443,6 +2447,20 @@ function Settings({ session, prefs }) {
                 <span className="note">left · middle · right of the mesh</span>
               </div>
             ))}
+            <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 12 }}>
+              <span className="note" style={{ width: 96 }}>Glow strength</span>
+              {[["off", "Off"], ["soft", "Soft"], ["standard", "Standard"], ["bold", "Bold"]].map(([k, l]) => (
+                <button key={k} className={`btn small ghost ${(ct?.intensity ?? "standard") === k ? "sel" : ""}`}
+                  onClick={() => saveCt({ ...(ct ?? { ...CANVAS_DEF }), intensity: k })}>{l}{(ct?.intensity ?? "standard") === k ? " ✓" : ""}</button>
+              ))}
+            </div>
+            <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 10 }}>
+              <span className="note" style={{ width: 96 }}>Glow reach</span>
+              {[["short", "Short"], ["standard", "Standard"], ["deep", "Deep"], ["full", "Full page"]].map(([k, l]) => (
+                <button key={k} className={`btn small ghost ${(ct?.reach ?? "standard") === k ? "sel" : ""}`}
+                  onClick={() => saveCt({ ...(ct ?? { ...CANVAS_DEF }), reach: k })}>{l}{(ct?.reach ?? "standard") === k ? " ✓" : ""}</button>
+              ))}
+            </div>
             {ct && <button className="btn small ghost" style={{ marginTop: 12 }} onClick={() => saveCt(null) || applyCanvasTheme(null)}>Reset to brand default</button>}
           </div>
         </div>

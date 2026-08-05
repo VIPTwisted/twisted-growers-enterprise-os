@@ -11,9 +11,9 @@
   /* GLOW, not tint: bright neon cores hugging the top edge, dissolving softly into pure black
      by ~a third of the page. The canvas itself stays black — the color is light, not paint. */
   --canvas-glow:
-    radial-gradient(60% 34% at 14% -6%, color-mix(in srgb, var(--mesh-d1, #39ff14) 34%, transparent), transparent 60%),
-    radial-gradient(55% 30% at 50% -8%, color-mix(in srgb, var(--mesh-d2, #fff000) 22%, transparent), transparent 62%),
-    radial-gradient(60% 34% at 86% -6%, color-mix(in srgb, var(--mesh-d3, #00e5ff) 30%, transparent), transparent 60%);
+    radial-gradient(60% calc(36% * var(--glow-reach, 1)) at 14% -6%, color-mix(in srgb, var(--mesh-d1, #39ff14) 46%, transparent), transparent 60%),
+    radial-gradient(55% calc(32% * var(--glow-reach, 1)) at 50% -8%, color-mix(in srgb, var(--mesh-d2, #fff000) 30%, transparent), transparent 62%),
+    radial-gradient(60% calc(36% * var(--glow-reach, 1)) at 86% -6%, color-mix(in srgb, var(--mesh-d3, #00e5ff) 40%, transparent), transparent 60%);
   --surface: #111513;
   --surface-2: #181d1a;
   --ink: #ffffff;
@@ -60,9 +60,9 @@
      Colors come from the user's saved canvas theme (Settings) via --mesh-l1..l3; neon defaults. */
   /* Same glow structure over white — soft luminous cores at the top, white stays white below. */
   --canvas-glow:
-    radial-gradient(60% 34% at 14% -6%, color-mix(in srgb, var(--mesh-l1, #39ff14) 24%, transparent), transparent 62%),
-    radial-gradient(55% 30% at 50% -8%, color-mix(in srgb, var(--mesh-l2, #faff00) 20%, transparent), transparent 64%),
-    radial-gradient(60% 34% at 86% -6%, color-mix(in srgb, var(--mesh-l3, #00e5ff) 20%, transparent), transparent 62%);
+    radial-gradient(60% calc(36% * var(--glow-reach, 1)) at 14% -6%, color-mix(in srgb, var(--mesh-l1, #39ff14) 32%, transparent), transparent 62%),
+    radial-gradient(55% calc(32% * var(--glow-reach, 1)) at 50% -8%, color-mix(in srgb, var(--mesh-l2, #faff00) 27%, transparent), transparent 64%),
+    radial-gradient(60% calc(36% * var(--glow-reach, 1)) at 86% -6%, color-mix(in srgb, var(--mesh-l3, #00e5ff) 27%, transparent), transparent 62%);
   --surface: #ffffff;
   --surface-2: #eef1ee;
   --ink: #101312;
@@ -108,15 +108,22 @@
 html, body { height: 100%; }
 body {
   background: var(--canvas);
-  background-image: var(--canvas-glow);
-  background-attachment: fixed;
   color: var(--ink);
   font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
   font-size: 14.5px; line-height: 1.55;
   -webkit-font-smoothing: antialiased;
   font-feature-settings: "cv05", "cv11";
 }
-#root { min-height: 100vh; }
+/* The glow lives on its own fixed layer: the canvas color is NEVER altered, and the
+   user's Settings intensity (--glow-i) can soften it or switch it off entirely. */
+body::before {
+  content: "";
+  position: fixed; inset: 0; z-index: 0;
+  background-image: var(--canvas-glow);
+  opacity: var(--glow-i, 0.75);
+  pointer-events: none;
+}
+#root { min-height: 100vh; position: relative; z-index: 1; }
 button { font-family: inherit; }
 h1, h2, h3, .display { font-family: "Space Grotesk", "Inter", sans-serif; }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
