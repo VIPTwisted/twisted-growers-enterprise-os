@@ -1318,7 +1318,7 @@ function WhiteboardEditor({ board, onBack }) {
 function WhiteboardsScreen({ session }) {
   const [boards, setBoards] = useState(null);
   const [open, setOpen] = useState(null);
-  const [form, setForm] = useState({ name: "", priv: false });
+  const [form, setForm] = useState({ name: "", priv: true });
   const [ver, setVer] = useState(0);
   useEffect(() => {
     supabase.from("whiteboards").select("*").order("updated_at", { ascending: false })
@@ -1329,7 +1329,7 @@ function WhiteboardsScreen({ session }) {
     if (!form.name.trim()) return;
     const { data } = await supabase.from("whiteboards")
       .insert({ name: form.name.trim(), is_private: form.priv, created_by: session.user.id }).select("*").single();
-    setForm({ name: "", priv: false }); setVer((v) => v + 1);
+    setForm({ name: "", priv: true }); setVer((v) => v + 1);
     if (data) setOpen(data);
   };
   if (open) return <WhiteboardEditor board={open} onBack={() => { setOpen(null); setVer((v) => v + 1); }} />;
@@ -1340,7 +1340,7 @@ function WhiteboardsScreen({ session }) {
       </div>
       <form className="teamform" onSubmit={create}>
         <input placeholder="Name this whiteboard…" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
-        <label className="wbpriv"><input type="checkbox" checked={form.priv} onChange={(e) => setForm({ ...form, priv: e.target.checked })} /> Private</label>
+        <label className="wbpriv"><input type="checkbox" checked={!form.priv} onChange={(e) => setForm({ ...form, priv: !e.target.checked })} /> Share with everyone (private by default)</label>
         <button className="btn" type="submit">Create whiteboard</button>
       </form>
       {boards === null ? <div className="empty"><div className="eicon">{I.board}</div>Loading…</div> : boards.length === 0 ? (
