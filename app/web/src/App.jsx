@@ -2206,6 +2206,14 @@ export default function App() {
                   <button className={prefs.theme === "light" ? "on" : ""} onClick={() => prefs.setTheme("light")}>{I.sun} Light</button>
                 </div>
                 <div className="usep" />
+                <div className="ulabel">Personal tools</div>
+                <button className="uitem" onClick={() => { setUserMenu(false); setView("tasks"); }}>{I.check} Create task</button>
+                <button className="uitem" onClick={() => { setUserMenu(false); setView("whiteboards"); }}>{I.board} Create whiteboard</button>
+                <button className="uitem" onClick={() => { setUserMenu(false); setView("dashboards"); }}>{I.grid} My dashboard</button>
+                <button className="uitem" onClick={() => { setUserMenu(false); setView("planner"); }}>{I.clock} Planner</button>
+                <button className="uitem" onClick={() => { setUserMenu(false); startMic(); }}>{I.mic} Talk to text</button>
+                <button className="uitem" onClick={() => { setUserMenu(false); setView("brain"); }}>{I.dna} Ask Brain</button>
+                <div className="usep" />
                 <button className="uitem" onClick={() => { setUserMenu(false); setView("people"); }}>{I.users} Employee directory</button>
                 <button className="uitem" onClick={() => { setUserMenu(false); setView("settings"); }}>{I.gear} Settings</button>
                 {isExec && <button className="uitem" onClick={() => { setUserMenu(false); setView("menu_manager"); }}>{I.burger} Menu Manager</button>}
