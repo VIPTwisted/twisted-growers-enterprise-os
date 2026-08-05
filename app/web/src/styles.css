@@ -50,10 +50,12 @@
   --hero-bg: linear-gradient(120deg, #0e1210 0%, #111614 55%, #101609 130%);
 }
 :root[data-theme="light"] {
-  --canvas: #f4f6f4;
+  --canvas: #fdfefd;
   --canvas-glow:
-    radial-gradient(1100px 500px at 90% -10%, rgba(18, 201, 92, 0.05), transparent 60%),
-    radial-gradient(900px 500px at -10% 110%, rgba(184, 145, 44, 0.04), transparent 55%);
+    radial-gradient(1100px 520px at 50% -14%, rgba(20, 204, 93, 0.16), transparent 65%),
+    radial-gradient(900px 440px at 12% -8%, rgba(255, 168, 186, 0.20), transparent 58%),
+    radial-gradient(1000px 470px at 88% -10%, rgba(140, 178, 255, 0.18), transparent 60%),
+    linear-gradient(180deg, rgba(20, 204, 93, 0.05) 0%, transparent 38%);
   --surface: #ffffff;
   --surface-2: #eef1ee;
   --ink: #101312;
