@@ -9,10 +9,10 @@
   /* Figma-style neon mesh: green -> yellow -> neon aqua from the very top, dissolving by mid-page.
      Colors come from the user's saved canvas theme (Settings) via --mesh-d1..d3; neon defaults. */
   --canvas-glow:
-    linear-gradient(180deg, rgba(10, 12, 11, 0) 0%, rgba(10, 12, 11, 0.44) 38%, rgba(10, 12, 11, 0.80) 70%, #0a0c0b 100%),
-    radial-gradient(140% 130% at 12% -10%, color-mix(in srgb, var(--mesh-d1, #39ff14) 28%, transparent), transparent 78%),
-    radial-gradient(130% 120% at 50% -12%, color-mix(in srgb, var(--mesh-d2, #fff000) 20%, transparent), transparent 80%),
-    radial-gradient(140% 130% at 92% -8%, color-mix(in srgb, var(--mesh-d3, #00e5ff) 24%, transparent), transparent 78%);
+    linear-gradient(180deg, rgba(10, 12, 11, 0) 0%, rgba(10, 12, 11, 0.55) 26%, rgba(10, 12, 11, 0.90) 46%, #0a0c0b 60%),
+    radial-gradient(120% 85% at 12% -10%, color-mix(in srgb, var(--mesh-d1, #39ff14) 18%, transparent), transparent 62%),
+    radial-gradient(110% 80% at 50% -12%, color-mix(in srgb, var(--mesh-d2, #fff000) 13%, transparent), transparent 64%),
+    radial-gradient(120% 85% at 92% -8%, color-mix(in srgb, var(--mesh-d3, #00e5ff) 16%, transparent), transparent 62%);
   --surface: #111513;
   --surface-2: #181d1a;
   --ink: #ffffff;
@@ -58,10 +58,10 @@
   /* Figma-style neon mesh in light: bright and smooth, dissolving to white by mid-page.
      Colors come from the user's saved canvas theme (Settings) via --mesh-l1..l3; neon defaults. */
   --canvas-glow:
-    linear-gradient(180deg, rgba(253, 254, 253, 0) 0%, rgba(253, 254, 253, 0.50) 38%, rgba(253, 254, 253, 0.82) 70%, #fdfefd 100%),
-    radial-gradient(140% 130% at 12% -10%, color-mix(in srgb, var(--mesh-l1, #39ff14) 26%, transparent), transparent 78%),
-    radial-gradient(130% 120% at 50% -12%, color-mix(in srgb, var(--mesh-l2, #faff00) 24%, transparent), transparent 80%),
-    radial-gradient(140% 130% at 92% -8%, color-mix(in srgb, var(--mesh-l3, #00e5ff) 22%, transparent), transparent 78%);
+    linear-gradient(180deg, rgba(253, 254, 253, 0) 0%, rgba(253, 254, 253, 0.55) 30%, rgba(253, 254, 253, 0.88) 48%, #fdfefd 62%),
+    radial-gradient(120% 85% at 12% -10%, color-mix(in srgb, var(--mesh-l1, #39ff14) 21%, transparent), transparent 62%),
+    radial-gradient(110% 80% at 50% -12%, color-mix(in srgb, var(--mesh-l2, #faff00) 18%, transparent), transparent 64%),
+    radial-gradient(120% 85% at 92% -8%, color-mix(in srgb, var(--mesh-l3, #00e5ff) 17%, transparent), transparent 62%);
   --surface: #ffffff;
   --surface-2: #eef1ee;
   --ink: #101312;
@@ -127,7 +127,7 @@ h1, h2, h3, .display { font-family: "Space Grotesk", "Inter", sans-serif; }
 .topnav {
   height: 58px; flex-shrink: 0;
   /* Translucent over the fixed mesh: the ONE hue starts inside the top menu, no separating line. */
-  background: linear-gradient(180deg, rgba(4, 6, 5, 0.26), rgba(4, 6, 5, 0.44));
+  background: linear-gradient(180deg, rgba(4, 6, 5, 0.55), rgba(4, 6, 5, 0.72));
   backdrop-filter: blur(9px);
   -webkit-backdrop-filter: blur(9px);
   border-bottom: none;
@@ -191,7 +191,7 @@ h1, h2, h3, .display { font-family: "Space Grotesk", "Inter", sans-serif; }
   position: relative;
   width: 246px; flex-shrink: 0;
   /* Translucent over the fixed mesh: the page gradient flows behind the menu too — nothing contains it. */
-  background: linear-gradient(180deg, rgba(4, 6, 5, 0.30), rgba(4, 6, 5, 0.48));
+  background: linear-gradient(180deg, rgba(4, 6, 5, 0.58), rgba(4, 6, 5, 0.76));
   backdrop-filter: blur(9px);
   -webkit-backdrop-filter: blur(9px);
   color: #e9efeb;
