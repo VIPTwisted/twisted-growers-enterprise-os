@@ -477,7 +477,67 @@ function DetailGrid({ obj, depth = 0 }) {
 }
 /* Forensic seed-to-sale trace — available from every row on every page. */
 const TRACE_KEYS = ["tag", "package_tag", "harvest", "harvest_name", "manifest_number", "identifier",
-  "name", "strain", "cultivar", "item", "item_name", "material_name", "customer", "room", "location"];
+  "record", "subject", "name", "strain", "cultivar", "cultivars", "item", "item_name", "material_name",
+  "product_route", "customer", "scope", "source_ref", "detail", "room", "location", "flower_room"];
+/* Seed-to-sale summary strip shown inside every drill-down we can identify. */
+function SeedToSaleSummary({ term }) {
+  const [d, setD] = useState(undefined);
+  useEffect(() => {
+    let live = true;
+    (async () => {
+      const [{ data: life }, { data: grade }, { data: alloc }, { data: locs }] = await Promise.all([
+        supabase.from("v_harvest_lifecycle").select("*").ilike("harvest", `%${term}%`).limit(1),
+        supabase.from("harvest_weights").select("*").ilike("metrc_harvest_batch", `%${term}%`).limit(1),
+        supabase.from("v_allocation_queue").select("*").or(`material_name.ilike.%${term}%,source_ref.ilike.%${term}%`).limit(4),
+        supabase.from("v_inventory_locator").select("location,stage,quantity,uom,days_here,category")
+          .or(`item.ilike.%${term}%,identifier.ilike.%${term}%,source_lineage.ilike.%${term}%`).limit(6),
+      ]);
+      if (live) setD({ life: life?.[0] ?? null, grade: grade?.[0] ?? null, alloc: alloc ?? [], locs: locs ?? [] });
+    })();
+    return () => { live = false; };
+  }, [term]);
+  if (d === undefined) return <div className="note" style={{ margin: "10px 0" }}>Loading the seed to sale picture…</div>;
+  const L = d.life, G = d.grade;
+  const money = (v, u) => (v == null ? "not recorded" : `${Number(v).toLocaleString()} ${u ?? ""}`);
+  return (
+    <div className="stsbox">
+      <div className="stshead">Seed to sale — {term}</div>
+      <div className="stsgrid">
+        <div><label>Total wet weight</label><b>{money(L?.wet_lbs, "lb")}</b></div>
+        <div><label>Waste</label><b className={L?.waste_pct > 10 ? "hotv" : ""}>{money(L?.waste_lbs, "lb")}{L?.waste_pct != null ? ` (${L.waste_pct}%)` : ""}</b></div>
+        <div><label>Packaged / yield</label><b>{money(L?.packaged_lbs, "lb")}{L?.yield_pct != null ? ` (${L.yield_pct}%)` : ""}</b></div>
+        <div><label>Versus plan</label><b className={L?.lbs_vs_plan < 0 ? "hotv" : ""}>{L?.lbs_vs_plan != null ? `${L.lbs_vs_plan > 0 ? "+" : ""}${L.lbs_vs_plan} lb` : "no plan matched"}</b></div>
+        <div><label>Grade A buds</label><b>{money(G?.grade_a_lb, "lb")}</b></div>
+        <div><label>Grade B buds</label><b>{money(G?.grade_b_lb, "lb")}</b></div>
+        <div><label>Grade C / smalls</label><b>{money(G?.grade_c_smalls_lb, "lb")}</b></div>
+        <div><label>Trim</label><b>{money(G?.trim_lb, "lb")}</b></div>
+        <div><label>Stage now</label><b>{L?.drying_status ?? "—"}</b></div>
+        <div><label>Weights</label><b className={String(L?.weights_status ?? "").includes("NOT") ? "hotv" : ""}>{L?.weights_status ?? "—"}</b></div>
+        <div><label>Packages made</label><b>{L?.packages_made ?? 0}</b></div>
+        <div><label>Shipped out</label><b>{L?.packages_shipped ?? 0}</b></div>
+      </div>
+      <div className="stsrow">
+        <label>Where it sits in the facility</label>
+        {d.locs.length === 0 ? <span className="note">Nothing currently located under this name.</span>
+          : d.locs.map((l, i) => (
+            <span key={i} className="schip info">{l.location} · {Number(l.quantity).toLocaleString()} {l.uom} · {l.stage}{l.days_here != null ? ` · ${l.days_here}d` : ""}</span>
+          ))}
+      </div>
+      <div className="stsrow">
+        <label>Allocation</label>
+        {d.alloc.length === 0
+          ? <span className="note">No allocation request recorded for this material yet.</span>
+          : d.alloc.map((a) => (
+            <span key={a.request_no} className={`schip ${chipTone(a.status)}`}>
+              #{a.request_no} {a.quantity}{a.uom} → {a.destination} · {a.requester_name ?? "requester"} → {a.decider_name ?? "awaiting decision"} ({a.status})
+            </span>
+          ))}
+      </div>
+      {L?.verdict && <div className="stsrow"><label>Verdict</label><span className={`schip ${chipTone(L.verdict)}`}>{L.verdict}</span></div>}
+      {(G == null) && <div className="note" style={{ marginTop: 6 }}>Grade A, B, C and trim weights come from Weights and Grading — record them there and they appear here automatically.</div>}
+    </div>
+  );
+}
 function TraceDrawer({ term, onClose }) {
   const [rows, setRows] = useState(null);
   useEffect(() => {
@@ -550,7 +610,10 @@ function RawRow({ row, cols }) {
             </div>
             {showRaw
               ? <pre className="drawjson">{JSON.stringify(row, null, 2)}</pre>
-              : <DetailGrid obj={row} />}
+              : <>
+                  {traceTerm && <SeedToSaleSummary term={traceTerm} />}
+                  <DetailGrid obj={row} />
+                </>}
           </td>
         </tr>
       )}
@@ -565,7 +628,11 @@ const formatCell = (v) => {
 };
 
 /* ---------- Generic dynamic module (registry-driven, drill-down built in) ---------- */
-const STATUS_COLS = ["status", "state", "source_state", "approval", "release", "exception_code", "room_cycle_flag"];
+const STATUS_COLS = ["status", "state", "source_state", "approval", "release", "exception_code", "room_cycle_flag",
+  "loss_type", "reason_code", "verdict", "stage", "current_stage", "severity", "delivery_status", "phase",
+  "accountability_status", "coa_status", "compliance_status", "reconciliation_status", "lab_state",
+  "lab_testing_state", "flag", "alert", "takedown_status", "drying_status", "weights_status", "timing",
+  "next_event", "room_type", "policy_scope", "coa_status", "shipment_type", "direction"];
 /* SITEWIDE STATUS COLOUR CODE - one classifier every page shares.
    red = loss or exposure · orange = needs attention · yellow = waiting
    green = good and sellable · blue = money in or moving · gold = free goods */
@@ -2535,7 +2602,9 @@ function GoLiveScreen({ isExec, go }) {
 
 /* ---------- Planner: the operations calendar, already full of live events ---------- */
 const PLANNER_LEGEND = [
-  ["Harvest", "#5cff92"], ["Shipment", "#e2bd63"], ["Work order", "#ffea00"], ["Expiry", "#ff8a00"], ["Shift", "#57a9ff"],
+  ["Harvest", "#5cff92"], ["On plan", "#2df26a"], ["Late / deadline blown", "#ff4245"],
+  ["Due or at risk", "#ff8a00"], ["Complete", "#57a9ff"],
+  ["Shipment", "#e2bd63"], ["Work order", "#ffea00"], ["Expiry", "#ff8a00"], ["Shift", "#57a9ff"],
 ];
 function PlannerScreen({ go, session }) {
   const [ym, setYm] = useState(() => { const d = new Date(); return { y: d.getFullYear(), m: d.getMonth() }; });
@@ -2572,11 +2641,12 @@ function PlannerScreen({ go, session }) {
     Promise.all([
       allowed("harvest") ? supabase.from("harvest_schedule").select("harvest_date,cultivar,flower_room").gte("harvest_date", start).lte("harvest_date", end) : none,
       allowed("harvest") ? supabase.from("harvest_pulls").select("harvest_date,flower_room,pull_no,cultivars").gte("harvest_date", start).lte("harvest_date", end) : none,
+      allowed("harvest") ? supabase.from("v_harvest_lifecycle").select("*").limit(600) : none,
       allowed("shipment") ? supabase.from("shipments").select("scheduled_ship_on,shipment_code,status").gte("scheduled_ship_on", start).lte("scheduled_ship_on", end) : none,
       allowed("work_order") ? supabase.from("work_orders").select("planned_start,wo_code,status").gte("planned_start", start).lte("planned_start", end) : none,
       allowed("expiry") ? supabase.from("product_inventory").select("expiration_date,strain_flavor,production_batch").gte("expiration_date", start).lte("expiration_date", end) : none,
       allowed("shift") ? supabase.from("employee_schedules").select("work_date,zone,status").gte("work_date", start).lte("work_date", end) : none,
-    ]).then(([h, hp, s, w, x, es]) => {
+    ]).then(([h, hp, lc, s, w, x, es]) => {
       const ev = {};
       const add = (date, type, label, drill, color, row) => { if (!date) return; (ev[date] = ev[date] ?? []).push({ type, label, drill, color, row }); };
       (h.data ?? []).forEach((r) => add(r.harvest_date, "Harvest", `${r.cultivar ?? "Harvest"} · ${r.flower_room ?? "room TBD"}`, "harvest_schedule", "#5cff92", r));
@@ -2585,6 +2655,28 @@ function PlannerScreen({ go, session }) {
       (w.data ?? []).forEach((r) => add(r.planned_start, "Work order", `${r.wo_code ?? ""} · ${r.status ?? ""}`, "work_orders", "#ffea00", r));
       (x.data ?? []).forEach((r) => add(r.expiration_date, "Expiry", r.strain_flavor ?? r.production_batch ?? "lot", "inv_summary", "#ff8a00", r));
       (es.data ?? []).forEach((r) => add(r.work_date, "Shift", `${r.zone ?? "—"} · ${r.status}`, "emp_schedule", "#57a9ff", r));
+      // Takedowns and dry-room deadlines, coloured by whether we held the schedule
+      const ON = "#2df26a", LATE = "#ff4245", RISK = "#ff8a00", DONE = "#57a9ff";
+      (lc.data ?? []).forEach((r) => {
+        if (r.takedown_actual && r.takedown_actual >= start && r.takedown_actual <= end) {
+          const late = String(r.takedown_status ?? "").startsWith("LATE");
+          add(r.takedown_actual, late ? "Takedown LATE" : "Takedown", 
+            `${r.strain ?? r.harvest} · ${r.room}${late ? ` — ${r.takedown_status}` : " — on plan"}`,
+            "harvest_lifecycle", late ? LATE : ON, r);
+        }
+        if (r.dry_deadline_date && r.dry_deadline_date >= start && r.dry_deadline_date <= end) {
+          const blown = String(r.drying_status ?? "").includes("BLOWN");
+          const done = String(r.drying_status ?? "").startsWith("Dry complete");
+          add(r.dry_deadline_date, done ? "Dry complete" : blown ? "DRY DEADLINE BLOWN" : "Dry out due",
+            `${r.strain ?? r.harvest} · ${r.room} — ${r.drying_status}`,
+            "harvest_lifecycle", done ? DONE : blown ? LATE : RISK, r);
+        }
+        if (r.dry_target_date && r.dry_target_date >= start && r.dry_target_date <= end
+            && !String(r.drying_status ?? "").startsWith("Dry complete")) {
+          add(r.dry_target_date, "Dry target (day 10)", `${r.strain ?? r.harvest} · ${r.room}`,
+            "harvest_lifecycle", RISK, r);
+        }
+      });
       setEvents(ev);
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps

@@ -919,3 +919,13 @@ button.teamcard:hover { border-color: var(--neon-line); }
 .legendbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 0 0 12px; }
 .legendbar .lgi { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; color: var(--muted); }
 .legendbar .lgd { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+
+/* Seed-to-sale summary strip inside every drill-down */
+.stsbox { background: var(--surface-2); border: 1px solid var(--neon-line); border-radius: 8px; padding: 12px 14px; margin: 0 0 12px; }
+.stshead { font-size: 10.5px; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase; color: var(--neon); margin-bottom: 10px; }
+.stsgrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px 16px; }
+.stsgrid label, .stsrow label { display: block; font-size: 9.5px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin-bottom: 2px; }
+.stsgrid b { font-size: 13.5px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.stsgrid b.hotv { color: var(--red); }
+.stsrow { margin-top: 12px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.stsrow label { width: 100%; }
