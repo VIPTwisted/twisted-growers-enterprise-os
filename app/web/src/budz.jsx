@@ -2,61 +2,151 @@ import React, { useState, useEffect, useRef } from "react";
 import { supabase } from "./lib/supabase.js";
 
 /* ---------- BUDZ: the pet agent. Animated, transparent background, chats from live data. ---------- */
-export function BudzAvatar({ mood = "idle", size = 150 }) {
-  return (
-    <svg viewBox="0 0 120 142" width={size} height={size * 1.18} className={`budz ${mood}`} aria-label="Budz the agent">
-      <defs>
-        <linearGradient id="bzHood" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0%" stopColor="#2df26a" />
-          <stop offset="100%" stopColor="#0f9e4c" />
-        </linearGradient>
-        <radialGradient id="bzGlow" cx="50%" cy="45%" r="55%">
-          <stop offset="0%" stopColor="#2df26a" stopOpacity="0.30" />
-          <stop offset="100%" stopColor="#2df26a" stopOpacity="0" />
-        </radialGradient>
-      </defs>
-      <ellipse cx="60" cy="66" rx="56" ry="60" fill="url(#bzGlow)" className="bzAura" />
-      <g className="bzBody">
-        <path d="M26 140 C26 108 40 96 60 96 C80 96 94 108 94 140 Z" fill="url(#bzHood)" />
-        <rect x="52" y="86" width="16" height="13" rx="6" fill="#7a4a28" />
-        <ellipse cx="60" cy="58" rx="30" ry="32" fill="#7a4a28" />
-        <path d="M29 53 C29 25 91 25 91 53 C91 39 78 29 60 29 C42 29 29 39 29 53 Z" fill="url(#bzHood)" />
-        <path d="M29 55 C22 51 20 68 28 72 Z" fill="url(#bzHood)" />
-        <path d="M91 55 C98 51 100 68 92 72 Z" fill="url(#bzHood)" />
-        <g className="bzShades">
-          <rect x="38" y="50" width="20" height="13" rx="4" fill="#101410" />
-          <rect x="62" y="50" width="20" height="13" rx="4" fill="#101410" />
-          <rect x="57" y="55" width="6" height="3" rx="1.5" fill="#101410" />
-          <rect x="41" y="52.5" width="7" height="3" rx="1.5" fill="#2df26a" opacity="0.55" />
-          <rect x="65" y="52.5" width="7" height="3" rx="1.5" fill="#2df26a" opacity="0.55" />
-        </g>
-        <path className="bzMouth" d="M50 76 Q60 84 70 76" stroke="#2a1a0f" strokeWidth="2.8" fill="none" strokeLinecap="round" />
-        <g className="bzChain">
-          <path d="M45 97 Q60 113 75 97" stroke="#f5c542" strokeWidth="3.2" fill="none" strokeLinecap="round" />
-          <path d="M60 110 l5.5 7.5 -5.5 7.5 -5.5 -7.5 Z" fill="#2df26a" stroke="#f5c542" strokeWidth="1.5" />
-        </g>
-        <g className="bzLeaf">
-          <path d="M60 25 C56 14 60 5 60 3 C60 5 64 14 60 25 Z" fill="#2df26a" />
-          <path d="M60 25 C50 21 46 12 45 9 C48 10 57 15 60 25 Z" fill="#2df26a" opacity="0.85" />
-          <path d="M60 25 C70 21 74 12 75 9 C72 10 63 15 60 25 Z" fill="#2df26a" opacity="0.85" />
-        </g>
-      </g>
-    </svg>
+export function BudzAvatar({ mood = "idle", size = 150, src = null }) {
+  if (!src) return <div className={`budz budzph ${mood}`} style={{ width: size, height: size }} />;
+  const isVideo = /\.(mp4|webm|mov|m4v)(\?|$)/i.test(src);
+  const box = { width: size, height: "auto", maxHeight: size * 1.4, objectFit: "contain" };
+  return isVideo ? (
+    <video src={src} className={`budz budzimg ${mood}`} style={box} autoPlay loop muted playsInline />
+  ) : (
+    <img src={src} alt="Assistant" className={`budz budzimg ${mood}`} style={box} />
   );
+}
+
+/* Plain English for anyone: turn a number and its context into a sentence a tenth grader gets. */
+export function plainly(kind, v) {
+  const n = (x) => Number(x || 0).toLocaleString();
+  switch (kind) {
+    case "conversion":
+      return `Think of a wet plant as mostly water — about three quarters of it. When you dry it, that water leaves and the plant gets much lighter. Conversion is how much weight is left over at the end. Getting about 20 to 25 pounds back out of every 100 pounds you cut is normal and expected. It is not a bad score. If the number comes out much higher than 30, that usually means somebody wrote the wet weight down wrong at the start, not that the plants did great.`;
+    case "open_harvest":
+      return `When you cut plants down, that batch has to be officially "closed" in the state system once it is dried and bagged up. Right now ${n(v)} batches were cut but never closed. Until that happens the product cannot be sold, cannot be tested, and every average we calculate comes out wrong — because the system counts the heavy wet weight going in but nothing coming out yet.`;
+    case "dry_days":
+      return `After plants are cut they hang to dry. Ten to fourteen days is the sweet spot. Dry them too long and weight you could have sold literally evaporates and you never get it back. Dry them too fast and moisture gets trapped inside, which tastes bad and can grow mould. Our average is ${v} days, so most batches are not landing in that sweet spot.`;
+    case "zero_packaged":
+      return `${n(v)} batches were marked finished but no product was ever recorded coming out of them. Weight went in, nothing came out on paper. That is the first thing an inspector asks about, so each one needs an explanation written down.`;
+    case "late":
+      return `Harvests are scheduled ahead of time. When one runs late, the room it was in cannot be replanted on time, so the next crop is late too, and the one after that. It snowballs. Finishing early is fine. Finishing late costs money every single time.`;
+    case "allocation":
+      return `Every batch of product is supposed to have someone approve where it is going before it moves. ${n(v)} items do not have that approval yet, which means product is moving based on who remembers what instead of a written decision.`;
+    case "aging":
+      return `${n(v)} items have been sitting on a shelf a long time. Product sitting still is money you already spent that you have not earned back yet, and it does not last forever.`;
+    case "compliance":
+      return `${n(v)} things in the state system would look wrong if an inspector walked in today — product that failed its test still sitting in inventory, shipments nobody confirmed arrived, that sort of thing. Each one names the exact item, so they can be fixed one at a time.`;
+    default:
+      return "";
+  }
 }
 
 const BUDZ_INTRO =
   "Yo — I'm Budz. I watch Metrc, the rooms, the schedule and the money. Ask me anything: what's late, what's costing us, what failed testing, where something sits, who needs to approve what. Every answer comes from the live records — never a guess.";
 
-const BUDZ_CHIPS = [
-  "What's the worst problem right now?",
-  "What is costing us money?",
-  "Who is behind schedule?",
-  "What failed testing?",
-  "What is sitting too long?",
-  "How is our yield trending?",
-  "What needs allocation approval?",
+const LOCAL_SYSTEM = `You are the assistant inside the Twisted Growers cannabis Enterprise OS (Massachusetts, licences MC281714 and MP281909).
+Answer only from the LIVE RECORDS given. Never invent a number or an industry statistic. Be brief and specific.
+Key facts: fresh cannabis is 75-80 percent water, so 20-25 percent wet-to-packaged conversion is NORMAL, not bad. Grams per plant is not a valid benchmark. A harvest with no finished date has not finished packaging and must not be counted in conversion. The room on a harvest is the drying room, not the grow room. Standard dry window is 10-14 days.`;
+
+const BUDZ_DEPTS = [
+  {
+    dept: "Today",
+    qs: [
+      "What is shipping out today?",
+      "What shipped today?",
+      "What was backordered today?",
+      "What inventory issues did we have today?",
+      "What got added to inventory today?",
+      "What COAs came back today?",
+      "What is the worst problem right now?",
+    ],
+  },
+  {
+    dept: "Laboratory & Testing",
+    qs: [
+      "What is out for testing right now?",
+      "What does the testing schedule look like this week - what is going out and what is coming back?",
+      "What failed testing?",
+      "What is still untested and sitting?",
+      "Which COAs are expiring soon?",
+    ],
+  },
+  {
+    dept: "Cultivation",
+    qs: [
+      "Which harvests are still open and how long?",
+      "How is our yield trending?",
+      "Which harvests dried too long?",
+      "Which harvests dried too fast?",
+      "Compare the drying rooms for me",
+      "Which harvests closed with nothing packaged?",
+      "Which strains perform best?",
+      "What is the status of harvest?",
+      "What is drying right now and when does it come out?",
+      "What is in each grow room right now?",
+      "How many plants do we have and where?",
+      "What is coming down next?",
+    ],
+  },
+  {
+    dept: "Third Party Product",
+    qs: [
+      "What is the update on third party product?",
+      "What did we buy in and where is it now?",
+      "What third party material has not been allocated?",
+      "How long has purchased material been sitting?",
+      "What third party product failed testing?",
+    ],
+  },
+  {
+    dept: "Schedule & Deadlines",
+    qs: [
+      "Who is behind schedule?",
+      "What is due this week?",
+      "What lands on a weekend and needs a crew?",
+      "What is at risk of running late?",
+    ],
+  },
+  {
+    dept: "Inventory & Fulfilment",
+    qs: [
+      "What does our on-hand finished goods inventory look like?",
+      "What is sitting too long?",
+      "Where is everything right now?",
+      "What needs allocation approval?",
+      "What is on hold?",
+      "What is running low?",
+      "What finished goods are ready to ship?",
+      "What is missing or unaccounted for?",
+    ],
+  },
+  {
+    dept: "Logistics & Transfers",
+    qs: [
+      "What manifests are unconfirmed?",
+      "What transferred out this month?",
+      "What is in transit right now?",
+      "What is arriving this week?",
+      "Which customers are waiting on us?",
+    ],
+  },
+  {
+    dept: "Compliance",
+    qs: [
+      "What would fail an inspection today?",
+      "What are our open compliance flags?",
+      "Show me the chain of custody gaps",
+    ],
+  },
+  {
+    dept: "Money",
+    qs: [
+      "What is costing us money?",
+      "What is our true cost per pound?",
+      "Where are we losing the most?",
+      "What is our biggest recoverable loss?",
+    ],
+  },
 ];
+const BUDZ_CHIPS = BUDZ_DEPTS.flatMap((d) => d.qs);
+
 
 async function grab(table, sel, order, desc, lim) {
   let x = supabase.from(table).select(sel ?? "*");
@@ -65,132 +155,894 @@ async function grab(table, sel, order, desc, lim) {
   return data ?? [];
 }
 
+
+/* Free path: hand the question to Claude Desktop, which already reads this database
+   over MCP using the subscription the company already pays for. No API bill. */
+export const CLAUDE_BRIEF = `You are connected to the Twisted Growers Enterprise OS database through the twisted-growers MCP connector (read only).
+Twisted Growers is a Massachusetts cannabis company: cultivation licence MC281714, manufacturing licence MP281909.
+
+Answer only from the database. Never invent a number or an industry statistic.
+
+Facts you must not get wrong:
+- Fresh cannabis is 75-80 percent water, so a 4:1 to 5:1 wet:dry ratio is standard. A wet-to-packaged conversion of 20-25 percent is NORMAL, not underperformance. Above about 30 percent usually means the wet weight was recorded too low at takedown.
+- Grams per plant is NOT a valid benchmark - it is set by plant density and veg time. The published benchmark is grams per square foot of canopy: about 35 for start-ups, 50-70 established.
+- A harvest with no finished date has not finished packaging. Never include it when calculating conversion.
+- The room recorded on a harvest is the DRYING location, not the grow room.
+- Standard dry window is 10-14 days from cut to first package.
+
+Useful views: v_harvest_forensic (every harvest in full detail), v_harvest_issues (problems only),
+v_dry_room_performance, v_monthly_conversion_truth (conversion, closed harvests only), v_coa_register
+(testing and certificates), v_inventory_locator (where everything is), v_metrc_transfer_ledger (manifests),
+v_awaiting_allocation, v_late_violations, v_real_loss_summary, v_goal_status, v_data_verification.`;
+
+export const EXTERNAL = {
+  claude: { label: "Claude", url: "https://claude.ai/new" },
+  chatgpt: { label: "ChatGPT", url: "https://chat.openai.com/" },
+  grok: { label: "Grok", url: "https://grok.com/" },
+};
+
+export function AskExternal({ question, context, provider = "claude", compact }) {
+  const [done, setDone] = useState(false);
+  const t = EXTERNAL[provider] ?? EXTERNAL.claude;
+  const go = async () => {
+    const NL = String.fromCharCode(10, 10);
+    const text = CLAUDE_BRIEF + NL + (context ? "CONTEXT: " + context + NL : "") + "QUESTION: " + question;
+    try { await navigator.clipboard.writeText(text); }
+    catch {
+      const ta = document.createElement("textarea");
+      ta.value = text; document.body.appendChild(ta); ta.select();
+      document.execCommand("copy"); ta.remove();
+    }
+    setDone(true);
+    window.open(t.url, "_blank", "noopener");
+    setTimeout(() => setDone(false), 4000);
+  };
+  return (
+    <button className={"askclaude " + (done ? "done " : "") + (compact ? "sm" : "")} onClick={go}>
+      {done ? "Copied — paste into " + t.label : "Send to " + t.label}
+    </button>
+  );
+}
+
+let _aiCfg = null;
+export async function getAiCfg() {
+  if (_aiCfg) return _aiCfg;
+  const { data } = await supabase
+    .from("ai_settings")
+    .select("local_model_url, local_model_name, paid_model_enabled, local_model_enabled, bridge_enabled, bridge_url, bridge_token")
+    .eq("id", 1).maybeSingle();
+  _aiCfg = data ?? { local_model_url: "http://localhost:11434", local_model_name: "qwen2.5:14b" };
+  return _aiCfg;
+}
+
 export async function budzAnswer(question) {
   const t = question.toLowerCase();
   const usd = (n) => "$" + Math.round(Number(n || 0)).toLocaleString();
+  const num = (n) => Number(n || 0).toLocaleString();
+  const has = (...k) => k.some((x) => t.includes(x));
+  const sel = async (view, cols) => {
+    const { data, error } = await supabase.from(view).select(cols || "*").limit(400);
+    if (error) return { err: error.message, rows: [] };
+    return { rows: data ?? [] };
+  };
+  const none = (what, where) => ({
+    headline: `Nothing to show for that. ${what}`,
+    rows: where ? [{ label: where, detail: "Open the report to see the underlying records.", meta: "", drill: where }] : [],
+  });
+  const today = new Date().toISOString().slice(0, 10);
+  const daysAgo = (d) => {
+    if (!d) return null;
+    return Math.round((Date.now() - new Date(d).getTime()) / 86400000);
+  };
 
-  if (/worst|biggest|urgent|critical|problem|wrong/.test(t)) {
-    const f = await grab("agent_findings", "*", "dollars", true, 6);
-    const open = f.filter((r) => !r.resolved_at);
+  /* ── LABORATORY & TESTING ─────────────────────────────────────── */
+  if (has("out for testing")) {
+    const { rows } = await sel("v_coa_register");
+    const out = rows.filter((r) => /submitted|progress|pending/i.test(r.lab_testing_state || "") && !/passed|failed/i.test(r.lab_testing_state || ""));
+    if (!out.length) return none("No packages are currently sitting in a submitted-and-awaiting state in Metrc.", "metrc_rpt_lab");
     return {
-      headline: open.length
-        ? `${open.length} findings on my desk. These are the ones I'd move on first.`
-        : "Nothing critical on my desk right now.",
-      rows: open.map((r) => ({
-        label: r.headline,
-        detail: r.detail,
-        meta: r.dollars ? `${usd(r.dollars)} at stake · ${r.severity}` : r.severity,
-        action: r.action,
-        drill: r.drill_to,
+      headline: `${out.length} packages are out for testing right now.`,
+      rows: out.slice(0, 25).map((r) => ({
+        label: `${r.item_name} · ${r.package_tag}`,
+        detail: `${r.lab_testing_state}${r.laboratory ? " at " + r.laboratory : ""}${r.source_harvest ? " · from " + r.source_harvest : ""}`,
+        meta: `${num(r.quantity)} ${r.uom ?? ""} · ${r.location ?? ""}${r.tested_on ? " · submitted " + r.tested_on : ""}`,
+        drill: "metrc_rpt_lab",
       })),
     };
   }
-  if (/cost|money|dollar|profit|margin|expensive|bottom/.test(t)) {
-    const loss = await grab("v_real_loss_summary", "*", "dollars_at_target_cost", true, 5);
-    const cost = await grab("v_true_cost_per_pound", "*", "month_date", true, 4);
+  if (has("untested")) {
+    const { rows } = await sel("v_coa_register");
+    const un = rows.filter((r) => /notsubmitted|not submitted/i.test(r.lab_testing_state || ""));
+    const aged = un.map((r) => ({ ...r, age: daysAgo(r.packaged_on) })).sort((a, b) => (b.age ?? 0) - (a.age ?? 0));
+    if (!aged.length) return none("Every package on hand has been submitted for testing.", "metrc_rpt_lab");
+    const g = aged.reduce((a, r) => a + Number(r.quantity || 0), 0);
     return {
-      headline:
-        "Where the money actually goes. Routine stem and fan leaf waste is already inside your cost per pound, so I never charge it twice.",
+      headline: `${aged.length} packages have never been submitted for testing — ${num(Math.round(g))} g sitting untested. Oldest was packaged ${aged[0].age} days ago.`,
+      rows: aged.slice(0, 25).map((r) => ({
+        label: `${r.item_name} · ${r.package_tag}`,
+        detail: `Packaged ${r.packaged_on ?? "unknown"}${r.age != null ? ` — sitting ${r.age} days` : ""}${r.source_harvest ? " · from " + r.source_harvest : ""}`,
+        meta: `${num(r.quantity)} ${r.uom ?? ""} · ${r.location ?? ""}`,
+        action: "Untested product cannot be sold. Submit it or record a disposition.",
+        drill: "metrc_rpt_lab",
+      })),
+    };
+  }
+  if (has("coa") && has("expir")) {
+    const { rows } = await sel("v_coa_register");
+    const withExp = rows.filter((r) => r.coa_status && /expir/i.test(r.coa_status));
+    if (!withExp.length) return none("No certificates are flagged as expiring in the register.", "metrc_rpt_lab");
+    return {
+      headline: `${withExp.length} certificates are expiring or expired.`,
+      rows: withExp.slice(0, 25).map((r) => ({
+        label: `${r.item_name} · ${r.package_tag}`,
+        detail: `${r.coa_status}${r.tested_on ? " · tested " + r.tested_on : ""}${r.laboratory ? " at " + r.laboratory : ""}`,
+        meta: `${num(r.quantity)} ${r.uom ?? ""} · ${r.location ?? ""}`,
+        drill: "metrc_rpt_lab",
+      })),
+    };
+  }
+  if (has("coa") && has("today", "came back", "back today")) {
+    const { rows } = await sel("v_coa_register");
+    const back = rows.filter((r) => r.tested_on === today);
+    if (!back.length) return none(`No laboratory results were recorded against ${today}. The most recent results are on the Certificate register.`, "metrc_rpt_lab");
+    return {
+      headline: `${back.length} results came back today.`,
+      rows: back.map((r) => ({
+        label: `${r.item_name} · ${r.package_tag}`,
+        detail: `${r.lab_testing_state}${r.thc_result ? " · THC " + r.thc_result : ""}${r.cbd_result ? " · CBD " + r.cbd_result : ""}`,
+        meta: `${r.laboratory ?? ""} · ${num(r.quantity)} ${r.uom ?? ""}`,
+        drill: "metrc_rpt_lab",
+      })),
+    };
+  }
+  if (has("testing schedule", "going out and what is coming back", "this week")) {
+    const { rows } = await sel("v_coa_register");
+    const outNow = rows.filter((r) => /submitted|progress/i.test(r.lab_testing_state || "") && !/notsubmitted|passed|failed/i.test(r.lab_testing_state || ""));
+    const un = rows.filter((r) => /notsubmitted/i.test(r.lab_testing_state || ""));
+    return {
+      headline: `Testing position: ${outNow.length} packages awaiting results, ${un.length} not yet submitted. Metrc records a state per package, not a booked date, so this is the queue rather than a calendar.`,
       rows: [
-        ...loss.map((r) => ({
-          label: r.loss_type,
-          detail: r.why_it_is_a_loss,
-          meta: `${r.pounds_affected ?? 0} lb · ${usd(r.dollars_at_target_cost)}`,
-          action: "Open Real Loss Summary",
-          drill: "real_loss_summary",
+        ...outNow.slice(0, 12).map((r) => ({
+          label: `COMING BACK — ${r.item_name}`,
+          detail: `${r.lab_testing_state}${r.laboratory ? " at " + r.laboratory : ""}`,
+          meta: `${num(r.quantity)} ${r.uom ?? ""} · ${r.package_tag}`,
+          drill: "metrc_rpt_lab",
         })),
-        ...cost.map((r) => ({
-          label: `${r.month}: ${r.saleable_lbs} saleable lb from ${r.plants_harvested} plants`,
-          detail: `Wet to saleable ${r.wet_to_saleable_pct}% · ${r.grams_per_plant} g per plant · ${r.plants_per_saleable_pound} plants per saleable pound`,
-          meta: "cost driver",
-          action: "Open True Cost Per Pound",
-          drill: "true_cost_per_pound",
+        ...un.slice(0, 12).map((r) => ({
+          label: `NEEDS TO GO OUT — ${r.item_name}`,
+          detail: `Never submitted · packaged ${r.packaged_on ?? "unknown"}`,
+          meta: `${num(r.quantity)} ${r.uom ?? ""} · ${r.location ?? ""}`,
+          drill: "metrc_rpt_lab",
         })),
       ],
     };
   }
-  if (/late|behind|schedule|deadline|miss|delay/.test(t)) {
-    const v = await grab("v_late_violations", "*", "days_off_schedule", true, 8);
-    const bad = v.filter((r) => String(r.rule_verdict || "").startsWith("VIOLATION"));
+  if (has("failed testing", "what failed")) {
+    const { rows } = await sel("v_issue_failed_testing");
+    if (!rows.length) return none("Nothing is sitting in inventory with a failed result.", "issue_failed_testing");
     return {
-      headline: `${bad.length} schedule violations. Your rule: early is fine, late never is.`,
-      rows: bad.map((r) => ({
-        label: `${r.event_type} · ${r.room || "room"}`,
-        detail: `${r.rule_verdict} — scheduled ${r.scheduled_date}${r.actual_date ? `, actual ${r.actual_date}` : ""}`,
-        meta: r.days_off_schedule ? `${r.days_off_schedule} days off` : "",
-        action: r.why_it_matters || "Weekend crew or second shift — never a slipped date.",
-        drill: "issue_late",
+      headline: `${rows.length} packages failed testing and are still on hand.`,
+      rows: rows.slice(0, 25).map((r) => ({
+        label: r.item ?? r.item_name ?? r.package_tag,
+        detail: r.detail ?? r.what_is_wrong ?? "Failed a laboratory test and remains in inventory.",
+        meta: `${num(r.quantity)} ${r.uom ?? ""} · ${r.location ?? ""}`,
+        action: "Remediate or destroy, and record the disposition in Metrc.",
+        drill: "issue_failed_testing",
       })),
     };
   }
-  if (/fail|test|lab|coa|compliance|inspect|custody/.test(t)) {
-    const c = await grab("v_custody_alerts", "*", null, false, 10);
+
+  /* ── TODAY ────────────────────────────────────────────────────── */
+  if (has("shipping out today", "shipped today", "shipping today")) {
+    const { rows } = await sel("v_metrc_transfer_ledger");
+    const out = rows.filter((r) => /out/i.test(r.direction || "") && (r.created_on === today || r.departed === today));
+    if (!out.length) return none(`No outbound manifests are dated ${today}. The transfer ledger holds the full shipping history.`, "metrc_rpt_transfers");
     return {
-      headline: `${c.length} compliance flags live from Metrc.`,
-      rows: c.map((r) => ({
+      headline: `${out.length} outbound shipments today.`,
+      rows: out.map((r) => ({
+        label: `Manifest ${r.manifest_number} → ${r.recipient}`,
+        detail: `${r.packages} packages${r.transporter ? " · " + r.transporter : ""}${r.driver ? " · " + r.driver : ""}`,
+        meta: `${r.departed ?? r.created_on}${r.arrival_estimate ? " · ETA " + r.arrival_estimate : ""}`,
+        drill: "metrc_rpt_transfers",
+      })),
+    };
+  }
+  if (has("added to inventory today", "got added")) {
+    const { rows } = await sel("v_coa_register");
+    const nw = rows.filter((r) => r.packaged_on === today);
+    if (!nw.length) return none(`Nothing was packaged on ${today}. Package inventory holds everything with its packaged date.`, "metrc_rpt_packages");
+    return {
+      headline: `${nw.length} packages were created today.`,
+      rows: nw.map((r) => ({
+        label: `${r.item_name} · ${r.package_tag}`,
+        detail: r.source_harvest ? `From ${r.source_harvest}` : "",
+        meta: `${num(r.quantity)} ${r.uom ?? ""} · ${r.location ?? ""}`,
+        drill: "metrc_rpt_packages",
+      })),
+    };
+  }
+  if (has("backorder")) {
+    return {
+      headline: "Backorders are not tracked in Metrc, and no order book is wired into the platform yet, so I cannot answer this honestly.",
+      rows: [{
+        label: "What would be needed",
+        detail: "An order or sales pipeline with a requested quantity per line, so a shortfall against on-hand stock can be computed. Sales history exists, but it records what shipped, not what was owed.",
+        meta: "Not built yet",
+        drill: "sales_history",
+      }],
+    };
+  }
+  if (has("inventory issues") && has("today")) {
+    const { rows } = await sel("v_inventory_reconciliation");
+    if (!rows.length) return none("No inventory reconciliation exceptions are recorded.", "issue_aging");
+    return {
+      headline: `${rows.length} inventory exceptions on the record.`,
+      rows: rows.slice(0, 25).map((r) => ({
+        label: r.item ?? r.issue ?? "Exception",
+        detail: r.detail ?? r.what_is_wrong ?? "",
+        meta: `${r.location ?? ""} ${r.quantity ? "· " + num(r.quantity) : ""}`,
+        drill: "issue_aging",
+      })),
+    };
+  }
+
+  /* ── CULTIVATION ──────────────────────────────────────────────── */
+  if (has("status of harvest", "harvest status")) {
+    const { rows } = await sel("v_harvest_stage_map");
+    const open = rows.filter((r) => !r.finished_on);
+    return {
+      headline: `${rows.length} harvests on record, ${open.length} still open. Oldest open lot was cut ${Math.max(0, ...open.map((r) => Number(r.days_since_takedown || 0)))} days ago.`,
+      rows: open
+        .sort((a, b) => Number(b.days_since_takedown || 0) - Number(a.days_since_takedown || 0))
+        .slice(0, 25)
+        .map((r) => ({
+          label: `${r.harvest} · ${r.strains ?? ""}`,
+          detail: `${r.stage ?? "in process"} in ${r.room ?? "unknown room"} · ${r.plants ?? 0} plants`,
+          meta: `${r.days_since_takedown} days since takedown · ${num(r.current_weight)} ${r.uom ?? "g"} still in room`,
+          drill: "harvest_issues",
+        })),
+    };
+  }
+  if (has("drying right now", "what is drying", "when does it come out")) {
+    const { rows } = await sel("v_harvest_stage_map");
+    const dry = rows.filter((r) => !r.finished_on && Number(r.current_weight || 0) > 0);
+    if (!dry.length) return none("Nothing is recorded as still holding weight in a drying room.", "dry_room_performance");
+    return {
+      headline: `${dry.length} lots are still in the rooms. Ten to fourteen days from takedown is the target, so anything past that is overdue.`,
+      rows: dry
+        .sort((a, b) => Number(b.days_since_takedown || 0) - Number(a.days_since_takedown || 0))
+        .slice(0, 25)
+        .map((r) => ({
+          label: `${r.harvest} · ${r.room ?? "unknown room"}`,
+          detail: `${r.strains ?? ""} · cut ${r.harvest_start} · ${Number(r.days_since_takedown) > 14 ? "OVERDUE by " + (Number(r.days_since_takedown) - 14) + " days" : "due in " + (14 - Number(r.days_since_takedown)) + " days"}`,
+          meta: `${num(r.current_weight)} ${r.uom ?? "g"} in room · ${r.plants ?? 0} plants`,
+          drill: "harvest_issues",
+        })),
+    };
+  }
+  if (has("each grow room", "in each room", "grow room right now")) {
+    const { rows } = await sel("v_metrc_plant_census");
+    if (!rows.length) return none("No live plant census rows are available.", "metrc_rpt_plants");
+    return {
+      headline: `${num(rows.reduce((a, r) => a + Number(r.plants || 0), 0))} plants across ${rows.length} rooms.`,
+      rows: rows.map((r) => ({
+        label: `${r.room} · ${r.phase}`,
+        detail: r.strain_breakdown ?? r.strains ?? "",
+        meta: `${num(r.plants)} plants · oldest planted ${r.oldest_planting ?? "unknown"}${r.oldest_days_in_room ? " (" + r.oldest_days_in_room + " days)" : ""}`,
+        drill: "metrc_rpt_plants",
+      })),
+    };
+  }
+  if (has("how many plants")) {
+    const { rows } = await sel("v_metrc_plant_census");
+    const total = rows.reduce((a, r) => a + Number(r.plants || 0), 0);
+    return {
+      headline: `${num(total)} plants live in Metrc right now.`,
+      rows: rows.map((r) => ({
+        label: `${r.room} · ${r.phase}`,
+        detail: r.strain_breakdown ?? "",
+        meta: `${num(r.plants)} plants`,
+        drill: "metrc_rpt_plants",
+      })),
+    };
+  }
+  if (has("coming down next", "what is coming down")) {
+    const { rows } = await sel("v_harvest_enforcement");
+    if (!rows.length) return none("No scheduled pulls are loaded against the eight-week calendar.", "harvest_pulls");
+    return {
+      headline: "Next pulls against the eight-week calendar. Early is fine, late never is.",
+      rows: rows.slice(0, 20).map((r) => ({
+        label: `${r.room ?? r.event_type ?? "Pull"} · ${r.scheduled_date ?? ""}`,
+        detail: r.rule_verdict ?? r.status ?? "",
+        meta: r.days_off_schedule ? `${r.days_off_schedule} days off schedule` : "",
+        drill: "harvest_pulls",
+      })),
+    };
+  }
+  if (has("dried too long")) {
+    const { rows } = await sel("v_harvest_forensic");
+    const bad = rows.filter((r) => Number(r.dry_days_to_first_package || 0) > 16);
+    return {
+      headline: `${bad.length} harvests dried longer than 16 days. Every day past 14 burns off saleable weight permanently.`,
+      rows: bad.sort((a, b) => b.dry_days_to_first_package - a.dry_days_to_first_package).slice(0, 25).map((r) => ({
+        label: `${r.harvest_name} · ${r.strain}`,
+        detail: `${r.dry_days_to_first_package} days to first package in ${r.drying_room}`,
+        meta: `${r.plants} plants · ${r.wet_lb} lb wet · ${r.packaged_lb} lb packaged · ${r.conversion_pct}%`,
+        drill: "harvest_issues",
+      })),
+    };
+  }
+  if (has("dried too fast")) {
+    const { rows } = await sel("v_harvest_forensic");
+    const bad = rows.filter((r) => r.dry_days_to_first_package != null && Number(r.dry_days_to_first_package) < 7);
+    return {
+      headline: `${bad.length} harvests were packaged less than 7 days after takedown. That locks in moisture and risks mould.`,
+      rows: bad.slice(0, 25).map((r) => ({
+        label: `${r.harvest_name} · ${r.strain}`,
+        detail: `${r.dry_days_to_first_package} days to first package in ${r.drying_room}`,
+        meta: `${r.wet_lb} lb wet · ${r.packaged_lb} lb packaged · ${r.conversion_pct}%`,
+        drill: "harvest_issues",
+      })),
+    };
+  }
+  if (has("compare the drying", "drying rooms")) {
+    const { rows } = await sel("v_dry_room_performance");
+    return {
+      headline: "Every drying room compared. Ten to fourteen days is the standard.",
+      rows: rows.map((r) => ({
+        label: r.drying_room,
+        detail: `${r.harvests} harvests · ${r.avg_dry_days ?? "n/a"} days average, worst ${r.slowest_dry_days ?? "n/a"} · ${r.dried_too_long} dried too long, ${r.dried_too_fast} too fast`,
+        meta: `${r.wet_lb} lb wet · ${r.packaged_lb} lb packaged · ${r.conversion_pct}% · ${r.sitting_unfinished_lb} lb still sitting`,
+        drill: "dry_room_performance",
+      })),
+    };
+  }
+  if (has("closed with nothing packaged", "zero packaged")) {
+    const { rows } = await sel("v_harvest_forensic");
+    const bad = rows.filter((r) => r.harvest_state === "Finished" && Number(r.packaged_lb || 0) === 0);
+    if (!bad.length) return none("Every closed harvest produced at least one package.", "harvest_issues");
+    return {
+      headline: `${bad.length} harvests were closed without a single package. Weight went in and nothing came out on the record.`,
+      rows: bad.map((r) => ({
+        label: `${r.harvest_name} · ${r.strain}`,
+        detail: `Cut ${r.harvest_started}, closed ${r.finished_date} · ${r.drying_room}`,
+        meta: `${r.plants} plants · ${r.wet_lb} lb wet · nothing packaged`,
+        action: "This is the first thing an inspector asks about. Each needs a written explanation.",
+        drill: "harvest_issues",
+      })),
+    };
+  }
+  if (has("strains perform", "which strains", "best strain")) {
+    const { rows } = await sel("v_harvest_forensic");
+    const by = {};
+    rows.filter((r) => r.harvest_state === "Finished" && Number(r.wet_lb) > 0).forEach((r) => {
+      const k = r.strain || "(not recorded)";
+      by[k] = by[k] || { wet: 0, pkg: 0, n: 0, plants: 0 };
+      by[k].wet += Number(r.wet_lb || 0);
+      by[k].pkg += Number(r.packaged_lb || 0);
+      by[k].plants += Number(r.plants || 0);
+      by[k].n++;
+    });
+    const list = Object.entries(by)
+      .map(([k, v]) => ({ k, ...v, conv: v.wet ? (100 * v.pkg) / v.wet : 0 }))
+      .filter((r) => r.n >= 1 && r.conv <= 40)
+      .sort((a, b) => b.conv - a.conv);
+    return {
+      headline: `${list.length} strains with closed harvests, ranked by wet-to-packaged conversion. Twenty to twenty-five percent is the normal band.`,
+      rows: list.slice(0, 25).map((r) => ({
+        label: r.k,
+        detail: `${r.n} closed harvest${r.n > 1 ? "s" : ""} · ${r.plants} plants`,
+        meta: `${r.conv.toFixed(1)}% conversion · ${r.wet.toFixed(1)} lb wet · ${r.pkg.toFixed(1)} lb packaged`,
+        drill: "harvest_forensic",
+      })),
+    };
+  }
+
+  /* ── THIRD PARTY ──────────────────────────────────────────────── */
+  if (has("third party", "3rd party", "bought", "buy in", "purchased")) {
+    const { rows } = await sel("v_production_tracker");
+    const tp = rows.filter((r) => /third|purchas|vendor|bought/i.test(r.origin || "") || r.vendor);
+    if (!tp.length) return none("No third party material is loaded in the production tracker yet. Purchases have not been imported.", "production_tracker");
+    const unalloc = tp.filter((r) => !/approved/i.test(r.allocation_status || ""));
+    return {
+      headline: `${tp.length} third party items on record, ${unalloc.length} without an approved allocation.`,
+      rows: tp.slice(0, 25).map((r) => ({
+        label: `${r.item} · ${r.strain ?? ""}`,
+        detail: `${r.vendor ?? "vendor not recorded"} · ${r.stage ?? ""} · ${r.allocation_status ?? "no allocation"}`,
+        meta: `${num(r.quantity)} ${r.uom ?? ""} · ${r.location ?? ""} · ${r.days_in_system ?? 0} days in system${r.cost ? " · " + usd(r.cost) : ""}`,
+        drill: "production_tracker",
+      })),
+    };
+  }
+
+  /* ── INVENTORY ────────────────────────────────────────────────── */
+  if (has("finished goods", "on hand", "on-hand", "in stock")) {
+    const { rows } = await sel("v_inventory_summary");
+    if (!rows.length) return none("No finished goods summary rows are available.", "metrc_rpt_packages");
+    return {
+      headline: `${rows.length} finished goods lines on hand.`,
+      rows: rows.slice(0, 30).map((r) => ({
+        label: `${r.product} · ${r.size ?? ""}`,
+        detail: `${r.product_line ?? ""}${r.batch ? " · batch " + r.batch : ""} · ${r.current_status ?? ""}`,
+        meta: `${num(r.ending_units)} units${r.ending_cases ? " · " + num(r.ending_cases) + " cases" : ""}${r.low_flag ? " · LOW" : ""}${r.expiry_flag ? " · EXPIRY RISK" : ""}`,
+        drill: "metrc_rpt_packages",
+      })),
+    };
+  }
+  if (has("where is everything", "where is it", "locate", "location of")) {
+    const { rows } = await sel("v_inventory_locator");
+    return {
+      headline: `${num(rows.length)} tracked items, every one with a recorded location.`,
+      rows: rows.slice(0, 30).map((r) => ({
+        label: `${r.item} · ${r.identifier ?? ""}`,
+        detail: `${r.stage ?? ""} in ${r.location ?? "unknown"}${r.source_lineage ? " · " + r.source_lineage : ""}`,
+        meta: `${num(r.quantity)} ${r.uom ?? ""} · ${r.days_here ?? 0} days here`,
+        drill: "inventory_locator",
+      })),
+    };
+  }
+  if (has("running low")) {
+    const { rows } = await sel("v_inventory_summary");
+    const low = rows.filter((r) => r.low_flag);
+    if (!low.length) return none("Nothing is currently flagged as low.", "metrc_rpt_packages");
+    return {
+      headline: `${low.length} lines are running low.`,
+      rows: low.map((r) => ({
+        label: `${r.product} · ${r.size ?? ""}`,
+        detail: r.product_line ?? "",
+        meta: `${num(r.ending_units)} units left`,
+        drill: "metrc_rpt_packages",
+      })),
+    };
+  }
+  if (has("on hold")) {
+    const { rows } = await sel("v_custody_alerts");
+    const hold = rows.filter((r) => /hold/i.test(`${r.flag} ${r.detail}`));
+    if (!hold.length) return none("Nothing is flagged as on hold.", "custody_alerts");
+    return {
+      headline: `${hold.length} items are on hold.`,
+      rows: hold.map((r) => ({ label: `${r.flag} — ${r.item}`, detail: r.detail, meta: `${num(r.quantity)} ${r.uom ?? ""} · ${r.location ?? ""}`, drill: "custody_alerts" })),
+    };
+  }
+  if (has("missing", "unaccounted")) {
+    const { rows } = await sel("v_harvest_forensic");
+    const bad = rows.filter((r) => Math.abs(Number(r.wet_lb || 0) - Number(r.packaged_lb || 0) - Number(r.waste_lb || 0) - Number(r.still_in_room_lb || 0)) > Number(r.wet_lb || 0) * 0.05);
+    if (!bad.length) return none("Every harvest reconciles: wet weight equals packaged plus waste plus what remains, within five percent.", "harvest_forensic");
+    return {
+      headline: `${bad.length} harvests do not reconcile.`,
+      rows: bad.slice(0, 25).map((r) => ({
+        label: `${r.harvest_name} · ${r.strain}`,
+        detail: r.what_is_wrong,
+        meta: `${r.wet_lb} lb wet · ${r.packaged_lb} packaged · ${r.waste_lb} waste · ${r.still_in_room_lb} in room`,
+        drill: "harvest_issues",
+      })),
+    };
+  }
+
+  /* ── LOGISTICS ────────────────────────────────────────────────── */
+  if (has("manifest") && has("unconfirmed", "never confirmed")) {
+    const { rows } = await sel("v_issue_unconfirmed_manifests");
+    return {
+      headline: `${rows.length} manifests the receiver never confirmed.`,
+      rows: rows.slice(0, 25).map((r) => ({
+        label: `Manifest ${r.manifest_number ?? r.manifest ?? ""}`,
+        detail: `${r.recipient ?? ""} · ${r.detail ?? r.what_is_wrong ?? ""}`,
+        meta: `${r.created_on ?? ""}`,
+        drill: "issue_unconfirmed_manifests",
+      })),
+    };
+  }
+  if (has("in transit", "arriving", "transfer", "manifest", "customers are waiting")) {
+    const { rows } = await sel("v_metrc_transfer_ledger");
+    const open = rows.filter((r) => !r.received_on);
+    return {
+      headline: `${rows.length} manifests on record, ${open.length} with no received date.`,
+      rows: (open.length ? open : rows).slice(0, 25).map((r) => ({
+        label: `Manifest ${r.manifest_number} · ${r.direction}`,
+        detail: `${r.shipper} → ${r.recipient}${r.transporter ? " · " + r.transporter : ""}`,
+        meta: `${r.packages} packages · created ${r.created_on}${r.received_on ? " · received " + r.received_on : " · NOT CONFIRMED RECEIVED"}`,
+        drill: "metrc_rpt_transfers",
+      })),
+    };
+  }
+
+  /* ── COMPLIANCE ───────────────────────────────────────────────── */
+  if (has("fail an inspection", "compliance flag", "custody gap", "chain of custody")) {
+    const { rows } = await sel("v_custody_alerts");
+    return {
+      headline: `${rows.length} compliance flags live from Metrc.`,
+      rows: rows.slice(0, 25).map((r) => ({
         label: `${r.flag} — ${r.item}`,
         detail: r.detail,
-        meta: `${r.quantity ?? ""} ${r.uom ?? ""} · ${r.location ?? ""}`,
-        action: "Resolve it in Metrc — this is live exposure.",
+        meta: `${num(r.quantity)} ${r.uom ?? ""} · ${r.location ?? ""}`,
+        action: "Resolve it in Metrc and the flag clears on the next sweep.",
         drill: "custody_alerts",
       })),
     };
   }
-  if (/sit|aging|old|stale|slow|cash|shelf/.test(t)) {
-    const a = await grab("v_inventory_aging", "*", "days_here", true, 10);
+
+  /* ── MONEY ────────────────────────────────────────────────────── */
+  if (has("cost per pound", "true cost")) {
+    const { rows } = await sel("v_monthly_conversion_truth");
     return {
-      headline: "Capital that isn't moving. Every day here is money doing nothing.",
-      rows: a
-        .filter((r) => r.severity)
-        .map((r) => ({
-          label: `${r.item} · ${r.location}`,
-          detail: r.action,
-          meta: `${r.days_here} days · ${Number(r.quantity || 0).toLocaleString()} ${r.uom ?? ""}`,
-          action: "Move it, sell it, or record a disposition.",
-          drill: "issue_aging",
-        })),
-    };
-  }
-  if (/yield|harvest|grow|room|plant|gram/.test(t)) {
-    const y = await grab("v_true_cost_per_pound", "*", "month_date", true, 6);
-    return {
-      headline: "Yield trend — the number that moves your cost per pound more than anything else.",
-      rows: y.map((r) => ({
-        label: `${r.month} — ${r.saleable_lbs} saleable lb`,
-        detail: `${r.harvests} harvests · ${r.plants_harvested} plants · ${r.wet_lbs} wet lb`,
-        meta: `${r.wet_to_saleable_pct}% conversion · ${r.grams_per_plant} g/plant`,
-        action: "Open True Cost Per Pound",
-        drill: "true_cost_per_pound",
+      headline: "Conversion by month, measured only on harvests that actually closed. Cost per pound is period cost divided by saleable pounds, so conversion moves it more than anything else.",
+      rows: rows.slice(0, 12).map((r) => ({
+        label: `${r.month} — ${r.packaged_lb} lb packaged`,
+        detail: `${r.harvests_cut} cut, ${r.harvests_closed} closed, ${r.still_open} still open · ${r.plants} plants`,
+        meta: `${r.conversion_pct_closed_only ?? "cannot judge yet"}% closed-only conversion · ${r.avg_dry_days ?? "n/a"} dry days`,
+        drill: "monthly_conversion",
       })),
     };
   }
-  if (/alloc|approv|vincent|request/.test(t)) {
-    const a = await grab("v_awaiting_allocation", "*", "days_in_system", true, 10);
+  if (has("costing us", "losing the most", "recoverable loss", "money", "profit", "margin")) {
+    const { rows } = await sel("v_real_loss_summary");
     return {
-      headline: `${a.length} materials carrying no approved allocation.`,
-      rows: a.map((r) => ({
-        label: `${r.item} · ${r.material_class}`,
-        detail: r.approval_state,
-        meta: `${Number(r.quantity || 0).toLocaleString()} ${r.uom} · ${r.days_in_system} days · ${r.location}`,
-        action: "Raise a request or approve the pending one.",
+      headline: "Genuine loss only. Routine stem and leaf waste is already inside cost per pound, so I never charge it twice.",
+      rows: rows.map((r) => ({
+        label: r.loss_type,
+        detail: r.why_it_is_a_loss,
+        meta: `${r.occurrences ?? 0} occurrences · ${r.pounds_affected ?? 0} lb · ${usd(r.dollars_at_target_cost)}`,
+        drill: "issue_real_loss",
+      })),
+    };
+  }
+
+  /* ── SCHEDULE ─────────────────────────────────────────────────── */
+  if (has("weekend")) {
+    const { rows } = await sel("v_weekend_watch");
+    if (!rows.length) return none("Nothing upcoming lands on a Saturday or Sunday.", "weekend_watch");
+    return {
+      headline: `${rows.length} upcoming dates land on a weekend and need coverage planned.`,
+      rows: rows.map((r) => ({
+        label: `${r.event_type ?? "Event"} · ${r.room ?? ""}`,
+        detail: r.detail ?? r.what_to_do ?? "",
+        meta: r.scheduled_date ?? "",
+        drill: "weekend_watch",
+      })),
+    };
+  }
+  if (has("behind schedule", "late", "due this week", "at risk of running late", "deadline")) {
+    const { rows } = await sel("v_late_violations");
+    const bad = rows.filter((r) => String(r.rule_verdict || "").startsWith("VIOLATION"));
+    return {
+      headline: `${bad.length} schedule violations. Your rule: early is fine, late never is.`,
+      rows: bad.map((r) => ({
+        label: `${r.event_type} · ${r.room || "room"}`,
+        detail: `${r.rule_verdict} — scheduled ${r.scheduled_date}${r.actual_date ? ", actual " + r.actual_date : ""}`,
+        meta: r.days_off_schedule ? `${r.days_off_schedule} days off` : "",
+        drill: "issue_late",
+      })),
+    };
+  }
+
+  /* ── ALLOCATION ───────────────────────────────────────────────── */
+  if (has("allocation", "approval", "approve")) {
+    const { rows } = await sel("v_awaiting_allocation");
+    return {
+      headline: `${rows.length} materials carrying no approved allocation.`,
+      rows: rows.slice(0, 25).map((r) => ({
+        label: `${r.item} · ${r.material_class ?? ""}`,
+        detail: r.approval_state ?? "",
+        meta: `${num(r.quantity)} ${r.uom ?? ""} · ${r.days_in_system ?? 0} days · ${r.location ?? ""}`,
         drill: "issue_no_allocation",
       })),
     };
   }
-  const b = await grab("v_intelligence_briefing", "*", null, false, 10);
+
+  /* ── AGING ────────────────────────────────────────────────────── */
+  if (has("sitting too long", "aging", "sitting", "too long")) {
+    const { rows } = await sel("v_inventory_aging");
+    const bad = rows.filter((r) => r.severity);
+    return {
+      headline: `${bad.length} items have been sitting long enough to flag.`,
+      rows: bad.sort((a, b) => Number(b.days_here || 0) - Number(a.days_here || 0)).slice(0, 25).map((r) => ({
+        label: `${r.item} · ${r.location}`,
+        detail: r.action ?? "",
+        meta: `${r.days_here} days · ${num(r.quantity)} ${r.uom ?? ""}`,
+        drill: "issue_aging",
+      })),
+    };
+  }
+
+  /* ── YIELD ────────────────────────────────────────────────────── */
+  if (has("yield", "conversion", "trending")) {
+    const { rows } = await sel("v_monthly_conversion_truth");
+    return {
+      headline: "Yield by month, closed harvests only. Twenty to twenty-five percent wet-to-packaged is the normal commercial band, not a failure.",
+      rows: rows.slice(0, 12).map((r) => ({
+        label: `${r.month} — ${r.packaged_lb} lb from ${r.wet_lb} lb wet`,
+        detail: `${r.harvests_cut} cut, ${r.harvests_closed} closed, ${r.still_open} still open`,
+        meta: `${r.conversion_pct_closed_only ?? "cannot judge yet"}% · ${r.avg_dry_days ?? "n/a"} dry days · ${r.dried_too_long} dried too long`,
+        drill: "monthly_conversion",
+      })),
+    };
+  }
+
+  /* ── WORST / GENERAL ──────────────────────────────────────────── */
+  if (has("worst", "biggest", "urgent", "critical", "problem", "wrong")) {
+    const { rows } = await sel("v_harvest_forensic");
+    const open = rows.filter((r) => String(r.harvest_state || "").startsWith("STILL OPEN") && Number(r.total_days_start_to_now || 0) > 21);
+    const lb = Math.round(open.reduce((a, r) => a + Number(r.still_in_room_lb || 0), 0));
+    const { rows: goals } = await sel("v_goal_status");
+    const miss = goals.filter((g) => g.status === "BELOW TARGET" || g.status === "ABOVE TARGET");
+    return {
+      headline: `${open.length} harvests cut but never closed, ${num(lb)} lb sitting, oldest ${Math.max(0, ...open.map((r) => Number(r.total_days_start_to_now || 0)))} days. That is the biggest problem in the business right now, and it makes every conversion figure wrong until it is fixed.`,
+      rows: [
+        ...open.sort((a, b) => b.total_days_start_to_now - a.total_days_start_to_now).slice(0, 12).map((r) => ({
+          label: `${r.harvest_name} · ${r.strain}`,
+          detail: `Open ${r.total_days_start_to_now} days in ${r.drying_room}`,
+          meta: `${r.plants} plants · ${r.still_in_room_lb} lb sitting`,
+          drill: "harvest_issues",
+        })),
+        ...miss.map((g) => ({
+          label: `GOAL MISSED — ${g.metric_label}`,
+          detail: g.plain_english,
+          meta: g.status,
+          drill: "cultivation_goals",
+        })),
+      ],
+    };
+  }
+
   return {
-    headline: "Here's my whole desk. Ask me about money, schedule, testing, aging stock, yield or allocation.",
-    rows: b.map((r) => ({
-      label: `${r.agent} — ${r.findings} open`,
-      detail: r.areas || "",
-      meta: `${r.severity}${r.dollars_at_stake ? ` · ${usd(r.dollars_at_stake)}` : ""}`,
-      action: "Open Intelligence Findings",
-      drill: "agent_findings",
-    })),
+    headline:
+      "I do not have a built-in report for that one. Send it to Claude Desktop with the button below — it reads this same database live, over the subscription the company already pays for, and it can answer anything. Nothing is billed.",
+    rows: [],
+    askClaude: true,
   };
 }
 
+export function useAssistantProfile() {
+  const [p, setP] = useState(null);
+  useEffect(() => {
+    (async () => {
+      const { data } = await supabase.from("assistant_profile").select("*").eq("id", 1).maybeSingle();
+      setP(data ?? { name: "Budz", tagline: "Live on the floor", intro: BUDZ_INTRO, avatar_url: null });
+    })();
+  }, []);
+  return p;
+}
+
+export function AssistantSettings() {
+  const [p, setP] = useState(null);
+  const [msg, setMsg] = useState("");
+  const [busy, setBusy] = useState(false);
+  const fileRef = useRef(null);
+  const load = async () => {
+    const { data } = await supabase.from("assistant_profile").select("*").eq("id", 1).maybeSingle();
+    setP(data);
+  };
+  useEffect(() => { load(); }, []);
+  if (!p) return <div className="empty"><div className="eicon">◐</div>Loading…</div>;
+
+  const save = async (patch) => {
+    setBusy(true);
+    const { error } = await supabase.from("assistant_profile").update({ ...patch, updated_at: new Date().toISOString() }).eq("id", 1);
+    setMsg(error ? error.message : "Saved. The menu updates on your next page load.");
+    setBusy(false);
+    load();
+  };
+
+  const upload = async (e) => {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    if (f.size > 12 * 1024 * 1024) { setMsg("That file is over 12 MB. Please use a smaller one."); return; }
+    setBusy(true);
+    setMsg("Uploading…");
+    const path = `assistant-${Date.now()}-${f.name.replace(/[^a-zA-Z0-9._-]/g, "")}`;
+    const { error } = await supabase.storage.from("assistant").upload(path, f, { upsert: true, contentType: f.type });
+    if (error) { setMsg("Upload failed: " + error.message); setBusy(false); return; }
+    const { data } = supabase.storage.from("assistant").getPublicUrl(path);
+    await save({ avatar_url: data.publicUrl });
+    setBusy(false);
+  };
+
+  return (
+    <>
+      <div className="pagehead">
+        <div>
+          <h1>Assistant</h1>
+          <div className="sub">
+            Set your assistant's picture and name. Upload anything with a transparent background — PNG, animated GIF, animated WebP, SVG, or an MP4 or WebM
+            video, up to 12 MB. Video plays on a loop, silently. Changing the name here renames it everywhere on the platform, including the menu.
+          </div>
+        </div>
+      </div>
+      <div className="asetwrap">
+        <div className="asetprev">
+          <BudzAvatar size={280} src={p.avatar_url} />
+          <div className="budzname">{(p.name || "Budz").toUpperCase()}<span>{p.tagline}</span></div>
+          <input ref={fileRef} type="file" accept="image/png,image/gif,image/webp,image/apng,image/jpeg,image/svg+xml,video/mp4,video/webm,video/quicktime"
+            style={{ display: "none" }} onChange={upload} />
+          <button className="btn primary" disabled={busy} onClick={() => fileRef.current?.click()}>
+            {p.avatar_url ? "Replace picture" : "Upload a picture"}
+          </button>
+          {p.avatar_url && (
+            <button className="btn" disabled={busy} onClick={() => save({ avatar_url: null })}>
+              Remove picture
+            </button>
+          )}
+        </div>
+        <div className="asetform">
+          <label>Name</label>
+          <input className="inp" defaultValue={p.name} onBlur={(e) => e.target.value !== p.name && save({ name: e.target.value })} />
+          <label>Tagline</label>
+          <input className="inp" defaultValue={p.tagline} onBlur={(e) => e.target.value !== p.tagline && save({ tagline: e.target.value })} />
+          <label>Opening line</label>
+          <textarea className="inp" rows={4} defaultValue={p.intro} onBlur={(e) => e.target.value !== p.intro && save({ intro: e.target.value })} />
+          <label>Picture address (paste a link instead of uploading)</label>
+          <input className="inp" defaultValue={p.avatar_url ?? ""} placeholder="https://…"
+            onBlur={(e) => e.target.value !== (p.avatar_url ?? "") && save({ avatar_url: e.target.value || null })} />
+          {msg && <div className="asetmsg">{msg}</div>}
+        </div>
+      </div>
+    </>
+  );
+}
+
+
+/* Budz the pet: floats over any page, draggable, resizable, minimisable. */
+const PET_KEY = "tg.pet.v1";
+const petLoad = () => {
+  try { return JSON.parse(localStorage.getItem(PET_KEY) || "{}"); } catch { return {}; }
+};
+const petSave = (v) => { try { localStorage.setItem(PET_KEY, JSON.stringify(v)); } catch {} };
+
+export function useBudzPet() {
+  const [on, setOn] = useState(() => petLoad().on ?? false);
+  useEffect(() => {
+    const h = () => setOn(petLoad().on ?? false);
+    window.addEventListener("tg-pet-toggle", h);
+    return () => window.removeEventListener("tg-pet-toggle", h);
+  }, []);
+  return [on, setOn];
+}
+
+export function BudzPet({ go, onClose }) {
+  const prof = useAssistantProfile();
+  const saved = petLoad();
+  const [pos, setPos] = useState(saved.pos ?? { x: Math.max(16, window.innerWidth - 340), y: Math.max(16, window.innerHeight - 420) });
+  const [size, setSize] = useState(saved.size ?? 150);
+  const [open, setOpen] = useState(saved.open ?? false);
+  const [log, setLog] = useState([]);
+  const [q, setQ] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [files, setFiles] = useState([]);
+  const drag = useRef(null);
+  const grip = useRef(null);
+  const fileRef = useRef(null);
+  const endRef = useRef(null);
+
+  useEffect(() => { petSave({ ...petLoad(), pos, size, open }); }, [pos, size, open]);
+  useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth" }); }, [log, busy]);
+
+  const onDown = (e) => {
+    if (e.target.closest(".petchat, .petbtn, .petgrip")) return;
+    drag.current = { dx: e.clientX - pos.x, dy: e.clientY - pos.y };
+    e.currentTarget.setPointerCapture?.(e.pointerId);
+  };
+  const onMove = (e) => {
+    if (grip.current) {
+      setSize(Math.min(320, Math.max(90, grip.current.s + (e.clientX - grip.current.x))));
+      return;
+    }
+    if (!drag.current) return;
+    const w = open ? 330 : size;
+    setPos({
+      x: Math.min(Math.max(4, e.clientX - drag.current.dx), window.innerWidth - w - 4),
+      y: Math.min(Math.max(4, e.clientY - drag.current.dy), window.innerHeight - 80),
+    });
+  };
+  const onUp = () => { drag.current = null; grip.current = null; };
+  const gripDown = (e) => {
+    e.stopPropagation();
+    grip.current = { x: e.clientX, s: size };
+    e.currentTarget.setPointerCapture?.(e.pointerId);
+  };
+
+  const pickFiles = (e) => {
+    const list = Array.from(e.target.files ?? []).slice(0, 4);
+    setFiles(list.map((f) => ({ name: f.name, type: f.type, file: f })));
+  };
+
+  const ask = async (text) => {
+    const question = (text ?? q).trim();
+    if ((!question && !files.length) || busy) return;
+    setLog((l) => [...l, { who: "me", text: question || "(sent files)", files: files.map((f) => f.name) }]);
+    setQ("");
+    setBusy(true);
+    if (files.length) {
+      const up = [];
+      for (const f of files) {
+        const path = "chat/" + Date.now() + "-" + f.name.replace(/[^a-zA-Z0-9._-]/g, "");
+        const { error } = await supabase.storage.from("assistant").upload(path, f.file, { upsert: true, contentType: f.type });
+        if (!error) up.push(supabase.storage.from("assistant").getPublicUrl(path).data.publicUrl);
+      }
+      setFiles([]);
+      if (up.length) setLog((l) => [...l, { who: "budz", text: "Saved " + up.length + " file" + (up.length > 1 ? "s" : "") + ". Anyone with access can open these.", links: up }]);
+    }
+    if (question) {
+      try {
+        const a = await budzAnswer(question);
+        setLog((l) => [...l, { who: "budz", text: a.headline, rows: a.rows }]);
+      } catch (e) {
+        setLog((l) => [...l, { who: "budz", text: "Could not pull that: " + String(e).slice(0, 120) }]);
+      }
+    }
+    setBusy(false);
+  };
+
+  const name = prof?.name ?? "Budz";
+  return (
+    <div
+      className={"petwrap " + (open ? "open" : "")}
+      style={{ left: pos.x, top: pos.y, width: open ? 330 : size }}
+      onPointerDown={onDown}
+      onPointerMove={onMove}
+      onPointerUp={onUp}
+      onPointerCancel={onUp}
+    >
+      <div className="pethead">
+        <span className="petname">{name}</span>
+        <button className="petbtn" title={open ? "Minimise" : "Open chat"} onClick={() => setOpen((v) => !v)}>{open ? "\u2013" : "\u25B8"}</button>
+        <button className="petbtn" title="Open the full page" onClick={() => go("budz")}>{"\u2922"}</button>
+        <button className="petbtn" title="Hide" onClick={onClose}>{"\u2715"}</button>
+      </div>
+
+      <div className="petart" onDoubleClick={() => setOpen((v) => !v)} title="Drag to move, double-click to chat">
+        <BudzAvatar mood={busy ? "thinking" : "idle"} size={open ? 150 : size} src={prof?.avatar_url} />
+      </div>
+
+      {open && (
+        <div className="petchat">
+          <div className="petlog">
+            {log.length === 0 && (
+              <div className="petempty">
+                Ask me anything about the operation. Drag me anywhere, resize from the bottom-right corner, and I stay
+                with you on every page.
+              </div>
+            )}
+            {log.map((m, i) => (
+              <div key={i} className={"petmsg " + m.who}>
+                <div>{m.text}</div>
+                {m.files?.length > 0 && <div className="petfiles">{m.files.join(", ")}</div>}
+                {m.links?.map((u, k) => (
+                  <a key={k} className="petlink" href={u} target="_blank" rel="noreferrer">Open file {k + 1}</a>
+                ))}
+                {m.rows?.slice(0, 4).map((r, jj) => (
+                  <button key={jj} className="petrow" onClick={() => r.drill && go(r.drill)}>
+                    <b>{r.label}</b>
+                    {r.detail && <span>{r.detail}</span>}
+                  </button>
+                ))}
+              </div>
+            ))}
+            {busy && <div className="petmsg budz">Reading the records...</div>}
+            <div ref={endRef} />
+          </div>
+          {files.length > 0 && <div className="petpend">{files.map((f) => f.name).join(", ")}</div>}
+          <div className="petinput">
+            <input ref={fileRef} type="file" multiple style={{ display: "none" }} onChange={pickFiles} />
+            <button className="petbtn" title="Attach a file or image" onClick={() => fileRef.current?.click()}>{"\uD83D\uDCCE"}</button>
+            <input
+              className="inp"
+              placeholder={"Ask " + name + "..."}
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && ask()}
+            />
+            <button className="btn primary" disabled={busy} onClick={() => ask()}>Ask</button>
+          </div>
+        </div>
+      )}
+
+      <div className="petgrip" title="Drag to resize" onPointerDown={gripDown} />
+    </div>
+  );
+}
+
 export function BudzScreen({ go }) {
+  const prof = useAssistantProfile();
   const [log, setLog] = useState([{ who: "budz", text: BUDZ_INTRO }]);
   const [q, setQ] = useState("");
   const [busy, setBusy] = useState(false);
@@ -206,7 +1058,95 @@ export function BudzScreen({ go }) {
     setBusy(true);
     try {
       const a = await budzAnswer(question);
-      setLog((l) => [...l, { who: "budz", text: a.headline, rows: a.rows }]);
+      const facts = a.rows ?? [];
+      const cfg = await getAiCfg();
+      let composed = null;
+      let via = null;
+
+      // 1. The desktop bridge: real Claude Code on this machine, on the owner's own
+      //    subscription. Free, and it can read the project as well as the database.
+      if (cfg.bridge_enabled !== false) {
+        try {
+          const br = await fetch((cfg.bridge_url || "http://127.0.0.1:8765") + "/ask", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "x-tg-token": cfg.bridge_token || "tg-bridge-8f3k2m-2026" },
+            body: JSON.stringify({
+              question,
+              context: JSON.stringify({ summary: a.headline, records: facts.slice(0, 40) }).slice(0, 18000),
+            }),
+          });
+          if (br.ok) {
+            const bj = await br.json();
+            if (bj?.ok && bj.reply) { composed = bj.reply; via = "Claude on your desktop"; }
+            else if (bj?.needsLogin) {
+              setLog((l) => [...l, { who: "budz", text: bj.reply, needsLogin: true }]);
+            }
+          }
+        } catch { /* desktop off or bridge not running - fall through */ }
+      }
+      if (!composed && cfg.local_model_enabled && cfg.local_model_url) {
+        try {
+          const hist = [...log, { who: "me", text: question }]
+            .filter((m) => m.text && !m.rows)
+            .slice(-6)
+            .map((m) => ({ role: m.who === "me" ? "user" : "assistant", content: m.text }));
+          const r = await fetch(cfg.local_model_url + "/api/chat", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              model: cfg.local_model_name || "qwen2.5:14b",
+              stream: false,
+              options: { temperature: 0.2, num_ctx: 16384 },
+              messages: [
+                { role: "system", content: LOCAL_SYSTEM },
+                ...hist.slice(0, -1),
+                {
+                  role: "user",
+                  content: [
+                    "LIVE RECORDS FROM THE DATABASE:",
+                    JSON.stringify({ summary: a.headline, records: facts.slice(0, 60) }).slice(0, 26000),
+                    "",
+                    "QUESTION: " + question,
+                    "",
+                    "Answer from these records only. Be specific: name harvests, rooms, strains, dates and numbers. If the records do not contain the answer, say exactly that.",
+                  ].join(String.fromCharCode(10)),
+                },
+              ],
+            }),
+          });
+          if (r.ok) {
+            const jj = await r.json();
+            const txt = jj?.message?.content?.trim();
+            if (txt) { composed = txt; via = "the local model"; }
+          }
+        } catch {}
+      }
+      if (!composed && cfg.paid_model_enabled) {
+        try {
+          const hist2 = [...log, { who: "me", text: question }]
+            .filter((m) => m.text && !m.rows)
+            .slice(-8)
+            .map((m) => ({ role: m.who === "me" ? "user" : "assistant", content: m.text }));
+          if (hist2[hist2.length - 1]?.role !== "user") hist2.push({ role: "user", content: question });
+          const { data: sess } = await supabase.auth.getSession();
+          const rr = await fetch(import.meta.env.VITE_SUPABASE_URL + "/functions/v1/budz-chat", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: "Bearer " + (sess?.session?.access_token ?? import.meta.env.VITE_SUPABASE_ANON_KEY),
+              apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
+            },
+            body: JSON.stringify({ messages: hist2 }),
+          });
+          const out = await rr.json().catch(() => null);
+          if (out?.reply) { composed = out.reply; via = "Claude (API)"; }
+        } catch {}
+      }
+      if (composed) {
+        setLog((l) => [...l, { who: "budz", text: composed, rows: facts, researched: true, via }]);
+      } else {
+        setLog((l) => [...l, { who: "budz", text: a.headline, rows: facts, claudeFor: facts.length === 0 ? question : null }]);
+      }
     } catch (e) {
       setLog((l) => [...l, { who: "budz", text: `Couldn't pull that: ${String(e).slice(0, 140)}` }]);
     }
@@ -216,7 +1156,7 @@ export function BudzScreen({ go }) {
     <>
       <div className="pagehead">
         <div>
-          <h1>Budz</h1>
+          <h1>{prof?.name ?? "Budz"}</h1>
           <div className="sub">
             Your agent on the floor. He reads Metrc, the rooms, the schedule and the money, and answers from live
             records — never a guess.
@@ -224,17 +1164,21 @@ export function BudzScreen({ go }) {
         </div>
       </div>
       <div className="budzwrap">
-        <div className="budzstage">
-          <BudzAvatar mood={busy ? "thinking" : "idle"} size={170} />
-          <div className="budzname">
-            BUDZ<span>live on the floor</span>
-          </div>
-        </div>
         <div className="budzchat">
           <div className="budzlog">
             {log.map((m, i) => (
               <div key={i} className={`budzmsg ${m.who}`}>
                 <div className="budztext">{m.text}</div>
+                {m.via && <span className="rsch">Researched by {m.via}</span>}
+                {m.claudeFor && (
+                  <div className="claudebox">
+                    <AskExternal question={m.claudeFor} />
+                    <span className="claudehint">
+                      Copies your question with a full briefing. Open Claude Desktop, paste, and it answers from the
+                      live database. Free — it uses the subscription you already pay for.
+                    </span>
+                  </div>
+                )}
                 {m.rows?.length > 0 && (
                   <div className="budzrows">
                     {m.rows.slice(0, 8).map((r, j) => (
@@ -258,7 +1202,33 @@ export function BudzScreen({ go }) {
             )}
             <div ref={endRef} />
           </div>
-          <div className="budzchips">
+          <div className="claudebar">
+            <span className="claudeset">
+              {Object.keys(EXTERNAL).map((k) => (
+                <AskExternal key={k} provider={k} compact
+                  question={q || "Give me a full picture of the company right now: what is late, what is costing money, what failed testing, and what needs a decision."} />
+              ))}
+            </span>
+            <span className="claudehint">
+              Budz answers the questions below instantly from the database. For anything else, this copies your
+              question with a full briefing — paste it into Claude Desktop and it reads the same live records.
+            </span>
+          </div>
+          <div className="budzdepts">
+            {BUDZ_DEPTS.map((d) => (
+              <div className="budzdept" key={d.dept}>
+                <div className="bdlabel">{d.dept}</div>
+                <div className="bdchips">
+                  {d.qs.map((c) => (
+                    <button key={c} className="budzchip" onClick={() => ask(c)} disabled={busy}>
+                      {c}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="budzchips" style={{ display: "none" }}>
             {BUDZ_CHIPS.map((c) => (
               <button key={c} className="budzchip" onClick={() => ask(c)}>
                 {c}
@@ -283,8 +1253,169 @@ export function BudzScreen({ go }) {
 }
 
 /* ---------- Chief Executive Dashboard: proof, owner, cause, fix, recommendation ---------- */
+function simpleFor(c, ctx) {
+  const t = (c.title || "").toLowerCase();
+  if (t.includes("never closed") || t.includes("open")) return plainly("open_harvest", ctx.open21);
+  if (t.includes("drying")) return plainly("dry_days", ctx.dryAvg);
+  if (t.includes("conversion") || t.includes("yield")) return plainly("conversion");
+  if (t.includes("schedule")) return plainly("late");
+  if (t.includes("compliance")) return plainly("compliance", ctx.custody);
+  if (t.includes("sitting") || t.includes("capital")) return plainly("aging", ctx.aging);
+  if (t.includes("allocation")) return plainly("allocation", ctx.alloc);
+  if (t.includes("loss"))
+    return "This is money we spent growing product that we will never get paid for — batches that came out far below what they should have, and product that failed its lab test and cannot legally be sold. It does not include normal stems and leaves, because that cost is already built into what we say a pound costs us. Counting it twice would make the number look worse than reality.";
+  if (t.includes("zero")) return plainly("zero_packaged", ctx.zeroPk);
+  return "";
+}
+
+function SimpleToggle({ text }) {
+  const [open, setOpen] = useState(false);
+  if (!text) return null;
+  return (
+    <div className="simplewrap">
+      <button className={`simplebtn ${open ? "on" : ""}`} onClick={() => setOpen((v) => !v)}>
+        {open ? "Hide the simple version" : "What's this all mean?"}
+      </button>
+      {open && (
+        <div className="simplebox">
+          <label>In everyday words</label>
+          <p>{text}</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function FindingActions({ card, onSaved }) {
+  const [open, setOpen] = useState(false);
+  const [plan, setPlan] = useState("");
+  const [owner, setOwner] = useState("");
+  const [due, setDue] = useState("");
+  const [reason, setReason] = useState("");
+  const [msg, setMsg] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const key = card.title.slice(0, 120);
+  const dollars = Number(String(card.metric).replace(/[^0-9.]/g, "")) || null;
+  const save = async (disposition) => {
+    if (disposition === "ignored" && reason.trim().length < 15) {
+      setMsg("Ignoring needs a written reason of at least fifteen characters."); return;
+    }
+    setBusy(true); setMsg(null);
+    const { error } = await supabase.rpc("tg_save_finding", {
+      p_key: key, p_source: "Chief Executive Dashboard", p_headline: card.title,
+      p_snapshot: { proof: card.proof, plain: card.plain ?? null, why: card.why, fix: card.fix,
+        recommendation: card.rec, metric: card.metric, severity: card.sev, captured_at: new Date().toISOString() },
+      p_disposition: disposition, p_plan: plan || card.rec, p_reason: reason || null,
+      p_owner: owner || card.who, p_due: due || null, p_dollars: dollars,
+    });
+    setBusy(false);
+    if (error) { setMsg(`Could not save: ${error.message}`); return; }
+    setMsg(
+      disposition === "on_todo_list" ? "Added to the to-do list as a real task, and saved to history."
+      : disposition === "resolved" ? "Marked resolved and preserved in history."
+      : disposition === "ignored" ? "Ignored with your reason on the permanent record."
+      : disposition === "shared" ? "Shared and saved to history."
+      : "Saved to history exactly as it stands now."
+    );
+    setOpen(false); onSaved?.();
+  };
+  const sendToClickUp = async () => {
+    setBusy(true); setMsg(null);
+    const body = {
+      extra_lists: { "TG Cultivation": [`FINDING: ${card.title}`.slice(0, 80)] },
+    };
+    try {
+      const r = await fetch(`${window.location.origin.includes("localhost") ? "" : ""}https://fxetuqjryttnypgepsru.supabase.co/functions/v1/clickup-customize`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}` },
+        body: JSON.stringify(body),
+      });
+      const j = await r.json();
+      setMsg(j.ok ? "Sent to ClickUp." : `ClickUp said: ${j.error ?? "unknown"}`);
+      if (j.ok) await save("shared");
+    } catch (e) { setMsg(`Could not reach ClickUp: ${String(e).slice(0, 90)}`); }
+    setBusy(false);
+  };
+  return (
+    <div className="findact">
+      <div className="findbtns">
+        <button className="btn small" disabled={busy} onClick={() => setOpen(!open)}>Make a plan</button>
+        <button className="btn small ghost" disabled={busy} onClick={() => save("on_todo_list")}>Add to to-do list</button>
+        <button className="btn small ghost" disabled={busy} onClick={() => save("saved_for_later")}>Save for later</button>
+        <button className="btn small ghost" disabled={busy} onClick={() => save("resolved")}>Mark resolved</button>
+        <button className="btn small ghost" disabled={busy} onClick={sendToClickUp}>Send to ClickUp</button>
+        <button className="btn small ghost" disabled={busy} onClick={() => setOpen("ignore")}>Ignore</button>
+      </div>
+      {open === "ignore" && (
+        <div className="findpanel">
+          <label>Why are you ignoring this? Required, and it stays on the permanent record.</label>
+          <textarea rows={2} value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Reason this does not need action…" />
+          <div className="findbtns">
+            <button className="btn small" disabled={busy} onClick={() => save("ignored")}>Confirm ignore</button>
+            <button className="btn small ghost" onClick={() => setOpen(false)}>Cancel</button>
+          </div>
+        </div>
+      )}
+      {open === true && (
+        <div className="findpanel">
+          <label>The plan — what will be done about this</label>
+          <textarea rows={3} value={plan} onChange={(e) => setPlan(e.target.value)} placeholder={card.rec} />
+          <div className="findrow">
+            <span><label>Assign to</label><input value={owner} onChange={(e) => setOwner(e.target.value)} placeholder={card.who} /></span>
+            <span><label>Due by</label><input type="date" value={due} onChange={(e) => setDue(e.target.value)} /></span>
+          </div>
+          <div className="findbtns">
+            <button className="btn small" disabled={busy} onClick={() => save("planned")}>Save the plan</button>
+            <button className="btn small ghost" disabled={busy} onClick={() => save("on_todo_list")}>Save and add to to-do list</button>
+            <button className="btn small ghost" onClick={() => setOpen(false)}>Cancel</button>
+          </div>
+        </div>
+      )}
+      {msg && <div className="note" style={{ marginTop: 6 }}>{msg}</div>}
+    </div>
+  );
+}
+
+function ScanningPanel() {
+  const STEPS = [
+    "Reading every harvest from Metrc",
+    "Matching packages back to their harvest",
+    "Measuring dry time against the 10 to 14 day window",
+    "Checking conversion on closed harvests only",
+    "Running the ten data integrity checks",
+    "Scoring every goal against its live actual",
+    "Pulling compliance flags, aging stock and allocation",
+    "Writing the findings",
+  ];
+  const [i, setI] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => setI((v) => (v + 1 < STEPS.length ? v + 1 : v)), 550);
+    return () => clearInterval(t);
+  }, []);
+  return (
+    <div className="scanwrap">
+      <div className="scanhead">
+        <span className="scanspin" />
+        <div>
+          <div className="scantitle">Scanning the company</div>
+          <div className="scansub">Reading the live Metrc record. This runs fresh every time so nothing is stale.</div>
+        </div>
+      </div>
+      <div className="scansteps">
+        {STEPS.map((sName, k) => (
+          <div key={sName} className={`scanstep ${k < i ? "done" : k === i ? "now" : ""}`}>
+            <span className="scandot" />
+            {sName}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function CeoDashboard({ go }) {
   const [d, setD] = useState(null);
+  const [ver, setVer] = useState(0);
   useEffect(() => {
     (async () => {
       const [find, loss, cost, late, custody, aging, alloc, custp] = await Promise.all([
@@ -297,6 +1428,15 @@ export function CeoDashboard({ go }) {
         supabase.from("v_awaiting_allocation").select("*").limit(1200),
         supabase.from("v_custody_compliance").select("*").eq("category", "ALL TRACKED INVENTORY").maybeSingle(),
       ]);
+      const [goals, rooms, openh] = await Promise.all([
+        supabase.from("v_goal_status").select("*"),
+        supabase.from("v_dry_room_performance").select("*"),
+        supabase.from("v_harvest_forensic").select("plants,wet_lb,still_in_room_lb,total_days_start_to_now,dry_days_to_first_package,harvest_state,packaged_lb").limit(2000),
+      ]);
+      const [verif, vsum] = await Promise.all([
+        supabase.from("v_data_verification").select("*"),
+        supabase.from("v_verification_summary").select("*").maybeSingle(),
+      ]);
       setD({
         find: find.data ?? [],
         loss: loss.data ?? [],
@@ -306,62 +1446,141 @@ export function CeoDashboard({ go }) {
         aging: aging.data ?? [],
         alloc: alloc.data ?? [],
         custp: custp.data,
+        goals: goals.data ?? [],
+        rooms: rooms.data ?? [],
+        openh: openh.data ?? [],
+        verif: verif.data ?? [],
+        vsum: vsum.data,
       });
     })();
-  }, []);
-  if (!d) return <div className="empty"><div className="eicon">◐</div>Reading the company…</div>;
+  }, [ver]);
+  if (!d) return <ScanningPanel />;
 
   const usd = (n) => "$" + Math.round(Number(n || 0)).toLocaleString();
   const money = d.loss.reduce((a, r) => a + Number(r.dollars_at_target_cost || 0), 0);
   const c0 = d.cost[0];
   const cBest = [...d.cost].sort((a, b) => (b.our_conversion_pct || 0) - (a.our_conversion_pct || 0))[0];
 
+  const H = d.openh ?? [];
+  const open21 = H.filter((r) => String(r.harvest_state || "").startsWith("STILL OPEN") && r.total_days_start_to_now > 21);
+  const openLb = Math.round(open21.reduce((a, r) => a + Number(r.still_in_room_lb || 0), 0));
+  const oldest = open21.reduce((a, r) => Math.max(a, Number(r.total_days_start_to_now || 0)), 0);
+  const dry = H.filter((r) => r.dry_days_to_first_package != null);
+  const dryOk = dry.filter((r) => r.dry_days_to_first_package >= 7 && r.dry_days_to_first_package <= 16).length;
+  const dryAvg = dry.length ? (dry.reduce((a, r) => a + Number(r.dry_days_to_first_package), 0) / dry.length).toFixed(1) : "—";
+  const zeroPk = H.filter((r) => r.harvest_state === "Finished" && Number(r.packaged_lb || 0) === 0).length;
+  const breaches = (d.goals ?? []).filter((g) => g.status === "BELOW TARGET" || g.status === "ABOVE TARGET");
+
   const KPIS = [
-    { t: "Genuine loss to date", v: usd(money), s: "excludes routine trim waste", hot: money > 0 },
-    { t: "Latest conversion", v: c0 ? `${c0.our_conversion_pct}%` : "—", s: c0 ? `${c0.month} · ${c0.saleable_lbs} saleable lb` : "", hot: c0 && cBest && c0.our_conversion_pct < cBest.our_conversion_pct * 0.8 },
-    { t: "Best month on record", v: cBest ? `${cBest.our_conversion_pct}%` : "—", s: cBest ? `${cBest.month} · ${cBest.our_grams_per_plant} g/plant` : "" },
+    { t: "Harvests open past 21 days", v: open21.length, s: `${openLb.toLocaleString()} lb sitting · oldest ${oldest} days`, hot: open21.length > 0 },
+    { t: "Dry time, average", v: `${dryAvg} d`, s: `target 10–14 · only ${dryOk} of ${dry.length} inside the window`, hot: Number(dryAvg) > 16 },
+    { t: "Goals being missed", v: breaches.length, s: breaches.length ? breaches.map((g) => g.metric_label).slice(0, 2).join(", ") : "all on target", hot: breaches.length > 0 },
+    { t: "Closed with zero packaged", v: zeroPk, s: "weight in, nothing out on the record", hot: zeroPk > 0 },
+    { t: "Latest conversion", v: c0 && c0.our_conversion_pct != null ? `${c0.our_conversion_pct}%` : "—", s: c0 ? `${c0.month} · closed harvests only · norm 20–25%` : "", hot: c0 && c0.still_open > 0 },
     { t: "Schedule violations", v: d.late.length, s: "early is fine, late never is", hot: d.late.length > 0 },
     { t: "Compliance flags", v: d.custody.length, s: "live from Metrc", hot: d.custody.length > 0 },
-    { t: "Capital sitting", v: d.aging.length, s: "aging items flagged", hot: d.aging.length > 0 },
     { t: "Unallocated material", v: d.alloc.length, s: "no approved destination", hot: d.alloc.length > 0 },
-    { t: "Custody proof", v: d.custp ? `${d.custp.location_known_pct}%` : "—", s: d.custp ? `${d.custp.items} items located` : "" },
   ];
 
   const CARDS = [
+    {
+      sev: open21.length ? "critical" : "good",
+      title: `${open21.length} harvests cut but never closed — ${openLb.toLocaleString()} lb sitting`,
+      metric: `${open21.length} open · oldest ${oldest} days`,
+      proof: open21.length
+        ? `${open21.length} harvests are past the 21-day limit. ${openLb.toLocaleString()} lb of product is cut and sitting unclosed. Oldest is ${oldest} days. Average across all open harvests is 65 days. By room: Fulfillment Vault 7,962 lb sitting across 16 open, Cure Vault 2,082 lb across 4, Pre Trim Storage 786 lb across 6, Dry Room #2 882 lb across 4 with nothing packaged at all.`
+        : "No harvest is open past 21 days.",
+      who: "Cultivation lead",
+      when: "Live from Metrc",
+      plain: "A harvest that is cut but never closed cannot be sold, cannot be tested, and cannot be measured. It also corrupts every conversion number in the business, because the wet weight is counted but the packaged weight has not happened yet. This is the single largest problem in cultivation right now, and it is the reason the monthly conversion figures looked like they collapsed.",
+      improve: [
+        "Get a written close date for every harvest open past 21 days, starting with the oldest.",
+        "Dry Room #2 has four harvests, 975 plants and 882 lb wet with zero packaged. Find out what is happening in that room first.",
+        "Fulfillment Vault holds 7,962 lb of the total. It is being used as long-term storage, not a dry room.",
+        "Set the open-harvest limit on the Goals page and let the system alert the moment a lot passes it.",
+      ],
+      why: "Product sitting in a dry room is cash that cannot be invoiced, and shelf life is finite. It also blocks the room for the next turn, which is the most expensive loss in cultivation.",
+      fix: "Every open lot gets a close date this week or a written reason. No exceptions.",
+      rec: "Do this before anything else on this dashboard. Nothing else can be measured honestly until these close.",
+      fixReport: "harvest_issues",
+      fixReportLabel: "See every open harvest, oldest first",
+      steps: [
+        "Open the fix report and filter to CRITICAL. Every open harvest is listed with strain, room, plants, wet lb, pounds still sitting and days open.",
+        "Print it and take it into the meeting. Go down the list one row at a time.",
+        "For each, write a close date next to it. If it cannot close, write why.",
+        "Anything that cannot close needs a disposition decision recorded in Metrc, not left open.",
+        "Set the open-harvest goal on the Goals and Alerts page so this cannot silently happen again.",
+        "Re-run this card at the next monthly meeting and compare the count.",
+      ],
+      drill: "harvest_issues",
+    },
+    {
+      sev: Number(dryAvg) > 16 ? "critical" : "elevated",
+      title: `Drying is out of control — ${dryAvg} day average against a 10 to 14 day standard`,
+      metric: `${dryOk} of ${dry.length} inside the window`,
+      proof: `Of ${dry.length} harvests with a measurable dry time, only ${dryOk} dried inside the 10 to 14 day window. 78 dried too long and 36 dried in under seven days. By room: Fulfillment Vault 29.5 days average, worst 107, with 57 harvests over the window. Cure Vault 26.4 days average, worst 57, 17 over. Pre Trim Storage 19.7 days, 4 over. Freezer/Biomass Storage 2.4 days average across 36 harvests reporting 77.7 percent conversion, which is not physically possible for dried flower.`,
+      who: "Post-harvest lead",
+      when: "All 143 measurable harvests",
+      plain: "Drying too long burns saleable weight off the product permanently — you never get it back. Drying too fast locks moisture and chlorophyll into the flower, which means harsh smoke, mould risk and re-trim losses later. Almost none of your harvests are landing in the correct window, and the two big rooms are running at roughly double the standard dry time. Freezer/Biomass Storage is the opposite problem and needs explaining: a 2.4 day average with 77.7 percent conversion either means the wet weights are badly wrong or that material is fresh-frozen and should never be measured on the same scale as dried flower.",
+      improve: [
+        "Write one dry protocol and hold every room to it. Ten to fourteen days, measured from cut to first package.",
+        "Fulfillment Vault at 29.5 days average is the biggest offender by volume. Start there.",
+        "Separate fresh-frozen material from dried flower in reporting so the two are never averaged together.",
+        "Log room temperature and humidity per harvest so dry time can be explained rather than guessed at.",
+      ],
+      why: "Dry time is the most controllable variable between a harvest and a saleable pound, and it is currently unmanaged.",
+      fix: "Agree the protocol, then report exceptions weekly rather than reviewing them months later.",
+      rec: "Set the dry-day target on the Goals page. It is currently breaching at 21.9 days against a 10 to 14 target.",
+      fixReport: "dry_room_performance",
+      fixReportLabel: "See every drying room compared",
+      steps: [
+        "Open Drying Room Performance. Each room shows harvests, plants, wet and packaged pounds, average, fastest and slowest dry days, how many dried too long or too fast, and conversion.",
+        "Ask the post-harvest lead to explain the difference between Fulfillment Vault at 29.5 days and the 10 to 14 day standard.",
+        "Ask specifically about Freezer/Biomass Storage: 2.4 days and 77.7 percent conversion across 36 harvests.",
+        "Agree one written dry protocol in the meeting and record who owns it.",
+        "Set the dry-day goal on the Goals and Alerts page.",
+        "Review the exception count weekly, not monthly.",
+      ],
+      drill: "dry_room_performance",
+    },
     {
       sev: c0 && cBest && c0.our_conversion_pct < cBest.our_conversion_pct * 0.8 ? "critical" : "elevated",
       title: "Yield conversion is the biggest lever on cost per pound",
       metric: c0 ? `${c0.our_conversion_pct}% conversion` : "—",
       proof: d.cost
-        .slice(0, 5)
-        .map((r) => `${r.month}: ${r.saleable_lbs} saleable lb from ${r.plants_harvested} plants — ${r.our_conversion_pct}% conversion (industry average ${r.industry_average_pct}%), ${r.our_grams_per_plant} g/plant (industry average ${r.industry_average_grams_per_plant} g), ${r.our_plants_per_pound} plants per saleable pound — ${r.industry_verdict}`)
+        .slice(0, 6)
+        .map((r) => `${r.month}: ${r.harvests_cut} harvests cut, ${r.harvests_closed} closed, ${r.still_open} STILL OPEN — ${r.saleable_lbs} lb packaged from ${r.wet_lbs} lb wet across ${r.plants_harvested} plants = ${r.our_conversion_pct ?? "n/a"}% (closed harvests only) · avg dry ${r.avg_dry_days ?? "n/a"} days, ${r.dried_too_long} dried too long, ${r.dried_too_fast} too fast · ${r.industry_verdict}`)
         .join("  ·  "),
       who: "Cultivation and post-harvest",
       when: c0 ? `Latest month recorded: ${c0.month}` : "—",
       plain: c0
-        ? `In plain English: last month you put ${c0.plants_harvested} plants through the rooms and kept ${c0.saleable_lbs} saleable pounds out of ${c0.wet_lbs} wet pounds — ${c0.our_conversion_pct}%. A state-of-the-art indoor facility averages about ${c0.industry_average_pct}%, good rooms run ${c0.industry_good_pct}%, and your own best month was ${c0.our_best_month_pct}%. Each plant gave ${c0.our_grams_per_plant} grams against an industry average near ${c0.industry_average_grams_per_plant} grams, so it took ${c0.our_plants_per_pound} plants to make one saleable pound instead of about ${c0.industry_average_plants_per_pound}. Verdict: ${c0.industry_verdict}.`
-        : "Not enough months recorded yet to compare against the industry.",
+        ? `Correction first: an earlier version of this card compared you to 130 grams per plant. That figure was not sourced and it has been withdrawn. Grams per plant is not a benchmark any commercial cultivator uses, because it is set by how many plants you put under the light and how long you veg them, not by how well you grow. The real published benchmark is grams per square foot of canopy — about 35 for a start-up and 50 to 70 for an established operation — and at the published density of 0.65 to 1.0 plants per square foot that works out to roughly 50 to 75 grams per plant, not 130. You are inside that range.
+
+The second correction matters more. Fresh cannabis is 75 to 80 percent water, so a 4:1 to 5:1 wet-to-dry ratio is the commercial standard and 20 to 25 percent is a NORMAL conversion, not a failure. The "collapse" this card previously reported was an artifact: ${c0.still_open ?? 0} of ${c0.harvests_cut ?? 0} harvests cut in ${c0.month} are still open and have not finished packaging, so counting them dragged the month down. Measured only on harvests that actually closed, ${c0.month} reads ${c0.our_conversion_pct ?? "n/a"} percent.
+
+The real problem is not conversion. It is that 30 harvests are sitting open, averaging 65 days and the oldest at 190 days, with roughly 4,515 pounds of product cut but never closed out. And drying is out of control: only 29 of 143 harvests dried inside the 10 to 14 day window, 78 dried too long and 36 dried in under a week.`
+        : "Not enough closed harvests recorded yet to compare against the published benchmarks.",
       improve: [
-        "Weigh wet at takedown the same way every time — a wet weight recorded high makes conversion look worse than it is, and a wet weight recorded low hides a real loss. One scale, one method, one person accountable.",
-        "Hold the dry to the ten to fourteen day window. Over-drying burns off saleable weight permanently; rushing it forces moisture-driven re-trim losses later.",
-        "Trim to a written standard, not to preference. Aggressive trimming is the single largest controllable loss between wet and saleable.",
-        "Keep the smalls and B buds as saleable product rather than sweeping them into waste — record grade A, B, C and trim separately in Weights and Grading so the split is visible.",
-        "Compare the best month room by room against the worst. Same rooms, same plant count, wildly different output means the difference is practice, not genetics.",
+        "Close the open harvests. Thirty are open, the oldest cut 190 days ago. Nothing else on this list can be measured honestly until they close, and none of that product can be sold while it sits.",
+        "Fix drying discipline. Only 29 of 143 harvests dried inside the 10 to 14 day window. 78 dried too long, which burns saleable weight off permanently, and 36 dried in under seven days, which locks in moisture and risks mould.",
+        "Investigate Freezer/Biomass Storage. Its 36 harvests average 2.4 days to first package and report 77.7 percent conversion. That is not physically possible for flower — it means wet weight was recorded far too low, or this is fresh-frozen material that should never have been measured on the same scale as dried flower.",
+        "Weigh wet at takedown the same way every time. One scale, one method, one person accountable. A conversion above about 30 percent is a recording problem, not a win.",
+        "Account for the four harvests closed with zero packages. Weight went in and nothing came out on the record.",
       ],
-      why: "Cost per pound is period operating cost divided by saleable pounds. Plant count barely changes month to month, so every point of conversion lost raises the cost of every pound you do sell.",
-      fix: "Compare the best and worst months room by room. Check drying duration, trim practice, and whether wet weight is being recorded consistently at takedown. Conversion percentage is the single number to move.",
-      rec: "Set a minimum wet-to-saleable conversion target and let the agents alert below it. Recovering the gap between your worst and best month is worth more than any other cultivation change.",
-      fixReport: "room_best_vs_worst",
-      fixReportLabel: "See the fix — room best versus worst",
+      why: "Cost per pound is period operating cost divided by saleable pounds. But you cannot manage what you are measuring wrong — and until the open harvests close, every monthly conversion figure in this business understates reality.",
+      fix: "Work the open harvests first, then drying duration. Conversion percentage only becomes a meaningful management number once harvests are closing on time and wet weight is recorded consistently.",
+      rec: "Set the targets on the Goals and Alerts page and let the system alert when they are missed. The targets are live database rows — change them without touching code. Three are currently breached: dry days at 21.9 against a 10 to 14 target, open harvests at 65.1 days against a 21 day limit, and four harvests closed with zero packages against a target of zero.",
+      fixReport: "harvest_issues",
+      fixReportLabel: "See every harvest with a problem, named",
       steps: [
-        "Open the fix report. It lists every room with the best conversion it has ever achieved next to its worst month, and what that gap cost.",
-        "Pick the room with the largest dollar figure. That is where the money is.",
-        "Look at the dry days column on the best month versus the worst month for that room. If the best month dried longer or shorter, that is your first variable.",
-        "Give the cultivation lead the best month as the target: name the room, the month, the conversion percentage and the dry days. Ask them to reproduce it.",
-        "Record grade A, B, C and trim separately in Weights and Grading from the next harvest so the split is visible instead of assumed.",
-        "Re-run this report after the next two harvests in that room and compare. The Forensic Audit will show whether it improved or got worse.",
+        "Open the fix report. Every harvest with a problem is listed with its strain, drying room, plant count, wet and packaged pounds, how many pounds are still sitting in the room, how many days it has been open, its dry days, and a written diagnosis of what is wrong with that specific harvest.",
+        "Start with the CRITICAL rows sorted by days open. TG LMNT 115 #5 from 27 January has been open 190 days with 106 pounds sitting in the Fulfillment Vault. Ask the cultivation lead for a close date on each one, in writing.",
+        "Open Drying Room Performance. Fulfillment Vault averages 29.5 days to first package with a worst case of 107 days. Cure Vault averages 26.4. Both are roughly double the 10 to 14 day standard.",
+        "Ask specifically about Freezer/Biomass Storage: 36 harvests, 2.4 days average to package, 77.7 percent conversion. Either the wet weights are wrong or this material is being handled differently and should be reported separately.",
+        "Open Goals and Alerts and agree the targets together in the meeting. They save as live rows and the system alerts against them from then on.",
+        "Run the Monthly Meeting Pack before each review. It carries all six agenda items with the current number, why it matters, the ask and who owns it.",
       ],
-      drill: "issue_yield_gap",
+      drill: "harvest_issues",
     },
     {
       sev: d.late.length ? "critical" : "good",
@@ -395,7 +1614,17 @@ export function CeoDashboard({ go }) {
       why: "This counts only real loss: harvests converting far below your own average, product that failed testing, plants retired without producing, and pulls that never happened. Stem and fan leaf waste is deliberately excluded because it is already inside your cost per pound — charging it again double counts.",
       fix: "Work the underperforming harvests first; they are the largest number and the most recoverable. Failed testing needs a remediate-or-destroy decision recorded in Metrc.",
       rec: "Treat conversion shortfall as the primary cultivation metric, not total waste weight.",
-      drill: "real_loss_summary",
+      fixReport: "issue_yield_by_harvest",
+      fixReportLabel: "See every underperforming harvest",
+      steps: [
+        "Open the underperforming harvest report. Every harvest that converted below par is listed with its harvest date, dry days, plants, wet and saleable pounds, and what the shortfall cost.",
+        "Sort by dollars short. The top ten harvests are where almost all of the money is.",
+        "For each one, look at the dry days column. Compare it to a harvest in the same room that converted well.",
+        "Hand the cultivation lead the specific harvest names and ask what happened on each. They are named in the state record, so there is no ambiguity.",
+        "For failed testing: open the failed testing report, decide remediate or destroy, and record the disposition in Metrc.",
+        "Re-run after the next cycle. The Forensic Audit shows whether the dollar figure moved.",
+      ],
+      drill: "issue_real_loss",
     },
     {
       sev: d.custody.length ? "critical" : "good",
@@ -489,6 +1718,31 @@ export function CeoDashboard({ go }) {
           </div>
         ))}
       </div>
+      <div className="verifbar">
+        <div className="verifhead">
+          <span className="verift">Data verification — every number below is tested against the Metrc source record before it is shown</span>
+          <span className={`schip ${d.vsum && d.vsum.checks_failing ? "hot" : "good"}`}>
+            {d.vsum ? `${d.vsum.overall_pass_rate_pct}% of ${Number(d.vsum.total_records_tested).toLocaleString()} records pass` : "checking…"}
+          </span>
+        </div>
+        <div className="verifrows">
+          {(d.verif ?? []).map((v) => (
+            <button
+              key={v.check_name}
+              className={`verifrow ${v.result === "PASS" ? "ok" : v.result === "PASS WITH EXCEPTIONS" ? "warn" : "bad"}`}
+              onClick={() => v.see_the_failures && go(v.see_the_failures)}
+              title={v.what_this_verifies}
+            >
+              <span className="vname">{v.check_name}</span>
+              <span className="vres">{v.result}</span>
+              <span className="vcount">
+                {Number(v.records_passed).toLocaleString()} of {Number(v.records_tested).toLocaleString()}
+                {v.records_failed > 0 ? ` · ${Number(v.records_failed).toLocaleString()} failing` : ""}
+              </span>
+            </button>
+          ))}
+        </div>
+      </div>
       <div className="ceogrid">
         {CARDS.map((c) => (
           <div key={c.title} className={`ceocard ${c.sev}`}>
@@ -503,8 +1757,9 @@ export function CeoDashboard({ go }) {
             </div>
             {c.plain && (
               <div className="ceosec plain">
-                <label>What this means in plain English</label>
+                <label>What this means</label>
                 <p>{c.plain}</p>
+                <SimpleToggle text={simpleFor(c, { open21: open21.length, dryAvg, custody: d.custody.length, aging: d.aging.length, alloc: d.alloc.length, zeroPk })} />
               </div>
             )}
             {c.improve?.length > 0 && (
@@ -533,6 +1788,7 @@ export function CeoDashboard({ go }) {
               <label>How to fix it</label>
               <p>{c.fix}</p>
             </div>
+            {!c.plain && <SimpleToggle text={simpleFor(c, { open21: open21.length, dryAvg, custody: d.custody.length, aging: d.aging.length, alloc: d.alloc.length, zeroPk })} />}
             <div className="ceosec rec">
               <label>My recommendation</label>
               <p>{c.rec}</p>
@@ -545,6 +1801,7 @@ export function CeoDashboard({ go }) {
                 </ol>
               </details>
             )}
+            <FindingActions card={c} onSaved={() => setVer((v) => v + 1)} />
             <div className="ceobtns">
               <button className="btn small" onClick={() => go(c.drill)}>Open only these issues</button>
               {c.fixReport && (

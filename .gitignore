@@ -1,7 +1,10 @@
-node_modules/
-dist/
+*.log
 .env
 .env.*
+bridge/bridge.err.log
+bridge/bridge.log
+bridge/token.txt
+dist/
 env/
+node_modules/
 workbook_extract/
-*.log

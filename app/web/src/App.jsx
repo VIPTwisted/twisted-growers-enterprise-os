@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback } from "react";
 import jsQR from "jsqr";
 import { supabase, FUNCTIONS_URL } from "./lib/supabase.js";
-import { BudzScreen, CeoDashboard } from "./budz.jsx";
+import { BudzScreen, CeoDashboard, AssistantSettings } from "./budz.jsx";
 
 // Laws: live numbers (2) · no fake data (3) · nothing hardwired (4) — navigation itself is DB rows.
 
@@ -225,6 +225,16 @@ const METRIC_GROUPS = [
 /* ---------- Hooks ---------- */
 function useSession() {
   const [session, setSession] = useState(undefined);
+  const [mustChange, setMustChange] = useState(false);
+  const [showWelcome, setShowWelcome] = useState(false);
+  useEffect(() => {
+    if (!session?.user?.id) { setMustChange(false); return; }
+    (async () => {
+      const { data } = await supabase
+        .from("app_users").select("must_change_password").eq("user_id", session.user.id).maybeSingle();
+      setMustChange(!!data?.must_change_password);
+    })();
+  }, [session?.user?.id]);
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setSession(data.session ?? null));
     const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => setSession(s));
@@ -268,6 +278,7 @@ function usePrefs(session) {
 
 function useNav(version) {
   const [nav, setNav] = useState(null);
+  const [reports, setReports] = useState([]);
   useEffect(() => {
     (async () => {
       const { data: auth } = await supabase.auth.getUser();
@@ -279,10 +290,12 @@ function useNav(version) {
       const role = me?.role ?? "guest";
       const { data: vis } = await supabase.from("nav_role_visibility").select("view_key, visible").eq("role", role);
       const hidden = new Set((vis ?? []).filter((v) => !v.visible).map((v) => v.view_key));
-      setNav((rows ?? []).filter((r) => !hidden.has(r.view_key)));
+      const shown = (rows ?? []).filter((r) => !hidden.has(r.view_key));
+      setNav(shown.filter((r) => !r.report_group));
+      setReports(shown.filter((r) => r.report_group));
     })();
   }, [version]);
-  return nav;
+  return { nav, reports };
 }
 function useRole(session) {
   const [role, setRole] = useState(null);
@@ -3736,11 +3749,181 @@ function RailMetrc() {
 }
 
 /* ---------- App shell ---------- */
+
+
+const TELL_YOUR_AI = [
+  "I work for Twisted Growers, a Massachusetts cannabis company. We have an internal web platform called the Twisted Growers Enterprise OS, and I want to be able to chat with you about our live production data from inside it.",
+  "",
+  "There is a small program called the bridge that makes this work. It runs on my own Windows computer, listens on 127.0.0.1 port 8765, and when the platform sends it a question it runs Claude Code against our database and sends the answer back. It uses my own subscription, so there is no extra bill.",
+  "",
+  "Please walk me through this on my machine, one step at a time, and check I have done each one before moving on:",
+  "1. Install Node.js from nodejs.org, the LTS version.",
+  "2. Install Claude Code:  npm install -g @anthropic-ai/claude-code",
+  "3. Run  claude  in a terminal, then type /login and sign in with my Claude account.",
+  "4. Put the bridge folder I was given somewhere sensible, then double-click start-bridge.cmd inside it.",
+  "5. Check it worked by opening http://127.0.0.1:8765/health in a browser. It should say ok true.",
+  "6. Make it start automatically: press Windows+R, type shell:startup, and put a shortcut to start-bridge-hidden.vbs in that folder.",
+  "",
+  "I am not technical, so please keep it plain, tell me exactly what to type, and tell me what I should see after each step so I know it worked.",
+].join(String.fromCharCode(10));
+
+function WelcomeBridge({ onDone }) {
+  const [ok, setOk] = useState(null);
+  const [step, setStep] = useState(0);
+  const check = async () => {
+    setOk("checking");
+    try {
+      const r = await fetch("http://127.0.0.1:8765/health", { signal: AbortSignal.timeout(4000) });
+      setOk(r.ok ? "up" : "down");
+    } catch {
+      setOk("down");
+    }
+  };
+  useEffect(() => { check(); }, []);
+  const STEPS = [
+    {
+      t: "Install two things",
+      b: "Node.js from nodejs.org — press the big LTS button and accept the defaults. Then open a terminal and run the command below. Both are free.",
+      code: "npm install -g @anthropic-ai/claude-code",
+    },
+    {
+      t: "Sign in to Claude once",
+      b: "In the same terminal, type claude and press Enter. Then type /login and sign in with your Claude account in the browser window that opens. You only ever do this once on this computer.",
+      code: "claude",
+    },
+    {
+      t: "Start the bridge",
+      b: "Ask Vinny for the bridge folder, put it somewhere sensible, and double-click start-bridge.cmd inside it. A small window opens — leave it running, minimise it if it is in the way. It will start on its own next time you turn the computer on.",
+      code: null,
+    },
+    {
+      t: "Ask a question",
+      b: "Go to Budz Assistant and ask anything about the company. Answers marked 'Researched by Claude on your desktop' are coming through the bridge, reading the live Metrc data as they answer.",
+      code: null,
+    },
+  ];
+  const s = STEPS[step];
+  return (
+    <div className="pwgate">
+      <div className="pwcard wide">
+        <h1>Welcome to the Twisted Growers OS</h1>
+        <p className="sub">
+          Everything on the platform works right now with no setup at all — every report, every dashboard, and the
+          assistant's built-in answers. This page is only about the <b>extra</b> bit: chatting with Claude inside the
+          OS about your own live data.
+        </p>
+
+        <div className={`bridgestat ${ok}`}>
+          {ok === "checking" && "Looking for the bridge on this computer…"}
+          {ok === "up" && "The bridge is already running on this computer. You are done — skip this and start asking questions."}
+          {ok === "down" && "No bridge on this computer yet. It takes about five minutes to set up, and costs nothing beyond a Claude subscription you already pay for."}
+        </div>
+
+        {ok !== "up" && (
+          <>
+            <div className="wsteps">
+              {STEPS.map((x, i) => (
+                <button key={x.t} className={`wstep ${i === step ? "on" : ""} ${i < step ? "done" : ""}`} onClick={() => setStep(i)}>
+                  {i + 1}
+                </button>
+              ))}
+            </div>
+            <div className="wbody">
+              <h2>{s.t}</h2>
+              <p>{s.b}</p>
+              {s.code && (
+                <div className="wcode">
+                  <code>{s.code}</code>
+                  <button className="btn" onClick={() => navigator.clipboard?.writeText(s.code)}>Copy</button>
+                </div>
+              )}
+            </div>
+            <div className="wnav">
+              <button className="btn" disabled={step === 0} onClick={() => setStep((v) => v - 1)}>Back</button>
+              {step < STEPS.length - 1 ? (
+                <button className="btn primary" onClick={() => setStep((v) => v + 1)}>Next</button>
+              ) : (
+                <button className="btn primary" onClick={check}>Check for the bridge</button>
+              )}
+            </div>
+            <div className="wtell">
+              <h2>What to tell your Claude or ChatGPT</h2>
+              <p>
+                If you get stuck on any of the steps above, open Claude or ChatGPT and paste this. It explains the whole
+                job so it can walk you through it on your own machine.
+              </p>
+              <textarea className="inp" readOnly rows={7} value={TELL_YOUR_AI} onFocus={(e) => e.target.select()} />
+              <button className="btn" onClick={() => navigator.clipboard?.writeText(TELL_YOUR_AI)}>
+                Copy this message
+              </button>
+            </div>
+            <p className="sub" style={{ marginTop: 14 }}>
+              No subscription? That is fine. You still get every report and every built-in answer. You can also use the
+              Send to Claude, ChatGPT and Grok buttons on the assistant page, which copy your question with a full
+              briefing and open the service.
+            </p>
+          </>
+        )}
+
+        <button className="btn primary" style={{ marginTop: 18 }} onClick={onDone}>
+          {ok === "up" ? "Start using the platform" : "Skip for now — I will set this up later"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function ForcePasswordChange({ email, onDone }) {
+  const [p1, setP1] = useState("");
+  const [p2, setP2] = useState("");
+  const [msg, setMsg] = useState("");
+  const [busy, setBusy] = useState(false);
+  const save = async () => {
+    if (p1.length < 8) return setMsg("Your new password needs to be at least eight characters.");
+    if (p1 !== p2) return setMsg("The two passwords do not match.");
+    if (p1 === "12345") return setMsg("Please choose something other than the temporary password.");
+    setBusy(true);
+    const { error } = await supabase.auth.updateUser({ password: p1 });
+    if (error) { setMsg(error.message); setBusy(false); return; }
+    const { data: auth } = await supabase.auth.getUser();
+    await supabase.from("app_users")
+      .update({ must_change_password: false, password_changed_at: new Date().toISOString() })
+      .eq("user_id", auth?.user?.id);
+    setBusy(false);
+    onDone();
+  };
+  return (
+    <div className="pwgate">
+      <div className="pwcard">
+        <h1>Choose your password</h1>
+        <p className="sub">
+          You are signed in with a temporary password. Please set your own before continuing — nobody else should know it,
+          including whoever set up your account.
+        </p>
+        <div className="pwmail">{email}</div>
+        <label>New password</label>
+        <input className="inp" type="password" value={p1} autoFocus
+          onChange={(e) => setP1(e.target.value)} placeholder="At least eight characters" />
+        <label>Type it again</label>
+        <input className="inp" type="password" value={p2}
+          onChange={(e) => setP2(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && save()} />
+        {msg && <div className="pwmsg">{msg}</div>}
+        <button className="btn primary" disabled={busy} onClick={save}>
+          {busy ? "Saving…" : "Save and continue"}
+        </button>
+        <button className="pwout" onClick={() => supabase.auth.signOut()}>Sign out instead</button>
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
   const session = useSession();
   const prefs = usePrefs(session ?? null);
   const [navVersion, setNavVersion] = useState(0);
-  const nav = useNav(navVersion);
+  const { nav, reports } = useNav(navVersion);
+  const [repMenu, setRepMenu] = useState(false);
   const role = useRole(session ?? null);
   const [view, setView] = useState(() => window.location.hash.slice(1) || "tower");
   useEffect(() => {
@@ -3817,6 +4000,8 @@ export default function App() {
   }, [dragging, prefs]);
   if (session === undefined) return null;
   if (!session) return <Auth />;
+  if (mustChange) return <ForcePasswordChange email={session.user?.email} onDone={() => { setMustChange(false); setShowWelcome(true); }} />;
+  if (showWelcome) return <WelcomeBridge onDone={() => setShowWelcome(false)} />;
 
   const isExec = role === "owner" || role === "executive";
   const entries = (nav ?? []).filter((e) => !e.admin_only || isExec);
@@ -3854,6 +4039,7 @@ export default function App() {
     allocation_requests: <AllocationRequests session={session} isExec={isExec} />,
     ceo_dashboard: <CeoDashboard go={setView} />,
     budz: <BudzScreen go={setView} />,
+    assistant_settings: <AssistantSettings />,
     inventory_locator: <InventoryLocator go={setView} />,
     menu_manager: isExec
       ? <MenuManager onChanged={() => setNavVersion((v) => v + 1)} />
@@ -3866,11 +4052,38 @@ export default function App() {
   return (
     <div className="frame">
       {launcher && <Launcher onGo={setView} onClose={() => setLauncher(false)} />}
+
       <header className="topnav">
         <div className="tlogo"><img src="/tg-mark.png" alt="Twisted Growers" style={{ width: 34, height: 34, borderRadius: "50%" }} /><span className="tword">Twisted <b>Growers</b></span></div>
         <button className="tibtn launchbtn" title="Open TG Workspace" onClick={() => setLauncher(true)}>{I.apps}</button>
         <div className="tdivider" />
         <div className="tcrumb">{current ? `${current.category} / ${current.label}` : view === "alerts" ? "Command / Alerts & Reminders" : "Command / Control Tower"}</div>
+        <div className="repwrap">
+          <button className={`repbtn ${repMenu ? "on" : ""}`} onClick={() => setRepMenu((v) => !v)}>
+            Reports <span className="repcar">▾</span>
+          </button>
+          {repMenu && (
+            <div className="repmenu" onMouseLeave={() => setRepMenu(false)}>
+              <div className="rephead">All reports</div>
+              <div className="repcols">
+                {[...new Set((reports ?? []).map((r) => r.report_group))].sort().map((g) => (
+                  <div className="repcol" key={g}>
+                    <div className="repgrp">{g}</div>
+                    {(reports ?? [])
+                      .filter((r) => r.report_group === g)
+                      .sort((a, b) => (a.item_order ?? 0) - (b.item_order ?? 0) || a.label.localeCompare(b.label))
+                      .map((r) => (
+                        <button key={r.view_key} className="repitem" title={r.description || ""}
+                          onClick={() => { setView(r.view_key); setRepMenu(false); }}>
+                          {r.label}
+                        </button>
+                      ))}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
         <div className="tspacer" />
         <span className="tpill"><span className="d" /> LIVE</span>
         <div className="tuser">
