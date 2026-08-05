@@ -240,7 +240,7 @@ function useSession() {
     const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => setSession(s));
     return () => sub.subscription.unsubscribe();
   }, []);
-  return session;
+  return { session, mustChange, setMustChange, showWelcome, setShowWelcome };
 }
 
 function usePrefs(session) {
@@ -3752,7 +3752,7 @@ function RailMetrc() {
 
 
 const TELL_YOUR_AI = [
-  "I work for Twisted Growers, a Massachusetts cannabis company. We have an internal web platform called the Twisted Growers Enterprise OS, and I want to be able to chat with you about our live production data from inside it.",
+  "I work for Twisted Growers, a Massachusetts cannabis company. We have an internal web platform called the Twisted Growers Enterprise OS, and I want to be able to chat with an assistant about our live production data from inside it. I have my own Claude Max subscription and my own ChatGPT subscription, and I want to use them for this.",
   "",
   "There is a small program called the bridge that makes this work. It runs on my own Windows computer, listens on 127.0.0.1 port 8765, and when the platform sends it a question it runs Claude Code against our database and sends the answer back. It uses my own subscription, so there is no extra bill.",
   "",
@@ -3766,6 +3766,58 @@ const TELL_YOUR_AI = [
   "",
   "I am not technical, so please keep it plain, tell me exactly what to type, and tell me what I should see after each step so I know it worked.",
 ].join(String.fromCharCode(10));
+
+
+function BridgeChip() {
+  const [state, setState] = useState("checking");
+  const [open, setOpen] = useState(false);
+  const check = async () => {
+    try {
+      const r = await fetch("http://127.0.0.1:8765/health", { signal: AbortSignal.timeout(3500) });
+      setState(r.ok ? "up" : "down");
+    } catch {
+      setState("down");
+    }
+  };
+  useEffect(() => {
+    check();
+    const t = setInterval(check, 30000);
+    return () => clearInterval(t);
+  }, []);
+  const connect = () => {
+    window.location.href = "tgbridge://start";
+    setState("starting");
+    setTimeout(check, 4000);
+    setTimeout(check, 9000);
+  };
+  return (
+    <div className="bchipwrap">
+      <button className={`bchip ${state}`} onClick={() => (state === "up" ? setOpen((v) => !v) : connect())}
+        title={state === "up" ? "The artificial intelligence bridge is running" : "The bridge is not running — click to start it"}>
+        <span className="bdot" />
+        {state === "up" ? "AI ready" : state === "starting" ? "Starting…" : state === "checking" ? "Checking…" : "AI offline"}
+      </button>
+      {open && state === "up" && (
+        <div className="bpop" onMouseLeave={() => setOpen(false)}>
+          <b>Bridge running</b>
+          <p>Questions in the assistant are being researched by Claude on this computer, reading the live records. It costs nothing beyond your own subscription.</p>
+          <button className="btn" onClick={check}>Re-check</button>
+        </div>
+      )}
+      {state === "down" && (
+        <div className="bpop warn">
+          <b>The bridge is not running</b>
+          <p>
+            Without it the assistant still answers from the database, but nothing gets researched and written up.
+            Click <b>AI offline</b> above to start it, or double-click <b>TG OS AI Bridge</b> on your desktop.
+          </p>
+          <button className="btn" onClick={connect}>Start it now</button>
+          <button className="btn" onClick={check}>I started it — re-check</button>
+        </div>
+      )}
+    </div>
+  );
+}
 
 function WelcomeBridge({ onDone }) {
   const [ok, setOk] = useState(null);
@@ -3919,7 +3971,7 @@ function ForcePasswordChange({ email, onDone }) {
 }
 
 export default function App() {
-  const session = useSession();
+  const { session, mustChange, setMustChange, showWelcome, setShowWelcome } = useSession();
   const prefs = usePrefs(session ?? null);
   const [navVersion, setNavVersion] = useState(0);
   const { nav, reports } = useNav(navVersion);
@@ -4085,6 +4137,7 @@ export default function App() {
           )}
         </div>
         <div className="tspacer" />
+        <BridgeChip />
         <span className="tpill"><span className="d" /> LIVE</span>
         <div className="tuser">
           <button className="tibtn" title="Control Tower" onClick={() => setView("tower")}>{I.gauge}</button>

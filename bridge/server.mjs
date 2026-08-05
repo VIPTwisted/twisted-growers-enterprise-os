@@ -72,7 +72,9 @@ const json = (res, code, body) => {
 
 function runClaude(prompt, sessionId) {
   return new Promise((resolve) => {
-    const args = ["-p", prompt, "--permission-mode", "acceptEdits"];
+    // The prompt goes in on stdin. Passing it as a command-line argument mangles
+    // long text and newlines on Windows.
+    const args = ["-p", "--permission-mode", "acceptEdits", "--allowedTools", "mcp__twisted-growers,Read,Grep,Glob"];
     if (sessionId) args.push("--resume", sessionId);
     const child = spawn(CLAUDE, args, {
       cwd: PROJECT,
@@ -80,6 +82,8 @@ function runClaude(prompt, sessionId) {
       windowsHide: true,
       env: { ...process.env, CI: "1" },
     });
+    child.stdin.write(prompt);
+    child.stdin.end();
     let out = "";
     let err = "";
     const timer = setTimeout(() => {
