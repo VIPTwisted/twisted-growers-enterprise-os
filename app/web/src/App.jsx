@@ -135,6 +135,15 @@ function useNav(version) {
   }, [version]);
   return nav;
 }
+function useRole(session) {
+  const [role, setRole] = useState(null);
+  useEffect(() => {
+    if (!session?.user?.id) { setRole(null); return; }
+    supabase.from("app_users").select("role").eq("user_id", session.user.id).single()
+      .then(({ data }) => setRole(data?.role ?? "member"));
+  }, [session?.user?.id]);
+  return role;
+}
 
 /* ---------- Menu Manager: admin shows/hides any item for all users, instantly ---------- */
 function MenuManager({ onChanged }) {
@@ -1283,6 +1292,7 @@ export default function App() {
   const prefs = usePrefs(session ?? null);
   const [navVersion, setNavVersion] = useState(0);
   const nav = useNav(navVersion);
+  const role = useRole(session ?? null);
   const [view, setView] = useState("tower");
   const [openCats, setOpenCats] = useState({});
   const [dragging, setDragging] = useState(false);
@@ -1310,7 +1320,8 @@ export default function App() {
   if (session === undefined) return null;
   if (!session) return <Auth />;
 
-  const entries = nav ?? [];
+  const isExec = role === "owner" || role === "executive";
+  const entries = (nav ?? []).filter((e) => !e.admin_only || isExec);
   const cats = [];
   for (const e of entries) {
     let c = cats.find((x) => x.name === e.category);
@@ -1330,7 +1341,9 @@ export default function App() {
     settings: <Settings session={session} prefs={prefs} />,
     help: <Help />,
     metrc_mirror: <MetrcMirror />,
-    menu_manager: <MenuManager onChanged={() => setNavVersion((v) => v + 1)} />,
+    menu_manager: isExec
+      ? <MenuManager onChanged={() => setNavVersion((v) => v + 1)} />
+      : <div className="empty"><div className="eicon">{I.shield}</div><b>Admin area</b>Menu Manager is restricted to executives. Ask an owner if a menu change is needed.</div>,
   };
   const body = special[view] ?? (current ? <ModuleScreen entry={current} /> : <ControlTower go={setView} />);
 
@@ -1366,7 +1379,7 @@ export default function App() {
                 <div className="usep" />
                 <button className="uitem" onClick={() => { setUserMenu(false); setView("people"); }}>{I.users} Employee directory</button>
                 <button className="uitem" onClick={() => { setUserMenu(false); setView("settings"); }}>{I.gear} Settings</button>
-                <button className="uitem" onClick={() => { setUserMenu(false); setView("menu_manager"); }}>{I.burger} Menu Manager</button>
+                {isExec && <button className="uitem" onClick={() => { setUserMenu(false); setView("menu_manager"); }}>{I.burger} Menu Manager</button>}
                 <div className="usep" />
                 <button className="uitem uout" onClick={() => supabase.auth.signOut()}>{I.out} Sign out</button>
               </div>

@@ -526,3 +526,7 @@ button.pulse:hover, button.stat:hover { background: var(--row-hover); }
 .alertrow.critical .allvl { color: #ff2e5f; }
 .alertrow .altxt { flex: 1; font-size: 14px; font-weight: 600; }
 .alertrow .alarrow svg { width: 15px; height: 15px; color: var(--muted); }
+
+/* Filter bar: keep dates inline, never full-width */
+.filterbar .fdate { width: 158px; flex: 0 0 auto; }
+.filterbar .fsearch { flex: 0 1 340px; }
