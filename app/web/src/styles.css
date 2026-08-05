@@ -716,9 +716,9 @@ button.teamcard:hover { border-color: var(--neon-line); }
 /* ===== TG Workspace: a different world inside the same OS ===== */
 .launcher {
   position: fixed; inset: 0; z-index: 200;
-  background: radial-gradient(1200px 700px at 50% -10%, rgba(120, 82, 255, 0.28), transparent 60%),
-    radial-gradient(900px 600px at 85% 110%, rgba(60, 40, 140, 0.30), transparent 60%),
-    rgba(6, 4, 14, 0.94);
+  background: radial-gradient(1200px 700px at 50% -10%, rgba(45, 242, 106, 0.22), transparent 60%),
+    radial-gradient(900px 600px at 85% 110%, rgba(0, 229, 255, 0.12), transparent 60%),
+    rgba(4, 8, 5, 0.95);
   backdrop-filter: blur(10px);
   display: grid; place-items: center;
   animation: lfade 0.25s ease;
