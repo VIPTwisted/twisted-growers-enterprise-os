@@ -2477,6 +2477,7 @@ function PlannerScreen({ go, session }) {
   const [events, setEvents] = useState(null);
   const [sel, setSel] = useState(null);
   const [rangeEnd, setRangeEnd] = useState(null);
+  const [detail, setDetail] = useState(null);
   const [planners, setPlanners] = useState([]);
   const [plan, setPlan] = useState(null);
   const [pform, setPform] = useState({ name: "", srcs: ["harvest", "shipment", "work_order", "expiry", "shift"], creating: false });
@@ -2512,13 +2513,13 @@ function PlannerScreen({ go, session }) {
       allowed("shift") ? supabase.from("employee_schedules").select("work_date,zone,status").gte("work_date", start).lte("work_date", end) : none,
     ]).then(([h, hp, s, w, x, es]) => {
       const ev = {};
-      const add = (date, type, label, drill, color) => { if (!date) return; (ev[date] = ev[date] ?? []).push({ type, label, drill, color }); };
-      (h.data ?? []).forEach((r) => add(r.harvest_date, "Harvest", `${r.cultivar ?? "Harvest"} · ${r.flower_room ?? "room TBD"}`, "harvest_schedule", "#5cff92"));
-      (hp.data ?? []).forEach((r) => add(r.harvest_date, "Harvest", `Pull #${r.pull_no} · ${r.flower_room} — ${r.cultivars ?? ""}`, "harvest_pulls", "#5cff92"));
-      (s.data ?? []).forEach((r) => add(r.scheduled_ship_on, "Shipment", `${r.shipment_code ?? ""} · ${r.status ?? ""}`, "shipping", "#e2bd63"));
-      (w.data ?? []).forEach((r) => add(r.planned_start, "Work order", `${r.wo_code ?? ""} · ${r.status ?? ""}`, "work_orders", "#ffea00"));
-      (x.data ?? []).forEach((r) => add(r.expiration_date, "Expiry", r.strain_flavor ?? r.production_batch ?? "lot", "inv_summary", "#ff8a00"));
-      (es.data ?? []).forEach((r) => add(r.work_date, "Shift", `${r.zone ?? "—"} · ${r.status}`, "emp_schedule", "#57a9ff"));
+      const add = (date, type, label, drill, color, row) => { if (!date) return; (ev[date] = ev[date] ?? []).push({ type, label, drill, color, row }); };
+      (h.data ?? []).forEach((r) => add(r.harvest_date, "Harvest", `${r.cultivar ?? "Harvest"} · ${r.flower_room ?? "room TBD"}`, "harvest_schedule", "#5cff92", r));
+      (hp.data ?? []).forEach((r) => add(r.harvest_date, "Harvest", `Pull #${r.pull_no} · ${r.flower_room} — ${r.cultivars ?? ""}`, "harvest_pulls", "#5cff92", r));
+      (s.data ?? []).forEach((r) => add(r.scheduled_ship_on, "Shipment", `${r.shipment_code ?? ""} · ${r.status ?? ""}`, "shipping", "#e2bd63", r));
+      (w.data ?? []).forEach((r) => add(r.planned_start, "Work order", `${r.wo_code ?? ""} · ${r.status ?? ""}`, "work_orders", "#ffea00", r));
+      (x.data ?? []).forEach((r) => add(r.expiration_date, "Expiry", r.strain_flavor ?? r.production_batch ?? "lot", "inv_summary", "#ff8a00", r));
+      (es.data ?? []).forEach((r) => add(r.work_date, "Shift", `${r.zone ?? "—"} · ${r.status}`, "emp_schedule", "#57a9ff", r));
       setEvents(ev);
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -2591,13 +2592,45 @@ function PlannerScreen({ go, session }) {
                   }}>
                   <span className="caldate">{d}</span>
                   {list.slice(0, 3).map((e, j) => (
-                    <span key={j} className="calev" style={{ borderLeftColor: e.color }} title={`${e.type}: ${e.label}`}>{e.label}</span>
+                    <span key={j} className="calev clickable" style={{ borderLeftColor: e.color }}
+                      title={`${e.type}: ${e.label} — click for the complete record`}
+                      onClick={(ce) => { ce.stopPropagation(); setDetail({ ...e, date: k }); }}>{e.label}</span>
                   ))}
                   {list.length > 3 && <span className="calmore">+{list.length - 3} more</span>}
                 </button>
               );
             })}
           </div>
+          {detail && (
+            <div className="vedrawerwrap" onClick={() => setDetail(null)}>
+              <div className="vedrawer" onClick={(e) => e.stopPropagation()}>
+                <div className="srhead">
+                  <span className="srtitle">{detail.type} detail</span>
+                  <button className="btn small ghost" onClick={() => setDetail(null)}>✕</button>
+                </div>
+                <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", margin: "6px 0" }}>
+                  <span className="vegchip" style={{ background: detail.color, color: "#07130b" }}>{detail.type}</span>
+                  <span className="note">{new Date(detail.date + "T12:00:00").toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" })}</span>
+                </div>
+                <div style={{ fontFamily: '"Figtree", sans-serif', fontSize: 16, fontWeight: 700, margin: "4px 0 10px" }}>{detail.label}</div>
+                {detail.row && (
+                  <div className="tablewrap"><table><tbody>
+                    {Object.entries(detail.row)
+                      .filter(([k, v]) => v !== null && v !== "" && k !== "id" && !k.endsWith("_id"))
+                      .map(([k, v]) => (
+                        <tr key={k}>
+                          <td className="note" style={{ textTransform: "capitalize", whiteSpace: "nowrap" }}>{k.replaceAll("_", " ")}</td>
+                          <td>{typeof v === "object" ? JSON.stringify(v) : String(v)}</td>
+                        </tr>
+                      ))}
+                  </tbody></table></div>
+                )}
+                <button className="btn" style={{ marginTop: 12 }} onClick={() => { const d = detail.drill; setDetail(null); go(d); }}>
+                  Open the full {detail.type.toLowerCase()} page
+                </button>
+              </div>
+            </div>
+          )}
           {sel && (() => {
             const days = Object.keys(events).filter((d) => (rangeEnd ? d >= sel && d <= rangeEnd : d === sel)).sort();
             const total = days.reduce((a, d) => a + (events[d] ?? []).length, 0);
@@ -2619,7 +2652,7 @@ function PlannerScreen({ go, session }) {
                   <div key={d}>
                     {rangeEnd && <div className="note" style={{ margin: "10px 0 4px", fontWeight: 700 }}>{new Date(d + "T12:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}</div>}
                     {(events[d] ?? []).map((e, i) => (
-                      <button key={i} className="bres" onClick={() => go(e.drill)} title="Open the source record">
+                      <button key={i} className="bres" onClick={() => setDetail({ ...e, date: d })} title="Open the complete record">
                         <span className="brl" style={{ color: e.color }}>{e.type}</span>
                         <span className="brs">{e.label}</span><span className="bra">{I.caret}</span>
                       </button>
