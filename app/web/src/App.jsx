@@ -2277,6 +2277,23 @@ export default function App() {
       setListening(true); r.start();
     } catch { setListening(false); }
   };
+  const [avatarUrl, setAvatarUrl] = useState(null);
+  const fileRef = React.useRef(null);
+  useEffect(() => {
+    if (!session?.user?.id) return;
+    supabase.from("user_settings").select("avatar_url").eq("user_id", session.user.id).maybeSingle()
+      .then(({ data }) => setAvatarUrl(data?.avatar_url ?? null));
+  }, [session?.user?.id]);
+  const uploadAvatar = async (e) => {
+    const f = e.target.files?.[0];
+    if (!f || !session) return;
+    const path = `${session.user.id}-${Date.now()}.${(f.name.split(".").pop() || "png").toLowerCase()}`;
+    const { error } = await supabase.storage.from("avatars").upload(path, f, { upsert: true });
+    if (error) return;
+    const { data } = supabase.storage.from("avatars").getPublicUrl(path);
+    await supabase.from("user_settings").upsert({ user_id: session.user.id, avatar_url: data.publicUrl }, { onConflict: "user_id" });
+    setAvatarUrl(data.publicUrl);
+  };
   const [alertN, setAlertN] = useState(0);
   useEffect(() => {
     if (!session) return;
@@ -2362,12 +2379,18 @@ export default function App() {
           <button className="tibtn" title="Messages" onClick={() => setView("messages")}>{I.mail}</button>
           <button className="tibtn" title="Help & Support" onClick={() => setView("help")}>{I.help}</button>
           <div className="uwrap">
-            <button className="avatar" title={email} onClick={() => setUserMenu((v) => !v)}>{(email[0] ?? "T").toUpperCase()}</button>
+            <input ref={fileRef} type="file" accept="image/*" style={{ display: "none" }} onChange={uploadAvatar} />
+            <button className="avatar" title={email} onClick={() => setUserMenu((v) => !v)}>
+              {avatarUrl ? <img src={avatarUrl} alt="" /> : (email[0] ?? "T").toUpperCase()}
+            </button>
             {userMenu && (
               <div className="umenu" onMouseLeave={() => setUserMenu(false)}>
                 <div className="uhead">
-                  <div className="uav">{(email[0] ?? "T").toUpperCase()}</div>
-                  <div><div className="uname">Signed in</div><div className="umail">{email}</div></div>
+                  <button className="uav" title="Change profile photo" onClick={() => fileRef.current?.click()}>
+                    {avatarUrl ? <img src={avatarUrl} alt="" /> : (email[0] ?? "T").toUpperCase()}
+                  </button>
+                  <div><div className="uname">Signed in</div><div className="umail">{email}</div>
+                    <button className="uphoto" onClick={() => fileRef.current?.click()}>Upload photo</button></div>
                 </div>
                 <div className="usep" />
                 <div className="ulabel">Theme</div>
