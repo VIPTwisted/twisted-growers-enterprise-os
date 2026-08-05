@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback } from "react";
+import jsQR from "jsqr";
 import { supabase, FUNCTIONS_URL } from "./lib/supabase.js";
 
 // Law #2: every number computed from live records. Law #3: no fake data — honest
@@ -102,6 +103,56 @@ function ControlTower() {
   );
 }
 
+function QrDecode({ onDecoded }) {
+  const [msg, setMsg] = useState(null);
+
+  const decode = useCallback(async (blob) => {
+    try {
+      const bmp = await createImageBitmap(blob);
+      const c = document.createElement("canvas");
+      c.width = bmp.width; c.height = bmp.height;
+      const x = c.getContext("2d");
+      x.drawImage(bmp, 0, 0);
+      const d = x.getImageData(0, 0, c.width, c.height);
+      const hit = jsQR(d.data, d.width, d.height);
+      if (hit && hit.data) {
+        onDecoded(hit.data.trim());
+        setMsg({ kind: "ok", text: "Square decoded — its hidden text is now in the vendor key field below. Review it, then Store securely." });
+      } else {
+        setMsg({ kind: "err", text: "No readable square found in that image. Snip tighter — include all four corners of the square — and paste again." });
+      }
+    } catch {
+      setMsg({ kind: "err", text: "That didn't look like an image. Snip with Win+Shift+S, then press Ctrl+V on this screen." });
+    }
+  }, [onDecoded]);
+
+  useEffect(() => {
+    const onPaste = (e) => {
+      const item = [...(e.clipboardData?.items ?? [])].find((i) => i.type.startsWith("image/"));
+      if (item) { e.preventDefault(); decode(item.getAsFile()); }
+    };
+    window.addEventListener("paste", onPaste);
+    return () => window.removeEventListener("paste", onPaste);
+  }, [decode]);
+
+  return (
+    <div className="panel" style={{ marginBottom: 16, borderStyle: "dashed" }}>
+      <b>Square-code (QR) decoder</b>
+      <div className="note" style={{ marginTop: 6 }}>
+        Snip the square on the Metrc page with <b>Win + Shift + S</b>, come back here, and press{" "}
+        <b>Ctrl + V</b>. Decoding happens entirely inside your browser — the image and its
+        contents go nowhere else. Or{" "}
+        <label style={{ color: "var(--accent)", cursor: "pointer", textDecoration: "underline" }}>
+          choose an image file
+          <input type="file" accept="image/*" style={{ display: "none" }}
+            onChange={(e) => e.target.files?.[0] && decode(e.target.files[0])} />
+        </label>.
+      </div>
+      {msg && <div className={`msg ${msg.kind}`}>{msg.text}</div>}
+    </div>
+  );
+}
+
 function Integrations({ session }) {
   const [status, setStatus] = useState(null);
   const [form, setForm] = useState({ METRC_LICENSES: "", METRC_VENDOR_KEYS: "", METRC_USER_KEY: "", METRC_STATE: "ma" });
@@ -167,6 +218,7 @@ function Integrations({ session }) {
     <>
       <h1>Integrations</h1>
       <div className="sub">Credentials are configuration — stored server-side in your own database, write-only from here, rotatable anytime. Values are never shown back.</div>
+      <QrDecode onDecoded={(v) => setForm((f) => ({ ...f, METRC_VENDOR_KEYS: v }))} />
       <form className="panel" onSubmit={save}>
         <label>Metrc licenses (comma-separated, cultivation first) {isSet("METRC_LICENSES") && <span className="pill ok">set</span>}</label>
         <input value={form.METRC_LICENSES} onChange={(e) => setForm({ ...form, METRC_LICENSES: e.target.value })} placeholder={isSet("METRC_LICENSES") ? "•••••• (stored — paste to replace)" : "e.g. MC…, MP…"} />
