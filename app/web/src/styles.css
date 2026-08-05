@@ -5,16 +5,19 @@
    universal topbar · dynamic categorized navigation.
    ============================================================ */
 :root, :root[data-theme="dark"] {
-  --canvas: #0a0c0b;
+  --canvas: #071009;
   --canvas-glow:
-    linear-gradient(180deg, rgba(10, 12, 11, 0) 0%, rgba(10, 12, 11, 0.82) 26%, #0a0c0b 44%),
+    linear-gradient(180deg, rgba(7, 16, 9, 0) 0%, rgba(7, 16, 9, 0.72) 30%, #071009 52%),
     linear-gradient(100deg,
-      rgba(45, 242, 106, 0.16) 0%,
-      rgba(184, 242, 45, 0.11) 26%,
-      rgba(255, 234, 0, 0.09) 48%,
-      rgba(87, 169, 255, 0.13) 76%,
-      rgba(45, 242, 106, 0.10) 100%),
-    radial-gradient(1100px 500px at 90% -10%, rgba(45, 242, 106, 0.06), transparent 60%),
+      rgba(45, 242, 106, 0.34) 0%,
+      rgba(184, 242, 45, 0.24) 26%,
+      rgba(255, 234, 0, 0.18) 48%,
+      rgba(87, 169, 255, 0.26) 76%,
+      rgba(45, 242, 106, 0.22) 100%),
+    repeating-linear-gradient(0deg, rgba(45, 242, 106, 0.016) 0 1px, transparent 1px 44px),
+    repeating-linear-gradient(90deg, rgba(45, 242, 106, 0.014) 0 1px, transparent 1px 44px),
+    radial-gradient(1100px 500px at 90% -10%, rgba(45, 242, 106, 0.09), transparent 60%),
+    radial-gradient(1000px 600px at 50% 115%, rgba(45, 242, 106, 0.07), transparent 62%),
     radial-gradient(900px 500px at -10% 110%, rgba(232, 196, 104, 0.04), transparent 55%);
   --surface: #111513;
   --surface-2: #181d1a;
@@ -30,7 +33,7 @@
   --gold: #e2bd63;
   --gold-soft: rgba(232, 196, 104, 0.12);
   --blue: #57a9ff;   --blue-soft: rgba(87, 169, 255, 0.12);
-  --violet: #a48bff; --violet-soft: rgba(164, 139, 255, 0.13);
+  --violet: #2df26a; --violet-soft: rgba(45, 242, 106, 0.13);
   --red: #ff2e5f;    --red-soft: rgba(255, 46, 95, 0.13);
   --amber: #ffea00;  --amber-soft: rgba(255, 234, 0, 0.1);
   --alert-watch: #ffea00;
@@ -80,7 +83,7 @@
   --gold: #9c7a1e;
   --gold-soft: rgba(156, 122, 30, 0.11);
   --blue: #2673c4;   --blue-soft: rgba(38, 115, 196, 0.09);
-  --violet: #6b4de8; --violet-soft: rgba(107, 77, 232, 0.09);
+  --violet: #0f9e4c; --violet-soft: rgba(15, 158, 76, 0.09);
   --red: #f01b50;    --red-soft: rgba(240, 27, 80, 0.09);
   --amber: #d4b800;  --amber-soft: rgba(212, 184, 0, 0.12);
   --alert-watch: #d4b800;
@@ -718,10 +721,10 @@ button.teamcard:hover { border-color: var(--neon-line); }
 @keyframes lrise { from { transform: translateY(26px) scale(0.97); opacity: 0; } to { transform: none; opacity: 1; } }
 .lhead { display: flex; align-items: center; gap: 16px; margin-bottom: 26px; color: #fff; }
 .lhead img { width: 52px; height: 52px; border-radius: 50%; filter: drop-shadow(0 0 22px rgba(164, 139, 255, 0.65)); }
-.lhead .lt { font-family: "Space Grotesk", sans-serif; font-size: 26px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; background: linear-gradient(90deg, #c3b1ff, #7fd4ff); -webkit-background-clip: text; background-clip: text; color: transparent; }
-.lhead .ls { font-size: 13px; color: #b8b0d8; margin-top: 2px; }
+.lhead .lt { font-family: "Space Grotesk", sans-serif; font-size: 26px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; background: linear-gradient(90deg, #5cff92, #7fd4ff); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.lhead .ls { font-size: 13px; color: #9aa69f; margin-top: 2px; }
 .lhead > div { flex: 1; }
-.lhead .btn.ghost { border-color: rgba(164, 139, 255, 0.4); color: #c3b1ff; }
+.lhead .btn.ghost { border-color: rgba(45, 242, 106, 0.4); color: #5cff92; }
 .lgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px; }
 .lapp {
   display: flex; flex-direction: column; gap: 6px; text-align: left; cursor: pointer;
@@ -730,45 +733,14 @@ button.teamcard:hover { border-color: var(--neon-line); }
   animation: lrise 0.4s cubic-bezier(0.2, 0.9, 0.3, 1) both; animation-delay: var(--d);
   transition: transform 0.15s, border-color 0.15s, background 0.15s;
 }
-.lapp:hover { transform: translateY(-3px); border-color: #a48bff; background: rgba(164, 139, 255, 0.12); }
-.lapp .li svg { width: 22px; height: 22px; color: #c3b1ff; }
+.lapp:hover { transform: translateY(-3px); border-color: #2df26a; background: rgba(45, 242, 106, 0.12); }
+.lapp .li svg { width: 22px; height: 22px; color: #5cff92; }
 .lapp .ln { font-family: "Space Grotesk", sans-serif; font-size: 15px; font-weight: 700; }
-.lapp .ld { font-size: 11.5px; color: #b8b0d8; }
-.launchbtn:hover { color: #a48bff !important; }
+.lapp .ld { font-size: 11.5px; color: #9aa69f; }
+.launchbtn:hover { color: #5cff92 !important; }
 
-/* Realm switch: workspace views live in violet, ops stays neon green */
-:root[data-realm="work"], :root[data-realm="work"][data-theme="dark"] {
-  --neon: #a48bff;
-  --neon-hi: #c3b1ff;
-  --neon-ink: #14082b;
-  --neon-soft: rgba(164, 139, 255, 0.13);
-  --neon-line: rgba(164, 139, 255, 0.38);
-  --glow: 0 0 16px rgba(164, 139, 255, 0.35);
-  --row-hover: rgba(164, 139, 255, 0.05);
-  --rail-border: rgba(164, 139, 255, 0.16);
-  --rail-active-bg: linear-gradient(120deg, #c3b1ff, #7f5cf0);
-  --rail-active-ink: #14082b;
-  --rail-active-glow: 0 0 20px rgba(164, 139, 255, 0.35);
-  --canvas-glow:
-    radial-gradient(1100px 500px at 90% -10%, rgba(164, 139, 255, 0.09), transparent 60%),
-    radial-gradient(900px 500px at -10% 110%, rgba(127, 212, 255, 0.05), transparent 55%);
-}
-:root[data-realm="work"][data-theme="light"] {
-  --neon: #6b4de8;
-  --neon-hi: #8467f0;
-  --neon-ink: #f4f0ff;
-  --neon-soft: rgba(107, 77, 232, 0.10);
-  --neon-line: rgba(107, 77, 232, 0.38);
-  --glow: 0 3px 12px rgba(107, 77, 232, 0.28);
-  --row-hover: rgba(107, 77, 232, 0.05);
-  --rail-border: #e6e2f5;
-  --rail-active-bg: rgba(107, 77, 232, 0.12);
-  --rail-active-ink: #5636d6;
-  --rail-active-glow: none;
-  --canvas-glow:
-    linear-gradient(180deg, rgba(253, 254, 255, 0) 0%, rgba(253, 254, 255, 0.72) 24%, #fdfeff 40%),
-    linear-gradient(100deg, rgba(107, 77, 232, 0.22) 0%, rgba(127, 92, 240, 0.18) 40%, rgba(38, 115, 196, 0.20) 78%, rgba(107, 77, 232, 0.16) 100%);
-}
+/* Realm switch REMOVED 2026-08-05 by owner order: neon green is the brand,
+   sitewide, in every section. No violet anywhere, ever. */
 
 /* Chat v1 */
 .chatwrap { display: flex; gap: 14px; height: calc(100vh - 230px); min-height: 420px; }
@@ -807,3 +779,67 @@ button.teamcard:hover { border-color: var(--neon-line); }
 .topnav .tuser .avatar img, .umenu .uav img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }
 .umenu .uav { border: none; cursor: pointer; padding: 0; overflow: hidden; }
 .uphoto { background: none; border: none; color: var(--neon); font-size: 11px; font-weight: 700; cursor: pointer; padding: 2px 0 0; font-family: inherit; }
+
+/* Sync results report */
+.syncreport { position: fixed; inset: 0; z-index: 180; background: rgba(0, 0, 0, 0.55); display: grid; place-items: center; }
+.srcard { width: min(640px, 92vw); max-height: 82vh; overflow-y: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 18px; box-shadow: var(--shadow-lg); }
+.srhead { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+.srtitle { font-family: "Space Grotesk", sans-serif; font-weight: 700; font-size: 15px; letter-spacing: 0.04em; text-transform: uppercase; }
+.srsource { border-top: 1px solid var(--line); padding: 12px 0; }
+.srverdict { display: flex; align-items: center; gap: 10px; font-size: 14px; }
+.srverdict svg { width: 18px; height: 18px; }
+.srverdict.ok svg { color: var(--neon); }
+.srverdict.bad svg { color: #ff2e5f; }
+.srverdict span { color: var(--muted); font-size: 12.5px; }
+.srverdict em { margin-left: auto; font-style: normal; font-weight: 700; font-variant-numeric: tabular-nums; }
+.srlist { margin: 8px 0 0 28px; }
+.srlist .srlabel { font-size: 10px; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); margin-bottom: 3px; }
+.srlist.warn .srlabel { color: var(--alert-elevated); }
+.srlist.bad .srlabel { color: #ff2e5f; }
+.srline { font-size: 12px; color: var(--ink-2); font-family: ui-monospace, monospace; padding: 1px 0; word-break: break-word; }
+
+/* Go-Live Tracker */
+.glmeter { display: flex; align-items: center; gap: 12px; }
+.glpct { font-family: "Space Grotesk", sans-serif; font-size: 30px; font-weight: 700; color: var(--neon); font-variant-numeric: tabular-nums; }
+.glbarw { width: 180px; height: 8px; background: var(--surface-2); border: 1px solid var(--line); border-radius: 99px; overflow: hidden; }
+.glbar { display: block; height: 100%; background: linear-gradient(90deg, var(--neon), var(--neon-hi)); transition: width 0.4s; }
+.glist { display: flex; flex-direction: column; gap: 6px; }
+.glrow { display: flex; align-items: flex-start; gap: 10px; padding: 10px 12px; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; }
+.glrow.done { opacity: 0.55; }
+.glstatus { flex: 0 0 auto; min-width: 92px; text-align: center; font-size: 10px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; padding: 5px 8px; border-radius: 99px; border: 1px solid var(--line); background: var(--surface-2); color: var(--muted); cursor: pointer; }
+.glstatus:disabled { cursor: default; }
+.glstatus.in_progress { color: var(--blue); border-color: var(--blue); background: var(--blue-soft); }
+.glstatus.blocked { color: var(--red); border-color: var(--red); background: var(--red-soft); }
+.glstatus.done { color: var(--neon); border-color: var(--neon-line); background: var(--neon-soft); }
+.glprio { flex: 0 0 auto; font-size: 10px; font-weight: 800; padding: 5px 7px; border-radius: 4px; background: var(--surface-2); color: var(--muted); }
+.glprio.P0 { color: var(--red); background: var(--red-soft); }
+.glprio.P1 { color: var(--amber); background: var(--amber-soft); }
+.gltitle { font-weight: 600; font-size: 13.5px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.glowner { font-size: 9px; font-weight: 800; letter-spacing: 0.1em; padding: 2px 6px; border-radius: 3px; background: var(--gold-soft); color: var(--gold); }
+.gldetail { font-size: 12px; color: var(--muted); margin-top: 2px; }
+
+/* Dashboards v2 widget cards */
+.dwc { position: relative; padding: 0; }
+.dwc .dwbody { all: unset; box-sizing: border-box; display: flex; flex-direction: column; gap: 6px; width: 100%; padding: 14px; cursor: pointer; }
+.dwx { position: absolute; top: 6px; right: 6px; z-index: 2; width: 20px; height: 20px; line-height: 1; border: 1px solid var(--line); border-radius: 50%; background: var(--surface-2); color: var(--muted); font-size: 13px; cursor: pointer; }
+.dwx:hover { color: var(--red); border-color: var(--red); }
+
+/* Settings profile photo */
+.uav.big { width: 64px; height: 64px; flex: 0 0 auto; border-radius: 50%; overflow: hidden; display: grid; place-items: center; background: var(--surface-2); border: 1px solid var(--line); }
+.uav.big img { width: 100%; height: 100%; object-fit: cover; }
+
+/* HARD LOCK: side menu + top bar never leave neon green, in any realm or theme.
+   Realm violet applies to workspace CONTENT only — the rail is the brand. */
+:root[data-realm="work"] .nav, :root[data-realm="work"] .topnav {
+  --neon: #2df26a;
+  --neon-hi: #5cff92;
+  --neon-ink: #051509;
+  --neon-soft: rgba(45, 242, 106, 0.11);
+  --neon-line: rgba(45, 242, 106, 0.33);
+  --glow: 0 0 16px rgba(45, 242, 106, 0.35);
+  --rail-border: rgba(45, 242, 106, 0.13);
+  --rail-active-bg: linear-gradient(120deg, #5cff92, #12d05c);
+  --rail-active-ink: #051509;
+  --rail-active-glow: 0 0 20px rgba(45, 242, 106, 0.35);
+  --row-hover: rgba(45, 242, 106, 0.045);
+}

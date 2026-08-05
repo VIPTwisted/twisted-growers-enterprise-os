@@ -818,7 +818,7 @@ const TODAY_BOARDS = [
         .gte("scheduled_ship_on", todayISO()).order("scheduled_ship_on").limit(4);
       return { n: count ?? 0, unit: "scheduled from today", lines: (data ?? []).map((r) => [r.shipment_code ?? "shipment", `${r.scheduled_ship_on ?? ""} · ${r.status ?? "—"}`]) };
     } },
-  { key: "sched", title: "Employee Schedule Today", drill: "emp_schedule", color: "#b026ff", icon: "users",
+  { key: "sched", title: "Employee Schedule Today", drill: "emp_schedule", color: "#57a9ff", icon: "users",
     load: async () => {
       const { data, count } = await supabase.from("employee_schedules")
         .select("zone,status,employees(full_name)", { count: "exact" }).eq("work_date", todayISO()).limit(4);
@@ -873,6 +873,8 @@ const SYNC_SOURCES = [
     desc: "Packages, plants, harvests, batches, transfers, items, strains, locations — full history." },
   { key: "sheet_fg", label: "Finished-Goods Google Sheet", fn: "sheet-sync", live: true,
     desc: "All nine product tabs + 3rd-party material, exactly as the team keeps them." },
+  { key: "harvest_cal", label: "8-Week Harvest Calendar", fn: null, live: false,
+    desc: "Loaded from the .xlsm on Aug 5 (26 pulls, 141 cultivar rows, 2-day SOP, labor calc). Share the workbook as a Google Sheet to turn on one-button re-sync." },
   { key: "quickbooks", label: "QuickBooks Online", fn: null, live: false,
     desc: "Invoices, payments, expenses, customers — connects once Intuit app keys are stored." },
   { key: "monday", label: "Monday.com", fn: null, live: false,
@@ -880,29 +882,47 @@ const SYNC_SOURCES = [
   { key: "clickup", label: "ClickUp", fn: null, live: false,
     desc: "Import/sync tasks, docs, and spaces from a ClickUp workspace — connects once an API token is stored." },
 ];
+function parseSyncResponse(src, j) {
+  const item = { label: src.label, ok: !!j.ok, total: 0, details: [], skipped: [], errors: [] };
+  if (!j.ok) { item.errors.push(j.error ?? "Unknown error"); return item; }
+  if (typeof j.total === "number") item.total = j.total;
+  for (const [k, v] of Object.entries(j.results ?? {})) {
+    if (k.startsWith("_")) continue;
+    const s = Array.isArray(v) ? v.join("; ") : String(v);
+    if (/^ERROR/i.test(s)) { item.errors.push(`${k}: ${s.slice(0, 160)}`); continue; }
+    if (/skipped/i.test(s)) { item.skipped.push(`${k}: ${s.slice(0, 160)}`); continue; }
+    if (/sub-state errors/i.test(s)) item.skipped.push(`${k}: ${s.slice(0, 160)}`);
+    const m = s.match(/^(\d+)/);
+    if (m) item.total += Number(m[1]);
+    else if (typeof v === "number") item.total += v;
+    item.details.push(`${k}: ${s.slice(0, 160)}`);
+  }
+  if (item.errors.length && !item.details.length) item.ok = false;
+  return item;
+}
 function SyncCenter({ session }) {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(null);
-  const [out, setOut] = useState({});
-  const run = async (src) => {
-    if (!src.fn) return;
-    setBusy(src.key);
-    setOut((o) => ({ ...o, [src.key]: "Running…" }));
+  const [report, setReport] = useState(null);
+  const runOne = async (src) => {
     try {
       const r = await fetch(`${FUNCTIONS_URL}/${src.fn}`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
       });
-      const j = await r.json();
-      setOut((o) => ({ ...o, [src.key]: j.ok
-        ? `Done — ${j.total ?? Object.entries(j.results ?? {}).map(([k, v]) => `${k}: ${v}`).join(", ")}${j.total ? " records" : ""}`
-        : `Failed: ${j.error ?? "unknown error"}` }));
+      return parseSyncResponse(src, await r.json());
     } catch (e) {
-      setOut((o) => ({ ...o, [src.key]: `Failed: ${String(e)}` }));
+      return { label: src.label, ok: false, total: 0, details: [], skipped: [], errors: [String(e).slice(0, 160)] };
     }
-    setBusy(null);
   };
-  const runAll = async () => { for (const s of SYNC_SOURCES.filter((x) => x.live)) await run(s); };
+  const run = async (sources) => {
+    setBusy(true);
+    const items = [];
+    for (const s of sources) items.push(await runOne(s));
+    setBusy(false);
+    setOpen(false);
+    setReport({ when: new Date().toLocaleTimeString(), items });
+  };
   return (
     <div className="syncwrap">
       <button className="btn syncbtn" onClick={() => setOpen((v) => !v)}>{I.plug} Sync</button>
@@ -911,7 +931,9 @@ function SyncCenter({ session }) {
           <div className="sphead">
             <span>Sync Center</span>
             <span style={{ display: "flex", gap: 8 }}>
-              <button className="btn small" disabled={busy !== null} onClick={runAll}>Sync all</button>
+              <button className="btn small" disabled={busy} onClick={() => run(SYNC_SOURCES.filter((x) => x.live))}>
+                {busy ? "Syncing…" : "Sync all"}
+              </button>
               <button className="btn small ghost" onClick={() => setOpen(false)} title="Close">✕</button>
             </span>
           </div>
@@ -919,13 +941,51 @@ function SyncCenter({ session }) {
             <div key={s.key} className="sprow">
               <div className="spmain">
                 <div className="spname">{s.label}{!s.live && <span className="mtag">SOON</span>}</div>
-                <div className="spdesc">{out[s.key] ?? s.desc}</div>
+                <div className="spdesc">{busy && s.live ? "Syncing — results will open when finished…" : s.desc}</div>
               </div>
-              <button className="btn small" disabled={!s.live || busy !== null} onClick={() => run(s)}>
-                {busy === s.key ? "…" : "Sync"}
+              <button className="btn small" disabled={!s.live || busy} onClick={() => run([s])}>
+                {busy ? "…" : "Sync"}
               </button>
             </div>
           ))}
+        </div>
+      )}
+      {report && (
+        <div className="syncreport" onClick={() => setReport(null)}>
+          <div className="srcard" onClick={(e) => e.stopPropagation()}>
+            <div className="srhead">
+              <span className="srtitle">Sync results · {report.when}</span>
+              <button className="btn small ghost" onClick={() => setReport(null)}>✕</button>
+            </div>
+            {report.items.map((it) => (
+              <div key={it.label} className="srsource">
+                <div className={`srverdict ${it.ok ? "ok" : "bad"}`}>
+                  {it.ok ? I.check : I.shield}
+                  <b>{it.label}</b>
+                  <span>{it.ok ? "Sync successful" : "Sync failed"}</span>
+                  <em>{it.total.toLocaleString()} item{it.total === 1 ? "" : "s"} synced</em>
+                </div>
+                {it.details.length > 0 && (
+                  <div className="srlist">
+                    {it.details.map((d, i) => <div key={i} className="srline">{d}</div>)}
+                  </div>
+                )}
+                {it.skipped.length > 0 && (
+                  <div className="srlist warn">
+                    <div className="srlabel">Skipped / partial</div>
+                    {it.skipped.map((d, i) => <div key={i} className="srline">{d}</div>)}
+                  </div>
+                )}
+                {it.errors.length > 0 && (
+                  <div className="srlist bad">
+                    <div className="srlabel">Errors</div>
+                    {it.errors.map((d, i) => <div key={i} className="srline">{d}</div>)}
+                  </div>
+                )}
+              </div>
+            ))}
+            <button className="btn" style={{ marginTop: 12 }} onClick={() => setReport(null)}>Done</button>
+          </div>
         </div>
       )}
     </div>
@@ -1041,7 +1101,7 @@ const BRAIN_ROLES = ["Owner / CEO", "COO / Operations", "CFO / Finance", "Cultiv
 const BRAIN_ORBIT = [
   { icon: "leafline", label: "Cultivation" }, { icon: "box", label: "Inventory" },
   { icon: "flask", label: "Testing" }, { icon: "truck", label: "Transfers" },
-  { icon: "dollar", label: "Cash" }, { icon: "users", label: "People" },
+  { icon: "dollar", label: "Cash" }, { icon: "users", label: "Human Resources" },
   { icon: "shield", label: "Compliance" }, { icon: "clock", label: "Schedules" },
 ];
 /* eslint-disable react-hooks/exhaustive-deps */
@@ -1055,7 +1115,7 @@ const BRAIN_FINDERS = [
   { key: "harvest", label: "Harvest calendar", drill: "harvest_schedule",
     run: (q) => supabase.from("harvest_schedule").select("cultivar,flower_room,harvest_date").ilike("cultivar", `%${q}%`).limit(5),
     line: (r) => [r.cultivar, `${r.flower_room ?? ""} · ${r.harvest_date}`] },
-  { key: "people", label: "People", drill: "people",
+  { key: "people", label: "Human Resources", drill: "people",
     run: (q) => supabase.from("employees").select("full_name,employee_code").ilike("full_name", `%${q}%`).limit(5),
     line: (r) => [r.full_name, r.employee_code] },
   { key: "plants", label: "Metrc plants", drill: "metrc_mirror",
@@ -1405,100 +1465,260 @@ const count = (t, mod) => async () => {
   return c ?? 0;
 };
 const in30 = () => new Date(Date.now() + 30 * 864e5).toISOString().slice(0, 10);
-const DASH_TEMPLATES = [
-  { key: "exec", title: "Executive Overview", desc: "Compliance, cash, and the whole operation at a glance", widgets: [
-    { t: "Open P0 actions", drill: "action_register", icon: "shield", load: count("actions_register", (q) => q.eq("status", "open").eq("priority", "P0")) },
-    { t: "Metrc packages", drill: "metrc_mirror", icon: "box", load: count("metrc_packages") },
-    { t: "Plants in the rooms", drill: "metrc_mirror", icon: "leafline", load: count("metrc_plants") },
-    { t: "Finished-goods lots", drill: "fg_inventory", icon: "box", load: count("product_inventory") },
-    { t: "Expiring within 30d", drill: "inv_summary", icon: "clock", load: count("product_inventory", (q) => q.lt("expiration_date", in30())) },
-    { t: "Harvest events next 30d", drill: "harvest_schedule", icon: "leafline", load: count("harvest_schedule", (q) => q.gte("harvest_date", todayISO()).lte("harvest_date", in30())) },
-  ] },
-  { key: "cultivation", title: "Cultivation", desc: "Rooms, plants, cadence, and plan vs actual", widgets: [
-    { t: "Plants (Metrc)", drill: "metrc_mirror", icon: "leafline", load: count("metrc_plants") },
-    { t: "Harvests recorded", drill: "harvest_recon", icon: "scale", load: count("metrc_harvests") },
-    { t: "Calendar events ahead", drill: "harvest_schedule", icon: "clock", load: count("harvest_schedule", (q) => q.gte("harvest_date", todayISO())) },
-    { t: "Cadence violations", drill: "harvest_schedule", icon: "shield", load: count("harvest_schedule", (q) => q.like("room_cycle_flag", "%VIOLATION%")) },
-    { t: "Missing in Metrc", drill: "harvest_recon", icon: "shield", load: count("v_harvest_reconciliation", (q) => q.eq("reconciliation", "MISSING IN METRC")) },
-  ] },
-  { key: "inv_sales", title: "Inventory & Sales", desc: "What's sellable, aging, and moving", widgets: [
-    { t: "Finished-goods lots", drill: "fg_inventory", icon: "box", load: count("product_inventory") },
-    { t: "Ready To Ship", drill: "fg_inventory", icon: "check", load: count("product_inventory", (q) => q.eq("current_status", "Ready To Ship")) },
-    { t: "Expiring within 30d", drill: "inv_summary", icon: "clock", load: count("product_inventory", (q) => q.lt("expiration_date", in30())) },
-    { t: "3rd-party lots on site", drill: "third_party", icon: "truck", load: count("third_party_material") },
-    { t: "Transfer manifests", drill: "metrc_mirror", icon: "truck", load: count("metrc_transfers") },
-    { t: "Capital tied up", drill: "materials", icon: "dollar", load: count("v_material_aging", (q) => q.eq("aging_alert", "CAPITAL TIED UP")) },
-  ] },
-  { key: "hr", title: "HR & Labor", desc: "Headcount, schedules, exceptions, cost", widgets: [
-    { t: "Active employees", drill: "people", icon: "users", load: count("employees", (q) => q.is("terminated_on", null)) },
-    { t: "Scheduled today", drill: "emp_schedule", icon: "clock", load: count("employee_schedules", (q) => q.eq("work_date", todayISO())) },
-    { t: "Exceptions today", drill: "time", icon: "bell", load: count("time_entries", (q) => q.eq("work_date", todayISO()).not("exception_code", "is", null)) },
-    { t: "Weekly loaded payroll", drill: "plan_payroll", icon: "dollar", load: async () => {
-      const { data } = await supabase.from("v_payroll_forecast").select("loaded_weekly_cost");
-      return "$" + Math.round((data ?? []).reduce((a, r) => a + Number(r.loaded_weekly_cost ?? 0), 0)).toLocaleString();
-    } },
-  ] },
+const DASH_STARTERS = [
+  { name: "Executive Overview", keys: ["p0_actions", "golive_open", "metrc_pkgs", "metrc_plants", "fg_lots", "fg_expiring", "pulls_ahead", "payroll_wk"] },
+  { name: "Cultivation", keys: ["metrc_plants", "metrc_harvests", "pulls_ahead", "pulls_overdue", "cycle_viol", "cadence_viol", "sched_events"] },
+  { name: "Inventory & Sales", keys: ["fg_lots", "fg_rts", "fg_expiring", "tp_lots", "metrc_transfers", "cap_tied", "supply_types"] },
+  { name: "Human Resources & Labor", keys: ["emp_active", "emp_today", "time_exc", "payroll_wk"] },
 ];
+async function runWidget(w) {
+  const sub = (v) => (v === "$today" ? todayISO() : v === "$in30" ? in30() : v);
+  let q = supabase.from(w.table_ref);
+  q = w.agg === "sum" ? q.select(w.value_col) : q.select("*", { count: "exact", head: true });
+  for (const f of w.filters ?? []) {
+    if (f.op === "eq") q = q.eq(f.col, sub(f.val));
+    else if (f.op === "neq") q = q.neq(f.col, sub(f.val));
+    else if (f.op === "lt") q = q.lt(f.col, sub(f.val));
+    else if (f.op === "lte") q = q.lte(f.col, sub(f.val));
+    else if (f.op === "gte") q = q.gte(f.col, sub(f.val));
+    else if (f.op === "like") q = q.like(f.col, f.val);
+    else if (f.op === "is_null") q = q.is(f.col, null);
+    else if (f.op === "not_null") q = q.not(f.col, "is", null);
+  }
+  if (w.agg === "sum") {
+    const { data, error } = await q;
+    if (error) return "—";
+    const s = (data ?? []).reduce((a, r) => a + Number(r[w.value_col] ?? 0), 0);
+    return w.format === "usd" ? "$" + Math.round(s).toLocaleString() : Math.round(s).toLocaleString();
+  }
+  const { count, error } = await q;
+  return error ? "—" : count ?? 0;
+}
 function DashboardsScreen({ session, go }) {
-  const [tpl, setTpl] = useState(undefined);
+  const [boards, setBoards] = useState(null);
+  const [catalog, setCatalog] = useState([]);
+  const [active, setActive] = useState(null);
+  const [widgets, setWidgets] = useState([]);
   const [vals, setVals] = useState({});
+  const [adding, setAdding] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [name, setName] = useState("");
+  const [priv, setPriv] = useState(true);
+  const uid = session.user.id;
+  const loadBoards = () => supabase.from("dashboards").select("*").order("created_at").then(({ data }) => setBoards(data ?? []));
   useEffect(() => {
-    supabase.from("user_settings").select("dashboard_template").eq("user_id", session.user.id).maybeSingle()
-      .then(({ data }) => setTpl(data?.dashboard_template ?? null));
-  }, [session.user.id]);
-  const active = DASH_TEMPLATES.find((d) => d.key === tpl);
+    loadBoards();
+    supabase.from("widget_catalog").select("*").eq("enabled", true).order("category").then(({ data }) => setCatalog(data ?? []));
+  }, []);
+  const openBoard = async (b) => {
+    setActive(b); setVals({}); setAdding(false);
+    const { data } = await supabase.from("dashboard_widgets").select("*").eq("dashboard_id", b.id).order("position");
+    setWidgets(data ?? []);
+  };
   useEffect(() => {
     if (!active) return;
-    setVals({});
-    active.widgets.forEach((w) => w.load().then((v) => setVals((s) => ({ ...s, [w.t]: v }))));
+    for (const dw of widgets) {
+      const w = catalog.find((c) => c.key === dw.widget_key);
+      if (w) runWidget(w).then((v) => setVals((s) => ({ ...s, [dw.id]: v })));
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tpl]);
-  const choose = async (k) => {
-    setTpl(k);
-    await supabase.from("user_settings").upsert({ user_id: session.user.id, dashboard_template: k }, { onConflict: "user_id" });
+  }, [widgets, catalog, active?.id]);
+  const create = async (starter) => {
+    const { data, error } = await supabase.from("dashboards")
+      .insert({ name: starter ? starter.name : name.trim() || "My dashboard", is_private: priv, owner: uid })
+      .select().single();
+    if (error || !data) return;
+    if (starter) await supabase.from("dashboard_widgets").insert(starter.keys.map((k, i) => ({ dashboard_id: data.id, widget_key: k, position: i })));
+    setCreating(false); setName("");
+    await loadBoards();
+    openBoard(data);
   };
-  if (tpl === undefined) return <div className="empty"><div className="eicon">{I.gauge}</div>Loading…</div>;
+  const addWidget = async (key) => {
+    const { data } = await supabase.from("dashboard_widgets")
+      .insert({ dashboard_id: active.id, widget_key: key, position: widgets.length }).select().single();
+    if (data) setWidgets((s) => [...s, data]);
+  };
+  const removeWidget = async (dw) => {
+    setWidgets((s) => s.filter((x) => x.id !== dw.id));
+    await supabase.from("dashboard_widgets").delete().eq("id", dw.id);
+  };
+  const removeBoard = async () => {
+    if (!window.confirm(`Delete dashboard "${active.name}"? Its widgets go with it.`)) return;
+    await supabase.from("dashboards").delete().eq("id", active.id);
+    setActive(null); loadBoards();
+  };
+  if (boards === null) return <div className="empty"><div className="eicon">{I.gauge}</div>Loading…</div>;
   if (!active) return (
     <>
-      <div className="pagehead"><div><h1>Choose a Dashboard</h1>
-        <div className="sub">Pick a template and it builds itself from live records this second — or wait for the custom drag-drop builder in M4. Your choice saves to your account.</div></div></div>
-      <div className="teamgrid">
-        {DASH_TEMPLATES.map((d) => (
-          <button key={d.key} className="teamcard tplcard" onClick={() => choose(d.key)}>
-            <span className="tcname">{d.title}</span>
-            <span className="tpldesc">{d.desc}</span>
-            <span className="tccount">{d.widgets.length} live widgets</span>
-          </button>
-        ))}
-        <div className="teamcard tplcard dim">
-          <span className="tcname">Start from scratch <span className="mtag">M4</span></span>
-          <span className="tpldesc">Drag, drop, and resize your own widgets — arrives with dashboard layouts.</span>
-        </div>
+      <div className="pagehead">
+        <div><h1>Dashboards</h1>
+          <div className="sub">Private by default — share one and the whole company sees the same live numbers. Every widget computes this second and drills to its source.</div></div>
+        <button className="btn" onClick={() => setCreating((v) => !v)}>+ New dashboard</button>
       </div>
+      {creating && (
+        <div className="panel" style={{ maxWidth: "none", marginBottom: 14 }}>
+          <div className="ptitle">Start a dashboard</div>
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center", margin: "10px 0" }}>
+            <input className="in" placeholder="Name it…" value={name} onChange={(e) => setName(e.target.value)} />
+            <label className="note" style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
+              <input type="checkbox" checked={!priv} onChange={(e) => setPriv(!e.target.checked)} /> Share with everyone (private by default)
+            </label>
+            <button className="btn small" onClick={() => create(null)}>Create blank</button>
+          </div>
+          <div className="note">Or one click builds a company preset from live records:</div>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 8 }}>
+            {DASH_STARTERS.map((s) => (
+              <button key={s.name} className="btn small ghost" onClick={() => create(s)}>{s.name} · {s.keys.length} widgets</button>
+            ))}
+          </div>
+        </div>
+      )}
+      {boards.length === 0 && !creating ? (
+        <div className="empty"><div className="eicon">{I.gauge}</div><b>No dashboards yet</b>Create one — presets build themselves from your live records in one click.</div>
+      ) : (
+        <div className="teamgrid">
+          {boards.map((b) => (
+            <button key={b.id} className="teamcard tplcard" onClick={() => openBoard(b)}>
+              <span className="tcname">{b.name} {b.owner !== uid ? <span className="mtag">SHARED</span> : b.is_private ? <span className="mtag">PRIVATE</span> : <span className="mtag">SHARED BY YOU</span>}</span>
+              <span className="tpldesc">{b.owner === uid ? "Yours — open to view, edit widgets, or share." : "Shared company board — live view."}</span>
+            </button>
+          ))}
+        </div>
+      )}
     </>
   );
+  const mine = active.owner === uid;
   return (
     <>
       <div className="pagehead">
-        <div><h1>{active.title}</h1><div className="sub">{active.desc} — every number live at this moment. Click any widget for full detail.</div></div>
-        <button className="btn small ghost" onClick={() => choose(null) || setTpl(null)}>Change template</button>
+        <div><h1>{active.name}</h1>
+          <div className="sub">Every number live at this moment — click a widget to drill to its source. {active.is_private ? "Private to you." : "Shared with everyone."}</div></div>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          {mine && (
+            <button className="btn small ghost" onClick={async () => {
+              const v = !active.is_private;
+              await supabase.from("dashboards").update({ is_private: v }).eq("id", active.id);
+              setActive({ ...active, is_private: v });
+            }}>{active.is_private ? "Share with everyone" : "Make private"}</button>
+          )}
+          {mine && <button className="btn small ghost" onClick={() => setAdding((v) => !v)}>{adding ? "Done adding" : "Add widget"}</button>}
+          {mine && <button className="btn small ghost" onClick={removeBoard}>Delete</button>}
+          <button className="btn small ghost" onClick={() => setActive(null)}>All dashboards</button>
+        </div>
       </div>
+      {adding && (
+        <div className="panel" style={{ maxWidth: "none", marginBottom: 14 }}>
+          {[...new Set(catalog.map((c) => c.category))].map((cat) => (
+            <div key={cat} style={{ marginBottom: 10 }}>
+              <div className="note" style={{ marginBottom: 4 }}>{cat}</div>
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                {catalog.filter((c) => c.category === cat).map((c) => (
+                  <button key={c.key} className="btn small ghost" disabled={widgets.some((w) => w.widget_key === c.key)} onClick={() => addWidget(c.key)}>{c.label}</button>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
       <div className="qcards dashgrid">
-        {active.widgets.map((w) => (
-          <button key={w.t} className="qcard" onClick={() => go(w.drill)}>
-            <span className="qi">{iconByName(w.icon)}</span>
-            <span className="qt">{w.t}</span>
-            <span className={`qn ${typeof vals[w.t] === "number" && vals[w.t] > 0 && /P0|violation|Missing|Exception|tied|Expir/i.test(w.t) ? "hot" : ""}`}>{vals[w.t] ?? "…"}</span>
-          </button>
-        ))}
+        {widgets.map((dw) => {
+          const w = catalog.find((c) => c.key === dw.widget_key);
+          if (!w) return null;
+          const v = vals[dw.id];
+          return (
+            <div key={dw.id} className="qcard dwc">
+              {mine && <button className="dwx" title="Remove widget" onClick={() => removeWidget(dw)}>×</button>}
+              <button className="dwbody" onClick={() => w.drill && go(w.drill)}>
+                <span className="qi">{iconByName(w.icon)}</span>
+                <span className="qt">{w.label}</span>
+                <span className={`qn ${w.hot && typeof v === "number" && v > 0 ? "hot" : ""}`}>{v ?? "…"}</span>
+              </button>
+            </div>
+          );
+        })}
+        {widgets.length === 0 && (
+          <div className="empty" style={{ gridColumn: "1 / -1" }}><div className="eicon">{I.gauge}</div><b>Empty dashboard</b>Add widgets — every one is a live number from your own records, never a mock.</div>
+        )}
       </div>
+    </>
+  );
+}
+/* ---------- Go-Live Tracker: the living readiness list ---------- */
+function GoLiveScreen({ isExec, go }) {
+  const [items, setItems] = useState(null);
+  const [backlog, setBacklog] = useState(null);
+  useEffect(() => {
+    supabase.from("golive_items").select("*").order("phase").order("sort")
+      .then(({ data }) => setItems(data ?? []));
+    supabase.from("actions_register").select("source").eq("status", "open").limit(2000)
+      .then(({ data }) => {
+        const by = {};
+        for (const r of data ?? []) by[r.source ?? "unsourced"] = (by[r.source ?? "unsourced"] ?? 0) + 1;
+        setBacklog(Object.entries(by).sort((a, b) => b[1] - a[1]));
+      });
+  }, []);
+  if (items === null) return <div className="empty"><div className="eicon">{I.check}</div>Loading…</div>;
+  if (items.length === 0) return <div className="empty"><div className="eicon">{I.check}</div><b>Nothing tracked yet</b>Go-live items appear here the moment they are registered.</div>;
+  const done = items.filter((i) => i.status === "done").length;
+  const pct = Math.round((done / items.length) * 100);
+  const phases = [...new Map(items.map((i) => [i.phase, i.phase_name]))].sort((a, b) => a[0] - b[0]);
+  const NEXT = { open: "in_progress", in_progress: "done", blocked: "in_progress", done: "open" };
+  const advance = async (it) => {
+    if (!isExec) return;
+    const status = NEXT[it.status];
+    setItems((s) => s.map((x) => (x.id === it.id ? { ...x, status } : x)));
+    await supabase.from("golive_items").update({ status, updated_at: new Date().toISOString() }).eq("id", it.id);
+  };
+  return (
+    <>
+      <div className="pagehead">
+        <div><h1>Go-Live Tracker</h1>
+          <div className="sub">The living readiness list — parsed from every directive, spreadsheet, and audit. {items.length - done} item{items.length - done === 1 ? "" : "s"} stand between here and testing deploy. {isExec ? "Click a status to advance it." : "Statuses advance by executives."}</div></div>
+        <div className="glmeter">
+          <span className="glpct">{pct}%</span>
+          <span className="glbarw"><span className="glbar" style={{ width: `${pct}%` }} /></span>
+          <span className="note">{done}/{items.length} done</span>
+        </div>
+      </div>
+      {backlog && backlog.length > 0 && (
+        <div className="panel" style={{ maxWidth: "none", marginBottom: 14 }}>
+          <div className="ptitle">Register backlog also gates go-live — {backlog.reduce((a, [, n]) => a + n, 0)} open items</div>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 8 }}>
+            {backlog.map(([src, n]) => (
+              <button key={src} className="btn small ghost" onClick={() => go && go("action_register")}>{src} · {n}</button>
+            ))}
+          </div>
+          <div className="note" style={{ marginTop: 8 }}>Every one of these is a captured directive, audit finding, or spreadsheet feature — click through to work the list. Nothing goes live while a P0 stands.</div>
+        </div>
+      )}
+      {phases.map(([ph, phname]) => {
+        const list = items.filter((i) => i.phase === ph);
+        const pdone = list.filter((i) => i.status === "done").length;
+        return (
+          <div key={ph} className="msection">
+            <div className="mtitle"><span className="sq" /><h2>Phase {ph} — {phname}</h2><span className="rule" /><span className="note">{pdone}/{list.length} done</span></div>
+            <div className="glist">
+              {list.map((it) => (
+                <div key={it.id} className={`glrow ${it.status}`}>
+                  <button className={`glstatus ${it.status}`} disabled={!isExec} onClick={() => advance(it)}>{it.status.replace("_", " ")}</button>
+                  <span className={`glprio ${it.priority}`}>{it.priority}</span>
+                  <div className="glmain">
+                    <div className="gltitle">{it.title}{it.owner_action && <span className="glowner">OWNER</span>}</div>
+                    {it.detail && <div className="gldetail">{it.detail}</div>}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })}
     </>
   );
 }
 
 /* ---------- Planner: the operations calendar, already full of live events ---------- */
 const PLANNER_LEGEND = [
-  ["Harvest", "#5cff92"], ["Shipment", "#e2bd63"], ["Work order", "#ffea00"], ["Expiry", "#ff8a00"], ["Shift", "#b026ff"],
+  ["Harvest", "#5cff92"], ["Shipment", "#e2bd63"], ["Work order", "#ffea00"], ["Expiry", "#ff8a00"], ["Shift", "#57a9ff"],
 ];
 function PlannerScreen({ go, session }) {
   const [ym, setYm] = useState(() => { const d = new Date(); return { y: d.getFullYear(), m: d.getMonth() }; });
@@ -1543,7 +1763,7 @@ function PlannerScreen({ go, session }) {
       (s.data ?? []).forEach((r) => add(r.scheduled_ship_on, "Shipment", `${r.shipment_code ?? ""} · ${r.status ?? ""}`, "shipping", "#e2bd63"));
       (w.data ?? []).forEach((r) => add(r.planned_start, "Work order", `${r.wo_code ?? ""} · ${r.status ?? ""}`, "work_orders", "#ffea00"));
       (x.data ?? []).forEach((r) => add(r.expiration_date, "Expiry", r.strain_flavor ?? r.production_batch ?? "lot", "inv_summary", "#ff8a00"));
-      (es.data ?? []).forEach((r) => add(r.work_date, "Shift", `${r.zone ?? "—"} · ${r.status}`, "emp_schedule", "#b026ff"));
+      (es.data ?? []).forEach((r) => add(r.work_date, "Shift", `${r.zone ?? "—"} · ${r.status}`, "emp_schedule", "#57a9ff"));
       setEvents(ev);
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -2109,6 +2329,26 @@ function Integrations({ session }) {
 /* ---------- Settings ---------- */
 function Settings({ session, prefs }) {
   const { theme, setTheme } = prefs;
+  const [avatarUrl, setAvatarUrl] = useState(null);
+  const [avMsg, setAvMsg] = useState(null);
+  const avRef = React.useRef(null);
+  useEffect(() => {
+    supabase.from("user_settings").select("avatar_url").eq("user_id", session.user.id).maybeSingle()
+      .then(({ data }) => setAvatarUrl(data?.avatar_url ?? null));
+  }, [session.user.id]);
+  const uploadAvatar = async (e) => {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    setAvMsg("Uploading…");
+    const path = `${session.user.id}-${Date.now()}.${(f.name.split(".").pop() || "png").toLowerCase()}`;
+    const { error } = await supabase.storage.from("avatars").upload(path, f, { upsert: true });
+    if (error) { setAvMsg(`Upload failed: ${error.message}`); return; }
+    const { data } = supabase.storage.from("avatars").getPublicUrl(path);
+    await supabase.from("user_settings").upsert({ user_id: session.user.id, avatar_url: data.publicUrl }, { onConflict: "user_id" });
+    setAvatarUrl(data.publicUrl);
+    setAvMsg("Saved — your photo now shows on the top bar.");
+    window.dispatchEvent(new CustomEvent("tg-avatar-updated", { detail: data.publicUrl }));
+  };
   return (
     <>
       <div className="pagehead">
@@ -2118,6 +2358,19 @@ function Settings({ session, prefs }) {
         </div>
       </div>
       <div className="cols2">
+        <div className="msection" style={{ marginTop: 0 }}>
+          <div className="mtitle"><span className="sq" /><h2>Profile photo</h2><span className="rule" /></div>
+          <div className="panel" style={{ maxWidth: "none" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+              <span className="uav big">{avatarUrl ? <img src={avatarUrl} alt="Your profile" /> : I.users}</span>
+              <div>
+                <button className="btn small" onClick={() => avRef.current?.click()}>{avatarUrl ? "Change photo" : "Upload photo"}</button>
+                <input ref={avRef} type="file" accept="image/*" style={{ display: "none" }} onChange={uploadAvatar} />
+                <div className="note" style={{ marginTop: 6 }}>{avMsg ?? "Shown on the top bar and everywhere you appear in the OS."}</div>
+              </div>
+            </div>
+          </div>
+        </div>
         <div className="msection" style={{ marginTop: 0 }}>
           <div className="mtitle"><span className="sq" /><h2>Appearance</h2><span className="rule" /></div>
           <div className="panel" style={{ maxWidth: "none" }}>
@@ -2151,7 +2404,7 @@ function Settings({ session, prefs }) {
 
 /* ---------- Help & Support ---------- */
 const HELP = [
-  ["Signing in & accounts", "The first account ever created is the owner. Everyone after starts read-only until the owner assigns a role (role screens arrive with the People milestone). Email confirmation may land on a plain white page — the confirmation still works; just return to the site and sign in."],
+  ["Signing in & accounts", "The first account ever created is the owner. Everyone after starts read-only until the owner assigns a role (role screens arrive with the Human Resources milestone). Email confirmation may land on a plain white page — the confirmation still works; just return to the site and sign in."],
   ["Storing Metrc credentials", "Integrations → paste licenses, the software key (from the Metrc Connect portal), and your user key (metrc.com → profile icon → API Keys). Values are write-only: stored server-side, never displayed again. Re-paste any field to rotate it."],
   ["Running a Metrc sync", "Integrations → Run Metrc sync now. The worker authenticates, verifies which licenses your key can see, and pulls the full catalog politely (Massachusetts caps pages at 20 records). First pull is big; after that only changes sync. Results appear in the run log and in the Metrc section."],
   ["Reading the Control Tower", "Every card is computed live from the database — nothing can be typed into it. Red means action required; dim zero means no records connected yet. Click any card to drill into its source module."],
@@ -2254,14 +2507,22 @@ export default function App() {
   const [navVersion, setNavVersion] = useState(0);
   const nav = useNav(navVersion);
   const role = useRole(session ?? null);
-  const [view, setView] = useState("tower");
+  const [view, setView] = useState(() => window.location.hash.slice(1) || "tower");
+  useEffect(() => {
+    if (window.location.hash.slice(1) !== view) window.history.pushState(null, "", `#${view}`);
+  }, [view]);
+  useEffect(() => {
+    const onPop = () => setView(window.location.hash.slice(1) || "tower");
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, []);
   const [openCats, setOpenCats] = useState({});
   const [dragging, setDragging] = useState(false);
   const [userMenu, setUserMenu] = useState(false);
   const [launcher, setLauncher] = useState(false);
   useEffect(() => {
-    const WORK = new Set(["brain", "tasks", "teams", "planner", "dashboards", "whiteboards", "templates", "spaces"]);
-    document.documentElement.dataset.realm = WORK.has(view) ? "work" : "ops";
+    // Owner order 2026-08-05: no realm recoloring — neon green sitewide, always.
+    delete document.documentElement.dataset.realm;
   }, [view]);
   const [listening, setListening] = useState(false);
   const [dictation, setDictation] = useState(null);
@@ -2284,6 +2545,11 @@ export default function App() {
     supabase.from("user_settings").select("avatar_url").eq("user_id", session.user.id).maybeSingle()
       .then(({ data }) => setAvatarUrl(data?.avatar_url ?? null));
   }, [session?.user?.id]);
+  useEffect(() => {
+    const h = (e) => setAvatarUrl(e.detail);
+    window.addEventListener("tg-avatar-updated", h);
+    return () => window.removeEventListener("tg-avatar-updated", h);
+  }, []);
   const uploadAvatar = async (e) => {
     const f = e.target.files?.[0];
     if (!f || !session) return;
@@ -2347,14 +2613,14 @@ export default function App() {
     metrc_mirror: <MetrcMirror />,
     metrc_mc: <MetrcMirror license="MC281714" />,
     metrc_mp: <MetrcMirror license="MP281909" />,
-    fg_metrc_check: current
-      ? <ModuleScreen entry={current} actions={<SyncCenter session={session} />} />
-      : <ControlTower go={setView} session={session} />,
+    golive: <GoLiveScreen isExec={isExec} go={setView} />,
     menu_manager: isExec
       ? <MenuManager onChanged={() => setNavVersion((v) => v + 1)} />
       : <div className="empty"><div className="eicon">{I.shield}</div><b>Admin area</b>Menu Manager is restricted to executives. Ask an owner if a menu change is needed.</div>,
   };
-  const body = special[view] ?? (current ? <ModuleScreen entry={current} /> : <ControlTower go={setView} />);
+  const body = special[view] ?? (current
+    ? <ModuleScreen entry={current} actions={current.sync_enabled ? <SyncCenter session={session} /> : undefined} />
+    : <ControlTower go={setView} />);
 
   return (
     <div className="frame">
@@ -2418,7 +2684,7 @@ export default function App() {
                 <button className="uitem dim" disabled title="Personal reminders ride the notifications engine">{I.clock} Create reminder <span className="mtag">SOON</span></button>
                 <button className="uitem dim" disabled title="Docs engine is registered (CODE-016)">{I.clip} Create doc <span className="mtag">SOON</span></button>
                 <button className="uitem" onClick={() => { setUserMenu(false); setView("whiteboards"); }}>{I.board} Create whiteboard</button>
-                <button className="uitem" onClick={() => { setUserMenu(false); setView("people"); }}>{I.users} View people</button>
+                <button className="uitem" onClick={() => { setUserMenu(false); setView("people"); }}>{I.users} Human Resources</button>
                 <button className="uitem" onClick={() => { setUserMenu(false); setView("dashboards"); }}>{I.grid} Create dashboard</button>
                 <button className="uitem" onClick={() => { setUserMenu(false); setView("planner"); }}>{I.clock} Planner</button>
                 <button className="uitem" onClick={() => { setUserMenu(false); setView("brain"); }}>{I.dna} Ask Brain</button>
