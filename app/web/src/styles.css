@@ -6,15 +6,13 @@
    ============================================================ */
 :root, :root[data-theme="dark"] {
   --canvas: #0a0c0b;
-  /* Dark hue per owner: NEON green -> neon yellow -> neon aqua -> orange, one even wash from the top menu down. */
+  /* Figma-style neon mesh per owner reference: green -> yellow -> neon aqua, luminous blobs
+     blending from the very top, dissolving into black by mid-page. */
   --canvas-glow:
-    linear-gradient(180deg, rgba(10, 12, 11, 0) 0%, rgba(10, 12, 11, 0.78) 30%, #0a0c0b 48%),
-    linear-gradient(100deg,
-      rgba(57, 255, 20, 0.30) 0%,
-      rgba(255, 234, 0, 0.20) 30%,
-      rgba(0, 229, 255, 0.24) 62%,
-      rgba(255, 138, 0, 0.20) 100%),
-    radial-gradient(1100px 500px at 90% -10%, rgba(57, 255, 20, 0.10), transparent 60%);
+    linear-gradient(180deg, rgba(10, 12, 11, 0) 0%, rgba(10, 12, 11, 0.70) 34%, #0a0c0b 54%),
+    radial-gradient(120% 70% at 12% -10%, rgba(57, 255, 20, 0.36), transparent 60%),
+    radial-gradient(110% 65% at 50% -12%, rgba(255, 240, 0, 0.28), transparent 62%),
+    radial-gradient(120% 70% at 92% -8%, rgba(0, 229, 255, 0.32), transparent 60%);
   --surface: #111513;
   --surface-2: #181d1a;
   --ink: #ffffff;
@@ -57,14 +55,13 @@
 }
 :root[data-theme="light"] {
   --canvas: #fdfefd;
-  /* Light hue per owner: NEON green -> yellow -> orange, one even wash from the top menu down. */
+  /* Figma-style neon mesh per owner reference: green -> yellow -> neon aqua, bright and smooth,
+     dissolving into white by mid-page. */
   --canvas-glow:
-    linear-gradient(180deg, rgba(253, 254, 253, 0) 0%, rgba(253, 254, 253, 0.70) 26%, #fdfefd 42%),
-    linear-gradient(100deg,
-      rgba(0, 224, 84, 0.40) 0%,
-      rgba(186, 255, 0, 0.32) 32%,
-      rgba(255, 214, 0, 0.30) 60%,
-      rgba(255, 138, 0, 0.24) 100%);
+    linear-gradient(180deg, rgba(253, 254, 253, 0) 0%, rgba(253, 254, 253, 0.62) 32%, #fdfefd 52%),
+    radial-gradient(120% 70% at 12% -10%, rgba(57, 255, 20, 0.50), transparent 60%),
+    radial-gradient(110% 65% at 50% -12%, rgba(250, 255, 0, 0.52), transparent 62%),
+    radial-gradient(120% 70% at 92% -8%, rgba(0, 229, 255, 0.46), transparent 60%);
   --surface: #ffffff;
   --surface-2: #eef1ee;
   --ink: #101312;
@@ -129,11 +126,11 @@ h1, h2, h3, .display { font-family: "Space Grotesk", "Inter", sans-serif; }
 /* --- Universal topbar --- */
 .topnav {
   height: 58px; flex-shrink: 0;
-  /* Translucent over the fixed canvas glow: the ONE page hue starts inside the top menu itself. */
-  background: linear-gradient(180deg, rgba(4, 6, 5, 0.38), rgba(4, 6, 5, 0.60));
+  /* Translucent over the fixed mesh: the ONE hue starts inside the top menu, no separating line. */
+  background: linear-gradient(180deg, rgba(4, 6, 5, 0.26), rgba(4, 6, 5, 0.44));
   backdrop-filter: blur(9px);
   -webkit-backdrop-filter: blur(9px);
-  border-bottom: 1px solid var(--rail-border);
+  border-bottom: none;
   display: flex; align-items: center; gap: 16px;
   padding: 0 18px 0 12px;
   position: sticky; top: 0; z-index: 50;
