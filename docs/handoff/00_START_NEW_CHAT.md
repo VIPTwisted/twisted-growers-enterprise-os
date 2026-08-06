@@ -1,5 +1,27 @@
 # How to start the new chat
 
+## READ THIS FIRST - the folder is the whole problem
+
+There are two separate businesses in your Documents folder:
+
+- `C:\Users\demar\Documents\Claude_Dragon Sourcing`  <- a DIFFERENT company
+- `C:\Users\demar\Documents\Claude_Twisted Growers`  <- THIS company
+
+Claude Code has been defaulting to **Dragon Sourcing**. If a new chat opens
+there, it loads Dragon Sourcing's rules and knows nothing about Twisted Growers.
+Everything it then tells you is built on the wrong company's context.
+
+**Open `Claude_Twisted Growers` as the PROJECT FOLDER**, using the folder picker
+- not as a sub-folder, and not a parent folder containing both.
+
+**Then verify before anything else. Send this first:**
+
+> What is your primary working directory, and what does the CLAUDE.md you loaded
+> say in its first line?
+
+It must answer `Claude_Twisted Growers`. If it says Dragon Sourcing, close the
+chat and reopen in the right folder. Do not continue.
+
 ## Step 1 — Open the right folder
 
 In Claude Code, open this folder as the working directory:
