@@ -306,3 +306,33 @@ that looks complete and is not.**
 `HANDOFF.md` for state, the git history for how it was reasoned, and
 `docs/source-of-truth/` for the owner's authoritative workbooks. A screenshot
 would tell them less than the four failed views listed above.
+
+---
+
+## 13. What CANNOT be recovered from this repo alone
+
+Four things are missing from the export by deliberate choice, not oversight.
+Each requires a credential, a live session or an external system that no agent
+can reach from the repository. **Do not spend time trying to reconstruct them.**
+
+| Missing | Why it cannot be produced | How to get it |
+|---|---|---|
+| **Full `pg_dump` of Supabase** (176 tables) | Tens of gigabytes, and it contains the entire Metrc record. Not a repo artefact. | Supabase dashboard → Database → Backups → Download. One click, no agent needed. |
+| **Signed-in screenshots or HTML of every page** | Requires a live session for `vincent@twistedgrowers.com`, which sits on a forced password-change screen. Setting another person's password is not something an agent should do. | Vincent signs in, sets his own password, then screenshots or the agent walks the site with him. |
+| **Metrc Reports Control Panel exports** — Inventory Point-in-Time (31 Dec 2025) and the Lab Results report | Metrc's API exposes neither. The package interface carries no analyte values, no COA links, and no historical snapshot. This is a Metrc limitation, not a build gap. | Log in to Metrc → Reports Control Panel → export both → import on the Report Import page. **This is the only route to THC, TAC, terpenes, certificates and a fileable 2025 return.** |
+| **QuickBooks P&L or payroll exports** | External system, never connected. Overhead is currently one owner-stated lump of $285,000/month with wages included. | Connect QuickBooks, or upload a P&L through Sheet Sync, which already parses pasted or uploaded files. |
+
+### Two further items an agent should know are absent
+
+- **Metrc API credentials** are not in the repo and must not be. The sync runs
+  server-side; `app_secrets` is denied to every client role including
+  `tg_desktop_reader`.
+- **The desktop bridge Chrome profile** (`bridge/chrome-profile/`) holds the
+  owner's own Google session for reading the restricted inventory sheet. It is
+  deliberately not committed, is machine-local, and must never be. The bridge
+  and `sheet-sync.mjs` have never been tested end to end.
+
+**None of the above blocks a takeover.** The platform runs without them. But
+three of the four sit underneath open defects — D5 (no potency data), D6
+(unfileable tax return) and D8 (unitemised overhead) — and none of those can be
+closed by writing code.
