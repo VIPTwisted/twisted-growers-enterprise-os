@@ -496,3 +496,84 @@ duplicated what already exists (Customers, Customer History, Customer Manifests
 & Documents, all under Finance). Both deleted. The existing Customers page reads
 the `customers` table, now populated with 128 licensees, their state licences and
 payment terms.
+
+---
+
+# Seed-to-sale for bought-in material, and two access bugs
+
+## Owner requirement, 6 August 2026
+
+> Seed to sale must pull third-party history from the COA and the manifest. Even
+> on our own material, if any field is blank it must scan the certificate and the
+> manifest. It must also pull in our testing scores and the manifest data of sale.
+
+## Two bugs found
+
+**`tg_trace` was not `SECURITY DEFINER` and had no `search_path`** — a rule E5
+violation. It therefore ran under the caller's RLS, and `TraceDrawer` swallows any
+error as `[]`, so the drawer showed *"No chain recorded in Metrc"* while the same
+call returned **131 events** as the service role. A silent failure presented as a
+finding.
+
+**`is_executive()` is `current_app_role() in ('owner','executive')`** — it does not
+include the `cfo` role added earlier the same day. `metrc_packages`,
+`metrc_lab_results`, `metrc_transfers`, `metrc_plants` and `metrc_harvests` all
+gate on it, so **a CFO can read none of them.** The CFO access granted for Metrc
+Reports is therefore incomplete. **Not fixed here** — `exec_all` is `FOR ALL`, so
+adding `cfo` to `is_executive()` would hand the CFO write access to the Metrc
+mirror as a side effect. It needs read-only policies, which is a separate change.
+
+## `tg_trace` rewritten
+
+Now `security definer set search_path = public`, execute granted to
+`authenticated`, revoked from `public` and `anon`. Added:
+
+- **Bought-in origin.** Where the package's `ItemFromFacilityLicenseNumber` is not
+  one of ours, a `2 Harvest` event names the supplier and licence and carries the
+  inbound manifest download. For third-party material this *is* the origin — the
+  grow record sits with the supplier.
+- **Test scores** as first-class events — Total THC, Total CBD, Total Terpenes,
+  Total Cannabinoids — excluding the zero-filled Retest rows, each linked to its
+  certificate.
+- **Certificate on file** as its own event with the download link.
+- **Sale manifests.** Outgoing now reads `SOLD — manifest N`, names the customer
+  and carries the invoice number from `_delivery.InvoiceNumber`.
+- Inbound manifests now also match via `ReceivedFromManifestNumber`, which the
+  old text-search join missed.
+
+Verified on `1A40A0300011815000000775` (bought-in trim):
+
+> Bought in from **Greater Goods, LLC**, licence MB282344 · Package created ·
+> Certificate of Analysis on file ×3, each downloadable · Total THC, CBD,
+> Terpenes, Cannabinoids all Passed · Received on manifest 0003362642
+
+## Defect D3 measured — date filters missing on 78 of 219 pages
+
+The generic renderer switches the date filter on only when a column name matches
+`_date | _on$ | _at$ | ^date | ^month | period`, and search on when the view has
+text columns.
+
+| Category | Pages | No date filter | Fixable by renaming |
+|---|---|---|---|
+| Command Center | 36 | 22 | 8 |
+| Cultivation | 42 | 10 | 3 |
+| Inventory | 30 | 10 | 0 |
+| Finance | 24 | 9 | 2 |
+| Metrc | 18 | 6 | 4 |
+| Reports | 8 | 6 | 3 |
+| Human Resources | 9 | 4 | 1 |
+| Manufacturing | 8 | 4 | 2 |
+| Settings | 20 | 4 | 1 |
+| Quality | 8 | 2 | 1 |
+| Infused Pre-Rolls & Flower | 4 | 1 | 0 |
+| Workspace | 12 | 0 | 0 |
+
+Search is nearly universal — only **2** pages lack it.
+
+**25 pages hold a real date column that is simply named wrong**; renaming it in
+the view turns the filter on with no front-end change. **53 have no date column at
+all** and need a decision per page about which date is the meaningful one — for
+some (configuration and reference lists) a date filter is meaningless.
+
+This confirms HANDOFF.md D3: *"most reporting views have no date column to filter
+on - that is the first step, not the UI."*
