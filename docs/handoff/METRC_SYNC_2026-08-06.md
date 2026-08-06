@@ -421,3 +421,78 @@ record of who sent what to whom.
 
 **All 128 customers currently need an email address.** They cannot be derived —
 rule A1 forbids inventing them.
+
+---
+
+# Clickable documents and real potency on the package record
+
+## The buttons already existed — they were starved of data
+
+`ProductIdentity` in App.jsx already renders:
+
+```jsx
+<Fact label="Certificate of Analysis" href={d.coa_url} hrefLabel="📄 Open the certificate" />
+<Fact label="Manifest" href={d.manifest_url} hrefLabel={"🚚 Manifest " + …} />
+```
+
+They never appeared because `v_product_identity` sourced `coa_url` from
+`coa_documents` and analyte values from `lab_result_values` — **both empty
+tables**. The real data lands in `metrc_lab_results` and `metrc_documents`.
+**No front-end change was needed.**
+
+That view also carried a note claiming *"the Massachusetts Metrc API does not
+return THC, CBD or terpene values on a package"*. Disproved today.
+
+## Fixed in `v_product_identity` (create or replace, columns appended only)
+
+- `coa_url` → our signed link. The 📄 button now renders.
+- `manifest_url` → our stored copy first, Metrc's login-walled URL only as fallback.
+- `total_thc`, `total_cbd`, `total_terpenes` → from `metrc_lab_results`.
+- **Duplicate rows fixed.** It returned two rows per tag while App.jsx calls
+  `.maybeSingle()`, which errors on more than one — so this panel was failing.
+  Joins are now `lateral … limit 1`.
+
+## The Retest trap
+
+Every `Retest` row on a passing package reads **0.0000** across every analyte —
+a placeholder, not a measurement. Ordering by date alone picked the zero and
+showed **0.00% THC on tested flower**.
+
+`f_lab_value(tag, prefix)` now prefers the primary test and falls back to a
+Retest only when no primary exists, returning the test name and date with the
+value. Appended columns `thc_from_test`, `thc_tested_on`, `terpenes_from_test`,
+`terpenes_tested_on` and `potency_provenance` put the source on the record
+(rule A2).
+
+Package `1A40A0300011815000000775`, before and after:
+
+| | Before | After |
+|---|---|---|
+| Total THC | 0.00 (Retest placeholder) | **20.07** |
+| Total Terpenes | not shown | **2.95** |
+| Laboratory | not recorded | **SafeTiva Labs LLC** |
+| Analytes | 0 | **130** |
+| Certificate | "awaiting the laboratory result" | **click to open, print or send** |
+
+Provenance reads: *From "Total THC (%) Raw Plant Material" recorded 2026-06-12.*
+
+## Downloads
+
+The bucket is private — manifest numbers run sequentially, so a public bucket
+would let anyone walk them and read customers and quantities. Each document
+carries a **signed link valid 30 days**, refreshed by `metrc-document-links`
+(cron, 05:30 daily). Verified: **HTTP 200, 542,004 bytes, application/pdf,
+%PDF-1.4**, no login, downloading as *"Certificate of Analysis
+1A40A0300011815000000775.pdf"*.
+
+`v_customer_manifests` was rewritten the same way: `manifest_download` serves our
+copy first, and `certificate_of_analysis_links` now carries real downloadable
+links instead of nulls.
+
+## Removed
+
+The **Customer Book** page and the **Sales & Cash** category were mine and
+duplicated what already exists (Customers, Customer History, Customer Manifests
+& Documents, all under Finance). Both deleted. The existing Customers page reads
+the `customers` table, now populated with 128 licensees, their state licences and
+payment terms.
