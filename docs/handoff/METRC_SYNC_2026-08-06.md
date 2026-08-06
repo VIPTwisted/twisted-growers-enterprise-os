@@ -777,3 +777,54 @@ Two honest findings surfaced rather than smoothed over:
 | Nav rows pointing at nothing | **0** (was 4) |
 | Dashboard drill targets broken | **0** (was 29) |
 | Cron jobs active | 20 |
+
+## Search and date coverage — measured, and the gap made visible
+
+`v_page_filter_coverage` (Settings → Platform health → **Page Search & Date
+Coverage**) lists every page, whether it offers search and a date range, and where
+a date filter is missing, **why**.
+
+A correctness note: an earlier count of this was wrong because
+`information_schema.columns` **does not include materialized views**, so all eight
+department dashboards were mis-reported as having no search. The register now
+reads `pg_attribute`, which covers them.
+
+| | Pages |
+|---|---|
+| Date filter available | **183** |
+| No date column at all | 52 |
+| **Fixable but not fixed** | **0** |
+
+The 52 are configuration, rate and reference tables, plus single-row KPI summaries
+such as `v_schedule_discipline` — pure numbers with no date to filter by. Forcing a
+date filter onto those would be worse than not having one. The register states that
+per page so it reads as a decision, not an omission.
+
+Only one page lacks search — `v_schedule_discipline` — for the same reason: it has
+no text column, being a single row of numbers.
+
+## Final verification
+
+| | |
+|---|---|
+| Views readable | **186 of 186** |
+| Views broken | **none** |
+| Materialized views populated | **7 of 7** |
+| Nav dead ends | **0** |
+| Broken drill targets | **0** |
+| Pages with a fixable missing date filter | **0** |
+| Anon-permissive `ALL` policies | **0** |
+| Cron jobs active | 20 |
+
+## Still open, and deliberately not rushed
+
+**The 35 bespoke pages** registered in App.jsx's `special` map — `MetrcMirror`,
+`ControlTower`, `FinishedGoods` and the rest — hand-roll their own UI. Most have
+neither search nor a date range, and the register above cannot see them because
+they do not render through the generic table.
+
+The right fix is to extract the search / date-range / export toolbar into **one
+shared component** and adopt it across all 35. Patching them individually
+guarantees they drift apart again; a shared component is the only thing that makes
+it genuinely consistent sitewide. That is a substantial front-end change and
+should be done as its own piece of work, with each page verified after.
