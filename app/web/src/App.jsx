@@ -1173,11 +1173,13 @@ function useDataToolbar(table, { eq = {}, limit = 200, orderBy = null, ascending
   const [q, setQ] = useState("");
   const [dFrom, setDFrom] = useState("");
   const [dTo, setDTo] = useState("");
+  const [dims, setDims] = useState([]);
+  const [dimSel, setDimSel] = useState({});
 
   /* one row, to learn the shape: which columns are searchable text and which
      column the date filter should use. Same rule the generic renderer applies. */
   useEffect(() => {
-    setSample(null); setQ(""); setQLive(""); setDFrom(""); setDTo("");
+    setSample(null); setQ(""); setQLive(""); setDFrom(""); setDTo(""); setDimSel({});
     if (!table) return;
     let s = supabase.from(table).select("*").limit(1);
     for (const [k, v] of Object.entries(JSON.parse(eqKey))) if (v != null) s = s.eq(k, v);
@@ -1194,12 +1196,33 @@ function useDataToolbar(table, { eq = {}, limit = 200, orderBy = null, ascending
   const build = (base) => {
     let x = base;
     for (const [k, v] of Object.entries(JSON.parse(eqKey))) if (v != null) x = x.eq(k, v);
+    for (const [col, want] of Object.entries(dimSel)) if (want) x = x.eq(col, want);
     const term = q.replace(/[%,()]/g, " ").trim();
     if (term && textCols.length) x = x.or(textCols.map((c) => `${c}.ilike.%${term}%`).join(","));
     if (dateCol && dFrom) x = x.gte(dateCol, dFrom);
     if (dateCol && dTo) x = x.lte(dateCol, dTo);
     return x;
   };
+
+  /* Distinct values for each dimension the dataset actually has, so the dropdowns
+     offer real options rather than a guess. One small query per column. */
+  useEffect(() => {
+    if (!table || !sample) { setDims([]); return; }
+    const cands = DIM_COLS.filter((c) => c in sample);
+    if (!cands.length) { setDims([]); return; }
+    let cancelled = false;
+    Promise.all(cands.map(async (col) => {
+      let s = supabase.from(table).select(col).not(col, "is", null).limit(1000);
+      for (const [k, v] of Object.entries(JSON.parse(eqKey))) if (v != null) s = s.eq(k, v);
+      const { data } = await s;
+      const values = [...new Set((data ?? []).map((r) => r[col]).filter((v) => v !== ""))].map(String).sort();
+      return { col, values };
+    })).then((all) => {
+      if (!cancelled) setDims(all.filter((d) => d.values.length > 1 && d.values.length <= 12));
+    });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [table, eqKey, sample]);
 
   useEffect(() => {
     if (!table || sample === null) return;
@@ -1209,7 +1232,7 @@ function useDataToolbar(table, { eq = {}, limit = 200, orderBy = null, ascending
       .limit(limit)
       .then(({ data, count }) => { setRows(data ?? []); setTotal(count ?? null); });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [table, eqKey, sample, q, dFrom, dTo, limit, orderBy, ascending]);
+  }, [table, eqKey, sample, q, dFrom, dTo, limit, orderBy, ascending, JSON.stringify(dimSel)]);
 
   const exportCsv = async () => {
     const { data } = await build(supabase.from(table).select("*")).limit(5000);
@@ -1224,27 +1247,62 @@ function useDataToolbar(table, { eq = {}, limit = 200, orderBy = null, ascending
     a.click();
   };
 
-  const dirty = !!(q || dFrom || dTo);
+  const dirty = !!(q || dFrom || dTo || Object.values(dimSel).some(Boolean));
   const toolbar = sample === null ? null : (
     <FilterBar qLive={qLive} setQLive={setQLive} onFind={() => setQ(qLive)}
       dateCol={dateCol} dFrom={dFrom} dTo={dTo} setDFrom={setDFrom} setDTo={setDTo}
-      dirty={dirty} onClear={() => { setQ(""); setQLive(""); setDFrom(""); setDTo(""); }}
+      dims={dims} dimSel={dimSel}
+      onDim={(col, v) => setDimSel((x) => ({ ...x, [col]: v }))}
+      dirty={dirty}
+      onClear={() => { setQ(""); setQLive(""); setDFrom(""); setDTo(""); setDimSel({}); }}
       count={total} onExport={exportCsv} />
   );
 
   return { rows, toolbar, total, dateCol, searching: dirty };
 }
 
+/* Date-range predicate for pages that keep their own filtering. Compares the
+   date part only, so a timestamp is not excluded by its time of day. */
+function inRange(value, from, to) {
+  if (!from && !to) return true;
+  if (!value) return false;
+  const d = String(value).slice(0, 10);
+  if (from && d < from) return false;
+  if (to && d > to) return false;
+  return true;
+}
+
 /* The bar itself, so the server-side and client-side hooks render exactly the same
    control. Same classes and the same DateRangeSelect the generic pages use. */
+/* Columns worth offering as a dropdown. Origin answers "ours or bought in",
+   status and state answer "sold, on hand, or gone", verdict answers "passed or
+   failed". These are the questions asked of almost every list here. */
+const DIM_COLS = ["stock_status", "origin", "stream", "category", "status", "state",
+  "source_state", "verdict", "severity", "direction", "lab_state", "lab_testing_state",
+  "phase", "supplier", "room", "current_stage", "stage", "delivery_status", "decision",
+  "priority", "license", "location", "doc_type", "testing_state", "origin_license",
+  "strain", "cultivar", "item_name", "product", "trading_status", "decision_state",
+  "manifest_direction", "coa_status", "origin_type", "unit_of_measure"];
+
 function FilterBar({ qLive, setQLive, onFind, dateCol, dFrom, dTo, setDFrom, setDTo,
-                     dirty, onClear, count, countLabel = "records", onExport }) {
+                     dirty, onClear, count, countLabel = "records", onExport,
+                     dims = [], dimSel = {}, onDim }) {
   return (
     <div className="filterbar">
       <input className="fsearch" placeholder="Search anything — name, batch, tag…" value={qLive}
         onChange={(e) => setQLive(e.target.value)}
         onKeyDown={(e) => { if (e.key === "Enter") onFind(); }} />
       <button className="btn small" onClick={onFind}>Find</button>
+      {dims.map(({ col, values }) => (
+        <span key={col} style={{ display: "contents" }}>
+          <span className="flab">{col.replaceAll("_", " ")}</span>
+          <select className="fdate" value={dimSel[col] ?? ""}
+            onChange={(e) => onDim(col, e.target.value || null)}>
+            <option value="">All</option>
+            {values.map((v) => <option key={v} value={v}>{v}</option>)}
+          </select>
+        </span>
+      ))}
       {dateCol
         ? <DateRangeSelect label={dateCol.replaceAll("_", " ")} from={dFrom} to={dTo} onFrom={setDFrom} onTo={setDTo} />
         : <span className="flab" title="This dataset carries no date column, so there is nothing to filter by.">no date recorded on this dataset</span>}
@@ -1266,10 +1324,24 @@ function useClientToolbar(rows, { dateField = null, name = "rows" } = {}) {
   const [q, setQ] = useState("");
   const [dFrom, setDFrom] = useState("");
   const [dTo, setDTo] = useState("");
+  const [dimSel, setDimSel] = useState({});
   const list = rows ?? [];
   const dateCol = dateField ?? (list.length
     ? Object.keys(list[0]).find((k) => /(_date|_on$|_on_|_at$|^date|^month|period)/.test(k))
     : null);
+
+  /* Offer a dropdown for any dimension column that actually varies. More than a
+     dozen distinct values is a list, not a filter, so it is left out. */
+  const dims = list.length
+    ? DIM_COLS
+        .filter((c) => c in list[0])
+        .map((col) => ({
+          col,
+          values: [...new Set(list.map((r) => r[col]).filter((v) => v != null && v !== ""))]
+                    .map(String).sort(),
+        }))
+        .filter((d) => d.values.length > 1 && d.values.length <= 12)
+    : [];
 
   const term = q.trim().toLowerCase();
   const filtered = list.filter((r) => {
@@ -1277,6 +1349,9 @@ function useClientToolbar(rows, { dateField = null, name = "rows" } = {}) {
       const hit = Object.entries(r).some(([k, v]) =>
         k !== "raw" && typeof v === "string" && v.toLowerCase().includes(term));
       if (!hit) return false;
+    }
+    for (const [col, want] of Object.entries(dimSel)) {
+      if (want && String(r[col] ?? "") !== want) return false;
     }
     if (dateCol && (dFrom || dTo)) {
       const v = r[dateCol];
@@ -1288,7 +1363,7 @@ function useClientToolbar(rows, { dateField = null, name = "rows" } = {}) {
     return true;
   });
 
-  const dirty = !!(q || dFrom || dTo);
+  const dirty = !!(q || dFrom || dTo || Object.values(dimSel).some(Boolean));
   const exportCsv = () => {
     if (!filtered.length) return;
     const keys = Object.keys(filtered[0]).filter((k) => k !== "raw" && typeof filtered[0][k] !== "object");
@@ -1303,7 +1378,10 @@ function useClientToolbar(rows, { dateField = null, name = "rows" } = {}) {
   const toolbar = (
     <FilterBar qLive={qLive} setQLive={setQLive} onFind={() => setQ(qLive)}
       dateCol={dateCol} dFrom={dFrom} dTo={dTo} setDFrom={setDFrom} setDTo={setDTo}
-      dirty={dirty} onClear={() => { setQ(""); setQLive(""); setDFrom(""); setDTo(""); }}
+      dims={dims} dimSel={dimSel}
+      onDim={(col, v) => setDimSel((s) => ({ ...s, [col]: v }))}
+      dirty={dirty}
+      onClear={() => { setQ(""); setQLive(""); setDFrom(""); setDTo(""); setDimSel({}); }}
       count={dirty ? filtered.length : null} countLabel={"of " + list.length + " shown"}
       onExport={exportCsv} />
   );
@@ -4139,6 +4217,8 @@ function AllocationRequests({ session, isExec }) {
 function RegisterScreen({ isExec }) {
   const [rows, setRows] = useState(null);
   const [q, setQ] = useState("");
+  const [dFrom, setDFrom] = useState("");
+  const [dTo, setDTo] = useState("");
   const [statusSel, setStatusSel] = useState("open");
   const [prioSel, setPrioSel] = useState(null);
   const [drawer, setDrawer] = useState(null);
@@ -4152,6 +4232,7 @@ function RegisterScreen({ isExec }) {
   const filtered = rows.filter((r) =>
     (!statusSel || (r.status ?? "open") === statusSel) &&
     (!prioSel || r.priority === prioSel) &&
+    inRange(r.created_at, dFrom, dTo) &&
     (!q || `${r.title} ${r.note ?? ""} ${r.source ?? ""}`.toLowerCase().includes(q.toLowerCase())));
   const advance = async (r) => {
     if (!isExec) return;
@@ -4174,6 +4255,7 @@ function RegisterScreen({ isExec }) {
       </div>
       <div className="filterbar">
         <input className="fsearch" placeholder="Search title, note, source…" value={q} onChange={(e) => setQ(e.target.value)} />
+        <DateRangeSelect label="raised" from={dFrom} to={dTo} onFrom={setDFrom} onTo={setDTo} />
         <span className="flab">Priority</span>
         <select className="fdate" value={prioSel ?? ""} onChange={(e) => setPrioSel(e.target.value || null)}>
           <option value="">All</option>
