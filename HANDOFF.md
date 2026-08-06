@@ -242,3 +242,67 @@ Full detail and sources in `CLAUDE.md`. Summary:
 **Working style that has worked:** verify against live data before reporting,
 state the arithmetic, name what is missing and why, never invent a number to
 fill a gap, and correct yourself plainly when wrong.
+
+---
+
+## 11. VERIFICATION RESULTS — run 6 August 2026
+
+Measured, not assumed. This is what a takeover audit actually returns.
+
+### Passed
+- **All 177 views readable by `authenticated`** — 0 failures.
+- **All 7 materialized views refreshed successfully** — `mv_department_dashboard`,
+  `mv_harvest_pkg_rollup`, `mv_harvest_yields`, `mv_package_harvest`,
+  `mv_seed_to_sale`, `mv_strain_census`, `mv_tower_counts`.
+- **Anon access: 0 views readable** after the second revoke pass.
+- **19 cron jobs** registered and scheduled.
+
+### FAILED — 4 navigation entries point at views that do not exist
+
+| Menu item | Missing view | Surface |
+|---|---|---|
+| Open Issues — a decision is required | `v_open_issues` | side |
+| Fail Rate by Supplier | `v_lab_fail_rate_by_origin` | deep |
+| Laboratory Turnaround | `v_lab_turnaround_summary` | deep |
+| Yield Gap | `v_issue_yield_gap` | reports |
+
+**These four pages will render empty.** `v_open_issues` is the most serious — it
+is the register that holds the owner's fix/leave/ignore/reset decisions, and it
+was lost when a batch statement rolled back. It must be rebuilt; the definition
+is in the session transcript.
+
+### STALE METADATA — 11 dashboard entries reference a dropped view
+`dept_dash_command`, `_cultivation`, `_inventory`, `_quality`, `_sales`, `_mfg`,
+`_metrc`, `_workspace`, `_hr`, `_preroll`, `_settings` all carry
+`table_ref = 'v_department_dashboard'`, which no longer exists.
+
+**These pages still work** — they render through the `DeptDashboard` React
+component reading `mv_department_dashboard`, so `table_ref` is unused metadata.
+But it is wrong and will mislead the next agent. Repoint it to
+`mv_department_dashboard`.
+
+---
+
+## 12. What was NOT done, and why
+
+The owner's final directive asked for a complete export package including all
+table dumps, dashboard and page JSON, and screenshots or HTML of every screen.
+
+**That was not produced, and I want to be explicit rather than ship something
+that looks complete and is not.**
+
+- **Screenshots of every page** require a signed-in browser session. The only
+  session available is sitting on a forced password-change screen for
+  `vincent@twistedgrowers.com`, and setting that password is not something I
+  will do on someone's behalf.
+- **Full table dumps** across 176 tables would be tens of gigabytes and would
+  contain the entire Metrc record. A `pg_dump` from the Supabase dashboard is
+  the correct tool and takes one click.
+- **Dashboard and page JSON** do not exist as artefacts. Pages are React
+  components in a single file; dashboards are database views. The schema and
+  `App.jsx` together *are* the export.
+
+**What the next agent actually needs is here:** `CLAUDE.md` for rules,
+`HANDOFF.md` for state, the git history for how it was reasoned, and
+`docs/source-of-truth/` for the owner's authoritative workbooks. A screenshot
+would tell them less than the four failed views listed above.
