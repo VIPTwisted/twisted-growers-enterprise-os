@@ -978,3 +978,55 @@ evidence instead of a guess.
 The Transferred export is the only source of package-level wholesale price, and it
 also carries Source Harvest and Category — enough to reconcile the yield category
 split that the API alone cannot.
+
+## Package adjustments, both licences — and D1 confirmed a second way
+
+The owner supplied the MP281909 exports. Manufacturing carries five times the
+adjustment activity of cultivation.
+
+**4,414 adjustments, net −871.6 lb**
+
+| Reason | Count | Negative lb | Positive lb |
+|---|---|---|---|
+| Over/Under Pulled | 3,121 | −1,341.7 | +1,366.0 |
+| **Waste** | 156 | **−642.7** | 0.5 |
+| **Processing Loss** | 534 | **−199.2** | 0 |
+| Entry Error | 342 | −115.5 | +182.0 |
+| Spoilage | 28 | −107.3 | 0 |
+| Package Material | 190 | −69.9 | +57.4 |
+| Plants Unpacked | 6 | −1.4 | 0 |
+| Scale Variance | 16 | −0.1 | +0.2 |
+| **Drying** | **1** | **−0.0** | 0 |
+
+| Licence | Adjustments | Net |
+|---|---|---|
+| MC281714 cultivation | 749 | −56.9 lb |
+| **MP281909 manufacturing** | **3,665** | **−814.7 lb** |
+
+Manufacturing is **93% of the net loss**. Worst categories: Buds −1,548.8 lb,
+Fresh Frozen Flower −559.7 lb, Concentrate (Bulk) −193.0 lb.
+
+Over/Under Pulled nets to roughly zero (−1,341.7 against +1,366.0) — those are
+corrections either way, not loss.
+
+### D1 confirmed from a second, independent direction
+
+**There is exactly one "Drying" adjustment in 4,414 records, for zero pounds.**
+Moisture loss is not recorded as an adjustment on either licence.
+
+Combined with the harvest arithmetic — `Wet = Waste + Packaged + Remaining`
+balancing to exactly zero on all 380 harvests — this establishes that **evaporated
+water has never been removed from Metrc anywhere in the business.** It sits as
+24,896 lb of weight Metrc still believes is on finished harvests.
+
+That is now proven twice over, from harvests and from adjustments, rather than
+inferred from a moisture band.
+
+### Manufacturing exports
+
+| Report | MC281714 | MP281909 |
+|---|---|---|
+| Packages Adjustments | 749 | **3,665** |
+| Packages Inventory | 62 | 446 |
+| Inventory Point-in-Time | 2,103 | 648 |
+| Test Batches Relationships | 739 | 0 |
