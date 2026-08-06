@@ -1226,26 +1226,89 @@ function useDataToolbar(table, { eq = {}, limit = 200, orderBy = null, ascending
 
   const dirty = !!(q || dFrom || dTo);
   const toolbar = sample === null ? null : (
-    <div className="filterbar">
-      <input className="fsearch" placeholder="Search anything — name, batch, tag…" value={qLive}
-        onChange={(e) => setQLive(e.target.value)}
-        onKeyDown={(e) => { if (e.key === "Enter") setQ(qLive); }} />
-      <button className="btn small" onClick={() => setQ(qLive)}>Find</button>
-      {dateCol
-        ? <DateRangeSelect label={dateCol.replaceAll("_", " ")} from={dFrom} to={dTo} onFrom={setDFrom} onTo={setDTo} />
-        : <span className="flab" title="This dataset carries no date column, so there is nothing to filter by.">no date recorded on this dataset</span>}
-      {dirty && (
-        <button className="btn small ghost"
-          onClick={() => { setQ(""); setQLive(""); setDFrom(""); setDTo(""); }}>Clear</button>
-      )}
-      <span style={{ flex: 1 }} />
-      {total != null && <span className="flab">{total.toLocaleString()} records</span>}
-      <button className="btn small ghost" onClick={exportCsv}>Export CSV</button>
-      <button className="btn small ghost" onClick={() => window.print()}>Print</button>
-    </div>
+    <FilterBar qLive={qLive} setQLive={setQLive} onFind={() => setQ(qLive)}
+      dateCol={dateCol} dFrom={dFrom} dTo={dTo} setDFrom={setDFrom} setDTo={setDTo}
+      dirty={dirty} onClear={() => { setQ(""); setQLive(""); setDFrom(""); setDTo(""); }}
+      count={total} onExport={exportCsv} />
   );
 
   return { rows, toolbar, total, dateCol, searching: dirty };
+}
+
+/* The bar itself, so the server-side and client-side hooks render exactly the same
+   control. Same classes and the same DateRangeSelect the generic pages use. */
+function FilterBar({ qLive, setQLive, onFind, dateCol, dFrom, dTo, setDFrom, setDTo,
+                     dirty, onClear, count, countLabel = "records", onExport }) {
+  return (
+    <div className="filterbar">
+      <input className="fsearch" placeholder="Search anything — name, batch, tag…" value={qLive}
+        onChange={(e) => setQLive(e.target.value)}
+        onKeyDown={(e) => { if (e.key === "Enter") onFind(); }} />
+      <button className="btn small" onClick={onFind}>Find</button>
+      {dateCol
+        ? <DateRangeSelect label={dateCol.replaceAll("_", " ")} from={dFrom} to={dTo} onFrom={setDFrom} onTo={setDTo} />
+        : <span className="flab" title="This dataset carries no date column, so there is nothing to filter by.">no date recorded on this dataset</span>}
+      {dirty && <button className="btn small ghost" onClick={onClear}>Clear</button>}
+      <span style={{ flex: 1 }} />
+      {count != null && <span className="flab">{count.toLocaleString()} {countLabel}</span>}
+      {onExport && <button className="btn small ghost" onClick={onExport}>Export CSV</button>}
+      <button className="btn small ghost" onClick={() => window.print()}>Print</button>
+    </div>
+  );
+}
+
+/* Client-side variant, for pages that already hold every row and group or total
+   them — GoLiveScreen counts done against the whole list, so filtering server-side
+   would quietly change what its progress bar means. This filters what is shown
+   while the page keeps its own totals over the full set. */
+function useClientToolbar(rows, { dateField = null, name = "rows" } = {}) {
+  const [qLive, setQLive] = useState("");
+  const [q, setQ] = useState("");
+  const [dFrom, setDFrom] = useState("");
+  const [dTo, setDTo] = useState("");
+  const list = rows ?? [];
+  const dateCol = dateField ?? (list.length
+    ? Object.keys(list[0]).find((k) => /(_date|_on$|_on_|_at$|^date|^month|period)/.test(k))
+    : null);
+
+  const term = q.trim().toLowerCase();
+  const filtered = list.filter((r) => {
+    if (term) {
+      const hit = Object.entries(r).some(([k, v]) =>
+        k !== "raw" && typeof v === "string" && v.toLowerCase().includes(term));
+      if (!hit) return false;
+    }
+    if (dateCol && (dFrom || dTo)) {
+      const v = r[dateCol];
+      if (!v) return false;
+      const d = String(v).slice(0, 10);
+      if (dFrom && d < dFrom) return false;
+      if (dTo && d > dTo) return false;
+    }
+    return true;
+  });
+
+  const dirty = !!(q || dFrom || dTo);
+  const exportCsv = () => {
+    if (!filtered.length) return;
+    const keys = Object.keys(filtered[0]).filter((k) => k !== "raw" && typeof filtered[0][k] !== "object");
+    const esc = (v) => v == null ? "" : /[",\n]/.test(String(v)) ? '"' + String(v).replaceAll('"', '""') + '"' : String(v);
+    const csv = [keys.join(","), ...filtered.map((r) => keys.map((k) => esc(r[k])).join(","))].join("\n");
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
+    a.download = `${name}-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+  };
+
+  const toolbar = (
+    <FilterBar qLive={qLive} setQLive={setQLive} onFind={() => setQ(qLive)}
+      dateCol={dateCol} dFrom={dFrom} dTo={dTo} setDFrom={setDFrom} setDTo={setDTo}
+      dirty={dirty} onClear={() => { setQ(""); setQLive(""); setDFrom(""); setDTo(""); }}
+      count={dirty ? filtered.length : null} countLabel={"of " + list.length + " shown"}
+      onExport={exportCsv} />
+  );
+
+  return { filtered, toolbar, filtering: dirty };
 }
 
 function MetrcMirror({ license }) {
@@ -1667,7 +1730,10 @@ function IntelligenceBriefing({ go }) {
     supabase.from("v_intelligence_briefing").select("*").then(({ data }) => setRows(data ?? []));
   }, []);
   if (!rows) return <div className="loading">Reading the latest forensic sweep…</div>;
-  const shown = sev === "all" ? rows : rows.filter((r) => r.severity === sev);
+  /* search and date sit alongside the existing severity chips; the chip counts
+     still read the full sweep so the totals do not appear to shrink when filtering */
+  const { filtered: searched, toolbar } = useClientToolbar(rows, { name: "intelligence-briefing" });
+  const shown = sev === "all" ? searched : searched.filter((r) => r.severity === sev);
   const count = (x) => rows.filter((r) => r.severity === x).length;
   const dollars = rows.reduce((a, r) => a + Number(r.dollars || 0), 0);
 
@@ -1683,6 +1749,7 @@ function IntelligenceBriefing({ go }) {
         </p>
       </div>
 
+      {toolbar}
       <div className="brfilter">
         {["all", "critical", "elevated", "watch"].map((k) => (
           <button key={k} className={`brchip ${k} ${sev === k ? "on" : ""}`} onClick={() => setSev(k)}>
@@ -4359,6 +4426,7 @@ function WhiteboardsScreen({ session }) {
     setForm({ name: "", priv: true }); setVer((v) => v + 1);
     if (data) setOpen(data);
   };
+  const { filtered: shownBoards, toolbar } = useClientToolbar(boards, { name: "whiteboards" });
   if (open) return <WhiteboardEditor board={open} onBack={() => { setOpen(null); setVer((v) => v + 1); }} />;
   return (
     <>
@@ -4373,8 +4441,10 @@ function WhiteboardsScreen({ session }) {
       {boards === null ? <div className="empty"><div className="eicon">{I.board}</div>Loading…</div> : boards.length === 0 ? (
         <div className="empty"><div className="eicon">{I.board}</div><b>No whiteboards yet</b>Create one above — draw with the pen, drop sticky notes, hit Save.</div>
       ) : (
+        <>
+        {toolbar}
         <div className="teamgrid">
-          {boards.map((b) => (
+          {shownBoards.map((b) => (
             <button key={b.id} className="teamcard tplcard" onClick={() => setOpen(b)}>
               <span className="tcname">{b.name}{b.is_private && <span className="mtag">PRIVATE</span>}</span>
               <span className="tpldesc">{(b.content?.strokes?.length ?? 0)} strokes · {(b.content?.notes?.length ?? 0)} notes</span>
@@ -4382,6 +4452,7 @@ function WhiteboardsScreen({ session }) {
             </button>
           ))}
         </div>
+        </>
       )}
     </>
   );
@@ -4587,11 +4658,15 @@ function GoLiveScreen({ isExec, go }) {
         setBacklog(Object.entries(by).sort((a, b) => b[1] - a[1]));
       });
   }, []);
+  /* Search and date filter the list on screen. done/total and the progress bar
+     deliberately still count the WHOLE set — filtering the view must not make it
+     look as though the work shrank. */
+  const { filtered, toolbar } = useClientToolbar(items, { name: "go-live-items" });
   if (items === null) return <div className="empty"><div className="eicon">{I.check}</div>Loading…</div>;
   if (items.length === 0) return <div className="empty"><div className="eicon">{I.check}</div><b>Nothing tracked yet</b>Go-live items appear here the moment they are registered.</div>;
   const done = items.filter((i) => i.status === "done").length;
   const pct = Math.round((done / items.length) * 100);
-  const phases = [...new Map(items.map((i) => [i.phase, i.phase_name]))].sort((a, b) => a[0] - b[0]);
+  const phases = [...new Map(filtered.map((i) => [i.phase, i.phase_name]))].sort((a, b) => a[0] - b[0]);
   const NEXT = { open: "in_progress", in_progress: "done", blocked: "in_progress", done: "open" };
   const advance = async (it) => {
     if (!isExec) return;
@@ -4621,8 +4696,9 @@ function GoLiveScreen({ isExec, go }) {
           <div className="note" style={{ marginTop: 8 }}>Every one of these is a captured directive, audit finding, or spreadsheet feature — click through to work the list. Nothing goes live while a P0 stands.</div>
         </div>
       )}
+      {toolbar}
       {phases.map(([ph, phname]) => {
-        const list = items.filter((i) => i.phase === ph);
+        const list = filtered.filter((i) => i.phase === ph);
         const pdone = list.filter((i) => i.status === "done").length;
         return (
           <div key={ph} className="msection">
