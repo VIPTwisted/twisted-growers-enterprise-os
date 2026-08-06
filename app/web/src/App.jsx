@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useRef } from "react";
 import jsQR from "jsqr";
 import { supabase, FUNCTIONS_URL } from "./lib/supabase.js";
 import { BudzScreen, CeoDashboard, AssistantSettings } from "./budz.jsx";
@@ -63,7 +63,14 @@ const LAUNCHER_APPS = [
   { view: "alerts", icon: "bell", name: "Alerts", desc: "Everything that needs eyes" },
   { view: "tower", icon: "gauge", name: "Control Tower", desc: "Back to the executive board" },
 ];
-function Launcher({ onGo, onClose }) {
+function Launcher({ onGo, onClose, apps }) {
+  const [q, setQ] = useState("");
+  const list = (apps ?? []).filter(
+    (a) => !q || a.label.toLowerCase().includes(q.toLowerCase()) ||
+           (a.category || "").toLowerCase().includes(q.toLowerCase()) ||
+           (a.subcategory || "").toLowerCase().includes(q.toLowerCase())
+  );
+  const cats = [...new Set(list.map((a) => a.category))];
   return (
     <div className="launcher" onClick={onClose}>
       <div className="lwrap" onClick={(e) => e.stopPropagation()}>
@@ -71,18 +78,32 @@ function Launcher({ onGo, onClose }) {
           <img src="/tg-mark.png" alt="" />
           <div>
             <div className="lt">TG Workspace</div>
-            <div className="ls">The work platform inside the OS — pre-configured for this company. Nothing to set up.</div>
+            <div className="ls">Work, People and Finance — everything that is not the production floor.</div>
           </div>
+          <input className="lsearch" placeholder="Search…" value={q} autoFocus onChange={(e) => setQ(e.target.value)} />
           <button className="btn small ghost" onClick={onClose}>✕</button>
         </div>
-        <div className="lgrid">
-          {LAUNCHER_APPS.map((a, i) => (
-            <button key={a.view} className="lapp" style={{ "--d": `${i * 40}ms` }} onClick={() => { onGo(a.view); onClose(); }}>
-              <span className="li">{iconByName(a.icon)}</span>
-              <span className="ln">{a.name}</span>
-              <span className="ld">{a.desc}</span>
-            </button>
+        <div className="lcats">
+          {cats.map((c) => (
+            <div className="lcat" key={c}>
+              <div className="lcname">{c}</div>
+              {[...new Set(list.filter((a) => a.category === c).map((a) => a.subcategory || ""))].map((sub) => (
+                <div className="lsub" key={c + sub}>
+                  {sub && <div className="lsname">{sub}</div>}
+                  <div className="lgrid">
+                    {list.filter((a) => a.category === c && (a.subcategory || "") === sub).map((a) => (
+                      <button key={a.view_key} className="lapp" onClick={() => { onGo(a.view_key); onClose(); }}
+                        title={a.description || a.label}>
+                        <span className="li">{iconByName(a.icon)}</span>
+                        <span className="ln">{a.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
           ))}
+          {list.length === 0 && <div className="lnone">Nothing matches that.</div>}
         </div>
       </div>
     </div>
@@ -279,6 +300,11 @@ function usePrefs(session) {
 function useNav(version) {
   const [nav, setNav] = useState(null);
   const [reports, setReports] = useState([]);
+  const [apps, setApps] = useState([]);
+  const [deep, setDeep] = useState([]);
+  const [finance, setFinance] = useState([]);
+  const [tax, setTax] = useState([]);
+  const [hr, setHr] = useState([]);
   useEffect(() => {
     (async () => {
       const { data: auth } = await supabase.auth.getUser();
@@ -291,11 +317,18 @@ function useNav(version) {
       const { data: vis } = await supabase.from("nav_role_visibility").select("view_key, visible").eq("role", role);
       const hidden = new Set((vis ?? []).filter((v) => !v.visible).map((v) => v.view_key));
       const shown = (rows ?? []).filter((r) => !hidden.has(r.view_key));
-      setNav(shown.filter((r) => !r.report_group));
-      setReports(shown.filter((r) => r.report_group));
+      setNav(shown.filter((r) => (r.surface ?? "side") === "side"));
+      setReports(shown.filter((r) => (r.surface ?? "side") === "reports" || r.report_group));
+      setApps(shown.filter((r) => (r.surface ?? "side") === "launcher"));
+      /* 'deep' views are off the side rail to keep it short, but nothing is lost —
+         each one appears on the face of its own category dashboard. */
+      setDeep(shown.filter((r) => (r.surface ?? "side") === "deep"));
+      setFinance(shown.filter((r) => r.surface === "finance"));
+      setTax(shown.filter((r) => r.surface === "tax"));
+      setHr(shown.filter((r) => r.surface === "hr"));
     })();
   }, [version]);
-  return { nav, reports };
+  return { nav, reports, apps, deep, finance, tax, hr };
 }
 function useRole(session) {
   const [role, setRole] = useState(null);
@@ -463,8 +496,28 @@ function Auth() {
 }
 
 /* ---------- Raw record inspector (microscopic drill-down) ---------- */
-const fieldLabel = (k) =>
-  String(k).replace(/_/g, " ").replace(/([a-z0-9])([A-Z])/g, "$1 $2").replace(/\b\w/g, (c) => c.toUpperCase());
+/* No abbreviations anywhere on this platform. Spell it out. */
+const LABEL_WORDS = {
+  uom: "Unit of measure", coa: "Certificate of Analysis", thc: "THC", cbd: "CBD",
+  qty: "Quantity", lb: "Pounds", lbs: "Pounds", pct: "Percent", "%": "Percent",
+  id: "Identifier", no: "Number", num: "Number", ref: "Reference", desc: "Description",
+  mfg: "Manufacturing", dept: "Department", emp: "Employee", inv: "Inventory",
+  wo: "Work order", po: "Purchase order", sku: "Stock keeping unit", ea: "Each",
+  avg: "Average", min: "Minimum", max: "Maximum", pkg: "Package", pkgs: "Packages",
+  src: "Source", dest: "Destination", fg: "Finished goods", ff: "Fresh frozen",
+  usd: "Dollars", ytd: "Year to date", mtd: "Month to date", sop: "Sales and operations",
+};
+const fieldLabel = (k) => {
+  const key = String(k).toLowerCase().trim();
+  if (LABEL_WORDS[key]) return LABEL_WORDS[key];
+  return String(k)
+    .replace(/_/g, " ")
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .split(" ")
+    .map((w) => LABEL_WORDS[w.toLowerCase()] || w)
+    .join(" ")
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+};
 function DetailGrid({ obj, depth = 0 }) {
   const scalars = [], nested = [];
   Object.entries(obj ?? {}).forEach(([k, v]) => {
@@ -499,10 +552,180 @@ function DetailGrid({ obj, depth = 0 }) {
   );
 }
 /* Forensic seed-to-sale trace — available from every row on every page. */
-const TRACE_KEYS = ["tag", "package_tag", "harvest", "harvest_name", "manifest_number", "identifier",
-  "record", "subject", "name", "strain", "cultivar", "cultivars", "item", "item_name", "material_name",
-  "product_route", "customer", "scope", "source_ref", "detail", "room", "location", "flower_room"];
+/* Order matters: trace on a real identifier, never on a room or a location name.
+   A location is where something sits, not what it is - tracing it finds nothing. */
+const TRACE_KEYS = ["package_tag", "tag", "harvest_name", "harvest", "source_harvest", "manifest_number",
+  "inbound_manifest", "identifier", "production_batch", "made_from_packages", "record", "subject",
+  "item_name", "item", "material_name", "name", "strain", "cultivar", "cultivars",
+  "product_route", "customer", "source_ref"];
+const NEVER_TRACE = new Set(["Fulfillment Vault", "Cure Vault", "Freezer/Biomass Storage",
+  "Pre Trim Storage Room", "Pre-Trim Storage", "Biomass Prep", "Dry Room #1", "Dry Room #2",
+  "Packaging Room", "Production Room", "Quarantine", "Solventless", "Hydrocarbon", "Finish Vault",
+  "(not recorded)", "not recorded", "—"]);
 /* Seed-to-sale summary strip shown inside every drill-down we can identify. */
+
+/* Product identity: the six things that must appear on every product, everywhere.
+   Cultivator or manufacturer, THC, terpenes, certificate, manifest — and when one
+   is missing, WHY it is missing and what makes it appear. Reads one view, so the
+   moment a certificate or manifest exists it back-fills every past record. */
+function ProductIdentity({ term, row }) {
+  const [d, setD] = useState(undefined);
+  useEffect(() => {
+    let live = true;
+    (async () => {
+      const tag = [row?.package_tag, row?.tag, term].find(
+        (v) => typeof v === "string" && /^[A-Z0-9]{20,}$/i.test(v.trim())
+      );
+      if (!tag) { if (live) setD(null); return; }
+      const { data } = await supabase.from("v_product_identity").select("*").eq("package_tag", tag).maybeSingle();
+      if (live) setD(data ?? null);
+    })();
+    return () => { live = false; };
+  }, [term, row]);
+
+  if (d === undefined) return null;
+  if (!d)
+    return (
+      <div className="pidrow">
+        <label>Product identity</label>
+        <span className="pidwhy">
+          This row is not a single package, so it has no certificate, manifest or test values of its own.
+          <b> Why:</b> certificates and manifests attach to a package tag. Open an individual package from Stock Detail
+          or the Metrc Packages list to see them.
+        </span>
+      </div>
+    );
+
+  const Fact = ({ label, value, why, tone, href, hrefLabel }) => (
+    <div className={`pidfact ${tone || ""}`}>
+      <label>{label}</label>
+      {href ? (
+        <a className="pidlink" href={href} target="_blank" rel="noreferrer">{hrefLabel || value}</a>
+      ) : (
+        <b>{value}</b>
+      )}
+      {why && <span className="pidwhy">{why}</span>}
+    </div>
+  );
+
+  return (
+    <div className="pidrow">
+      <label>Product identity — required on every product, everywhere</label>
+      <div className="pidgrid">
+        <Fact label="Cultivator or manufacturer" value={d.cultivator_or_manufacturer}
+          why={d.maker_note || `Licence ${d.maker_license || "not recorded"} · ${d.origin}`}
+          tone={d.cultivator_or_manufacturer === "Not recorded" ? "warn" : "ok"} />
+        <Fact label="Total THC" value={d.total_thc != null ? d.total_thc + " %" : "Not recorded"}
+          why={d.analyte_note} tone={d.total_thc != null ? "ok" : "warn"} />
+        <Fact label="Total terpenes" value={d.total_terpenes != null ? d.total_terpenes + " %" : "Not recorded"}
+          why={d.total_terpenes == null ? d.analyte_note : `${d.analyte_count} analytes on file`}
+          tone={d.total_terpenes != null ? "ok" : "warn"} />
+        <Fact label="Total CBD" value={d.total_cbd != null ? d.total_cbd + " %" : "Not recorded"}
+          why={d.total_cbd == null ? d.analyte_note : null} tone={d.total_cbd != null ? "ok" : "warn"} />
+        <Fact label="Certificate of Analysis"
+          value={d.coa_url ? "Open the certificate" : d.lab_state || "Not recorded"}
+          href={d.coa_url} hrefLabel="📄 Open the certificate"
+          why={d.coa_status} tone={d.coa_url ? "ok" : "warn"} />
+        <Fact label="Manifest"
+          value={d.manifest_number ? "Manifest " + d.manifest_number : "None"}
+          href={d.manifest_url} hrefLabel={"🚚 Manifest " + (d.manifest_number || "")}
+          why={d.manifest_status} tone={d.manifest_number ? "ok" : "warn"} />
+      </div>
+      <div className="pidloc">
+        <label>Where it is, with dates</label>
+        <LocationHistory term={d.package_tag} tag={d.package_tag} />
+      </div>
+      <div className="pidmeta">
+        {d.strain && <span>Strain: <b>{d.strain}</b></span>}
+        {d.category && <span>Category: <b>{d.category}</b></span>}
+        <span>Quantity: <b>{Number(d.quantity).toLocaleString()} {d.unit_of_measure}</b></span>
+        {d.laboratory && <span>Laboratory: <b>{d.laboratory}</b></span>}
+        {d.result_on && <span>Result recorded: <b>{d.result_on}</b></span>}
+        {d.coa_expires && <span>Certificate valid to: <b>{d.coa_expires}</b></span>}
+      </div>
+    </div>
+  );
+}
+
+/* HARD RULE: a location is never shown without when it entered, how long it has
+   been there, when it left and where it went. */
+/* HARD RULE: whenever testing is shown, state the date it went out, the date it
+   came back, and how many days it was out. Never a bare state. */
+function TestingDates({ row }) {
+  const out = row?.submitted_on || row?.submitted_for_testing_on || row?.lab_state_on;
+  const back = row?.result_on || row?.result_recorded_on;
+  const state = row?.result || row?.lab_state || row?.testing_state || row?.verdict;
+  if (!state && !out && !back) return null;
+  const days =
+    row?.turnaround_days != null
+      ? Number(row.turnaround_days)
+      : out && back
+      ? Math.round((new Date(back) - new Date(out)) / 86400000)
+      : out
+      ? Math.round((Date.now() - new Date(out)) / 86400000)
+      : null;
+  const stillOut = out && !back;
+  return (
+    <div className="testline">
+      <span><em>Testing state</em><b className={state === "TestFailed" || state === "FAILED" ? "bad" : ""}>{state || "not recorded"}</b></span>
+      <span><em>Went out for testing</em><b>{out || "never submitted"}</b></span>
+      <span><em>Came back from testing</em><b>{back || (stillOut ? "still out" : "not applicable")}</b></span>
+      <span>
+        <em>Days out at the laboratory</em>
+        <b className={days != null && days > 14 ? "slow" : ""}>
+          {days == null ? "not applicable" : stillOut ? `${days} days and counting` : `${days} days`}
+        </b>
+      </span>
+      {row?.coa_expires && <span><em>Certificate valid to</em><b>{row.coa_expires}</b></span>}
+    </div>
+  );
+}
+
+function LocationHistory({ term, tag }) {
+  const [rows, setRows] = useState(undefined);
+  useEffect(() => {
+    let live = true;
+    (async () => {
+      let q = supabase.from("v_location_history").select("*").limit(12);
+      q = tag ? q.eq("package_tag", tag)
+              : q.or(`package_tag.ilike.%${term}%,item_name.ilike.%${term}%,strain.ilike.%${term}%`);
+      const { data } = await q;
+      if (live) setRows(data ?? []);
+    })();
+    return () => { live = false; };
+  }, [term, tag]);
+  if (rows === undefined) return <span className="note">Reading the movement record…</span>;
+  if (!rows.length)
+    return (
+      <span className="lochnone">
+        No location record. <b>Why:</b> nothing in Metrc is currently held under this name. If it is a room, open an
+        individual package instead — locations attach to package tags.
+      </span>
+    );
+  return (
+    <div className="lochist">
+      {rows.map((l) => (
+        <div key={l.package_tag} className={`loch ${l.left_area_on ? "gone" : "here"}`}>
+          <div className="lochtop">
+            <span className="lochtag">{l.package_tag}</span>
+            <span className="lochqty">{Number(l.quantity).toLocaleString()} {l.unit_of_measure}</span>
+            <span className={`lochpos ${l.left_area_on ? "" : "on"}`}>{l.position}</span>
+          </div>
+          <div className="lochline">
+            <span><em>Area</em><b>{l.area}</b></span>
+            <span><em>Came from</em><b>{l.came_from_area || l.arrived_from || "not recorded"}</b></span>
+            <span><em>Entered</em><b>{l.entered_area_on || "not recorded"}</b></span>
+            <span><em>Days there</em><b>{l.days_in_this_area}</b></span>
+            <span><em>Left</em><b>{l.left_area_on || "has not left"}</b></span>
+            <span><em>Manifest in</em><b>{l.arrived_on_manifest || "none"}</b></span>
+            <span><em>History last recorded</em><b>{l.last_recorded_on || "never"}{l.days_since_anything_was_recorded != null ? ` (${l.days_since_anything_was_recorded} days ago)` : ""}</b></span>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function SeedToSaleSummary({ term }) {
   const [d, setD] = useState(undefined);
   useEffect(() => {
@@ -521,6 +744,32 @@ function SeedToSaleSummary({ term }) {
   }, [term]);
   if (d === undefined) return <div className="note" style={{ margin: "10px 0" }}>Loading the seed to sale picture…</div>;
   const L = d.life, G = d.grade;
+  const nothing = !L && !G && d.alloc.length === 0 && d.locs.length === 0;
+  if (nothing) {
+    const isPlace = NEVER_TRACE.has(String(term).trim());
+    return (
+      <div className="stsbox stsnone">
+        <div className="stshead">Seed to sale — {term}</div>
+        <b className="stsnb">
+          {isPlace
+            ? `"${term}" is a place, not a product — a room cannot have a seed-to-sale history.`
+            : `No seed-to-sale chain is recorded for ${term}.`}
+        </b>
+        <p>
+          {isPlace
+            ? "Open an individual package from Stock Detail and trace that instead. Every package carries its own Metrc tag, which is what the chain follows."
+            : "That is a finding, not a blank. It means one of the following, and the Traceability column on Stock Detail says which:"}
+        </p>
+        {!isPlace && (
+          <ul>
+            <li><b>Bought in.</b> We did not grow it, so there is no harvest of ours behind it. Its cultivation history sits with the supplier — the Supplier and Inbound manifest columns name who to ask.</li>
+            <li><b>No source recorded in Metrc.</b> Neither a source harvest nor a parent package. That is a real lineage gap and should be corrected in Metrc.</li>
+            <li><b>Weights never entered.</b> The harvest exists but wet, waste and grade weights were never recorded, so there is nothing to show. Enter them in Weights and Grading and they appear here.</li>
+          </ul>
+        )}
+      </div>
+    );
+  }
   const money = (v, u) => (v == null ? "not recorded" : `${Number(v).toLocaleString()} ${u ?? ""}`);
   return (
     <div className="stsbox">
@@ -540,11 +789,8 @@ function SeedToSaleSummary({ term }) {
         <div><label>Shipped out</label><b>{L?.packages_shipped ?? 0}</b></div>
       </div>
       <div className="stsrow">
-        <label>Where it sits in the facility</label>
-        {d.locs.length === 0 ? <span className="note">Nothing currently located under this name.</span>
-          : d.locs.map((l, i) => (
-            <span key={i} className="schip info">{l.location} · {Number(l.quantity).toLocaleString()} {l.uom} · {l.stage}{l.days_here != null ? ` · ${l.days_here}d` : ""}</span>
-          ))}
+        <label>Where it is, with dates</label>
+        <LocationHistory term={term} />
       </div>
       <div className="stsrow">
         <label>Allocation</label>
@@ -575,7 +821,18 @@ function TraceDrawer({ term, onClose }) {
           <button className="btn small ghost" onClick={onClose}>✕</button>
         </div>
         {rows === null ? <div className="note" style={{ padding: 14 }}>Tracing every record…</div>
-          : rows.length === 0 ? <div className="empty"><div className="eicon">{I.dna}</div><b>Nothing traced</b>No linked records found for this term.</div>
+          : rows.length === 0 ? (
+            <div className="tracenone">
+              <b>No chain recorded in Metrc for {term}</b>
+              <p>That is a finding, not a blank. It means one of these:</p>
+              <ul>
+                <li><b>It was bought in.</b> We did not grow it, so there is no harvest of ours to trace to. Its cultivation history sits with the supplier — ask them for the certificate and grow record. Check the Supplier and Inbound manifest columns on the row.</li>
+                <li><b>Metrc holds no source link.</b> The package records neither a source harvest nor a parent package. That is a genuine lineage gap and should be corrected in Metrc.</li>
+                <li><b>The value is not an identifier.</b> Rooms, locations and aggregate rows cannot be traced — only a package tag, harvest name or manifest number can.</li>
+              </ul>
+              <p className="tracehint">The Traceability column on Stock Detail states which of these applies to each package, in plain words.</p>
+            </div>
+          )
           : (
             <>
               <div className="statchips" style={{ margin: "8px 0 12px" }}>
@@ -609,7 +866,9 @@ function RawRow({ row, cols }) {
   const [open, setOpen] = useState(false);
   const [showRaw, setShowRaw] = useState(false);
   const [trace, setTrace] = useState(null);
-  const traceTerm = TRACE_KEYS.map((k) => row[k]).find((v) => typeof v === "string" && v.trim().length > 2);
+  const traceTerm = TRACE_KEYS.map((k) => row[k]).find(
+    (v) => typeof v === "string" && v.trim().length > 2 && !NEVER_TRACE.has(v.trim())
+  );
   return (
     <>
       {trace && <TraceDrawer term={trace} onClose={() => setTrace(null)} />}
@@ -635,6 +894,8 @@ function RawRow({ row, cols }) {
               ? <pre className="drawjson">{JSON.stringify(row, null, 2)}</pre>
               : <>
                   {traceTerm && <SeedToSaleSummary term={traceTerm} />}
+                  <TestingDates row={row} />
+                  <ProductIdentity term={traceTerm} row={row} />
                   <DetailGrid obj={row} />
                 </>}
           </td>
@@ -647,7 +908,7 @@ const formatCell = (v) => {
   if (v == null || v === "") return "—";
   if (typeof v === "object") return "{…}";
   const s = String(v);
-  return s.length > 42 ? s.slice(0, 42) + "…" : s;
+  return s;
 };
 
 /* ---------- Generic dynamic module (registry-driven, drill-down built in) ---------- */
@@ -1204,6 +1465,1672 @@ function SyncCenter({ session }) {
 }
 
 /* ---------- Control Tower ---------- */
+/* Intelligence Briefing. Every finding is a written investigation, not a count.
+   Each one answers what, where, who, when, why, how it was found and what to do,
+   shows the arithmetic behind the figure, then the evidence records themselves.
+   A plain-English section restates it for anyone who is not an operator. */
+const fmtWhen = (v) => {
+  if (!v) return "not recorded";
+  const d = new Date(v);
+  if (isNaN(d)) return String(v);
+  return d.toLocaleString(undefined, { year: "numeric", month: "short", day: "numeric",
+    hour: "numeric", minute: "2-digit" });
+};
+const fmtDay = (v) => {
+  if (!v) return "not recorded";
+  const d = new Date(v);
+  if (isNaN(d)) return String(v);
+  return d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+};
+
+function BriefingReport({ f }) {
+  const [tab, setTab] = useState("report");
+  const ev = Array.isArray(f.evidence) ? f.evidence : [];
+  const cols = ev.length ? Object.keys(ev[0]).slice(0, 8) : [];
+  return (
+    <div className="brreport">
+      <div className="brtabs">
+        <button className={tab === "report" ? "on" : ""} onClick={() => setTab("report")}>The investigation</button>
+        <button className={tab === "plain" ? "on" : ""} onClick={() => setTab("plain")}>What this means in plain English</button>
+        <button className={tab === "evidence" ? "on" : ""} onClick={() => setTab("evidence")}>
+          The evidence{ev.length ? ` (${ev.length} records)` : ""}
+        </button>
+      </div>
+
+      {tab === "report" && (
+        <div className="brbody">
+          <div className="brq"><label>What was found</label><p>{f.finding}</p></div>
+          <div className="brq"><label>Where it is</label><p>{f.where_it_is || "not recorded"}</p></div>
+          <div className="brq"><label>Who is accountable</label><p>{f.who_is_accountable || "unassigned — nobody owns this yet"}</p></div>
+          <div className="brq"><label>When it started</label><p>{f.when_it_started || "not recorded"}</p></div>
+          <div className="brq"><label>Why it matters</label><p>{f.why_it_matters}</p></div>
+          <div className="brq"><label>How it was detected</label><p>{f.how_it_was_detected}</p></div>
+          <div className="brq"><label>What to do about it</label><p className="brdo">{f.what_to_do}</p></div>
+          <div className="brq wide"><label>Where the dollar figure comes from</label>
+            <MoneyBasis stream={f.stream_hint} pounds={f.pounds} dollars={f.dollars} go={window.__tgGo} />
+          </div>
+          {f.the_arithmetic && (
+            <div className="brq wide"><label>The arithmetic — how the figure was reached</label>
+              <p className="brmath">{f.the_arithmetic}</p></div>
+          )}
+          <div className="brq wide"><label>Audit trail of this finding</label>
+            <p>
+              First raised {fmtDay(f.first_found_on)}. Confirmed again on {f.times_found} separate
+              sweeps, most recently {fmtDay(f.found_on)}. It has been open {f.days_open} day{f.days_open === 1 ? "" : "s"}.
+              {f.records_affected ? ` ${Number(f.records_affected).toLocaleString()} records are affected.` : ""}
+              {f.dollars ? ` $${Number(f.dollars).toLocaleString()} is at stake.` : " No dollar figure — the value of this material has not been set."}
+              {f.pounds ? ` ${Number(f.pounds).toLocaleString()} pounds involved.` : ""}
+            </p>
+          </div>
+        </div>
+      )}
+
+      {tab === "plain" && (
+        <div className="brplain">
+          <p><b>In one sentence:</b> {f.finding}</p>
+          <p><b>Where to look:</b> {f.where_it_is || "the record does not say where"}.</p>
+          <p><b>Who needs to answer for it:</b> {f.who_is_accountable || "nobody has been assigned yet, so it is sitting with no owner"}.</p>
+          <p><b>Why anyone should care:</b> {f.why_it_matters}</p>
+          <p><b>How we know:</b> {f.how_it_was_detected}</p>
+          <p><b>The fix:</b> {f.what_to_do}</p>
+          <p><b>How long this has been true:</b> it was first spotted on {fmtDay(f.first_found_on)} and has
+            come back on {f.times_found} sweeps since. That is {f.days_open} days with nothing changing.</p>
+        </div>
+      )}
+
+      {tab === "evidence" && (
+        ev.length === 0 ? (
+          <div className="brnone">
+            No individual records are attached to this finding. <b>Why:</b> this finding was
+            computed from a total rather than a list, so there is no row-level evidence to show.
+            The arithmetic on the investigation tab is the full derivation.
+          </div>
+        ) : (
+          <div className="brevwrap">
+            <table className="brev">
+              <thead><tr>{cols.map((c) => <th key={c}>{fieldLabel(c)}</th>)}</tr></thead>
+              <tbody>
+                {ev.map((r, i) => (
+                  <tr key={i}>{cols.map((c) => (
+                    <td key={c}>{r[c] == null || r[c] === "" ? "not recorded" : String(r[c])}</td>
+                  ))}</tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )
+      )}
+    </div>
+  );
+}
+
+function IntelligenceBriefing({ go }) {
+  const [rows, setRows] = useState(null);
+  const [open, setOpen] = useState(null);
+  const [sev, setSev] = useState("all");
+  useEffect(() => {
+    supabase.from("v_intelligence_briefing").select("*").then(({ data }) => setRows(data ?? []));
+  }, []);
+  if (!rows) return <div className="loading">Reading the latest forensic sweep…</div>;
+  const shown = sev === "all" ? rows : rows.filter((r) => r.severity === sev);
+  const count = (x) => rows.filter((r) => r.severity === x).length;
+  const dollars = rows.reduce((a, r) => a + Number(r.dollars || 0), 0);
+
+  return (
+    <div className="brief">
+      <div className="pagehead">
+        <h1>Intelligence Briefing</h1>
+        <p className="dashsub">
+          {rows.length} findings from the latest sweep. Every one opens a full written
+          investigation — what, where, who, when, why, how it was detected, what to do,
+          the arithmetic behind the figure and the records it rests on.
+          {dollars > 0 && <> Total at stake: <b>${dollars.toLocaleString()}</b>.</>}
+        </p>
+      </div>
+
+      <div className="brfilter">
+        {["all", "critical", "elevated", "watch"].map((k) => (
+          <button key={k} className={`brchip ${k} ${sev === k ? "on" : ""}`} onClick={() => setSev(k)}>
+            {k === "all" ? `All ${rows.length}` : `${count(k)} ${k}`}
+          </button>
+        ))}
+      </div>
+
+      {shown.length === 0 ? (
+        <div className="brnone">Nothing at this severity in the latest sweep.</div>
+      ) : shown.map((f, i) => {
+        const id = f.finding + i;
+        const isOpen = open === id;
+        return (
+          <div key={id} className={`brcard ${f.severity}`}>
+            <button className="brhead" onClick={() => setOpen(isOpen ? null : id)}>
+              <span className={`brsev ${f.severity}`}>{f.severity}</span>
+              <span className="brtitle">{f.finding}</span>
+              <span className="brnums">
+                {f.dollars ? <em className="money">${Number(f.dollars).toLocaleString()}</em> : null}
+                {f.pounds ? <em>{Number(f.pounds).toLocaleString()} lb</em> : null}
+                {f.records_affected ? <em>{Number(f.records_affected).toLocaleString()} records</em> : null}
+                <em className={f.days_open > 14 ? "warn" : ""}>{f.days_open}d open</em>
+              </span>
+              <span className="brtoggle">{isOpen ? "Close the report ▲" : "Open the full report ▼"}</span>
+            </button>
+            <div className="brline">
+              <span><em>Where</em>{f.where_it_is || "not recorded"}</span>
+              <span><em>Who</em>{f.who_is_accountable || "unassigned"}</span>
+              <span><em>Since</em>{f.when_it_started || "not recorded"}</span>
+              <span><em>Last confirmed</em>{fmtWhen(f.found_on)}</span>
+            </div>
+            {isOpen && <BriefingReport f={f} />}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/* Every dollar figure must be able to prove itself. This shows the pounds, the
+   rate, where the rate came from, who set it and when — and says plainly when
+   nobody has set it, because an unconfirmed rate makes the figure an estimate. */
+function MoneyBasis({ stream, pounds, dollars, go }) {
+  const [b, setB] = useState(undefined);
+  useEffect(() => {
+    if (!stream) { setB(null); return; }
+    let live = true;
+    supabase.from("v_valuation_basis").select("*").eq("stream", stream).maybeSingle()
+      .then(({ data }) => { if (live) setB(data ?? null); });
+    return () => { live = false; };
+  }, [stream]);
+  if (b === undefined) return null;
+  if (!b)
+    return (
+      <div className="mbasis warn">
+        <b>No rate on file for this stream.</b> The dollar figure could not be derived, so none is
+        shown. Set a rate in Valuation Rates and it will appear here and back-fill every record.
+      </div>
+    );
+  const lb = Number(pounds || 0);
+  const rate = Number(b.dollars_per_pound);
+  return (
+    <div className={`mbasis ${b.confirmed ? "" : "warn"}`}>
+      <div className="mbformula">
+        {lb.toLocaleString()} lb × ${rate.toLocaleString()} per pound ={" "}
+        <b>${Math.round(lb * rate).toLocaleString()}</b>
+        {dollars != null && Math.abs(Math.round(lb * rate) - Number(dollars)) > 1 && (
+          <em className="mbdiff">
+            The stored figure is ${Number(dollars).toLocaleString()} — it was calculated before the
+            current rate was set.
+          </em>
+        )}
+      </div>
+      <div className="mbwhere">{b.provenance}</div>
+      {b.overrides_on_this_stream > 0 && (
+        <div className="mbwhere">
+          {b.overrides_on_this_stream} batch or package override
+          {b.overrides_on_this_stream === 1 ? "" : "s"} apply to this stream and are used ahead of
+          the flat rate.
+        </div>
+      )}
+      <button className="mbedit" onClick={() => go && go("valuation_rates")}>
+        {b.confirmed ? "Change this rate or add a batch override" : "Set the real rate for this stream"}
+      </button>
+    </div>
+  );
+}
+
+function ValuationRates({ session }) {
+  const [rates, setRates] = useState(null);
+  const [ovr, setOvr] = useState([]);
+  const [role, setRole] = useState(null);
+  const [edit, setEdit] = useState(null);
+  const [form, setForm] = useState({});
+  const [msg, setMsg] = useState("");
+  const [nv, setNv] = useState({ package_tag: "", harvest_name: "", stream: "", dollars_per_pound: "", reason: "" });
+  const who = session?.user?.email ?? "unknown";
+
+  const load = async () => {
+    const [r, o, u] = await Promise.all([
+      supabase.from("v_valuation_basis").select("*").order("stream"),
+      supabase.from("valuation_overrides").select("*").order("set_at", { ascending: false }),
+      supabase.from("app_users").select("role").eq("user_id", session.user.id).maybeSingle(),
+    ]);
+    setRates(r.data ?? []);
+    setOvr(o.data ?? []);
+    setRole(u.data?.role ?? null);
+  };
+  useEffect(() => { load(); }, []);
+  const mayEdit = ["owner", "executive", "planner", "dept_head"].includes(role);
+
+  const save = async (stream) => {
+    const v = Number(form.dollars_per_pound);
+    if (!v || v <= 0) { setMsg("Enter a rate greater than zero."); return; }
+    if (!form.basis || form.basis.trim().length < 10) {
+      setMsg("Write the basis — where this number comes from — in at least ten characters. A rate with no basis is the problem we are fixing.");
+      return;
+    }
+    const { error } = await supabase.from("valuation_rates").upsert({
+      stream, dollars_per_pound: v, basis: form.basis.trim(),
+      source_note: form.source_note?.trim() || null, confirmed: true,
+      set_by: who, set_at: new Date().toISOString(), effective_from: new Date().toISOString().slice(0, 10),
+    }, { onConflict: "stream,effective_from" });
+    setMsg(error ? error.message : `Rate for ${stream} set to $${v} per pound. Every figure using it has been recalculated.`);
+    if (!error) { setEdit(null); setForm({}); load(); }
+  };
+
+  const addOverride = async () => {
+    if (!nv.package_tag && !nv.harvest_name) { setMsg("Name the package tag or the harvest this override applies to."); return; }
+    if (!Number(nv.dollars_per_pound)) { setMsg("Enter the rate for this batch."); return; }
+    if (!nv.reason || nv.reason.trim().length < 10) { setMsg("Write why this batch is worth a different amount."); return; }
+    const { error } = await supabase.from("valuation_overrides").insert({
+      package_tag: nv.package_tag || null, harvest_name: nv.harvest_name || null,
+      stream: nv.stream || null, dollars_per_pound: Number(nv.dollars_per_pound),
+      reason: nv.reason.trim(), set_by: who,
+    });
+    setMsg(error ? error.message : "Override saved. It is used ahead of the flat rate for that material.");
+    if (!error) { setNv({ package_tag: "", harvest_name: "", stream: "", dollars_per_pound: "", reason: "" }); load(); }
+  };
+
+  if (!rates) return <div className="loading">Reading the valuation rates…</div>;
+  const unconfirmed = rates.filter((r) => !r.confirmed).length;
+
+  return (
+    <div className="vrates">
+      <div className="pagehead">
+        <h1>Valuation Rates — what a pound is worth</h1>
+        <p className="dashsub">
+          Every money figure on this platform is pounds × a rate from this page. Change a rate here
+          and every figure that uses it changes, everywhere, including past records.
+          {unconfirmed > 0 && (
+            <> <b className="vrwarn">{unconfirmed} of {rates.length} streams still carry the inherited
+            $1,100 default that nobody set. Figures using them are estimates.</b></>
+          )}
+        </p>
+      </div>
+
+      {msg && <div className="vrmsg">{msg}</div>}
+      {!mayEdit && (
+        <div className="vrmsg">
+          You can see every rate and its basis, but changing one needs an owner, executive, planner
+          or department head. Your role is {role || "not set"}.
+        </div>
+      )}
+
+      <div className="vrgrid">
+        {rates.map((r) => (
+          <div key={r.stream} className={`vrcard ${r.confirmed ? "ok" : "warn"}`}>
+            <div className="vrhead">
+              <span className="vrname">{r.stream}</span>
+              <span className={`vrpill ${r.confirmed ? "ok" : "warn"}`}>
+                {r.confirmed ? "confirmed" : "nobody set this"}
+              </span>
+            </div>
+            <div className="vrbig">${Number(r.dollars_per_pound).toLocaleString()}<em> per pound</em></div>
+            <div className="vrline"><em>Basis</em><b>{r.basis}</b></div>
+            <div className="vrline"><em>Set by</em><b>{r.set_by || "nobody"}</b></div>
+            <div className="vrline"><em>Set on</em><b>{r.confirmed ? r.set_on : "never"}</b></div>
+            <div className="vrline"><em>Batch overrides</em><b>{r.overrides_on_this_stream}</b></div>
+            {r.source_note && <p className="vrnote">{r.source_note}</p>}
+            {mayEdit && edit !== r.stream && (
+              <button className="vrbtn" onClick={() => { setEdit(r.stream); setForm({ dollars_per_pound: r.dollars_per_pound, basis: r.confirmed ? r.basis : "" }); setMsg(""); }}>
+                {r.confirmed ? "Change this rate" : "Set the real rate"}
+              </button>
+            )}
+            {mayEdit && edit === r.stream && (
+              <div className="vrform">
+                <label>Dollars per pound
+                  <input type="number" step="0.01" value={form.dollars_per_pound ?? ""}
+                    onChange={(e) => setForm({ ...form, dollars_per_pound: e.target.value })} />
+                </label>
+                <label>Basis — where this number comes from
+                  <input value={form.basis ?? ""} placeholder="e.g. average of the last six wholesale invoices"
+                    onChange={(e) => setForm({ ...form, basis: e.target.value })} />
+                </label>
+                <label>Anything else worth recording
+                  <input value={form.source_note ?? ""} placeholder="optional"
+                    onChange={(e) => setForm({ ...form, source_note: e.target.value })} />
+                </label>
+                <div className="vractions">
+                  <button className="vrbtn primary" onClick={() => save(r.stream)}>Save the rate</button>
+                  <button className="vrbtn" onClick={() => { setEdit(null); setMsg(""); }}>Cancel</button>
+                </div>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+
+      {mayEdit && (
+        <div className="vrsec">
+          <h2>Override a single batch or package</h2>
+          <p className="vrsub">
+            Use this when one lot is genuinely worth more or less than the stream rate — remediated
+            material, a discounted purchase, a premium run. The override is used ahead of the flat
+            rate wherever that material appears.
+          </p>
+          <div className="vrovform">
+            <label>Package tag<input value={nv.package_tag} onChange={(e) => setNv({ ...nv, package_tag: e.target.value })} placeholder="leave blank to use a harvest" /></label>
+            <label>Harvest name<input value={nv.harvest_name} onChange={(e) => setNv({ ...nv, harvest_name: e.target.value })} placeholder="leave blank to use a package tag" /></label>
+            <label>Stream<input value={nv.stream} onChange={(e) => setNv({ ...nv, stream: e.target.value })} placeholder="optional" /></label>
+            <label>Dollars per pound<input type="number" step="0.01" value={nv.dollars_per_pound} onChange={(e) => setNv({ ...nv, dollars_per_pound: e.target.value })} /></label>
+            <label className="wide">Why this batch is different<input value={nv.reason} onChange={(e) => setNv({ ...nv, reason: e.target.value })} placeholder="e.g. bought at a discount to remediate" /></label>
+          </div>
+          <button className="vrbtn primary" onClick={addOverride}>Save the override</button>
+        </div>
+      )}
+
+      <div className="vrsec">
+        <h2>Overrides on file <span className="vrcount">{ovr.length}</span></h2>
+        {ovr.length === 0 ? (
+          <p className="vrsub">None yet. Every stream is valued at its flat rate.</p>
+        ) : (
+          <div className="tablewrap">
+            <table>
+              <thead><tr><th>Package tag</th><th>Harvest</th><th>Stream</th><th>Dollars per pound</th><th>Why</th><th>Set by</th><th>Set on</th></tr></thead>
+              <tbody>
+                {ovr.map((o) => (
+                  <tr key={o.id}>
+                    <td>{o.package_tag || "—"}</td><td>{o.harvest_name || "—"}</td>
+                    <td>{o.stream || "any"}</td><td>${Number(o.dollars_per_pound).toLocaleString()}</td>
+                    <td>{o.reason}</td><td>{o.set_by}</td><td>{String(o.set_at).slice(0, 10)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* Production cost calculator. Every formula is the owner's own, taken from the
+   manufacturing production worksheet, with the workbook cell it came from named
+   on each line. Nothing is a constant in code — every input is a row anyone with
+   permission can change, and every change is kept with who made it and when. */
+const money = (n, d = 2) =>
+  n == null || !isFinite(n) ? "—" : "$" + Number(n).toLocaleString(undefined, { minimumFractionDigits: d, maximumFractionDigits: d });
+const num = (n, d = 2) =>
+  n == null || !isFinite(n) ? "—" : Number(n).toLocaleString(undefined, { maximumFractionDigits: d });
+
+function CalcLine({ label, formula, value, unit, tone }) {
+  return (
+    <div className={`cline ${tone || ""}`}>
+      <span className="clabel">{label}</span>
+      <span className="cformula">{formula}</span>
+      <span className="cvalue">{value}{unit ? <em> {unit}</em> : null}</span>
+    </div>
+  );
+}
+
+function ProductionCalculator({ session }) {
+  const [inp, setInp] = useState(null);
+  const [role, setRole] = useState(null);
+  const [hist, setHist] = useState([]);
+  const [edit, setEdit] = useState(null);
+  const [draft, setDraft] = useState("");
+  const [msg, setMsg] = useState("");
+  const who = session?.user?.email ?? "unknown";
+
+  const load = async () => {
+    const [i, u, h] = await Promise.all([
+      supabase.from("cost_inputs").select("*").order("sort"),
+      supabase.from("app_users").select("role").eq("user_id", session.user.id).maybeSingle(),
+      supabase.from("cost_input_history").select("*").order("changed_at", { ascending: false }).limit(40),
+    ]);
+    setInp(i.data ?? []);
+    setRole(u.data?.role ?? null);
+    setHist(h.data ?? []);
+  };
+  useEffect(() => { load(); }, []);
+  if (!inp) return <div className="loading">Reading the cost model…</div>;
+
+  const mayEdit = ["owner", "executive", "planner", "dept_head"].includes(role);
+  const v = Object.fromEntries(inp.map((r) => [r.key, Number(r.value)]));
+  const byKey = Object.fromEntries(inp.map((r) => [r.key, r]));
+
+  const save = async (key) => {
+    const n = Number(draft);
+    if (!isFinite(n)) { setMsg("Enter a number."); return; }
+    const { error } = await supabase.from("cost_inputs")
+      .update({ value: n, updated_by: who }).eq("key", key);
+    setMsg(error ? error.message
+      : `${byKey[key].label} changed from ${byKey[key].value} to ${n}. Every figure below recalculated, and the change is on the record.`);
+    if (!error) { setEdit(null); load(); }
+  };
+
+  /* ── The owner's formulas, cell for cell ── */
+  const trimPerG = v.trim_cost_per_lb / 454;                       // Summary!B7
+  const batchCost = v.run_size_g * trimPerG;                       // Summary!B8
+  const crudeG = v.crude_yield_pct * v.run_size_g;                 // Summary!B14
+  const crudeCostG = (batchCost + v.extraction_labor + v.solvent_cost) / crudeG; // Summary!B15
+  const diamondG = crudeG * v.diamond_yield_pct;                   // Summary!B17
+  const diamondAlloc = diamondG * crudeCostG + v.proc_labor_diamonds; // Summary!B18
+  const diamondPerG = diamondAlloc / diamondG;                     // Summary!B19
+  const ldG = diamondG * v.liquid_diamond_factor;                  // Summary!B20
+  const ldAlloc = diamondG * crudeCostG + v.proc_labor_diamonds + v.ld_extra_cost; // Summary!B21
+  const ldPerG = ldAlloc / ldG;                                    // Summary!B22
+  const remainingCrudeG = crudeG * (1 - v.diamond_yield_pct);      // Summary!B24
+  const crudeAlloc = remainingCrudeG * crudeCostG + v.proc_labor_badder; // Summary!B25
+  const crudePerG = crudeAlloc / remainingCrudeG;                  // Summary!B26
+
+  const badder = (grams, fill) =>
+    crudePerG * grams + v.badder_packaging + fill + v.badder_package + v.badder_rd_test + v.badder_compliance;
+  const badder1 = badder(1, v.badder_fill_1g);                     // Summary!B35
+  const badder35 = badder(3.5, v.badder_fill_35g);                 // Summary!C35
+
+  const vape = (base, terp) =>
+    base + terp + v.vape_hardware + v.vape_packaging + v.vape_fill + v.vape_package + v.vape_compliance;
+  const vape05 = vape(ldPerG / 2, v.vape_terp_05);                 // Summary!G14
+  const vape10 = vape(ldPerG, v.vape_terp_10);                     // Summary!H14
+
+  const curedBase = crudeCostG / 0.877;                            // Summary!G24
+  const cured10 = curedBase + v.cured_hardware + v.cured_packaging + v.vape_fill
+    + v.cured_package_labor + v.cured_compliance_lot / v.cured_compliance_units; // Summary!G31
+
+  const runsDay = (v.hours_workday - 2) / v.hours_per_run;         // Volatile!B9
+  const workdaysYear = v.workdays_week * 52 - v.holidays_year;     // Volatile!B6
+  const runsYear = runsDay * workdaysYear;                         // Volatile!B10
+  const yieldPct = v.flower_thc * v.extraction_efficiency;         // Volatile!B13
+  const biomassDay = v.luna_throughput * runsDay;                  // Volatile!B39
+  const biomassWeek = biomassDay * v.workdays_week;                // Volatile!B40
+  const oilLbDay = v.luna_throughput * runsDay * yieldPct;         // Volatile!B48
+  const oilGDay = oilLbDay * 454;                                  // Volatile!B49
+  const inputCostDay = v.operators * v.hours_workday * v.employee_salary
+    + v.wholesale_biomass * biomassDay + v.solvent_loss * v.solvent_price; // Volatile!B42
+  const costPerGram = inputCostDay / oilGDay;                      // Volatile!B43
+  const revenueDay = oilGDay * v.wholesale_oil;                    // Volatile!B44
+  const profitDay = revenueDay - inputCostDay;                     // Volatile!B45
+  const margin = profitDay / revenueDay;                           // Volatile!B46
+  const profitYear = profitDay * workdaysYear;                     // Volatile!D45
+
+  const groups = inp.reduce((m, r) => {
+    const k = r.model + " — " + r.section;
+    (m[k] = m[k] || []).push(r);
+    return m;
+  }, {});
+
+  return (
+    <div className="calc">
+      <div className="pagehead">
+        <h1>Production Cost Calculator</h1>
+        <p className="dashsub">
+          Every formula here is taken from the manufacturing production worksheet, with the workbook
+          cell named on each line. Change any input and everything below recalculates immediately.
+          Nothing is hardcoded — {inp.length} inputs, all editable by anyone with permission.
+        </p>
+      </div>
+
+      {msg && <div className="vrmsg">{msg}</div>}
+      {!mayEdit && (
+        <div className="vrmsg">
+          You can see every input and every formula. Changing a cost needs an owner, executive,
+          planner or department head. Your role is {role || "not set"}.
+        </div>
+      )}
+
+      <Section title="What a unit costs to make" defaultOpen>
+        <div className="cgrid">
+          <div className="ccard">
+            <div className="cchead">Cured badder</div>
+            <div className="ccbig">{money(badder1)}<em> per 1.0 gram</em></div>
+            <div className="ccbig sm">{money(badder35)}<em> per 3.5 gram</em></div>
+            <div className="ccnote">Crude at {money(crudePerG, 4)} per gram, plus packaging, fill, packaging labour, research and compliance testing.</div>
+          </div>
+          <div className="ccard">
+            <div className="cchead">Liquid diamond vaporiser</div>
+            <div className="ccbig">{money(vape05)}<em> per 0.5 gram</em></div>
+            <div className="ccbig sm">{money(vape10)}<em> per 1.0 gram</em></div>
+            <div className="ccnote">Base oil at {money(ldPerG, 4)} per gram, plus terpenes, hardware, packaging and labour.</div>
+          </div>
+          <div className="ccard">
+            <div className="cchead">Cured resin vaporiser</div>
+            <div className="ccbig">{money(cured10)}<em> per 1.0 gram</em></div>
+            <div className="ccnote">Base oil corrected for the 13 percent decarboxylation loss, plus landed hardware and pop top packaging.</div>
+          </div>
+          <div className="ccard">
+            <div className="cchead">Daily line position</div>
+            <div className="ccbig">{money(profitDay, 0)}<em> profit per day</em></div>
+            <div className="ccbig sm">{num(margin * 100, 1)}%<em> margin</em></div>
+            <div className="ccnote">{num(oilGDay, 0)} grams of oil a day from {num(biomassDay, 1)} pounds of biomass. {money(profitYear, 0)} a year over {num(workdaysYear, 0)} work days.</div>
+          </div>
+        </div>
+      </Section>
+
+      <Section title="Every step, with the formula and the workbook cell it came from">
+        <div className="clines">
+          <div className="cgroup">Hydrocarbon batch</div>
+          <CalcLine label="Trim cost per gram" formula={`${money(v.trim_cost_per_lb, 2)} ÷ 454 grams  ·  Summary!B7`} value={money(trimPerG, 4)} />
+          <CalcLine label="Batch cost" formula={`${num(v.run_size_g, 0)} g × ${money(trimPerG, 4)}  ·  Summary!B8`} value={money(batchCost)} />
+          <CalcLine label="Crude oil yield" formula={`${num(v.crude_yield_pct * 100, 1)}% × ${num(v.run_size_g, 0)} g  ·  Summary!B14`} value={num(crudeG, 1)} unit="grams" />
+          <CalcLine label="Crude cost per gram" formula={`(${money(batchCost)} + ${money(v.extraction_labor)} + ${money(v.solvent_cost)}) ÷ ${num(crudeG, 1)} g  ·  Summary!B15`} value={money(crudeCostG, 4)} tone="key" />
+          <div className="cgroup">Diamonds</div>
+          <CalcLine label="Diamond yield" formula={`${num(crudeG, 1)} g × ${num(v.diamond_yield_pct * 100, 1)}%  ·  Summary!B17`} value={num(diamondG, 1)} unit="grams" />
+          <CalcLine label="Cost allocated to diamonds" formula={`${num(diamondG, 1)} g × ${money(crudeCostG, 4)} + ${money(v.proc_labor_diamonds)}  ·  Summary!B18`} value={money(diamondAlloc)} />
+          <CalcLine label="Diamond cost per gram" formula={`${money(diamondAlloc)} ÷ ${num(diamondG, 1)} g  ·  Summary!B19`} value={money(diamondPerG, 4)} tone="key" />
+          <CalcLine label="Liquid diamond yield" formula={`${num(diamondG, 1)} g × ${v.liquid_diamond_factor}  ·  Summary!B20`} value={num(ldG, 1)} unit="grams" />
+          <CalcLine label="Liquid diamond cost per gram" formula={`${money(ldAlloc)} ÷ ${num(ldG, 1)} g  ·  Summary!B22`} value={money(ldPerG, 4)} tone="key" />
+          <div className="cgroup">Remaining crude, which becomes badder</div>
+          <CalcLine label="Remaining crude" formula={`${num(crudeG, 1)} g × (100% − ${num(v.diamond_yield_pct * 100, 1)}%)  ·  Summary!B24`} value={num(remainingCrudeG, 1)} unit="grams" />
+          <CalcLine label="Cost allocated to crude" formula={`${num(remainingCrudeG, 1)} g × ${money(crudeCostG, 4)} + ${money(v.proc_labor_badder)}  ·  Summary!B25`} value={money(crudeAlloc)} />
+          <CalcLine label="Crude cost per gram" formula={`${money(crudeAlloc)} ÷ ${num(remainingCrudeG, 1)} g  ·  Summary!B26`} value={money(crudePerG, 4)} tone="key" />
+          <div className="cgroup">Line throughput and daily position</div>
+          <CalcLine label="Runs per day" formula={`(${v.hours_workday} h − 2 h) ÷ ${v.hours_per_run} h  ·  Volatile!B9`} value={num(runsDay, 2)} unit="runs" />
+          <CalcLine label="Work days per year" formula={`${v.workdays_week} × 52 − ${v.holidays_year}  ·  Volatile!B6`} value={num(workdaysYear, 0)} unit="days" />
+          <CalcLine label="Runs per year" formula={`${num(runsDay, 2)} × ${num(workdaysYear, 0)}  ·  Volatile!B10`} value={num(runsYear, 0)} unit="runs" />
+          <CalcLine label="Oil yield" formula={`${num(v.flower_thc * 100, 1)}% cannabinoids × ${num(v.extraction_efficiency * 100, 0)}% efficiency  ·  Volatile!B13`} value={num(yieldPct * 100, 2)} unit="%" />
+          <CalcLine label="Biomass needed daily" formula={`${v.luna_throughput} lb per run × ${num(runsDay, 2)} runs  ·  Volatile!B39`} value={num(biomassDay, 1)} unit="pounds" />
+          <CalcLine label="Biomass needed weekly" formula={`${num(biomassDay, 1)} lb × ${v.workdays_week} days  ·  Volatile!B40`} value={num(biomassWeek, 1)} unit="pounds" />
+          <CalcLine label="Oil output daily" formula={`${num(biomassDay, 1)} lb × ${num(yieldPct * 100, 2)}% × 454  ·  Volatile!B49`} value={num(oilGDay, 0)} unit="grams" />
+          <CalcLine label="Input cost daily" formula={`labour (${v.operators} × ${v.hours_workday} h × ${money(v.employee_salary)}) + biomass (${money(v.wholesale_biomass)} × ${num(biomassDay, 1)} lb) + solvent (${v.solvent_loss} lb × ${money(v.solvent_price)})  ·  Volatile!B42`} value={money(inputCostDay, 0)} />
+          <CalcLine label="Cost per gram of oil" formula={`${money(inputCostDay, 0)} ÷ ${num(oilGDay, 0)} g  ·  Volatile!B43`} value={money(costPerGram, 4)} tone="key" />
+          <CalcLine label="Revenue daily" formula={`${num(oilGDay, 0)} g × ${money(v.wholesale_oil)} per gram  ·  Volatile!B44`} value={money(revenueDay, 0)} />
+          <CalcLine label="Profit daily" formula={`${money(revenueDay, 0)} − ${money(inputCostDay, 0)}  ·  Volatile!B45`} value={money(profitDay, 0)} tone={profitDay > 0 ? "good" : "bad"} />
+          <CalcLine label="Margin" formula={`${money(profitDay, 0)} ÷ ${money(revenueDay, 0)}  ·  Volatile!B46`} value={num(margin * 100, 1)} unit="%" tone={margin > 0 ? "good" : "bad"} />
+          <CalcLine label="Profit yearly" formula={`${money(profitDay, 0)} × ${num(workdaysYear, 0)} work days  ·  Volatile!D45`} value={money(profitYear, 0)} tone={profitYear > 0 ? "good" : "bad"} />
+        </div>
+      </Section>
+
+      <Section title="The inputs — change any of these" count={inp.length} defaultOpen>
+        {Object.entries(groups).map(([g, items]) => (
+          <div key={g} className="cinpgrp">
+            <label>{g}</label>
+            <div className="cinps">
+              {items.map((r) => (
+                <div key={r.key} className="cinp">
+                  <span className="cinpl">{r.label}</span>
+                  {edit === r.key ? (
+                    <span className="cinpe">
+                      <input autoFocus type="number" step="any" value={draft}
+                        onChange={(e) => setDraft(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === "Enter") save(r.key); if (e.key === "Escape") setEdit(null); }} />
+                      <button className="vrbtn primary" onClick={() => save(r.key)}>Save</button>
+                      <button className="vrbtn" onClick={() => setEdit(null)}>Cancel</button>
+                    </span>
+                  ) : (
+                    <button className="cinpv" disabled={!mayEdit}
+                      onClick={() => { setEdit(r.key); setDraft(String(r.value)); setMsg(""); }}
+                      title={mayEdit ? "Click to change" : "You do not have permission to change this"}>
+                      {Number(r.value).toLocaleString(undefined, { maximumFractionDigits: 6 })}
+                      <em> {r.unit}</em>
+                    </button>
+                  )}
+                  <span className="cinps2">
+                    {r.source_cell}
+                    {r.updated_by ? ` · last changed by ${r.updated_by} on ${String(r.updated_at).slice(0, 10)}` : " · never changed"}
+                  </span>
+                  {r.note && <span className="cinpn">{r.note}</span>}
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </Section>
+
+      <Section title="Every change made to a cost" count={hist.length}>
+        {hist.length === 0 ? (
+          <p className="vrsub">No cost has been changed yet. Every future change is recorded here with who made it and when.</p>
+        ) : (
+          <div className="tablewrap">
+            <table>
+              <thead><tr><th>Input</th><th>From</th><th>To</th><th>Changed by</th><th>When</th></tr></thead>
+              <tbody>
+                {hist.map((h) => (
+                  <tr key={h.id}>
+                    <td>{byKey[h.key]?.label ?? h.key}</td>
+                    <td>{h.old_value}</td><td>{h.new_value}</td>
+                    <td>{h.changed_by}</td><td>{String(h.changed_at).slice(0, 16).replace("T", " ")}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Section>
+    </div>
+  );
+}
+
+/* Harvest labour calculator. The owner's formulas from the harvest workbook, run
+   against the live Metrc plant count for a real room instead of a fixed estimate.
+   Every input and every pace scenario is editable by anyone with permission. */
+function HarvestLaborCalculator({ session }) {
+  const [inp, setInp] = useState(null);
+  const [pace, setPace] = useState([]);
+  const [rooms, setRooms] = useState([]);
+  const [role, setRole] = useState(null);
+  const [room, setRoom] = useState("");
+  const [edit, setEdit] = useState(null);
+  const [draft, setDraft] = useState("");
+  const [msg, setMsg] = useState("");
+  const who = session?.user?.email ?? "unknown";
+
+  const load = async () => {
+    const [i, sc, r, u] = await Promise.all([
+      supabase.from("harvest_labor_inputs").select("*").order("sort"),
+      supabase.from("harvest_pace_scenarios").select("*").order("sort"),
+      supabase.from("v_room_plant_counts").select("*"),
+      supabase.from("app_users").select("role").eq("user_id", session.user.id).maybeSingle(),
+    ]);
+    setInp(i.data ?? []); setPace(sc.data ?? []); setRooms(r.data ?? []);
+    setRole(u.data?.role ?? null);
+  };
+  useEffect(() => { load(); }, []);
+  if (!inp) return <div className="loading">Reading the harvest labour model…</div>;
+
+  const mayEdit = ["owner", "executive", "planner", "dept_head"].includes(role);
+  const byKey = Object.fromEntries(inp.map((r) => [r.key, r]));
+  const v = Object.fromEntries(inp.map((r) => [r.key, Number(r.value)]));
+  const chosen = rooms.find((r) => r.room === room);
+  const plants = chosen ? Number(chosen.plants) : v.plants;
+
+  const save = async (key) => {
+    const n = Number(draft);
+    if (!isFinite(n) || n <= 0) { setMsg("Enter a number greater than zero."); return; }
+    const { error } = await supabase.from("harvest_labor_inputs")
+      .update({ value: n, updated_by: who, updated_at: new Date().toISOString() }).eq("key", key);
+    setMsg(error ? error.message : `${byKey[key].label} changed to ${n}. Everything below recalculated.`);
+    if (!error) { setEdit(null); load(); }
+  };
+  const savePace = async (id, field, val) => {
+    const n = Number(val);
+    if (!isFinite(n) || n <= 0) { setMsg("Enter a number greater than zero."); return; }
+    const { error } = await supabase.from("harvest_pace_scenarios")
+      .update({ [field]: n, updated_by: who, updated_at: new Date().toISOString() }).eq("id", id);
+    setMsg(error ? error.message : "Pace scenario updated. The clock test re-ran.");
+    if (!error) { setEdit(null); load(); }
+  };
+
+  /* ── The owner's formulas ── */
+  const perTable = plants / v.tables;                       // B4
+  const day1Min = v.core_staff * v.day1_hours * 60;         // B7
+  const day2Min = v.core_staff * v.day2_hours * 60;         // B9
+  const capacity = day1Min + day2Min;                       // B10
+  const scored = pace.map((sc) => {
+    const elapsed = plants / Number(sc.plants_per_min_per_person) / Number(sc.staff_on_task); // D
+    const laborMin = elapsed * Number(sc.staff_on_task);    // E
+    return { ...sc, elapsed, laborMin, fits: elapsed <= v.day1_clock };
+  });
+  const firstFit = scored.find((x) => x.fits);
+
+  const Cell = ({ k }) => {
+    const r = byKey[k];
+    if (!r) return null;
+    return edit === k ? (
+      <span className="cinpe">
+        <input autoFocus type="number" step="any" value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") save(k); if (e.key === "Escape") setEdit(null); }} />
+        <button className="vrbtn primary" onClick={() => save(k)}>Save</button>
+        <button className="vrbtn" onClick={() => setEdit(null)}>Cancel</button>
+      </span>
+    ) : (
+      <button className="cinpv" disabled={!mayEdit}
+        onClick={() => { setEdit(k); setDraft(String(r.value)); setMsg(""); }}
+        title={mayEdit ? "Click to change" : "You do not have permission to change this"}>
+        {Number(r.value).toLocaleString()}<em> {r.unit}</em>
+      </button>
+    );
+  };
+
+  return (
+    <div className="calc">
+      <div className="pagehead">
+        <h1>Harvest Labour Calculator</h1>
+        <p className="dashsub">
+          The formulas from your harvest workbook, run against the live Metrc plant count for a real
+          room rather than a fixed estimate. Every input and every pace scenario is editable.
+        </p>
+      </div>
+      {msg && <div className="vrmsg">{msg}</div>}
+      {!mayEdit && (
+        <div className="vrmsg">You can see everything here. Changing an input needs an owner,
+          executive, planner or department head. Your role is {role || "not set"}.</div>
+      )}
+
+      <Section title="Which room are you harvesting" defaultOpen>
+        <div className="hrooms">
+          <button className={`hroom ${room === "" ? "on" : ""}`} onClick={() => setRoom("")}>
+            <span className="hrname">Use the workbook estimate</span>
+            <span className="hrbig">{Number(v.plants).toLocaleString()}</span>
+            <span className="hrsub">plants · Labor Calculator!B2</span>
+          </button>
+          {rooms.map((r) => (
+            <button key={r.room + r.growth_phase} className={`hroom ${room === r.room ? "on" : ""}`}
+              onClick={() => setRoom(r.room)}>
+              <span className="hrname">{r.room}</span>
+              <span className="hrbig">{Number(r.plants).toLocaleString()}</span>
+              <span className="hrsub">
+                plants standing in Metrc · {r.growth_phase} · {r.strains} cultivar{r.strains === 1 ? "" : "s"}
+              </span>
+              <span className="hrsub">planted {r.earliest_planted} to {r.latest_planted}</span>
+            </button>
+          ))}
+        </div>
+        {chosen && (
+          <p className="hrnote">
+            Using the live count of <b>{Number(chosen.plants).toLocaleString()}</b> plants still standing in
+            {" "}{chosen.room}. Harvested and destroyed plants are excluded — they are not work still to be done.
+            Cultivars in the room: {chosen.strain_list}.
+          </p>
+        )}
+      </Section>
+
+      <Section title="Can the crew finish Day 1 inside the clock" defaultOpen>
+        <div className="hverdict">
+          {firstFit ? (
+            <div className="hv ok">
+              <b>Yes, at {firstFit.scenario.toLowerCase()} or faster.</b>
+              <span>
+                {Number(plants).toLocaleString()} plants at {firstFit.plants_per_min_per_person} per minute per
+                person with {firstFit.staff_on_task} on task takes {Math.round(firstFit.elapsed)} elapsed minutes,
+                inside the {v.day1_clock} minute Day 1 clock. Anything slower does not finish.
+              </span>
+            </div>
+          ) : (
+            <div className="hv bad">
+              <b>No. Not one pace scenario finishes Day 1 inside the clock.</b>
+              <span>
+                {Number(plants).toLocaleString()} plants cannot be taken down in {v.day1_clock} minutes with
+                {" "}{v.core_staff} staff at any pace on file. Add staff, raise the pace, or split the room across
+                two harvest days.
+              </span>
+            </div>
+          )}
+        </div>
+        <div className="tablewrap">
+          <table>
+            <thead><tr>
+              <th>Pace scenario</th><th>Plants per minute per person</th><th>Staff on task</th>
+              <th>Elapsed minutes</th><th>Labour minutes</th>
+              <th>Fits the {v.day1_clock} minute Day 1 clock</th><th>Notes</th>
+            </tr></thead>
+            <tbody>
+              {scored.map((x) => (
+                <tr key={x.id} className={x.fits ? "" : "rowbad"}>
+                  <td>{x.scenario}</td>
+                  <td>
+                    {edit === x.id + "p" ? (
+                      <span className="cinpe">
+                        <input autoFocus type="number" step="any" value={draft}
+                          onChange={(e) => setDraft(e.target.value)}
+                          onKeyDown={(e) => { if (e.key === "Enter") savePace(x.id, "plants_per_min_per_person", draft); if (e.key === "Escape") setEdit(null); }} />
+                        <button className="vrbtn primary" onClick={() => savePace(x.id, "plants_per_min_per_person", draft)}>Save</button>
+                      </span>
+                    ) : (
+                      <button className="cinpv" disabled={!mayEdit}
+                        onClick={() => { setEdit(x.id + "p"); setDraft(String(x.plants_per_min_per_person)); }}>
+                        {x.plants_per_min_per_person}
+                      </button>
+                    )}
+                  </td>
+                  <td>
+                    {edit === x.id + "s" ? (
+                      <span className="cinpe">
+                        <input autoFocus type="number" step="any" value={draft}
+                          onChange={(e) => setDraft(e.target.value)}
+                          onKeyDown={(e) => { if (e.key === "Enter") savePace(x.id, "staff_on_task", draft); if (e.key === "Escape") setEdit(null); }} />
+                        <button className="vrbtn primary" onClick={() => savePace(x.id, "staff_on_task", draft)}>Save</button>
+                      </span>
+                    ) : (
+                      <button className="cinpv" disabled={!mayEdit}
+                        onClick={() => { setEdit(x.id + "s"); setDraft(String(x.staff_on_task)); }}>
+                        {x.staff_on_task}
+                      </button>
+                    )}
+                  </td>
+                  <td>{Math.round(x.elapsed).toLocaleString()}</td>
+                  <td>{Math.round(x.laborMin).toLocaleString()}</td>
+                  <td><b className={x.fits ? "ok" : "bad"}>{x.fits ? "YES" : "NO"}</b></td>
+                  <td>{x.notes}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <p className="vrsub">
+          Elapsed minutes = plants ÷ pace ÷ staff on task · Labor Calculator!D13. Labour minutes = elapsed ×
+          staff on task · E13. The clock test is Labor Calculator!F13.
+        </p>
+      </Section>
+
+      <Section title="Every step, with the workbook cell it came from" defaultOpen>
+        <div className="clines">
+          <CalcLine label="Plants to take down"
+            formula={chosen ? `Live Metrc count for ${chosen.room}, plants still standing` : "Workbook estimate · Labor Calculator!B2"}
+            value={Number(plants).toLocaleString()} unit="plants" tone="key" />
+          <CalcLine label="Plants per table"
+            formula={`${Number(plants).toLocaleString()} ÷ ${v.tables} tables  ·  Labor Calculator!B4`}
+            value={Math.round(perTable).toLocaleString()} unit="plants" />
+          <CalcLine label="Day 1 labour capacity"
+            formula={`${v.core_staff} staff × ${v.day1_hours} paid hours × 60  ·  Labor Calculator!B7`}
+            value={day1Min.toLocaleString()} unit="minutes" />
+          <CalcLine label="Day 2 labour capacity"
+            formula={`${v.core_staff} staff × ${v.day2_hours} paid hours × 60  ·  Labor Calculator!B9`}
+            value={day2Min.toLocaleString()} unit="minutes" />
+          <CalcLine label="Two day labour capacity"
+            formula={`${day1Min.toLocaleString()} + ${day2Min.toLocaleString()}  ·  Labor Calculator!B10`}
+            value={capacity.toLocaleString()} unit="minutes" tone="key" />
+        </div>
+      </Section>
+
+      <Section title="The inputs — change any of these" count={inp.length} defaultOpen>
+        <div className="cinps">
+          {inp.map((r) => (
+            <div key={r.key} className="cinp">
+              <span className="cinpl">{r.label}</span>
+              <Cell k={r.key} />
+              <span className="cinps2">
+                {r.source_cell}
+                {r.updated_by ? ` · last changed by ${r.updated_by} on ${String(r.updated_at).slice(0, 10)}` : " · never changed"}
+              </span>
+              {r.note && <span className="cinpn">{r.note}</span>}
+            </div>
+          ))}
+        </div>
+      </Section>
+
+      <Section title="Day 1 required outcomes">
+        <ul className="hout">
+          <li><b>Fresh frozen completed, frozen and logged.</b> Around {v.fresh_frozen_target} pounds as a side
+            lane — it must not become the full-day bottleneck.</li>
+          <li><b>All plants down and material moved.</b> Nobody leaves Day 1 until Day 2 can start replanting.</li>
+          <li><b>Waste removed and first-pass clean complete.</b> Critical, because Day 2 is replant first.</li>
+        </ul>
+      </Section>
+    </div>
+  );
+}
+
+/* Sheet Sync for a restricted sheet nobody is allowed to change.
+   Scripts inside the sheet are blocked by policy and the sheet cannot be shared,
+   so nothing reaches into it. Instead the data comes from this side: select the
+   rows in the sheet, copy, paste here. It parses, compares against what arrived
+   last time, and says exactly what changed. A file dropped from the sheet's own
+   Download works the same way. */
+function SheetSync({ session }) {
+  const [rows, setRows] = useState(null);
+  const [srcs, setSrcs] = useState([]);
+  const [log, setLog] = useState([]);
+  const [role, setRole] = useState(null);
+  const [active, setActive] = useState(null);
+  const [paste, setPaste] = useState("");
+  const [parsed, setParsed] = useState(null);
+  const [msg, setMsg] = useState("");
+  const [preview, setPreview] = useState(null);
+  const who = session?.user?.email ?? "unknown";
+
+  const load = async () => {
+    const [st, sc, l, u] = await Promise.all([
+      supabase.from("v_sheet_sync_status").select("*"),
+      supabase.from("sheet_sources").select("*").order("name"),
+      supabase.from("sheet_push_log").select("*").order("received_at", { ascending: false }).limit(30),
+      supabase.from("app_users").select("role").eq("user_id", session.user.id).maybeSingle(),
+    ]);
+    setRows(st.data ?? []); setSrcs(sc.data ?? []); setLog(l.data ?? []);
+    setRole(u.data?.role ?? null);
+  };
+  useEffect(() => { load(); }, []);
+  if (!rows) return <div className="loading">Reading the sheet sync status…</div>;
+  const mayEdit = ["owner", "executive", "planner", "dept_head"].includes(role);
+
+  /* Sheets copy as tab separated text. Handle commas too, for a downloaded file. */
+  const parse = (text) => {
+    const lines = String(text).replace(/\r/g, "").split("\n").filter((l) => l.trim() !== "");
+    if (lines.length < 2) return { error: "Paste the headings row and at least one row of data." };
+    const sep = lines[0].includes("\t") ? "\t" : ",";
+    const heads = lines[0].split(sep).map((h) => h.trim());
+    if (heads.filter(Boolean).length === 0) return { error: "The first row has no column headings." };
+    const out = lines.slice(1).map((l) => {
+      const cells = l.split(sep);
+      const o = {};
+      heads.forEach((h, i) => { if (h) o[h] = (cells[i] ?? "").trim(); });
+      return o;
+    });
+    return { heads: heads.filter(Boolean), rows: out };
+  };
+
+  const doParse = (text) => {
+    const r = parse(text);
+    if (r.error) { setMsg(r.error); setParsed(null); return; }
+    setMsg(""); setParsed(r);
+  };
+
+  const commit = async (src) => {
+    if (!parsed?.rows?.length) { setMsg("Nothing parsed yet."); return; }
+    const before = await supabase.from("sheet_rows").select("data").eq("source_id", src.id);
+    const oldRows = (before.data ?? []).map((r) => JSON.stringify(r.data));
+    const newRows = parsed.rows.map((r) => JSON.stringify(r));
+    const added = newRows.filter((r) => !oldRows.includes(r)).length;
+    const removed = oldRows.filter((r) => !newRows.includes(r)).length;
+
+    await supabase.from("sheet_rows").delete().eq("source_id", src.id);
+    const batch = parsed.rows.map((data, i) => ({ source_id: src.id, row_number: i + 1, data }));
+    for (let i = 0; i < batch.length; i += 400) {
+      const { error } = await supabase.from("sheet_rows").insert(batch.slice(i, i + 400));
+      if (error) { setMsg(error.message); return; }
+    }
+    await supabase.from("sheet_sources")
+      .update({ last_pushed_at: new Date().toISOString(), last_row_count: parsed.rows.length })
+      .eq("id", src.id);
+    await supabase.from("sheet_push_log").insert({
+      source_id: src.id, rows_received: parsed.rows.length, ok: true,
+      message: `${parsed.rows.length} rows brought in by ${who}. ${added} new or changed, ${removed} no longer present.`,
+    });
+    setMsg(`Brought in ${parsed.rows.length} rows. ${added} new or changed since last time, ${removed} no longer in the sheet.`);
+    setPaste(""); setParsed(null); setActive(null); load();
+  };
+
+  const onFile = async (f) => {
+    if (!f) return;
+    const text = await f.text();
+    setPaste(text.slice(0, 400000));
+    doParse(text);
+  };
+
+  const showRows = async (id) => {
+    const { data } = await supabase.from("sheet_rows").select("*").eq("source_id", id)
+      .order("row_number").limit(60);
+    setPreview({ id, rows: data ?? [] });
+  };
+
+  return (
+    <div className="calc">
+      <div className="pagehead">
+        <h1>Sheet Sync</h1>
+        <p className="dashsub">
+          For a sheet you are only allowed to look at. Nothing here reaches into the sheet, nothing
+          is installed in it, and nobody is given access to it — so no policy is touched. You copy
+          the rows out of the sheet and paste them here, or drop the file the sheet's own Download
+          gives you. It parses the columns, compares against last time and tells you what changed.
+        </p>
+      </div>
+      {msg && <div className="vrmsg">{msg}</div>}
+      {!mayEdit && (
+        <div className="vrmsg">You can see what has arrived. Bringing data in needs an owner,
+          executive, planner or department head. Your role is {role || "not set"}.</div>
+      )}
+
+      {rows.map((r) => {
+        const src = srcs.find((x) => x.id === r.id);
+        const stale = r.status.startsWith("OVERDUE") || !r.last_pushed_at;
+        return (
+          <div key={r.id} className={`sscard ${stale ? "bad" : "ok"}`}>
+            <div className="sshead">
+              <span className="ssname">{r.name}</span>
+              <span className="sstab">tab: {r.sheet_tab}</span>
+              <span className={`sspill ${stale ? "warn" : "ok"}`}>
+                {!r.last_pushed_at ? "nothing brought in yet" : stale ? "out of date" : "up to date"}
+              </span>
+            </div>
+            <div className="ssstat">{r.status}</div>
+            <div className="ssline">
+              <span><em>Rows held now</em><b>{Number(r.rows_held).toLocaleString()}</b></span>
+              <span><em>Rows last time</em><b>{r.last_row_count ?? "none yet"}</b></span>
+              <span><em>Expected every</em><b>{r.expected_every_minutes >= 1440
+                ? `${Math.round(r.expected_every_minutes / 1440)} day${r.expected_every_minutes >= 2880 ? "s" : ""}`
+                : `${r.expected_every_minutes} minutes`}</b></span>
+            </div>
+            <div className="ssactions">
+              <button className="vrbtn" onClick={() => showRows(r.id)}>See what has arrived</button>
+              {mayEdit && (
+                <button className="vrbtn primary" onClick={() => { setActive(active === r.id ? null : r.id); setParsed(null); setPaste(""); setMsg(""); }}>
+                  {active === r.id ? "Close" : "Bring today's data in"}
+                </button>
+              )}
+            </div>
+
+            {active === r.id && (
+              <div className="sssetup">
+                <ol className="sssteps">
+                  <li>Open the sheet and go to the <b>{r.sheet_tab}</b> tab.</li>
+                  <li>Click the corner box to select everything, or press <b>Ctrl</b> and <b>A</b>,
+                    then <b>Ctrl</b> and <b>C</b> to copy. Include the row of headings.</li>
+                  <li>Click in the box below and press <b>Ctrl</b> and <b>V</b>.</li>
+                </ol>
+                <p className="ssnote">
+                  Or use <b>File → Download → Comma separated values</b> in the sheet and drop the
+                  file here. Both do the same thing. Neither changes the sheet or its sharing.
+                </p>
+                <textarea className="sspaste" value={paste} placeholder="Paste the sheet here…"
+                  onChange={(e) => { setPaste(e.target.value); doParse(e.target.value); }} />
+                <input className="ssfile" type="file" accept=".csv,.tsv,.txt"
+                  onChange={(e) => onFile(e.target.files?.[0])} />
+
+                {parsed && (
+                  <>
+                    <div className="ssparsed">
+                      Read <b>{parsed.rows.length}</b> rows across <b>{parsed.heads.length}</b> columns:{" "}
+                      {parsed.heads.join(", ")}
+                    </div>
+                    <div className="tablewrap">
+                      <table>
+                        <thead><tr>{parsed.heads.map((h) => <th key={h}>{h}</th>)}</tr></thead>
+                        <tbody>
+                          {parsed.rows.slice(0, 8).map((pr, i) => (
+                            <tr key={i}>{parsed.heads.map((h) => (
+                              <td key={h}>{pr[h] === "" || pr[h] == null ? "—" : pr[h]}</td>
+                            ))}</tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    {parsed.rows.length > 8 && (
+                      <p className="ssnote">Showing the first 8 of {parsed.rows.length}. All of them will be brought in.</p>
+                    )}
+                    <button className="vrbtn primary" onClick={() => commit(src)}>
+                      Bring in all {parsed.rows.length} rows
+                    </button>
+                  </>
+                )}
+              </div>
+            )}
+
+            {preview?.id === r.id && (
+              preview.rows.length === 0 ? (
+                <div className="brnone">
+                  Nothing has been brought in yet. <b>Why:</b> nobody has pasted or uploaded this
+                  sheet since the source was created.
+                </div>
+              ) : (
+                <div className="tablewrap">
+                  <table>
+                    <thead><tr><th>Row</th>
+                      {Object.keys(preview.rows[0].data).map((c) => <th key={c}>{c}</th>)}
+                    </tr></thead>
+                    <tbody>
+                      {preview.rows.map((pr) => (
+                        <tr key={pr.id}><td>{pr.row_number}</td>
+                          {Object.keys(preview.rows[0].data).map((c) => (
+                            <td key={c}>{pr.data[c] == null || pr.data[c] === "" ? "—" : String(pr.data[c])}</td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )
+            )}
+          </div>
+        );
+      })}
+
+      <Section title="Everything brought in, and by whom" count={log.length}>
+        {log.length === 0 ? (
+          <p className="vrsub">Nothing yet. Every import is recorded here with who did it and what changed.</p>
+        ) : (
+          <div className="tablewrap">
+            <table>
+              <thead><tr><th>When</th><th>Rows</th><th>Result</th><th>What happened</th></tr></thead>
+              <tbody>
+                {log.map((l) => (
+                  <tr key={l.id} className={l.ok ? "" : "rowbad"}>
+                    <td>{String(l.received_at).slice(0, 16).replace("T", " ")}</td>
+                    <td>{l.rows_received}</td>
+                    <td><b className={l.ok ? "ok" : "bad"}>{l.ok ? "accepted" : "refused"}</b></td>
+                    <td>{l.message}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Section>
+    </div>
+  );
+}
+
+/* Sitewide warning. No dollar figure anywhere should be read as fact while the
+   rate behind it is an inherited default nobody has set. */
+function RateWarning({ go }) {
+  const [n, setN] = useState(0);
+  useEffect(() => {
+    supabase.from("valuation_rates").select("stream", { count: "exact", head: true })
+      .eq("confirmed", false).then(({ count }) => setN(count ?? 0));
+  }, []);
+  if (!n) return null;
+  return (
+    <button className="ratewarn" onClick={() => go("valuation_rates")}>
+      <span className="rwtag">Money figures are estimates</span>
+      <span className="rwbody">
+        {n} of the stream rates behind every dollar figure on this platform have never been set by
+        anyone — they are an inherited default. Treat every total as an estimate until they are set.
+      </span>
+      <span className="rwgo">Set the rates →</span>
+    </button>
+  );
+}
+
+/* Business Rules editor. Every threshold the platform judges the business by,
+   changeable in place. Each shows how many places use it and whether it is still
+   an unconfirmed default, because a number nobody chose should never look settled. */
+function BusinessRules({ session }) {
+  const [rows, setRows] = useState(null);
+  const [role, setRole] = useState(null);
+  const [edit, setEdit] = useState(null);
+  const [draft, setDraft] = useState("");
+  const [why, setWhy] = useState("");
+  const [msg, setMsg] = useState("");
+  const who = session?.user?.email ?? "unknown";
+
+  const load = async () => {
+    const [r, u] = await Promise.all([
+      supabase.from("v_business_rules").select("*"),
+      supabase.from("app_users").select("role").eq("user_id", session.user.id).maybeSingle(),
+    ]);
+    setRows(r.data ?? []); setRole(u.data?.role ?? null);
+  };
+  useEffect(() => { load(); }, []);
+  if (!rows) return <div className="loading">Reading the business rules…</div>;
+  const mayEdit = ["owner", "executive", "planner", "dept_head"].includes(role);
+
+  const save = async (k) => {
+    const n = Number(draft);
+    if (!isFinite(n)) { setMsg("Enter a number."); return; }
+    if (!why || why.trim().length < 8) {
+      setMsg("Say where this number comes from. A threshold with no reason is how we got here.");
+      return;
+    }
+    const { error } = await supabase.from("conversion_factors")
+      .update({ value: n, where_it_came_from: why.trim(), set_by: who,
+                updated_at: new Date().toISOString() }).eq("key", k);
+    setMsg(error ? error.message
+      : `Set to ${n}. Every figure measured against it recalculates within ten minutes.`);
+    if (!error) { setEdit(null); setWhy(""); load(); }
+  };
+
+  const unset = rows.filter((r) => String(r.set_by || "").startsWith("default")).length;
+  return (
+    <div className="calc">
+      <div className="pagehead">
+        <h1>Business Rules</h1>
+        <p className="dashsub">
+          The numbers this platform judges the business by. Change one here and every figure
+          measured against it moves, everywhere.
+          {unset > 0 && <> <b className="vrwarn">{unset} of {rows.length} have never been set by
+          anyone — they are defaults, and anything judged against them is an estimate.</b></>}
+        </p>
+      </div>
+      {msg && <div className="vrmsg">{msg}</div>}
+      {!mayEdit && <div className="vrmsg">Changing a rule needs an owner, executive, planner or
+        department head. Your role is {role || "not set"}.</div>}
+
+      <div className="vrgrid">
+        {rows.map((r) => {
+          const isDefault = String(r.set_by || "").startsWith("default");
+          return (
+            <div key={r.key} className={`vrcard ${isDefault ? "warn" : "ok"}`}>
+              <div className="vrhead">
+                <span className="vrname">{r.label}</span>
+                <span className={`vrpill ${isDefault ? "warn" : "ok"}`}>
+                  {isDefault ? "nobody set this" : "set"}
+                </span>
+              </div>
+              <div className="vrbig">{Number(r.value).toLocaleString()}<em> {r.unit}</em></div>
+              <p className="vrnote">{r.what_it_means}</p>
+              <div className="vrline"><em>Used in</em><b>{r.places_using_it} place{r.places_using_it === 1 ? "" : "s"}</b></div>
+              <div className="vrline"><em>Set by</em><b>{r.set_by}</b></div>
+              <div className="vrline"><em>Set on</em><b>{r.set_on}</b></div>
+              <p className="vrnote">{r.where_it_came_from}</p>
+              {r.places_using_it === 0 && (
+                <p className="cinpn">Nothing currently uses this rule, so changing it will have no effect yet.</p>
+              )}
+              {mayEdit && edit !== r.key && (
+                <button className="vrbtn" onClick={() => { setEdit(r.key); setDraft(String(r.value)); setWhy(""); setMsg(""); }}>
+                  {isDefault ? "Set the real number" : "Change it"}
+                </button>
+              )}
+              {mayEdit && edit === r.key && (
+                <div className="vrform">
+                  <label>{r.label} ({r.unit})
+                    <input autoFocus type="number" step="any" value={draft}
+                      onChange={(e) => setDraft(e.target.value)} />
+                  </label>
+                  <label>Where this number comes from
+                    <input value={why} placeholder="e.g. our own drying trials over the last six months"
+                      onChange={(e) => setWhy(e.target.value)} />
+                  </label>
+                  <div className="vractions">
+                    <button className="vrbtn primary" onClick={() => save(r.key)}>Save</button>
+                    <button className="vrbtn" onClick={() => { setEdit(null); setMsg(""); }}>Cancel</button>
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/* Overhead. Nothing was recorded at all, so cost per pound was labour only and
+   understated. Every line entered here raises the true cost immediately. */
+const OVERHEAD_SUGGESTIONS = [
+  ["Electricity", "Utilities"], ["Water and sewer", "Utilities"], ["Gas and heating", "Utilities"],
+  ["Rent or mortgage", "Facility"], ["Property taxes", "Facility"], ["Building insurance", "Insurance"],
+  ["Liability insurance", "Insurance"], ["Crop insurance", "Insurance"],
+  ["Nutrients and additives", "Growing"], ["Growing media", "Growing"], ["Pest management", "Growing"],
+  ["Packaging materials", "Production"], ["Laboratory testing", "Production"],
+  ["Equipment maintenance", "Equipment"], ["Equipment leases", "Equipment"],
+  ["Security and monitoring", "Compliance"], ["Licence fees", "Compliance"],
+  ["Waste disposal", "Compliance"], ["Software and systems", "Administration"],
+  ["Accounting and legal", "Administration"],
+];
+
+function OverheadInputs({ session }) {
+  const [rows, setRows] = useState(null);
+  const [role, setRole] = useState(null);
+  const [add, setAdd] = useState({ description: "", category: "Utilities", monthly_amount: "", is_280e_cogs: true });
+  const [edit, setEdit] = useState(null);
+  const [draft, setDraft] = useState("");
+  const [msg, setMsg] = useState("");
+  const [cost, setCost] = useState(null);
+
+  const load = async () => {
+    const [r, u, c] = await Promise.all([
+      supabase.from("overhead_items").select("*").order("category").order("description"),
+      supabase.from("app_users").select("role").eq("user_id", session.user.id).maybeSingle(),
+      supabase.from("v_actual_cost_per_pound").select("*").maybeSingle(),
+    ]);
+    setRows(r.data ?? []); setRole(u.data?.role ?? null); setCost(c.data ?? null);
+  };
+  useEffect(() => { load(); }, []);
+  if (!rows) return <div className="loading">Reading the overhead…</div>;
+  const mayEdit = ["owner", "executive", "planner", "dept_head"].includes(role);
+  const total = rows.reduce((a, r) => a + Number(r.monthly_amount || 0), 0);
+  const missing = OVERHEAD_SUGGESTIONS.filter(([d]) =>
+    !rows.some((r) => r.description.toLowerCase() === d.toLowerCase()));
+
+  const create = async (description, category) => {
+    const amt = Number(add.monthly_amount);
+    if (!description) { setMsg("Name the cost."); return; }
+    if (!isFinite(amt) || amt <= 0) { setMsg("Enter the monthly amount for " + description + "."); return; }
+    const { error } = await supabase.from("overhead_items").insert({
+      description, category, monthly_amount: amt, is_280e_cogs: add.is_280e_cogs,
+      effective_from: new Date().toISOString().slice(0, 10),
+    });
+    setMsg(error ? error.message : `${description} added at $${amt.toLocaleString()} a month. Cost per pound recalculated.`);
+    if (!error) { setAdd({ description: "", category: "Utilities", monthly_amount: "", is_280e_cogs: true }); load(); }
+  };
+  const saveAmt = async (id, description) => {
+    const amt = Number(draft);
+    if (!isFinite(amt) || amt < 0) { setMsg("Enter an amount."); return; }
+    const { error } = await supabase.from("overhead_items").update({ monthly_amount: amt }).eq("id", id);
+    setMsg(error ? error.message : `${description} changed to $${amt.toLocaleString()} a month.`);
+    if (!error) { setEdit(null); load(); }
+  };
+  const remove = async (id, description) => {
+    const { error } = await supabase.from("overhead_items").delete().eq("id", id);
+    setMsg(error ? error.message : `${description} removed.`);
+    if (!error) load();
+  };
+
+  return (
+    <div className="calc">
+      <div className="pagehead">
+        <h1>Overhead — what it costs to keep the doors open</h1>
+        <p className="dashsub">
+          Everything that is not payroll. Until these are entered, cost per pound counts wages only
+          and understates the truth. Each line you add raises the real cost immediately.
+        </p>
+      </div>
+      {msg && <div className="vrmsg">{msg}</div>}
+
+      <div className="cgrid">
+        <div className="ccard">
+          <div className="cchead">Overhead recorded</div>
+          <div className="ccbig">${Math.round(total).toLocaleString()}<em> per month</em></div>
+          <div className="ccnote">{rows.length} line{rows.length === 1 ? "" : "s"} on file.</div>
+        </div>
+        {cost && (
+          <>
+            <div className="ccard">
+              <div className="cchead">Cost per saleable pound</div>
+              <div className="ccbig">${Number(cost.actual_cost_per_pound).toLocaleString()}</div>
+              <div className="ccnote">{cost.the_arithmetic}</div>
+            </div>
+            <div className="ccard">
+              <div className="cchead">Against the figure you set</div>
+              <div className="ccbig">${Number(cost.assumed_cost_per_pound).toLocaleString()}</div>
+              <div className="ccnote">
+                Gap of ${Number(cost.gap_per_pound).toLocaleString()} a pound still unaccounted for.
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+      {cost && <div className="vrmsg">{cost.what_is_missing}</div>}
+
+      {mayEdit && missing.length > 0 && (
+        <div className="vrsec">
+          <h2>Not recorded yet</h2>
+          <p className="vrsub">
+            These are the usual lines and none of them is on file. Enter a monthly amount, then press
+            the one you are entering. Nothing is assumed — a line only exists once you give it a figure.
+          </p>
+          <div className="vrovform">
+            <label>Monthly amount
+              <input type="number" step="any" value={add.monthly_amount}
+                onChange={(e) => setAdd({ ...add, monthly_amount: e.target.value })} placeholder="e.g. 8400" />
+            </label>
+            <label>Counts toward cost of goods for tax
+              <select value={add.is_280e_cogs ? "yes" : "no"}
+                onChange={(e) => setAdd({ ...add, is_280e_cogs: e.target.value === "yes" })}>
+                <option value="yes">Yes</option><option value="no">No</option>
+              </select>
+            </label>
+          </div>
+          <div className="ohsuggest">
+            {missing.map(([d, c]) => (
+              <button key={d} className="ohchip" onClick={() => create(d, c)}
+                title={`Add ${d} at the amount entered above`}>+ {d}</button>
+            ))}
+          </div>
+          <div className="vrovform" style={{ marginTop: 12 }}>
+            <label>Something else — name it
+              <input value={add.description} onChange={(e) => setAdd({ ...add, description: e.target.value })} />
+            </label>
+            <label>Category
+              <input value={add.category} onChange={(e) => setAdd({ ...add, category: e.target.value })} />
+            </label>
+          </div>
+          <button className="vrbtn primary" onClick={() => create(add.description, add.category)}>
+            Add this cost
+          </button>
+        </div>
+      )}
+
+      <Section title="Overhead on file" count={rows.length} defaultOpen>
+        {rows.length === 0 ? (
+          <p className="vrsub">
+            Nothing recorded. Cost per pound is therefore wages only, and understates the truth by
+            whatever electricity, water, rent, insurance, taxes and materials actually cost.
+          </p>
+        ) : (
+          <div className="tablewrap">
+            <table>
+              <thead><tr><th>Cost</th><th>Category</th><th>Monthly amount</th><th>Yearly</th>
+                <th>Cost of goods for tax</th><th>From</th>{mayEdit && <th></th>}</tr></thead>
+              <tbody>
+                {rows.map((r) => (
+                  <tr key={r.id}>
+                    <td>{r.description}</td><td>{r.category}</td>
+                    <td>
+                      {edit === r.id ? (
+                        <span className="cinpe">
+                          <input autoFocus type="number" step="any" value={draft}
+                            onChange={(e) => setDraft(e.target.value)}
+                            onKeyDown={(e) => { if (e.key === "Enter") saveAmt(r.id, r.description); if (e.key === "Escape") setEdit(null); }} />
+                          <button className="vrbtn primary" onClick={() => saveAmt(r.id, r.description)}>Save</button>
+                        </span>
+                      ) : (
+                        <button className="cinpv" disabled={!mayEdit}
+                          onClick={() => { setEdit(r.id); setDraft(String(r.monthly_amount)); }}>
+                          ${Number(r.monthly_amount).toLocaleString()}
+                        </button>
+                      )}
+                    </td>
+                    <td>${Math.round(Number(r.monthly_amount) * 12).toLocaleString()}</td>
+                    <td>{r.is_280e_cogs ? "Yes" : "No"}</td>
+                    <td>{r.effective_from}</td>
+                    {mayEdit && <td><button className="vrbtn" onClick={() => remove(r.id, r.description)}>Remove</button></td>}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Section>
+    </div>
+  );
+}
+
+/* Finance, Tax and Human Resources sit on the top bar beside Reports. The grid
+   launcher is for workspace tools only. */
+function TopMenu({ label, items, go }) {
+  const [open, setOpen] = useState(false);
+  if (!items?.length) return null;
+  const groups = [...new Set(items.map((r) => r.subcategory || "Other"))].sort();
+  return (
+    <div className="repwrap">
+      <button className={`repbtn ${open ? "on" : ""}`} onClick={() => setOpen((v) => !v)}>
+        {label} <span className="repcar">▾</span>
+      </button>
+      {open && (
+        <div className="repmenu" onMouseLeave={() => setOpen(false)}>
+          <div className="rephead">{label}</div>
+          <div className="repcols">
+            {groups.map((g) => (
+              <div className="repcol" key={g}>
+                <div className="repgrp">{g}</div>
+                {items.filter((r) => (r.subcategory || "Other") === g)
+                  .sort((a, b) => (a.item_order ?? 0) - (b.item_order ?? 0) || a.label.localeCompare(b.label))
+                  .map((r) => (
+                    <button key={r.view_key} className="repitem" title={r.description || ""}
+                      onClick={() => { go(r.view_key); setOpen(false); }}>{r.label}</button>
+                  ))}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* Administrator alerts. Computed from live state, so they cannot be dismissed or
+   snoozed — each one disappears only when the underlying problem is actually fixed. */
+function AdminAlerts({ go }) {
+  const [rows, setRows] = useState(null);
+  useEffect(() => {
+    supabase.from("v_admin_alerts").select("*").then(({ data }) => setRows(data ?? []));
+  }, []);
+  if (!rows) return null;
+  if (!rows.length)
+    return (
+      <div className="aaclear">
+        Nothing outstanding. Every rate, rule and cost the platform depends on has been set by
+        somebody, and the imported sheets are matched to Metrc.
+      </div>
+    );
+  return (
+    <div className="aalist">
+      {rows.map((a, i) => (
+        <div key={i} className={`aa ${a.severity}`}>
+          <div className="aahead">
+            <span className={`aasev ${a.severity}`}>{a.severity}</span>
+            <span className="aawhat">{a.what}</span>
+            <span className="aacount">{a.outstanding} outstanding</span>
+          </div>
+          <div className="aadetail">{a.detail}</div>
+          <div className="aawhy">{a.why_it_matters}</div>
+          <div className="aado">{a.what_to_do}</div>
+          <button className="vrbtn primary" onClick={() => go(a.drill)}>Resolve this</button>
+          <div className="aanote">
+            This cannot be dismissed. It clears itself the moment the underlying setting exists.
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/* Every batch behind a tile or an alert. A number on a card is a claim; this is the
+   evidence for it — each package with its harvest, its dates, where it is and where
+   it came from. Nothing is summarised away. */
+function BatchList({ stream, origin, labState }) {
+  const [rows, setRows] = useState(null);
+  useEffect(() => {
+    let live = true;
+    (async () => {
+      let q = supabase.from("v_stock_packages").select("*").order("packaged_on", { ascending: true });
+      if (stream) q = q.eq("stream", stream);
+      if (origin) q = q.eq("origin", origin);
+      if (labState) q = q.eq("lab_state", labState);
+      const { data } = await q;
+      if (live) setRows(data ?? []);
+    })();
+    return () => { live = false; };
+  }, [stream, origin, labState]);
+  if (!rows) return <div className="note">Reading every package…</div>;
+  if (!rows.length)
+    return <div className="brnone">No packages match. <b>Why:</b> nothing in Metrc currently sits
+      under this combination of stream, origin and testing state.</div>;
+  const lb = rows.reduce((a, r) => a + Number(r.pounds || 0), 0);
+  return (
+    <>
+      <p className="buildnote" style={{ color: "var(--muted)" }}>
+        {rows.length} package{rows.length === 1 ? "" : "s"}, {lb.toLocaleString(undefined, { maximumFractionDigits: 1 })} lb.
+        Every one listed — nothing rolled up.
+      </p>
+      <div className="tablewrap">
+        <table>
+          <thead><tr>
+            <th>Package tag</th><th>Product</th><th>Cultivar</th><th>Source harvest</th>
+            <th>Harvest cut on</th><th>Dried in</th><th>Packaged on</th><th>Days held</th>
+            <th>Quantity</th><th>Quantity held</th><th>Testing state</th><th>Went out</th><th>Came back</th>
+            <th>Certificate expires</th><th>Where it is</th><th>Made by</th><th>Shipped to us by</th>
+            <th>Inbound manifest</th><th>Licence</th><th>Traceability</th>
+          </tr></thead>
+          <tbody>
+            {rows.map((r) => {
+              const out = r.submitted_on, back = r.result_on;
+              const days = out && back
+                ? Math.round((new Date(back) - new Date(out)) / 86400000)
+                : out ? Math.round((Date.now() - new Date(out)) / 86400000) : null;
+              return (
+                <tr key={r.package_tag}>
+                  <td>{r.package_tag}</td>
+                  <td>{r.item_name || "not recorded"}</td>
+                  <td>{r.strain || "not recorded"}</td>
+                  <td>{r.source_harvest || "not recorded"}</td>
+                  <td>{r.harvest_cut_on || "not recorded"}</td>
+                  <td>{r.dried_in || "not recorded"}</td>
+                  <td>{r.packaged_on || "not recorded"}</td>
+                  <td>{r.days_here ?? "—"}</td>
+                  <td>{Number(r.quantity).toLocaleString()} {r.uom}</td>
+                  <td>{r.quantity_shown ?? (r.pounds == null ? "not a weight"
+                    : Number(r.pounds).toLocaleString(undefined, { maximumFractionDigits: 3 }))}</td>
+                  <td className={r.lab_state === "TestFailed" ? "bad" : ""}>{r.lab_state}</td>
+                  <td>{out || "never submitted"}</td>
+                  <td>{back || (out ? `still out, ${days} days` : "not applicable")}</td>
+                  <td>{r.coa_expires || "none"}</td>
+                  <td>{r.location || "not recorded"}</td>
+                  <td>{r.made_by || "not recorded"}</td>
+                  <td>{r.shipped_to_us_by || "not applicable"}</td>
+                  <td>{r.inbound_manifest || "none"}</td>
+                  <td>{r.license || "not recorded"}</td>
+                  <td>{r.traceability}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </>
+  );
+}
+
+/* Grow rooms. A room with no square footage is excluded from every yield per square
+   foot figure, so half the canopy becomes invisible. This shows which, and lets a
+   measurement be entered. The inferred figure is shown but never used. */
+function GrowRooms({ session }) {
+  const [rows, setRows] = useState(null);
+  const [role, setRole] = useState(null);
+  const [edit, setEdit] = useState(null);
+  const [draft, setDraft] = useState("");
+  const [how, setHow] = useState("");
+  const [msg, setMsg] = useState("");
+
+  const load = async () => {
+    const [r, u] = await Promise.all([
+      supabase.from("v_room_canopy_status").select("*"),
+      supabase.from("app_users").select("role").eq("user_id", session.user.id).maybeSingle(),
+    ]);
+    setRows(r.data ?? []); setRole(u.data?.role ?? null);
+  };
+  useEffect(() => { load(); }, []);
+  if (!rows) return <div className="loading">Reading the rooms…</div>;
+  const mayEdit = ["owner", "executive", "planner", "dept_head"].includes(role);
+  const unmeasured = rows.filter((r) => r.sqft == null);
+
+  const save = async (code) => {
+    const n = Number(draft);
+    if (!isFinite(n) || n <= 0) { setMsg("Enter the square footage."); return; }
+    if (!how || how.trim().length < 6) {
+      setMsg("Say how it was measured. A number with no source is what put us here.");
+      return;
+    }
+    const { error } = await supabase.from("grow_rooms")
+      .update({ sqft: n, sqft_source: how.trim() }).eq("code", code);
+    setMsg(error ? error.message
+      : `${code} set to ${n.toLocaleString()} square feet. It now appears in every yield per square foot figure.`);
+    if (!error) { setEdit(null); setHow(""); load(); }
+  };
+
+  return (
+    <div className="calc">
+      <div className="pagehead">
+        <h1>Grow Rooms</h1>
+        <p className="dashsub">
+          Yield per square foot is the only fair way to compare one room against another. A room
+          with no square footage on file is left out of that figure entirely.
+          {unmeasured.length > 0 && <> <b className="vrwarn">{unmeasured.length} room
+          {unmeasured.length === 1 ? " is" : "s are"} unmeasured, so{" "}
+          {unmeasured.reduce((a, r) => a + Number(r.plant_capacity || 0), 0)} plants of canopy are
+          invisible in the benchmark.</b></>}
+        </p>
+      </div>
+      {msg && <div className="vrmsg">{msg}</div>}
+      {!mayEdit && <div className="vrmsg">Entering a measurement needs an owner, executive,
+        planner or department head. Your role is {role || "not set"}.</div>}
+
+      <div className="vrgrid">
+        {rows.map((r) => (
+          <div key={r.code} className={`vrcard ${r.sqft == null ? "warn" : "ok"}`}>
+            <div className="vrhead">
+              <span className="vrname">{r.code} — {r.legacy_label}</span>
+              <span className={`vrpill ${r.sqft == null ? "warn" : "ok"}`}>
+                {r.sqft == null ? "never measured" : "measured"}
+              </span>
+            </div>
+            <div className="vrbig">
+              {r.sqft == null ? "—" : Number(r.sqft).toLocaleString()}<em> square feet</em>
+            </div>
+            <div className="vrline"><em>Plant capacity</em><b>{r.plant_capacity}</b></div>
+            <div className="vrline"><em>Square feet per plant</em>
+              <b>{r.sqft_per_plant ?? "cannot be worked out"}</b></div>
+            <div className="vrline"><em>Cycle</em><b>{r.cycle_days} days</b></div>
+            {r.sqft_source && <p className="vrnote">{r.sqft_source}</p>}
+            <p className={r.sqft == null ? "cinpn" : "vrnote"}>{r.status}</p>
+            {mayEdit && edit !== r.code && (
+              <button className="vrbtn" onClick={() => { setEdit(r.code); setDraft(r.sqft ?? ""); setHow(""); setMsg(""); }}>
+                {r.sqft == null ? "Enter the measurement" : "Change it"}
+              </button>
+            )}
+            {mayEdit && edit === r.code && (
+              <div className="vrform">
+                <label>Square feet of canopy
+                  <input autoFocus type="number" step="any" value={draft}
+                    onChange={(e) => setDraft(e.target.value)}
+                    placeholder={r.sqft_if_same_density ? `about ${r.sqft_if_same_density} at the same density` : ""} />
+                </label>
+                <label>How it was measured
+                  <input value={how} placeholder="e.g. tape measured 2026-08-06, bench area only"
+                    onChange={(e) => setHow(e.target.value)} />
+                </label>
+                <div className="vractions">
+                  <button className="vrbtn primary" onClick={() => save(r.code)}>Save</button>
+                  <button className="vrbtn" onClick={() => { setEdit(null); setMsg(""); }}>Cancel</button>
+                </div>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function ControlTower({ go, session }) {
   const kpis = useLiveCounts();
   const [rows, setRows] = useState(null);
@@ -3770,11 +5697,11 @@ const TELL_YOUR_AI = [
 
 
 const DEPT_BY_VIEW = {
-  dept_dash_command: "Command",
+  dept_dash_command: "Command Center",
   dept_dash_cultivation: "Cultivation",
   dept_dash_inventory: "Inventory",
   dept_dash_quality: "Quality",
-  dept_dash_sales: "Sales & Cash",
+  dept_dash_sales: "Finance",
   dept_dash_mfg: "Manufacturing",
   dept_dash_metrc: "Metrc",
   dept_dash_workspace: "Workspace",
@@ -3783,17 +5710,329 @@ const DEPT_BY_VIEW = {
   dept_dash_settings: "Settings",
 };
 
-function DeptDashboard({ viewKey, go, nav }) {
+/* Open harvests, one row each, with the arithmetic that corrects the wet weight to
+   a dry-equivalent shown on the row itself so nobody has to take the figure on trust. */
+function OpenHarvestDetail() {
+  const [rows, setRows] = useState(null);
+  useEffect(() => {
+    supabase.from("v_harvest_still_in_room").select("*").then(({ data }) => setRows(data ?? []));
+  }, []);
+  if (!rows) return <div className="note">Reading every open harvest…</div>;
+  if (!rows.length) return <div className="brnone">No harvests are open.</div>;
+  return (
+    <div className="tablewrap">
+      <table>
+        <thead><tr>
+          <th>Harvest</th><th>Cut on</th><th>Dried in</th><th>Days open</th>
+          <th>Wet weight</th><th>Dry it should yield</th><th>Packaged so far</th><th>Waste</th>
+          <th>Really left</th><th>Old wet-minus-dry figure</th>
+          <th>Last package taken off</th><th>Days since</th><th>What it really means</th>
+        </tr></thead>
+        <tbody>
+          {rows.map((r) => (
+            <tr key={r.harvest_name} className={r.days_since_last_package > 14 ? "rowbad" : ""}>
+              <td>{r.harvest_name}</td>
+              <td>{r.harvest_started || "not recorded"}</td>
+              <td>{r.drying_room || "not recorded"}</td>
+              <td>{r.days_open}</td>
+              <td>{Number(r.wet_lb).toLocaleString()} lb</td>
+              <td>{Number(r.expected_dry_lb).toLocaleString()} lb</td>
+              <td>{Number(r.packaged_lb).toLocaleString()} lb</td>
+              <td>{Number(r.waste_lb).toLocaleString()} lb</td>
+              <td><b>{Number(r.really_left_lb).toLocaleString()} lb</b></td>
+              <td className="note">{Number(r.old_figure_wet_minus_dry).toLocaleString()} lb</td>
+              <td>{r.last_package_taken_off || "never"}</td>
+              <td>{r.days_since_last_package ?? "—"}</td>
+              <td>{r.what_it_really_means}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function FlowStrip({ go }) {
+  const [rows, setRows] = useState(null);
+  const [split, setSplit] = useState(null);
+  const [openStage, setOpenStage] = useState(null);
+  useEffect(() => {
+    supabase.from("v_flow_stages").select("*").order("stage_no").then(({ data }) => setRows(data ?? []));
+    supabase.from("v_flow_failed_split").select("*").maybeSingle().then(({ data }) => setSplit(data));
+  }, []);
+  if (!rows) return null;
+  const blocked = rows.find((r) => r.stage_no === 0);
+  const flow = rows.filter((r) => r.stage_no > 0);
+  const maxLb = Math.max(1, ...flow.map((r) => Number(r.pounds || 0)));
+  // A bottleneck is work stuck in progress. Finished goods and shipments are
+  // outputs, not jams - they are judged on ageing instead.
+  const WIP = new Set(["Drying", "Awaiting test", "At the laboratory"]);
+  const scored = flow
+    .filter((r) => WIP.has(r.stage) && r.pounds && r.oldest_days)
+    .map((r) => ({ ...r, score: Number(r.pounds) * Number(r.oldest_days) }))
+    .sort((a, b) => b.score - a.score);
+  const bn = scored[0];
+  return (
+    <>
+      {bn && (
+        <button className="bnbar" onClick={() => go(bn.drill)}>
+          <span className="bntag">Bottleneck</span>
+          <span className="bnbody">
+            <b>{bn.stage}</b> — {Number(bn.pounds).toLocaleString()} lb held, oldest {bn.oldest_days} days
+          </span>
+          <span className="bngo">Open every record →</span>
+        </button>
+      )}
+      <div className="flowstrip">
+        {flow.map((r, i) => {
+          const pct = r.pounds ? Math.max(6, (Number(r.pounds) / maxLb) * 100) : 0;
+          const hot = bn && r.stage === bn.stage;
+          const old = Number(r.oldest_days || 0);
+          return (
+            <React.Fragment key={r.stage}>
+              <button className={`flowstage ${hot ? "hot" : ""} ${openStage === r.stage ? "opened" : ""}`}
+                onClick={() => setOpenStage(openStage === r.stage ? null : r.stage)} title={r.note}>
+                <span className="fsname">{r.stage}</span>
+                <span className="fsunits">{Number(r.units || 0).toLocaleString()}<em> {r.unit}</em></span>
+                {r.pounds != null && (
+                  <>
+                    <span className="fslb">{Number(r.pounds).toLocaleString()} lb</span>
+                    <span className="fsbar"><i style={{ width: pct + "%" }} className={hot ? "hot" : ""} /></span>
+                  </>
+                )}
+                {old > 0 && <span className={`fsage ${old > 180 ? "bad" : old > 60 ? "warn" : ""}`}>oldest {old} days</span>}
+                <span className="fsnote">{r.note}</span>
+              </button>
+              {i < flow.length - 1 && <span className="flowarrow">→</span>}
+            </React.Fragment>
+          );
+        })}
+      </div>
+      {openStage && (
+        <Section title={`Every record behind "${openStage}" — full forensic detail`} defaultOpen>
+          {openStage === "Open harvests"
+            ? <OpenHarvestDetail />
+            : <BatchList labState={
+                openStage === "Awaiting test" ? "NotSubmitted"
+                : openStage === "Sellable" ? "TestPassed"
+                : openStage === "Blocked - failed" ? "TestFailed" : "SubmittedForTesting"} />}
+        </Section>
+      )}
+
+      {blocked && Number(blocked.units) > 0 && (
+        <button className="flowblocked" onClick={() => go(blocked.drill)}>
+          <b>Out of the flow — failed testing:</b>
+          {split ? (
+            <> {Number(split.failed_ours_lb).toLocaleString()} lb ours ({split.failed_ours_packages} packages)
+              · {Number(split.failed_third_party_lb).toLocaleString()} lb third party
+              ({split.failed_third_party_packages} packages, {split.third_party_suppliers})
+              · oldest {split.oldest_days} days — remediate or destroy</>
+          ) : (
+            <> {Number(blocked.pounds).toLocaleString()} lb, oldest {blocked.oldest_days} days</>
+          )}
+        </button>
+      )}
+    </>
+  );
+}
+
+function MoneyBar({ go }) {
+  const [rows, setRows] = useState(null);
+  useEffect(() => {
+    supabase.from("v_money_position").select("*").order("ord").then(({ data }) => setRows(data ?? []));
+  }, []);
+  if (!rows || !rows.length) return null;
+  const total = rows.reduce((a, r) => a + Number(r.dollars || 0), 0);
+  const free = rows.filter((r) => r.tone === "good").reduce((a, r) => a + Number(r.dollars || 0), 0);
+  return (
+    <div className="moneyinner">
+      <div className="moneyhead">
+        <span className="moneytot">
+          ${Math.round(total).toLocaleString()} at cost · <b>${Math.round(free).toLocaleString()} free to move</b> ·
+          <i> ${Math.round(total - free).toLocaleString()} stuck</i>
+        </span>
+      </div>
+      <div className="moneybar">
+        {rows.map((r) => (
+          <button key={r.band} className={`mseg ${r.tone}`}
+            style={{ flexGrow: Math.max(1, Number(r.dollars || 0)) }}
+            onClick={() => go(r.drill)} title={`${r.band}: ${Number(r.pounds).toLocaleString()} lb — ${r.note}`}>
+            <span className="msegl">{r.band}</span>
+          </button>
+        ))}
+      </div>
+      <div className="moneykeys">
+        {rows.map((r) => (
+          <button key={r.band} className={`mkey ${r.tone}`} onClick={() => go(r.drill)}>
+            <span className="mkdot" />
+            <span className="mkname">{r.band}</span>
+            <span className="mklb">{Number(r.pounds || 0).toLocaleString()} lb</span>
+            <span className="mkusd">${Math.round(Number(r.dollars || 0)).toLocaleString()}</span>
+            <span className="mknote">{r.note}</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function WhatChanged({ dept, go }) {
+  const [rows, setRows] = useState([]);
+  useEffect(() => {
+    supabase.from("v_what_changed").select("*").eq("department", dept).then(({ data }) => setRows(data ?? []));
+  }, [dept]);
+  if (!rows.length) return null;
+  return (
+    <div className="chgwrap">
+      <span className="chgtitle">Changed since yesterday</span>
+      {rows.map((r) => (
+        <button key={r.kpi} className={`chg ${r.direction}`} onClick={() => r.drill && go(r.drill)}>
+          {r.direction === "up" ? "▲" : "▼"} {r.kpi} {Number(r.change) > 0 ? "+" : ""}{Number(r.change).toLocaleString()} {r.unit}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function Spark({ series }) {
+  if (!series || series.length < 2)
+    return <span className="sparknone">no history yet — trend builds from tomorrow</span>;
+  const n = series.map(Number);
+  const min = Math.min(...n), max = Math.max(...n), rng = max - min || 1;
+  const W = 108, H = 26;
+  const pts = n.map((v, i) => [(i / (n.length - 1)) * W, H - ((v - min) / rng) * (H - 4) - 2]);
+  const d = pts.map((p, i) => (i ? "L" : "M") + p[0].toFixed(1) + " " + p[1].toFixed(1)).join(" ");
+  const up = n[n.length - 1] >= n[0];
+  return (
+    <svg className="spark" viewBox={`0 0 ${W} ${H}`} width={W} height={H} aria-hidden="true">
+      <path d={`${d} L${W} ${H} L0 ${H} Z`} className={`sparkfill ${up ? "up" : "down"}`} />
+      <path d={d} className={`sparkline ${up ? "up" : "down"}`} />
+      <circle cx={pts[pts.length - 1][0]} cy={pts[pts.length - 1][1]} r="2.6" className={`sparkdot ${up ? "up" : "down"}`} />
+    </svg>
+  );
+}
+
+function AssignTask({ dept, kpi, value, unit, drill, onDone }) {
+  const [open, setOpen] = useState(false);
+  const [people, setPeople] = useState([]);
+  const [who, setWho] = useState("");
+  const [title, setTitle] = useState("");
+  const [due, setDue] = useState("");
+  const [pri, setPri] = useState("normal");
+  const [msg, setMsg] = useState("");
+  useEffect(() => {
+    if (!open || people.length) return;
+    supabase.from("employees").select("id, full_name").eq("status", "active").order("full_name")
+      .then(({ data }) => setPeople(data ?? []));
+    setTitle(`${kpi}: ${Number(value ?? 0).toLocaleString()} ${unit ?? ""}`.trim());
+  }, [open]);
+  const save = async () => {
+    const { error } = await supabase.rpc("tg_task_from_dashboard", {
+      p_title: title, p_description: `Raised from the ${dept} dashboard. ${kpi} stood at ${value} ${unit ?? ""} when this was assigned.`,
+      p_department: dept, p_kpi: kpi, p_value: value, p_unit: unit, p_drill: drill,
+      p_assignee: who ? Number(who) : null, p_due: due || null, p_priority: pri,
+    });
+    if (error) return setMsg(error.message);
+    setMsg("Assigned.");
+    setTimeout(() => { setOpen(false); setMsg(""); onDone && onDone(); }, 900);
+  };
+  return (
+    <>
+      <button className="tileact" title="Assign this to someone"
+        onClick={(e) => { e.stopPropagation(); setOpen(true); }}>＋ Assign</button>
+      {open && (
+        <div className="assignwrap" onClick={(e) => { e.stopPropagation(); setOpen(false); }}>
+          <div className="assign" onClick={(e) => e.stopPropagation()}>
+            <b>Assign a task</b>
+            <p className="asub">{dept} · {kpi} · {Number(value ?? 0).toLocaleString()} {unit}</p>
+            <label>Task</label>
+            <input className="inp" value={title} onChange={(e) => setTitle(e.target.value)} />
+            <label>Assign to</label>
+            <select className="inp" value={who} onChange={(e) => setWho(e.target.value)}>
+              <option value="">Nobody yet</option>
+              {people.map((p) => <option key={p.id} value={p.id}>{p.full_name}</option>)}
+            </select>
+            <div className="arow">
+              <div><label>Due</label><input className="inp" type="date" value={due} onChange={(e) => setDue(e.target.value)} /></div>
+              <div><label>Priority</label>
+                <select className="inp" value={pri} onChange={(e) => setPri(e.target.value)}>
+                  <option value="low">Low</option><option value="normal">Normal</option>
+                  <option value="high">High</option><option value="urgent">Urgent</option>
+                </select>
+              </div>
+            </div>
+            {msg && <div className="amsg">{msg}</div>}
+            <div className="arow2">
+              <button className="btn primary" onClick={save}>Assign it</button>
+              <button className="btn" onClick={() => setOpen(false)}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
+function Section({ title, count, children, defaultOpen = true }) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <div className="dsec">
+      <button className="dsechead" onClick={() => setOpen((v) => !v)}>
+        <span className="dsectitle">{title}</span>
+        {count != null && <span className="dseccount">{count}</span>}
+        <span className={`caret ${open ? "open" : ""}`}>{I.caret}</span>
+      </button>
+      {open && <div className="dsecbody">{children}</div>}
+    </div>
+  );
+}
+
+
+
+function DeptDashboard({ viewKey, go, nav, deep }) {
+  const [openTile, setOpenTile] = useState(null);
   const dept = DEPT_BY_VIEW[viewKey] ?? "Command";
   const [rows, setRows] = useState(null);
+  const [trend, setTrend] = useState({});
+  const [targets, setTargets] = useState({});
+  const [alerts, setAlerts] = useState([]);
+  const [tasks, setTasks] = useState([]);
+  const [stock, setStock] = useState([]);
+  const [computed, setComputed] = useState(null);
   const [ver, setVer] = useState(0);
-  useEffect(() => {
-    (async () => {
-      const { data } = await supabase
-        .from("v_department_dashboard").select("*").eq("department", dept).order("ord");
-      setRows(data ?? []);
-    })();
-  }, [dept, ver]);
+  const [busy, setBusy] = useState(false);
+
+  const deepItems = (deep ?? []).filter((d) => d.category === dept);
+  const deepGroups = Object.entries(
+    deepItems.reduce((m, d) => {
+      const k = d.subcategory || "Other";
+      (m[k] = m[k] || []).push(d);
+      return m;
+    }, {})
+  );
+
+  const load = async () => {
+    setBusy(true);
+    const [k, t, g, a, tk, st] = await Promise.all([
+      supabase.from("mv_department_dashboard").select("*").eq("department", dept).order("ord"),
+      supabase.from("v_dashboard_trend").select("*").eq("department", dept),
+      supabase.from("kpi_targets").select("*").eq("department", dept),
+      supabase.from("v_inventory_alerts").select("*"),
+      supabase.from("v_dashboard_tasks").select("*"),
+      supabase.from("v_stock_summary").select("*"),
+    ]);
+    setRows(k.data ?? []);
+    setComputed(k.data?.[0]?.computed_at ?? null);
+    setTrend(Object.fromEntries((t.data ?? []).map((r) => [r.kpi, r])));
+    setTargets(Object.fromEntries((g.data ?? []).map((r) => [r.kpi, r])));
+    setAlerts(a.data ?? []);
+    setTasks(tk.data ?? []);
+    setStock(st.data ?? []);
+    setBusy(false);
+  };
+  useEffect(() => { load(); }, [dept, ver]);
+
+  const refreshNow = async () => { setBusy(true); await supabase.rpc("tg_snapshot_dashboards"); setVer((v) => v + 1); };
 
   const pages = (nav ?? []).filter((n) => n.category === dept && n.subcategory && n.subcategory !== "Dashboard");
   const subs = [...new Set(pages.map((p) => p.subcategory))];
@@ -3803,37 +6042,173 @@ function DeptDashboard({ viewKey, go, nav }) {
     if (u === "%") return n.toLocaleString() + "%";
     return n.toLocaleString();
   };
+  const delta = (kpi) => {
+    const t = trend[kpi];
+    if (!t || t.previous == null || t.latest == null) return null;
+    const d = Number(t.latest) - Number(t.previous);
+    if (!d) return { d: 0, txt: "no change since yesterday" };
+    return { d, txt: (d > 0 ? "+" : "") + d.toLocaleString() + " since yesterday" };
+  };
 
-  if (!rows) return <div className="empty"><div className="eicon">◐</div>Reading {dept}…</div>;
+  if (!rows) return <div className="empty"><div className="eicon">◐</div>Building the {dept} dashboard…</div>;
 
   return (
     <>
-      <div className="pagehead">
+      <div className="dashbar">
         <div>
-          <h1>{dept}</h1>
-          <div className="sub">
-            Every number in {dept}, live from the records. Click any tile to open the detail behind it. Everything in
-            this section feeds these figures — nothing is summarised away.
+          <h1 className="dashtitle">{dept}</h1>
+          <div className="dashsub">
+            Live from the records{computed ? ` · last computed ${new Date(computed).toLocaleString()}` : ""}
+            {" · every tile drills into the underlying records, and can be assigned to someone"}
           </div>
         </div>
-        <button className="btn" onClick={() => setVer((v) => v + 1)}>Refresh</button>
+        <div className="dashacts">
+          <button className="btn" onClick={refreshNow} disabled={busy}>{busy ? "Refreshing…" : "↻ Recompute now"}</button>
+          <button className="btn" onClick={() => window.print()}>🖨 Print</button>
+          <button className="btn" onClick={() => go("dashboard_tasks")}>Tasks</button>
+          <button className="btn" onClick={() => go("inventory_alerts")}>Alerts</button>
+        </div>
       </div>
 
-      <div className="ddgrid">
-        {rows.map((r) => (
-          <button key={r.kpi} className={`ddtile ${r.tone}`} onClick={() => r.drill && go(r.drill)}
-            title={r.drill ? "Open the records behind this" : ""}>
-            <span className="ddkpi">{r.kpi}</span>
-            <span className="ddval">{fmt(r.value, r.unit)}<em>{r.unit !== "$" && r.unit !== "%" ? " " + r.unit : ""}</em></span>
-            {r.context && <span className="ddctx">{r.context}</span>}
-            {r.drill && <span className="ddgo">Open the records →</span>}
-          </button>
-        ))}
-      </div>
+      <WhatChanged dept={dept} go={go} />
+      {(dept === "Command Center" || dept === "Cultivation" || dept === "Inventory") && (
+        <>
+          <Section title="Seed to sale — where everything is right now"><FlowStrip go={go} /></Section>
+          <Section title="Where the money is standing"><MoneyBar go={go} /></Section>
+        </>
+      )}
+
+      <Section title={`${dept} key figures`} count={rows.length}>
+        <div className="ddgrid">
+          {rows.map((r) => {
+            const tr = trend[r.kpi];
+            const tg = targets[r.kpi];
+            const dl = delta(r.kpi);
+            const offTarget = tg && tg.target != null &&
+              (tg.direction === "at_most" ? Number(r.value) > Number(tg.target) : Number(r.value) < Number(tg.target));
+            return (
+              <div key={r.kpi + r.ord} className={`ddtile ${offTarget ? "bad" : r.tone}`}>
+                <button className="ddmain" onClick={() => r.drill && go(r.drill)} title="Open the records behind this">
+                  <span className="ddkpi">{r.kpi}</span>
+                  <span className="ddval">{fmt(r.value, r.unit)}
+                    <em>{r.unit !== "$" && r.unit !== "%" ? " " + r.unit : ""}</em></span>
+                  {tg && tg.target != null && (
+                    <span className={`ddtarget ${offTarget ? "off" : "on"}`}>
+                      Target {tg.direction === "at_most" ? "no more than" : "at least"} {Number(tg.target).toLocaleString()}
+                      {offTarget ? " — OVER" : " — within"}
+                    </span>
+                  )}
+                  {r.context && <span className="ddctx">{r.context}</span>}
+                  <Spark series={tr?.series} />
+                  {dl && <span className={`dddelta ${dl.d > 0 ? "up" : dl.d < 0 ? "down" : ""}`}>{dl.txt}</span>}
+                  {r.drill && <span className="ddgo">🔍 Open the records</span>}
+                </button>
+                <AssignTask dept={dept} kpi={r.kpi} value={r.value} unit={r.unit} drill={r.drill} onDone={() => setVer((v) => v + 1)} />
+              </div>
+            );
+          })}
+        </div>
+      </Section>
+
+      {stock.length > 0 && (
+        <Section title="Stock by stream" count={stock.length}>
+          <div className="entgrid">
+            {stock.map((s) => (
+              /* HARD RULE: failed material is always split into ours and third party
+                 on the face of the tile. Never make the user drill to find out whose
+                 failure it was. */
+              <div key={s.origin + "|" + s.stream} className="entcard">
+                <div className="enthead">
+                  <span className="entname">{s.stream}</span>
+                  <span className="entpill">{s.packages} packages</span>
+                </div>
+                <div className="entorigin">{s.origin}</div>
+                {/* Vapes and edibles are counted in units, not weighed. Showing a pound
+                    figure for them invented a number that meant nothing. */}
+                <div className="entbig">
+                  {s.sold_by_weight === false
+                    ? <>{Number(s.units ?? 0).toLocaleString()}<em> {s.unit_of_measure || "units"}</em></>
+                    : <>{Number(s.total_lb ?? 0).toLocaleString()}<em> lb</em></>}
+                </div>
+                <div className="entrows">
+                  <div><span>Sellable</span><b className="ok">{Number(s.sellable_lb ?? 0).toLocaleString()}</b></div>
+                  <div><span>Failed — ours</span><b className={Number(s.failed_ours_lb) > 0 ? "bad" : ""}>{Number(s.failed_ours_lb ?? 0).toLocaleString()}</b></div>
+                  <div><span>Failed — third party</span><b className={Number(s.failed_third_party_lb) > 0 ? "bad" : ""}>{Number(s.failed_third_party_lb ?? 0).toLocaleString()}</b></div>
+                  {Number(s.failed_third_party_lb) > 0 && (
+                    <div className="entwho"><span>Whose it was</span><b>{s.failed_third_party_suppliers}</b></div>
+                  )}
+                  <div><span>Out for testing</span><b>{Number(s.out_for_testing_lb ?? 0).toLocaleString()}</b></div>
+                  <div><span>Untested</span><b className={Number(s.untested_lb) > 0 ? "bad" : ""}>{Number(s.untested_lb ?? 0).toLocaleString()}</b></div>
+                  <div><span>Oldest</span><b className={Number(s.oldest_days) > 180 ? "warn" : ""}>{s.oldest_days} days</b></div>
+                </div>
+                <button className="entgo"
+                  onClick={() => setOpenTile(openTile === s.origin + s.stream ? null : s.origin + s.stream)}>
+                  🔍 {openTile === s.origin + s.stream ? "Hide" : "Open"} every package
+                </button>
+              </div>
+            ))}
+          </div>
+        </Section>
+      )}
+
+      {dept === "Settings" && (
+        <Section title="Needs an administrator — will not clear until resolved" defaultOpen>
+          <AdminAlerts go={go} />
+        </Section>
+      )}
+
+      <Section title="What the watchdog is flagging" count={alerts.length} defaultOpen={alerts.length > 0}>
+        {alerts.length === 0 ? (
+          <div className="feednone">Nothing open. The watchdog sweeps twice a day and clears alerts by itself when the problem is gone.</div>
+        ) : (
+          <div className="feed compact">
+            {alerts.map((a, i) => (
+              <button key={i} className={`feedrow ${a.severity}`} onClick={() => a.drill && go(a.drill)}>
+                <span className="fsev">{a.severity}</span>
+                <span className="fmain">
+                  <b>{a.headline}</b>
+                  <em>{a.detail}</em>
+                  <i>{a.what_to_do}</i>
+                </span>
+                <span className="fnum">
+                  {a.dollars ? "$" + Number(a.dollars).toLocaleString() : a.pounds ? Number(a.pounds).toLocaleString() + " lb" : ""}
+                  {/* Finding history began on the first sweep, so "days open" is 0 for
+                      everything and says nothing. Show the age of the material, which is
+                      the number that actually matters. */}
+                  <em title={a.history_note || ""}>
+                    {a.material_oldest_days ? `oldest ${a.material_oldest_days} days`
+                      : a.days_open ? `${a.days_open} days open` : "age not recorded"}
+                  </em>
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
+      </Section>
+
+      <Section title="Tasks raised from dashboards" count={tasks.length} defaultOpen={tasks.length > 0}>
+        {tasks.length === 0 ? (
+          <div className="feednone">No tasks raised yet. Use ＋ Assign on any tile above.</div>
+        ) : (
+          <div className="feed compact">
+            {tasks.map((t) => (
+              <button key={t.id} className={`feedrow ${t.position?.startsWith("OVERDUE") ? "critical" : "watch"}`}
+                onClick={() => go("dashboard_tasks")}>
+                <span className="fsev">{t.priority}</span>
+                <span className="fmain">
+                  <b>{t.title}</b>
+                  <em>{t.assigned_to ? "Assigned to " + t.assigned_to : "Unassigned"} · raised from {t.raised_from}</em>
+                  <i>{t.position}</i>
+                </span>
+                <span className="fnum">{t.source_value != null ? Number(t.source_value).toLocaleString() + " " + (t.source_unit ?? "") : ""}</span>
+              </button>
+            ))}
+          </div>
+        )}
+      </Section>
 
       {subs.length > 0 && (
-        <div className="ddsecs">
-          <div className="ddsechead">Everything in {dept}</div>
+        <Section title={`Everything in ${dept}`} count={pages.length} defaultOpen={false}>
           <div className="ddseccols">
             {subs.map((sub) => (
               <div className="ddsec" key={sub}>
@@ -3846,7 +6221,32 @@ function DeptDashboard({ viewKey, go, nav }) {
               </div>
             ))}
           </div>
-        </div>
+        </Section>
+      )}
+      {/* TEMPORARY. These are not built out yet — they still render as plain tables.
+          Each gets a proper screen and comes off this list. Kept at the bottom, collapsed,
+          so it never competes with the dashboard itself. */}
+      {deepItems.length > 0 && (
+        <Section title={`Still to be built out in ${dept} — temporary list`} count={deepItems.length}>
+          <p className="buildnote">
+            These {deepItems.length} pages still render as plain tables rather than built-out
+            screens. They are listed only so nothing is lost while they are worked through. Each
+            one comes off this list as it is built properly.
+          </p>
+          <div className="deepwrap">
+            {deepGroups.map(([sub, items]) => (
+              <div key={sub} className="deepgrp">
+                <label>{sub}</label>
+                <div className="deeplinks">
+                  {items.map((it) => (
+                    <button key={it.view_key} className="deeplink" title={it.description || ""}
+                      onClick={() => go(it.view_key)}>{it.label}</button>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </Section>
       )}
     </>
   );
@@ -4056,7 +6456,7 @@ export default function App() {
   const { session, mustChange, setMustChange, showWelcome, setShowWelcome } = useSession();
   const prefs = usePrefs(session ?? null);
   const [navVersion, setNavVersion] = useState(0);
-  const { nav, reports } = useNav(navVersion);
+  const { nav, reports, apps, deep, finance, tax, hr } = useNav(navVersion);
   const [repMenu, setRepMenu] = useState(false);
   const role = useRole(session ?? null);
   const [view, setView] = useState(() => window.location.hash.slice(1) || "tower");
@@ -4175,8 +6575,16 @@ export default function App() {
     action_register: <RegisterScreen isExec={isExec} />,
     allocation_requests: <AllocationRequests session={session} isExec={isExec} />,
     ceo_dashboard: <CeoDashboard go={setView} />,
+    grow_rooms: <GrowRooms session={session} />,
+    business_rules: <BusinessRules session={session} />,
+    overhead_inputs: <OverheadInputs session={session} />,
+    sheet_sync: <SheetSync session={session} />,
+    harvest_labor: <HarvestLaborCalculator session={session} />,
+    production_calculator: <ProductionCalculator session={session} />,
+    valuation_rates: <ValuationRates session={session} />,
+    intelligence_briefing: <IntelligenceBriefing go={setView} />,
     budz: <BudzScreen go={setView} />,
-    ...Object.fromEntries(Object.keys(DEPT_BY_VIEW).map((k) => [k, <DeptDashboard viewKey={k} go={setView} nav={nav} />])),
+    ...Object.fromEntries(Object.keys(DEPT_BY_VIEW).map((k) => [k, <DeptDashboard viewKey={k} go={setView} nav={nav} deep={deep} />])),
     assistant_settings: <AssistantSettings />,
     inventory_locator: <InventoryLocator go={setView} />,
     menu_manager: isExec
@@ -4189,13 +6597,16 @@ export default function App() {
 
   return (
     <div className="frame">
-      {launcher && <Launcher onGo={setView} onClose={() => setLauncher(false)} />}
+      {launcher && <Launcher onGo={setView} onClose={() => setLauncher(false)} apps={apps} />}
 
       <header className="topnav">
         <div className="tlogo"><img src="/tg-mark.png" alt="Twisted Growers" style={{ width: 34, height: 34, borderRadius: "50%" }} /><span className="tword">Twisted <b>Growers</b></span></div>
         <button className="tibtn launchbtn" title="Open TG Workspace" onClick={() => setLauncher(true)}>{I.apps}</button>
         <div className="tdivider" />
         <div className="tcrumb">{current ? `${current.category} / ${current.label}` : view === "alerts" ? "Command / Alerts & Reminders" : "Command / Control Tower"}</div>
+        <TopMenu label="Finance" items={finance} go={setView} />
+        <TopMenu label="Tax" items={tax} go={setView} />
+        <TopMenu label="Human Resources" items={hr} go={setView} />
         <div className="repwrap">
           <button className={`repbtn ${repMenu ? "on" : ""}`} onClick={() => setRepMenu((v) => !v)}>
             Reports <span className="repcar">▾</span>
