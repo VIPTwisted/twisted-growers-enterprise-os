@@ -1045,6 +1045,10 @@ export function BudzScreen({ go }) {
   const prof = useAssistantProfile();
   const [log, setLog] = useState([{ who: "budz", text: BUDZ_INTRO }]);
   const [q, setQ] = useState("");
+  const [qfind, setQfind] = useState("");
+  const [dept, setDept] = useState(() => {
+    try { return localStorage.getItem("tg.budz.dept") || BUDZ_DEPTS[0].dept; } catch { return BUDZ_DEPTS[0].dept; }
+  });
   const [busy, setBusy] = useState(false);
   const endRef = useRef(null);
   useEffect(() => {
@@ -1062,27 +1066,32 @@ export function BudzScreen({ go }) {
       const cfg = await getAiCfg();
       let composed = null;
       let via = null;
+      // Show what the database knows immediately - never make them wait for the model.
+      const stamp = Date.now();
+      setLog((l) => [...l, { who: "budz", text: a.headline, rows: facts, stamp, pending: true }]);
 
       // 1. The desktop bridge: real Claude Code on this machine, on the owner's own
       //    subscription. Free, and it can read the project as well as the database.
       if (cfg.bridge_enabled !== false) {
         try {
-          const br = await fetch((cfg.bridge_url || "http://127.0.0.1:8765") + "/ask", {
-            method: "POST",
-            headers: { "Content-Type": "application/json", "x-tg-token": cfg.bridge_token || "tg-bridge-8f3k2m-2026" },
-            body: JSON.stringify({
-              question,
-              context: JSON.stringify({ summary: a.headline, records: facts.slice(0, 40) }).slice(0, 18000),
-            }),
-          });
-          if (br.ok) {
-            const bj = await br.json();
-            if (bj?.ok && bj.reply) { composed = bj.reply; via = "Claude on your desktop"; }
-            else if (bj?.needsLogin) {
-              setLog((l) => [...l, { who: "budz", text: bj.reply, needsLogin: true }]);
+          const { data: hb } = await supabase.from("v_bridge_status").select("online").eq("online", true).limit(1);
+          if (hb?.length) {
+            const { data: job } = await supabase
+              .from("ai_bridge_jobs")
+              .insert({ question, context: { summary: a.headline, records: facts.slice(0, 40) } })
+              .select("id")
+              .single();
+            if (job?.id) {
+              for (let i = 0; i < 300; i++) {
+                await new Promise((r) => setTimeout(r, 700));
+                const { data: row } = await supabase
+                  .from("ai_bridge_jobs").select("status, answer, error").eq("id", job.id).maybeSingle();
+                if (row?.status === "done" && row.answer) { composed = row.answer; via = "Claude on your desktop"; break; }
+                if (row?.status === "error") { composed = row.error; via = "the bridge (error)"; break; }
+              }
             }
           }
-        } catch { /* desktop off or bridge not running - fall through */ }
+        } catch { /* bridge unavailable - fall through */ }
       }
       if (!composed && cfg.local_model_enabled && cfg.local_model_url) {
         try {
@@ -1142,11 +1151,15 @@ export function BudzScreen({ go }) {
           if (out?.reply) { composed = out.reply; via = "Claude (API)"; }
         } catch {}
       }
-      if (composed) {
-        setLog((l) => [...l, { who: "budz", text: composed, rows: facts, researched: true, via }]);
-      } else {
-        setLog((l) => [...l, { who: "budz", text: a.headline, rows: facts, claudeFor: facts.length === 0 ? question : null }]);
-      }
+      setLog((l) =>
+        l.map((m) =>
+          m.stamp === stamp
+            ? composed
+              ? { ...m, text: composed, researched: true, via, pending: false }
+              : { ...m, pending: false, claudeFor: facts.length === 0 ? question : null }
+            : m
+        )
+      );
     } catch (e) {
       setLog((l) => [...l, { who: "budz", text: `Couldn't pull that: ${String(e).slice(0, 140)}` }]);
     }
@@ -1169,6 +1182,7 @@ export function BudzScreen({ go }) {
             {log.map((m, i) => (
               <div key={i} className={`budzmsg ${m.who}`}>
                 <div className="budztext">{m.text}</div>
+                {m.pending && <span className="budzdot">researching…</span>}
                 {m.via && <span className="rsch">Researched by {m.via}</span>}
                 {m.claudeFor && (
                   <div className="claudebox">
@@ -1204,30 +1218,36 @@ export function BudzScreen({ go }) {
           </div>
           <div className="claudebar">
             <span className="claudeset">
-              {Object.keys(EXTERNAL).map((k) => (
-                <AskExternal key={k} provider={k} compact
-                  question={q || "Give me a full picture of the company right now: what is late, what is costing money, what failed testing, and what needs a decision."} />
-              ))}
+              <AskExternal provider="claude" compact
+                question={q || "Give me a full picture of the company right now: what is late, what is costing money, what failed testing, and what needs a decision."} />
             </span>
             <span className="claudehint">
               Budz answers the questions below instantly from the database. For anything else, this copies your
               question with a full briefing — paste it into Claude Desktop and it reads the same live records.
             </span>
           </div>
-          <div className="budzdepts">
-            {BUDZ_DEPTS.map((d) => (
-              <div className="budzdept" key={d.dept}>
-                <div className="bdlabel">{d.dept}</div>
-                <div className="bdchips">
-                  {d.qs.map((c) => (
-                    <button key={c} className="budzchip" onClick={() => ask(c)} disabled={busy}>
-                      {c}
-                    </button>
-                  ))}
-                </div>
+          {(
+            <div className="qtabswrap">
+              <div className="qtabs">
+                {BUDZ_DEPTS.map((d) => (
+                  <button
+                    key={d.dept}
+                    className={`qtab ${d.dept === dept ? "on" : ""}`}
+                    onClick={() => { setDept(d.dept); try { localStorage.setItem("tg.budz.dept", d.dept); } catch {} }}
+                  >
+                    {d.dept}
+                  </button>
+                ))}
               </div>
-            ))}
-          </div>
+              <div className="bdchips">
+                {(BUDZ_DEPTS.find((d) => d.dept === dept) ?? BUDZ_DEPTS[0]).qs.map((c) => (
+                  <button key={c} className="budzchip" onClick={() => ask(c)} disabled={busy}>
+                    {c}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
           <div className="budzchips" style={{ display: "none" }}>
             {BUDZ_CHIPS.map((c) => (
               <button key={c} className="budzchip" onClick={() => ask(c)}>

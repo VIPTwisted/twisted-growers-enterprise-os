@@ -1199,3 +1199,133 @@ button.teamcard:hover { border-color: var(--neon-line); }
 .bpop b{display:block;margin-bottom:6px;font-size:13px}
 .bpop p{margin:0 0 11px;font-size:12px;line-height:1.6;color:var(--muted)}
 .bpop .btn{margin-right:7px;padding:6px 12px;font-size:12px}
+
+/* --accent was never a token in this theme; alias it to the brand neon so every
+   rule written against it resolves. Theme tokens themselves are untouched. */
+:root, :root[data-theme="dark"], :root[data-theme="light"] {
+  --accent: var(--neon);
+}
+/* Department headings on the assistant page, in the brand green */
+.bdlabel { color: var(--neon) !important; opacity: 1 !important; }
+
+/* Clear hierarchy on the assistant page: green headings that read as headings,
+   quieter chips underneath so the categories stand out. */
+.budzdepts { gap: 18px !important; }
+.bdlabel {
+  display: flex; align-items: center; gap: 10px;
+  font-size: 11.5px !important; letter-spacing: .14em !important;
+  color: var(--neon) !important; opacity: 1 !important; padding-bottom: 2px;
+}
+.bdlabel::after {
+  content: ""; flex: 1; height: 1px;
+  background: linear-gradient(to right, color-mix(in srgb, var(--neon) 42%, transparent), transparent);
+}
+.budzchip {
+  color: color-mix(in srgb, var(--ink) 78%, transparent) !important;
+  font-weight: 400;
+}
+.budzchip:hover {
+  color: var(--ink) !important;
+  border-color: color-mix(in srgb, var(--neon) 55%, transparent) !important;
+}
+
+/* Assistant page: tighten everything up, stop wasting vertical space */
+.budzwrap { gap: 0 !important; margin-top: 4px; }
+.budzchat { gap: 6px !important; }
+.budzlog { padding: 10px 12px !important; min-height: 0 !important; max-height: 34vh !important; gap: 8px !important; }
+.budzmsg { padding: 8px 11px !important; }
+.claudebar { margin: 6px 0 0 !important; padding: 8px 11px !important; gap: 4px !important; }
+.claudehint { font-size: 11px !important; line-height: 1.45 !important; }
+.askclaude.sm { padding: 5px 11px !important; font-size: 11.5px !important; }
+.budzdepts { gap: 10px !important; padding: 8px 2px 4px !important; }
+.bdchips { gap: 6px !important; }
+.budzchip { padding: 6px 12px !important; font-size: 12.5px !important; }
+.bdlabel { font-size: 10.5px !important; padding-bottom: 0 !important; }
+.budzask { padding-top: 4px !important; }
+/* the page header takes far less room */
+.pagehead { margin-bottom: 6px !important; }
+.pagehead .sub { max-width: none !important; font-size: 12.5px !important; margin-top: 2px !important; }
+
+/* Preset questions: department tabs with a search field */
+.qbar { display: flex; align-items: center; gap: 8px; margin: 8px 0 0; }
+.qsearch { flex: 1; min-width: 0; background: var(--input-bg); border: 1px solid var(--line); border-radius: 9px;
+  color: var(--ink); font: inherit; font-size: 13px; padding: 8px 13px; }
+.qsearch:focus { outline: none; border-color: var(--neon); box-shadow: var(--glow); }
+.qclear { background: transparent; border: 0; color: var(--muted); font-size: 13px; cursor: pointer; padding: 6px 8px; }
+.qclear:hover { color: var(--neon); }
+.qtabswrap { margin-top: 8px; border: 1px solid var(--line); border-radius: 11px; padding: 9px 11px 11px; }
+.qtabs { display: flex; flex-wrap: wrap; gap: 3px; border-bottom: 1px solid var(--line); padding-bottom: 7px; margin-bottom: 9px; }
+.qtab { background: transparent; border: 0; border-radius: 7px; padding: 5px 11px; font: inherit; font-size: 12px;
+  color: var(--muted); cursor: pointer; white-space: nowrap; transition: background .12s, color .12s; }
+.qtab:hover { color: var(--ink); }
+.qtab.on { background: color-mix(in srgb, var(--neon) 15%, transparent); color: var(--neon); font-weight: 600; }
+.qhits { margin-top: 8px; display: flex; flex-direction: column; gap: 2px; max-height: 260px; overflow: auto;
+  border: 1px solid var(--line); border-radius: 11px; padding: 7px; }
+.qhit { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; background: transparent;
+  border: 0; border-radius: 7px; padding: 7px 9px; font: inherit; font-size: 12.5px; color: var(--ink); cursor: pointer; }
+.qhit:hover { background: var(--panel2); }
+.qhd { font-size: 9.5px; letter-spacing: .09em; text-transform: uppercase; color: var(--neon); min-width: 86px; flex: 0 0 86px; }
+.qnone { padding: 10px 9px; font-size: 12px; line-height: 1.55; color: var(--muted); }
+
+/* Bridge popup: solid, readable, above everything */
+.bpop {
+  background: var(--panel) !important;
+  background-color: #0f1712 !important;
+  z-index: 400 !important;
+  backdrop-filter: none !important;
+  box-shadow: 0 22px 60px rgba(0,0,0,.75), 0 0 0 1px rgba(255,255,255,.04) !important;
+}
+:root[data-theme="light"] .bpop { background-color: #ffffff !important; }
+.bpop p { color: var(--muted) !important; }
+/* while the researched answer is still coming */
+.budzmsg.budz:has(+ .pendmark), .pendmark { display: none; }
+.budzdot { display: inline-block; margin-left: 8px; font-size: 11px; color: var(--neon); opacity: .85; }
+@keyframes pend { 0%,100%{opacity:.35} 50%{opacity:1} }
+.budzdot { animation: pend 1.2s ease-in-out infinite; }
+/* section tabs: slight glow so they stand out */
+.qtab.on { box-shadow: 0 0 14px color-mix(in srgb, var(--neon) 34%, transparent), inset 0 0 0 1px color-mix(in srgb, var(--neon) 40%, transparent); }
+.qtab:hover { text-shadow: 0 0 10px color-mix(in srgb, var(--neon) 55%, transparent); }
+.bdlabel { text-shadow: 0 0 12px color-mix(in srgb, var(--neon) 45%, transparent); }
+
+/* Side menu subcategories */
+.subcat { margin: 2px 0 4px; }
+.subhead { display: flex; align-items: center; gap: 7px; width: 100%; background: transparent; border: 0;
+  padding: 6px 10px 5px 14px; font: inherit; font-size: 10px; font-weight: 700; letter-spacing: .1em;
+  text-transform: uppercase; color: color-mix(in srgb, var(--neon) 78%, transparent); cursor: pointer; }
+.subhead:hover { color: var(--neon); }
+.subtext { flex: 1; text-align: left; }
+.subcount { font-size: 9.5px; font-weight: 600; letter-spacing: 0; color: var(--muted);
+  background: var(--panel2); border-radius: 999px; padding: 1px 6px; }
+.subhead .caret { width: 10px; height: 10px; opacity: .6; transition: transform .15s; }
+.subhead .caret.open { transform: rotate(90deg); }
+.subcat .item { padding-left: 26px; }
+
+/* Department dashboards */
+.ddgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px;margin-top:14px}
+.ddtile{display:flex;flex-direction:column;gap:4px;align-items:flex-start;text-align:left;padding:16px 17px 14px;
+  border:1px solid var(--line);border-radius:13px;background:var(--panel);font:inherit;color:var(--ink);
+  cursor:pointer;position:relative;overflow:hidden;transition:border-color .15s,transform .12s,box-shadow .15s}
+.ddtile::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--muted)}
+.ddtile.good::before{background:var(--neon)}
+.ddtile.warn::before{background:#f5c542}
+.ddtile.bad::before{background:#ff4d4d}
+.ddtile:hover{transform:translateY(-2px);border-color:color-mix(in srgb,var(--neon) 45%,transparent);
+  box-shadow:0 10px 30px rgba(0,0,0,.35)}
+.ddkpi{font-size:11.5px;letter-spacing:.03em;color:var(--muted);line-height:1.35}
+.ddval{font-size:30px;font-weight:600;letter-spacing:-.02em;line-height:1.1;font-variant-numeric:tabular-nums}
+.ddval em{font-style:normal;font-size:14px;font-weight:500;color:var(--muted)}
+.ddtile.bad .ddval{color:#ff6b6b}
+.ddtile.warn .ddval{color:#f5c542}
+.ddtile.good .ddval{color:var(--neon)}
+.ddctx{font-size:11px;color:var(--muted);line-height:1.45}
+.ddgo{margin-top:6px;font-size:10.5px;font-weight:600;letter-spacing:.04em;color:var(--neon);opacity:0;transition:opacity .15s}
+.ddtile:hover .ddgo{opacity:1}
+.ddsecs{margin-top:26px;border:1px solid var(--line);border-radius:13px;background:var(--panel);padding:16px 18px 18px}
+.ddsechead{font-size:11px;font-weight:700;letter-spacing:.11em;text-transform:uppercase;color:var(--neon);margin-bottom:12px}
+.ddseccols{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:16px 22px}
+.ddsec{display:flex;flex-direction:column;gap:2px}
+.ddseclabel{font-size:10px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);
+  padding-bottom:5px;margin-bottom:3px;border-bottom:1px solid var(--line)}
+.ddlink{text-align:left;background:transparent;border:0;border-radius:6px;padding:5px 7px;font:inherit;
+  font-size:12.5px;color:var(--ink);cursor:pointer;transition:background .1s,color .1s}
+.ddlink:hover{background:var(--panel2);color:var(--neon)}

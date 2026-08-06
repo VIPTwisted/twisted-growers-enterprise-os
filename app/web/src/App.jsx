@@ -3768,51 +3768,133 @@ const TELL_YOUR_AI = [
 ].join(String.fromCharCode(10));
 
 
+
+const DEPT_BY_VIEW = {
+  dept_dash_command: "Command",
+  dept_dash_cultivation: "Cultivation",
+  dept_dash_inventory: "Inventory",
+  dept_dash_quality: "Quality",
+  dept_dash_sales: "Sales & Cash",
+  dept_dash_mfg: "Manufacturing",
+  dept_dash_metrc: "Metrc",
+  dept_dash_workspace: "Workspace",
+  dept_dash_hr: "Human Resources",
+  dept_dash_preroll: "Infused Pre-Rolls & Flower",
+  dept_dash_settings: "Settings",
+};
+
+function DeptDashboard({ viewKey, go, nav }) {
+  const dept = DEPT_BY_VIEW[viewKey] ?? "Command";
+  const [rows, setRows] = useState(null);
+  const [ver, setVer] = useState(0);
+  useEffect(() => {
+    (async () => {
+      const { data } = await supabase
+        .from("v_department_dashboard").select("*").eq("department", dept).order("ord");
+      setRows(data ?? []);
+    })();
+  }, [dept, ver]);
+
+  const pages = (nav ?? []).filter((n) => n.category === dept && n.subcategory && n.subcategory !== "Dashboard");
+  const subs = [...new Set(pages.map((p) => p.subcategory))];
+  const fmt = (v, u) => {
+    const n = Number(v ?? 0);
+    if (u === "$") return "$" + Math.round(n).toLocaleString();
+    if (u === "%") return n.toLocaleString() + "%";
+    return n.toLocaleString();
+  };
+
+  if (!rows) return <div className="empty"><div className="eicon">◐</div>Reading {dept}…</div>;
+
+  return (
+    <>
+      <div className="pagehead">
+        <div>
+          <h1>{dept}</h1>
+          <div className="sub">
+            Every number in {dept}, live from the records. Click any tile to open the detail behind it. Everything in
+            this section feeds these figures — nothing is summarised away.
+          </div>
+        </div>
+        <button className="btn" onClick={() => setVer((v) => v + 1)}>Refresh</button>
+      </div>
+
+      <div className="ddgrid">
+        {rows.map((r) => (
+          <button key={r.kpi} className={`ddtile ${r.tone}`} onClick={() => r.drill && go(r.drill)}
+            title={r.drill ? "Open the records behind this" : ""}>
+            <span className="ddkpi">{r.kpi}</span>
+            <span className="ddval">{fmt(r.value, r.unit)}<em>{r.unit !== "$" && r.unit !== "%" ? " " + r.unit : ""}</em></span>
+            {r.context && <span className="ddctx">{r.context}</span>}
+            {r.drill && <span className="ddgo">Open the records →</span>}
+          </button>
+        ))}
+      </div>
+
+      {subs.length > 0 && (
+        <div className="ddsecs">
+          <div className="ddsechead">Everything in {dept}</div>
+          <div className="ddseccols">
+            {subs.map((sub) => (
+              <div className="ddsec" key={sub}>
+                <div className="ddseclabel">{sub}</div>
+                {pages.filter((p) => p.subcategory === sub).map((p) => (
+                  <button key={p.view_key} className="ddlink" onClick={() => go(p.view_key)} title={p.description || p.label}>
+                    {p.label}
+                  </button>
+                ))}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
 function BridgeChip() {
-  const [state, setState] = useState("checking");
+  const [st, setSt] = useState({ state: "checking" });
   const [open, setOpen] = useState(false);
   const check = async () => {
-    try {
-      const r = await fetch("http://127.0.0.1:8765/health", { signal: AbortSignal.timeout(3500) });
-      setState(r.ok ? "up" : "down");
-    } catch {
-      setState("down");
-    }
+    // The browser cannot call http://127.0.0.1 from an https page, so the bridge
+    // reports in to the database and we read that instead.
+    const { data } = await supabase.from("v_bridge_status").select("*").order("last_seen", { ascending: false }).limit(1);
+    const r = data?.[0];
+    setSt(r?.online ? { state: "up", machine: r.machine } : { state: "down", machine: r?.machine, ago: r?.seconds_since });
   };
   useEffect(() => {
     check();
-    const t = setInterval(check, 30000);
+    const t = setInterval(check, 25000);
     return () => clearInterval(t);
   }, []);
-  const connect = () => {
-    window.location.href = "tgbridge://start";
-    setState("starting");
-    setTimeout(check, 4000);
-    setTimeout(check, 9000);
-  };
+  const start = () => { window.location.href = "tgbridge://start"; setTimeout(check, 6000); setTimeout(check, 14000); };
   return (
     <div className="bchipwrap">
-      <button className={`bchip ${state}`} onClick={() => (state === "up" ? setOpen((v) => !v) : connect())}
-        title={state === "up" ? "The artificial intelligence bridge is running" : "The bridge is not running — click to start it"}>
+      <button className={`bchip ${st.state}`} onClick={() => setOpen((v) => !v)}
+        title={st.state === "up" ? `Bridge online on ${st.machine}` : "The bridge is not reporting in"}>
         <span className="bdot" />
-        {state === "up" ? "AI ready" : state === "starting" ? "Starting…" : state === "checking" ? "Checking…" : "AI offline"}
+        {st.state === "up" ? "AI ready" : st.state === "checking" ? "Checking…" : "AI offline"}
       </button>
-      {open && state === "up" && (
-        <div className="bpop" onMouseLeave={() => setOpen(false)}>
-          <b>Bridge running</b>
-          <p>Questions in the assistant are being researched by Claude on this computer, reading the live records. It costs nothing beyond your own subscription.</p>
-          <button className="btn" onClick={check}>Re-check</button>
-        </div>
-      )}
-      {state === "down" && (
-        <div className="bpop warn">
-          <b>The bridge is not running</b>
-          <p>
-            Without it the assistant still answers from the database, but nothing gets researched and written up.
-            Click <b>AI offline</b> above to start it, or double-click <b>TG OS AI Bridge</b> on your desktop.
-          </p>
-          <button className="btn" onClick={connect}>Start it now</button>
-          <button className="btn" onClick={check}>I started it — re-check</button>
+      {open && (
+        <div className={`bpop ${st.state === "up" ? "" : "warn"}`} onMouseLeave={() => setOpen(false)}>
+          {st.state === "up" ? (
+            <>
+              <b>Bridge online — {st.machine}</b>
+              <p>Questions in the assistant are researched by Claude on that computer, reading the live records. It costs nothing beyond your own subscription.</p>
+              <button className="btn" onClick={check}>Re-check</button>
+            </>
+          ) : (
+            <>
+              <b>The bridge is not reporting in</b>
+              <p>
+                The assistant still answers from the database, but nothing gets researched and written up.
+                {st.ago ? ` Last seen ${Math.round(st.ago / 60)} minutes ago on ${st.machine}.` : ""}
+              </p>
+              <p>Start it with the <b>TG OS AI Bridge</b> button on your desktop, or click below.</p>
+              <button className="btn primary" onClick={start}>Start it now</button>
+              <button className="btn" onClick={check}>Re-check</button>
+            </>
+          )}
         </div>
       )}
     </div>
@@ -3986,7 +4068,10 @@ export default function App() {
     window.addEventListener("popstate", onPop);
     return () => window.removeEventListener("popstate", onPop);
   }, []);
-  const [openCats, setOpenCats] = useState({});
+  const [openCats, setOpenCats] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("tg.nav.open") || "{}"); } catch { return {}; }
+  });
+  useEffect(() => { try { localStorage.setItem("tg.nav.open", JSON.stringify(openCats)); } catch {} }, [openCats]);
   const [dragging, setDragging] = useState(false);
   const [userMenu, setUserMenu] = useState(false);
   const [launcher, setLauncher] = useState(false);
@@ -4091,6 +4176,7 @@ export default function App() {
     allocation_requests: <AllocationRequests session={session} isExec={isExec} />,
     ceo_dashboard: <CeoDashboard go={setView} />,
     budz: <BudzScreen go={setView} />,
+    ...Object.fromEntries(Object.keys(DEPT_BY_VIEW).map((k) => [k, <DeptDashboard viewKey={k} go={setView} nav={nav} />])),
     assistant_settings: <AssistantSettings />,
     inventory_locator: <InventoryLocator go={setView} />,
     menu_manager: isExec
@@ -4237,13 +4323,30 @@ export default function App() {
                   <span className={`caret ${isOpen(c.name) ? "open" : ""}`}>{I.caret}</span>
                 </button>
                 <div className="items" style={{ display: isOpen(c.name) ? "block" : "none" }}>
-                  {c.items.map((e) => (
-                    <button key={e.view_key} className={`item ${view === e.view_key ? "on" : ""}`}
-                      onClick={() => setView(e.view_key)} title={e.label}>
-                      {iconByName(e.icon)}<span className="lbl">{e.label}</span>
-                      {e.milestone && <span className="mtag">SOON</span>}
-                    </button>
-                  ))}
+                  {[...new Set(c.items.map((e) => e.subcategory || ""))].map((sub) => {
+                    const group = c.items.filter((e) => (e.subcategory || "") === sub);
+                    const subKey = c.name + "::" + sub;
+                    const subOpen = openCats[subKey] !== false;
+                    return (
+                      <div key={subKey} className={sub ? "subcat" : ""}>
+                        {sub && (
+                          <button className="subhead" onClick={() => setOpenCats({ ...openCats, [subKey]: !subOpen })}>
+                            <span className="subtext">{sub}</span>
+                            <span className="subcount">{group.length}</span>
+                            <span className={`caret ${subOpen ? "open" : ""}`}>{I.caret}</span>
+                          </button>
+                        )}
+                        {(!sub || subOpen) &&
+                          group.map((e) => (
+                            <button key={e.view_key} className={`item ${view === e.view_key ? "on" : ""}`}
+                              onClick={() => setView(e.view_key)} title={e.description || e.label}>
+                              {iconByName(e.icon)}<span className="lbl">{e.label}</span>
+                              {e.milestone && <span className="mtag">SOON</span>}
+                            </button>
+                          ))}
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             ))

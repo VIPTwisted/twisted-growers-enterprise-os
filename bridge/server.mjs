@@ -153,3 +153,76 @@ server.listen(PORT, "127.0.0.1", () => {
   console.log(`Claude:  ${CLAUDE}`);
   console.log(`Token:   ${TOKEN}`);
 });
+
+/* ── Supabase job queue ──────────────────────────────────────────────
+   A browser on https cannot call http://127.0.0.1, so the OS posts questions
+   into a table and this polls for them, answers, and writes the answer back.
+   Also writes a heartbeat so the OS can show whether the bridge is alive. */
+const SB_URL = "https://fxetuqjryttnypgepsru.supabase.co";
+const SB_KEY = process.env.TG_SB_KEY ||
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZ4ZXR1cWpyeXR0bnlwZ2Vwc3J1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU4NzY4MzksImV4cCI6MjEwMTQ1MjgzOX0.JVNn4OoGrTVRLrl0AhAxaodJUeMQi4NO1aZdOVhGn3M";
+const MACHINE = process.env.TG_MACHINE || os.hostname();
+
+const sb = (path, init = {}) =>
+  fetch(SB_URL + "/rest/v1/" + path, {
+    ...init,
+    headers: {
+      apikey: SB_KEY,
+      Authorization: "Bearer " + SB_KEY,
+      "Content-Type": "application/json",
+      Prefer: init.prefer || "return=representation",
+      ...(init.headers || {}),
+    },
+  });
+
+async function heartbeat() {
+  try {
+    await sb("ai_bridge_heartbeat", {
+      method: "POST",
+      prefer: "resolution=merge-duplicates",
+      body: JSON.stringify([{ machine: MACHINE, last_seen: new Date().toISOString(), version: "1.0" }]),
+    });
+  } catch {}
+}
+
+let working = false;
+async function pollJobs() {
+  if (working) return;
+  try {
+    const r = await sb("ai_bridge_jobs?status=eq.pending&order=created_at.asc&limit=1");
+    if (!r.ok) return;
+    const rows = await r.json();
+    if (!rows.length) return;
+    const job = rows[0];
+    working = true;
+    await sb("ai_bridge_jobs?id=eq." + job.id, {
+      method: "PATCH",
+      body: JSON.stringify({ status: "running", claimed_at: new Date().toISOString() }),
+    });
+    const NL2 = String.fromCharCode(10, 10);
+    const ctx = job.context
+      ? NL2 + "RECORDS ALREADY PULLED BY THE PLATFORM:" + String.fromCharCode(10) + JSON.stringify(job.context).slice(0, 20000)
+      : "";
+    const started = Date.now();
+    const out = await runClaude(SYSTEM_BRIEF + ctx + NL2 + "QUESTION FROM THE OWNER: " + job.question);
+    await sb("ai_bridge_jobs?id=eq." + job.id, {
+      method: "PATCH",
+      body: JSON.stringify({
+        status: out.ok ? "done" : "error",
+        answer: out.ok ? out.reply : null,
+        error: out.ok ? null : out.reply,
+        seconds: Math.round((Date.now() - started) / 1000),
+        answered_at: new Date().toISOString(),
+      }),
+    });
+    console.log(`[job ${job.id}] ${out.ok ? "answered" : "failed"} in ${Math.round((Date.now() - started) / 1000)}s`);
+  } catch (e) {
+    console.log("poll error", String(e).slice(0, 200));
+  } finally {
+    working = false;
+  }
+}
+
+heartbeat();
+setInterval(heartbeat, 30000);
+setInterval(pollJobs, 700);
