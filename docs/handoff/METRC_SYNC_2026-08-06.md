@@ -1075,12 +1075,34 @@ under-recorded at the takedown scale, or packaged weights include material from
 elsewhere."* **It is the first: the band is too aggressive.** Now established from
 Metrc's own field across the full population, not a sample.
 
-## NOT changed
+## CORRECTION — 62.5% is the wrong figure, and was not used
 
-`expected_moisture_pct_min/max` are owner-set rows and sit under every conversion,
-yield and valuation figure in the platform. Changing them is the owner's decision
-and should be recorded in `issue_decisions` per rule H1. The evidence is here; the
-decision is his.
+62.5% spans all 350 finished harvests, **including 77 that record zero moisture —
+72 of which are named FF (fresh frozen)**. Those are packaged wet and never dried,
+so zero is correct for them, and including them understates drying loss.
+
+Across the **271 harvests that actually dried**, weighted by wet weight:
+
+| | |
+|---|---|
+| **Weighted moisture loss** | **73.5%** |
+| Mean / median | 70.7% / 74.3% |
+| p10 / p90 | 55.1% / 84.4% |
+
+**The old 75–80% band was only marginally too high, not wildly wrong.** Setting
+62.5% would have understated dry yield across every valuation in the platform.
+
+## Changed, on the owner's decision
+
+`expected_moisture_pct_min` **70**, `expected_moisture_pct_max` **77** — a band
+centred on the measured 73.5%, not a point value, because the spread is real and a
+single figure would flag most harvests as anomalies.
+
+`where_it_came_from` on both rows records the measurement and the fresh-frozen
+exclusion. The decision is in `issue_decisions` under `moisture_band` per rule H1,
+including the caveat that this is Metrc's recorded moisture rather than an
+independent scale reading — the handoff's advice to weigh two or three harvests
+end to end still stands as confirmation.
 
 Also note the earlier "phantom weight" claim in this document is superseded by
 this section. It is left in place rather than deleted so the reasoning, and its
