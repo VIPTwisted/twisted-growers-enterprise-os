@@ -828,3 +828,96 @@ shared component** and adopt it across all 35. Patching them individually
 guarantees they drift apart again; a shared component is the only thing that makes
 it genuinely consistent sitewide. That is a substantial front-end change and
 should be done as its own piece of work, with each page verified after.
+
+---
+
+# Metrc reports analysed, and the harvest gap closed — 6 August 2026
+
+The owner supplied nine Metrc report exports. They change several conclusions.
+
+## The sync was missing 60% of harvests
+
+| | |
+|---|---|
+| Harvests in the Metrc report | **380** |
+| Harvests in the database | **153** |
+
+Metrc's `/harvests/v2/*` endpoints return only a recent window by default. The
+Edge Function already supported `winStart`/`winEnd` for exactly this, and it had
+never been used. Walking 2024-01 to 2026-08 in five windows recovered every one:
+**153 → 380, an exact match to the report.** Explicit windows do not advance the
+delta cursor, so normal syncing is unaffected.
+
+**This should be a scheduled quarterly backfill**, or the same gap reopens for any
+harvest that closes outside the delta window.
+
+## D1 — the moisture band, answered from Metrc's own arithmetic
+
+Metrc records `Wet = Waste + Packaged + Remaining`, and **all 380 harvests balance
+to exactly zero**. There is no moisture-loss line in Metrc at all; the Weight
+column silently absorbs evaporation.
+
+Across the **350 finished** harvests:
+
+| | Pounds |
+|---|---|
+| Wet in | 39,853.3 |
+| Waste | 3,667.4 |
+| Packaged | 11,289.1 |
+| **Still shown on finished harvests** | **24,896.7** |
+
+**271 of 350 finished harvests still carry weight.** A finished harvest should
+carry none, so the true moisture loss is **24,896.7 lb — 62.5% of wet weight.**
+
+**The 75–80% band is too aggressive.** At 75% the theoretical dry yield is ~9,963
+lb, but 11,289 lb was actually packaged — more than the band permits. That is the
+impossibility recorded in HANDOFF.md D1, now measured across the full set rather
+than a sample. **The phantom is 24,896 lb, not 6,796.**
+
+## Wholesale revenue exists after all
+
+`/transfers/v2/deliveries/{id}/packages/wholesale` returns 401, but the Wholesale
+Transfers report carries an `Amount` column: **$420,047.46 shipped**, 99 lines,
+38 invoices. Buds $415,503 · Shake/Trim $3,750 · Vape $544. Largest counterparty
+Eagle Eyes Transport Solutions at $215,935.
+
+The platform values inventory at owner-set rates because it had no invoiced
+figures. It now has them.
+
+## D6 — correcting the handoff
+
+The Inventory Point-in-Time report has **no quantity column**: Type, Tag, Name,
+Category, Strain, Location, Sublocation, dates, Status. It lists the 2,103 items
+held on 1/1/2025 but not how much of each. **It cannot produce a fileable return
+on its own.**
+
+Separately, `inventory_snapshot` now records one row per package per day from
+6 Aug 2026, with `tg_snapshot_inventory()`. First snapshot: **747 packages.**
+Every FUTURE as-of date is answerable from our own record. Dates before today
+still need the Metrc export.
+
+## Yield monitoring against the 380 lb target
+
+`v_yield_by_harvest` and `v_monthly_yield` give dried flower, trim and fresh
+frozen per harvest and per month, with the owner's 380 lb minimum.
+
+Two counting traps were found and handled:
+
+- **Current quantity is not production.** `metrc_packages.quantity` is what
+  remains today, so anything sold reads zero and the month it was produced in
+  looks empty. Production must be measured on **`CreatedQuantity`**.
+- **1,192 packages name more than one source harvest, one names 82.** Counting a
+  package once per harvest inflated flower to 12,279 lb against a true 11,289.
+  Weight is now divided evenly across the harvests named — the only attribution
+  Metrc supports, as it does not record how much came from each.
+- Packages **repackaged from other packages** still carry the harvest name. Only
+  packages made directly from a harvest are counted, or production doubles.
+
+**Honest limitation:** the category split does not reconcile exactly to Metrc's
+`Total Pkg'd`. Direct-from-harvest totals 6,074 lb, repackaged 13,147 lb, Metrc's
+own figure 11,879 lb. Metrc records no category split on the harvest itself, so
+`packaged_lb` is authoritative and the three categories are directional. The view
+says so on every row.
+
+**Against the 380 lb minimum, 2 of the last 12 months met it** — May 2026
+(520.5 lb) and June 2026 (476.5 lb).
