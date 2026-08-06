@@ -610,3 +610,73 @@ date is the meaningful one, and for configuration and reference lists a date
 filter is meaningless — so this is a per-page judgement, not a sweep.
 
 Search was never the problem: only 2 pages of 219 lack it.
+
+---
+
+# Drill-downs and units
+
+## Drill-downs — 29 of 43 dashboard tiles were broken
+
+| | Tiles |
+|---|---|
+| Working | 14 |
+| Target does not exist | **15** |
+| Target exists but silently fails | **14** |
+
+The third group was a one-line bug. The router resolved the current page with
+`entries.find()`, and `entries` comes from `nav`, which `useNav()` filters to
+`surface === 'side'`. **Any tile, drill-down or search result pointing at a
+Reports, Finance, Tax, HR, launcher or deep page resolved to nothing** and fell
+through to the default screen — no error, no message. That breaks rule C1.
+
+`entries` was left alone because it also builds the side-rail category tree;
+widening it would dump every page onto the rail. A separate `routable` list
+spanning all surfaces was added and `current` now resolves against it.
+
+**Still open — the 15 whose target does not exist.** Correct targets identified:
+
+| Tile drill | Should be |
+|---|---|
+| `overdue_harvests` | `harvest_issues` |
+| `missing_lab_results` | `metrc_rpt_lab` |
+| `failed_by_origin` | `failed_testing_by_origin` |
+| `drying_performance` | `dry_room_performance` |
+| `late_pulls` | `schedule_compliance` |
+| `yield_gap` | `issue_yield_gap` |
+| `employees` | `people` |
+| `aging_stock` | `issue_aging` |
+| `ff_dry_equiv` | `fresh_frozen_equiv` |
+| `metrc` | `metrc_mirror` |
+| `metrc_cultivation` | `metrc_mc` |
+| `lab_turnaround` | `lab_turnaround_report` |
+
+These are string literals inside `mv_department_dashboard`'s **19,391-character**
+definition, so correcting them means dropping and recreating that matview — the
+object the handoff records as having been destroyed three times. **Deliberately not
+done as a side change.**
+
+## Units, not Each
+
+Rule B2 says countable items are units; rule F4 forbids abbreviations. Metrc
+returns `Each`, and it was reaching the tiles unchanged — *"17,001 Each"*.
+
+`f_uom_label(text)` now maps Metrc's raw unit names to the platform's vocabulary
+in one place — Each/ea → **Units**, g → Grams, lb → Pounds, and so on — and is
+applied in `v_stock_summary`, `v_product_identity`, `v_lab_results`,
+`v_location_history` and `v_package_forensic`. Tiles now read **17,001 Units**.
+
+Note the front end already defaulted to "units" (`{s.unit_of_measure || "units"}`)
+— the database was overriding it. Fixing it in the view fixes it everywhere.
+
+Verified: 181 of 181 views readable, 0 broken.
+
+## Search and dates — two different causes
+
+1. **Generic pages** get search and a date filter automatically, but only when the
+   view has a text column and a column *named* like a date. 25 were fixed by
+   appending a correctly named alias; 53 still have no date column at all.
+2. **Bespoke pages** — the 35 registered in the `special` map, including
+   `MetrcMirror` — hand-roll their own UI and mostly have neither. This is a
+   separate, larger piece of work: the search / date / export toolbar should be
+   extracted into one shared component and used by every bespoke page, which is
+   also the only way to make it consistent sitewide.
