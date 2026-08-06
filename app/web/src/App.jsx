@@ -6756,13 +6756,21 @@ export default function App() {
 
   const isExec = role === "owner" || role === "executive";
   const entries = (nav ?? []).filter((e) => !e.admin_only || isExec);
+  /* Every surface is routable, not just the side rail. `entries` still drives the
+     rail and must stay side-only, but a dashboard tile, a drill-down or a search
+     result may point at a Reports, Finance, Tax, HR, launcher or deep page. Those
+     resolved to nothing before, so 14 of 43 dashboard tiles silently did nothing
+     when clicked - breaking rule C1, every tile must open to the items behind it. */
+  const routable = [...(nav ?? []), ...(deep ?? []), ...(reports ?? []), ...(finance ?? []),
+                    ...(tax ?? []), ...(hr ?? []), ...(apps ?? [])]
+                   .filter((e) => !e.admin_only || isExec);
   const cats = [];
   for (const e of entries) {
     let c = cats.find((x) => x.name === e.category);
     if (!c) { c = { name: e.category, items: [] }; cats.push(c); }
     c.items.push(e);
   }
-  const current = entries.find((e) => e.view_key === view);
+  const current = routable.find((e) => e.view_key === view);
   const email = session.user.email ?? "";
   const isOpen = (name) => openCats[name] !== false;
 
