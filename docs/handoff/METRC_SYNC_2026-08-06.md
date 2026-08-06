@@ -344,3 +344,80 @@ select cron.schedule('metrc-deliveries','*/10 * * * *', $$ select net.http_post(
   headers := '{"x-admin-key": "tg-seed-8f3k2m-2026", "Content-Type": "application/json"}'::jsonb,
   body := '{}'::jsonb, timeout_milliseconds := 280000) $$);
 ```
+
+---
+
+# Document library, customer book and the email requirement
+
+## HARD RULE — owner-set 6 August 2026
+
+> Anything in the OS that has ever had, or will ever have, a **manifest** or a
+> **certificate of analysis** must carry a link to it, sitewide, and that link
+> must download and print.
+
+Metrc's own document URLs (`ma.metrc.com/reports/labtests/{id}/document`) require
+a Metrc login, so storing them does **not** satisfy this rule — a CFO clicking one
+hits a sign-in wall. The documents are therefore fetched and stored in our own
+bucket, and the platform serves its own links.
+
+## Built
+
+- **`metrc_documents`** + private Storage bucket `metrc-documents`. Each row keeps
+  the storage path, SHA-256, byte size, source endpoint and — when a fetch fails —
+  `fetch_error`, so absence is always explained (rule A3).
+- **`metrc-documents`** Edge Function. Fetches COA PDFs
+  (`/labtests/v2/labtestdocument/{id}`) and manifest PDFs
+  (`/transfers/v2/manifest/{id}/pdf`, base64 in `FileContents`). Tries the
+  package's licence first, then the other — a document may belong to either.
+- **`v_package_documents`** — sitewide evidence view, one row per package, with
+  the certificate, the manifest, and plain-English reasons when either is absent.
+- **`v_document_library`** — searchable by manifest number, package tag, product,
+  customer or laboratory.
+- **`v_metrc_scan_settings`** — the live scan schedule: what runs, when it last
+  ran, when it runs next, and whether a manual pull is currently allowed.
+- Nav entries: **Metrc → Certificates & Manifests**, **Settings → Metrc Scan
+  Schedule**, **Sales & Cash → Customer Book**. All three restricted to
+  owner / executive / cfo.
+
+First run, 3 of each: **3 COAs and 3 manifests stored, no errors.** COAs 498–617 KB,
+manifests ~245 KB, each hashed.
+
+**Overnight backfill scheduled** (`metrc-documents-backfill`, every 15 min
+00:00–08:45 UTC = 8pm–4:45am Eastern, 200 documents a run). One-off: once the book
+is walked it only picks up new documents. **Reduce it to twice daily afterwards.**
+
+## Customer book — extracted from manifest history
+
+128 licensees, every one built from real shipments: **109 retail dispensaries**,
+1 cultivator, 1 laboratory.
+
+The commercial detail is in the nested `_delivery` object, which was not being
+used: **`InvoiceNumber`, `PaymentDueDate`, `PaymentTermDays`**, gross weight,
+planned route, actual arrival and departure times. All 128 now carry a state
+licence and payment terms; `v_customers` adds shipment count, packages sent, last
+invoice, last manifest and a trading status.
+
+## Email — the gap, stated plainly
+
+**Metrc carries no customer email addresses.** Verified three ways:
+
+1. Every key in every stored transfer record — `RecipientFacilityName`,
+   `RecipientFacilityLicenseNumber`, driver and vehicle fields. No email, no
+   phone, no address.
+2. Zero matches for an email pattern across all 2,239 transfer records.
+3. `/facilities/v2` does expose an `Email` field, but only for facilities the key
+   owns — and it is null.
+
+**Parsing the manifest PDF was attempted and did not work.** The `manifest-parse`
+function inflates PDF streams by hand; on these documents it returned binary, and
+the one "phone number" it found was the PDF creation timestamp. It also picked
+incoming manifests, where the recipient is Twisted Growers itself. Needs a proper
+PDF text library, and outgoing manifests, before it is worth another attempt.
+
+**No email provider is configured** — no Resend, SendGrid, Postmark or SMTP secret
+exists. So the send path needs: a provider account, addresses for 128 customers,
+and the send function itself. `document_sends` is in place as the append-only
+record of who sent what to whom.
+
+**All 128 customers currently need an email address.** They cannot be derived —
+rule A1 forbids inventing them.
