@@ -577,3 +577,36 @@ some (configuration and reference lists) a date filter is meaningless.
 
 This confirms HANDOFF.md D3: *"most reporting views have no date column to filter
 on - that is the first step, not the UI."*
+
+## D3 — date filters switched on for 25 pages
+
+The renderer enables the date filter only when a column name matches
+`_date | _on$ | _at$ | ^date | ^month | period`. 25 pages held a real date column
+named something else — `raised`, `oldest`, `first_seen`, `started`, `at`.
+
+**Columns were appended, never renamed.** `create or replace view` cannot rename a
+column; renaming needs a drop, and rule E1 exists because that blanked every
+dashboard three times. Each view was instead wrapped:
+
+```sql
+create or replace view V as select q.*, q.<datecol> as <datecol>_date from (<original def>) q;
+```
+
+Same columns, same order, one appended. 23 views done, 0 failures. The two base
+tables (`audit_events.at`, `employee_rates.effective_from`) got **generated stored
+columns**, so they stay in step with their source and are never hand-maintained.
+
+| | Before | After |
+|---|---|---|
+| Pages with no date filter | 78 of 219 | **53** |
+| Command Center | 22 | 14 |
+| Metrc | 6 | 2 |
+
+Verified afterwards (rule E2): **181 of 181 views readable, 0 broken, all 7
+materialized views still populated.**
+
+The remaining 53 have no date column at all. Each needs a decision about which
+date is the meaningful one, and for configuration and reference lists a date
+filter is meaningless — so this is a per-page judgement, not a sweep.
+
+Search was never the problem: only 2 pages of 219 lack it.
