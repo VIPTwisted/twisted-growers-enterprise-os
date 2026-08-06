@@ -1030,3 +1030,58 @@ inferred from a moisture band.
 | Packages Inventory | 62 | 446 |
 | Inventory Point-in-Time | 2,103 | 648 |
 | Test Batches Relationships | 739 | 0 |
+
+---
+
+# D1 CLOSED — and a correction to my own earlier finding
+
+## Metrc records moisture loss. I was wrong to call it phantom weight.
+
+Earlier in this document I concluded, from the Harvests report, that
+`Wet = Waste + Packaged + Remaining` balanced to exactly zero on all 380 harvests
+and therefore **evaporated water had never been removed from Metrc** — describing
+24,896.7 lb as "phantom".
+
+**That was wrong.** The Harvests report does not carry a moisture column. The
+`Metrc-Massachusetts-MC281714-Plants-HarvestsInactive` export does, and moisture
+loss is recorded properly. I was reading "Weight" (current remaining) and
+inferring an absence that was not there.
+
+## The measured figure, across all 350 finished harvests
+
+| Measure | Pounds | % of wet |
+|---|---|---|
+| Wet weight in | 39,853.3 | — |
+| Waste | 3,667.4 | 9.2% |
+| **Total packaged** | **11,289.1** | **28.3%** |
+| **Moisture loss** | **24,896.7** | **62.5%** |
+| **Unaccounted** | **0.0** | — |
+
+The balance closes to **zero**. 271 of 350 harvests carry a moisture figure; the
+77 showing zero will be fresh-frozen runs, which are packaged wet and never dry.
+
+## What this settles
+
+**True moisture loss is 62.5%, not the 75–80% band.**
+
+The platform currently holds `expected_moisture_pct_min = 75` and
+`expected_moisture_pct_max = 80`. At 75% the theoretical dry yield from 39,853 lb
+is ~9,963 lb, but **11,289 lb was actually packaged** — more than the band permits.
+That is exactly the impossibility recorded in HANDOFF.md D1, and the cause is the
+band, not the weights.
+
+HANDOFF.md D1 says *"Either the band is too aggressive, wet weights are
+under-recorded at the takedown scale, or packaged weights include material from
+elsewhere."* **It is the first: the band is too aggressive.** Now established from
+Metrc's own field across the full population, not a sample.
+
+## NOT changed
+
+`expected_moisture_pct_min/max` are owner-set rows and sit under every conversion,
+yield and valuation figure in the platform. Changing them is the owner's decision
+and should be recorded in `issue_decisions` per rule H1. The evidence is here; the
+decision is his.
+
+Also note the earlier "phantom weight" claim in this document is superseded by
+this section. It is left in place rather than deleted so the reasoning, and its
+correction, both remain on the record.
