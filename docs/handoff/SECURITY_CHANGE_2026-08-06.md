@@ -119,39 +119,73 @@ The site returns HTTP 200.
 
 ---
 
-## Deliberately NOT done — still open
+## Phase 3 — `ai_bridge_jobs` scoped (applied and tested the same day)
 
-**`abh_write` and `abj_bridge` remain in place.** Dropping them would break the
-desktop bridge, which authenticates with the anon key (`bridge/server.mjs:162`,
-role claim `anon`).
-
-The correct fix is to scope them, not drop them. The bridge only ever
-**selects** pending jobs and **updates** their status — it never inserts one.
-Jobs are created by a signed-in user under the existing `abj_own` policy
-(`with check (asked_by = auth.uid())`). So removing anon's INSERT right closes
-the execution path while the bridge keeps working:
+`abj_bridge` (`anon`, `ALL`, `USING (true)`) was replaced with two scoped
+policies. **anon lost INSERT and DELETE**, which is the control that matters:
+a stranger can no longer create a job for the bridge to execute.
 
 ```sql
 drop policy if exists abj_bridge on ai_bridge_jobs;
-create policy abj_bridge_read  on ai_bridge_jobs
-  for select to anon using  (status = 'pending');
+
+create policy abj_bridge_read on ai_bridge_jobs
+  for select to anon using (true);
+
 create policy abj_bridge_claim on ai_bridge_jobs
-  for update to anon using  (status in ('pending','running'))
-                   with check (status in ('running','done','error'));
+  for update to anon
+  using      (status = any (array['pending','running']))
+  with check (status = any (array['running','done','error']));
 ```
 
-**This has not been applied and must not be applied blind.** Once a job flips
-to `running` it is no longer selectable by anon, and PostgREST may require read
-access to complete the update. That needs one test job with the bridge running
-in front of you. Rollback is one line.
+### The read policy had to stay wide — why
 
-Longer term the bridge should hold its own credential rather than the shared
-public key. That is a *new* credential for the bridge, not a rotation of any
-existing key.
+The first attempt scoped SELECT to `status in ('pending','running')`. The
+bridge's *claim* worked (`pending → running`, HTTP 204) but *completion* failed
+(`running → done`, `42501`). PostgREST needs the updated row to remain readable
+to complete the statement, and `done` fell outside the read policy.
 
-Note the job status values are **lowercase** (`pending`, `running`, `done`,
-`error`). Any policy written against `'PENDING'` matches nothing and the bridge
-silently sees zero jobs.
+Read was therefore widened back to `using (true)`. This is **not a regression**:
+`abj_bridge` was previously `ALL` with `USING (true)`, so anon could already
+read every row. The gain — no INSERT, no DELETE — is kept.
+
+It does mean anon can still *read* job questions and answers, which may carry
+business content. That is the remaining exposure on this table and the reason
+the bridge should eventually hold its own credential rather than the shared
+public key. That would be a *new* credential for the bridge, not a rotation of
+any existing key.
+
+### Test results — replayed against the live API with the public anon key
+
+| Bridge operation | Expected | Result |
+|---|---|---|
+| Poll `?status=eq.pending` (server.mjs:192) | row returned | **row returned** |
+| Claim `pending → running` (server.mjs:198) | success | **204** |
+| Complete `running → done` (server.mjs:208) | success | **204** |
+| **INSERT a job** (attacker path) | denied | **42501 denied** |
+| **DELETE a job** | denied | **204 no-op, 14/14 rows intact** |
+| **Reopen `done → pending`** (re-trigger) | denied | **204 no-op, still `done`** |
+
+Test fixture (job id 14) was removed afterwards; 13 real jobs remain untouched.
+
+Bridge restarted and confirmed live: heartbeat from machine `Management_Co`
+written 22 seconds after start. The `poll error TypeError: fetch failed` lines
+in `bridge.log` predate this work and are not caused by it.
+
+### Note for anyone writing bridge policies later
+
+Job status values are **lowercase** — `pending`, `running`, `done`, `error`. A
+policy written against `'PENDING'` matches nothing and the bridge silently sees
+zero jobs. There is also **no `owner_device_id` column** on `ai_bridge_jobs`;
+the columns are `id, asked_by, question, context, status, answer, error,
+seconds, claimed_at, answered_at, created_at`.
+
+## Still open
+
+**`abh_write` on `ai_bridge_heartbeat`** is unchanged — still `anon`,
+`ALL`, `USING (true)`. Severity is low: the worst case is a falsified bridge
+status chip, not code execution. Scoping it to INSERT/UPDATE without DELETE is
+straightforward but was not attempted here, to avoid a second change to a
+running bridge in one session.
 
 ## Also open, not addressed here
 
