@@ -921,3 +921,60 @@ says so on every row.
 
 **Against the 380 lb minimum, 2 of the last 12 months met it** — May 2026
 (520.5 lb) and June 2026 (476.5 lb).
+
+## Yield judged on a rolling average, not calendar months
+
+The owner's point: harvests land on a **14-day pull cadence**, not calendar months,
+so a short month — or a pull falling either side of a month end — makes any single
+month misleading. January closed 37 harvests, December closed 5.
+
+`v_yield_vs_target` adds 3-month and 6-month rolling averages and flags any month
+with fewer than 8 harvests as not a performance signal.
+
+| Month | Harvests | Flower lb | 3-month avg | Verdict |
+|---|---|---|---|---|
+| 2026-07 | 15 | 233.5 | **410.2** | on target |
+| 2026-06 | 30 | 476.5 | **446.0** | on target |
+| 2026-05 | 22 | 520.5 | **401.2** | on target |
+| 2026-04 | 15 | 341.1 | 304.4 | below |
+
+**Three consecutive months on target on a rolling basis.** Counting calendar months
+gave "2 of 12", which was the wrong lens.
+
+## Getting this daily — what the API can and cannot do
+
+Probed `/transfers/v2/deliveries/{id}/packages` in full: **70 fields**, including
+`ShippedQuantity`, `ReceivedQuantity`, `CreatedQuantity`, `SourceHarvestNames` and
+`ProductCategoryName`.
+
+**No price field of any kind.** `ShipperWholesalePrice` and
+`ReceiverWholesalePrice` appear only in the Packages-Transferred export.
+
+| Data | Daily by API? |
+|---|---|
+| Packages, harvests, plants, transfers, categories, quantities | **yes, already running** |
+| Lab results and COA documents | **yes** |
+| Manifest PDFs | **yes** |
+| Package adjustments | **yes** (endpoint probed 200) |
+| **Wholesale price** | **no — export only** |
+| Historical point-in-time | **no — snapshot ourselves from today** |
+
+So a daily automated feed covers everything except **price** and **history before
+today**. Those two need either the desktop bridge driving the Metrc UI with the
+owner's own session, or prices captured in the OS as orders are processed.
+
+`metrc-probe` was extended with `?keys=1` to return an endpoint's full field list
+rather than a truncated sample, so this kind of question can be settled with
+evidence instead of a guess.
+
+## Package exports reviewed
+
+| Export | Rows | What it adds |
+|---|---|---|
+| Packages-Active | 86 | current, with Source Harvest(s) and Category |
+| Packages-Inactive | 1,562 | 86 + 1,562 = 1,648, matching Facility Metrics exactly |
+| **Packages-Transferred** | **4,902** | **Shipper/Receiver Wholesale Price per package** |
+
+The Transferred export is the only source of package-level wholesale price, and it
+also carries Source Harvest and Category — enough to reconcile the yield category
+split that the API alone cannot.
