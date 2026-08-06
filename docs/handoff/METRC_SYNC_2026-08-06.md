@@ -680,3 +680,100 @@ Verified: 181 of 181 views readable, 0 broken.
    separate, larger piece of work: the search / date / export toolbar should be
    extracted into one shared component and used by every bespoke page, which is
    also the only way to make it consistent sitewide.
+
+---
+
+# Full remediation pass — 6 August 2026
+
+## Drill-downs: 29 broken → 0
+
+The 15 tiles whose targets did not exist were literals inside
+`mv_department_dashboard`'s 19,391-character definition. Fixed properly rather
+than worked around:
+
+1. Verified **nothing depends on the matview** (a plain DROP would fail if it did).
+2. Captured a baseline: 43 tiles, 11 departments, content fingerprint
+   `325b73c8d4c72cf52b5ccf66beb1a55d`.
+3. Captured what must be restored: the unique index `mv_dept_dash_uq
+   (department, kpi, ord)` — **without it the cron's `REFRESH … CONCURRENTLY`
+   fails** — and the effective privileges (authenticated reads, anon does not).
+4. Backed the definition up to `_mv_dept_backup`.
+5. Confirmed each literal's occurrence count matched its tile count exactly, so
+   no replacement could hit an unintended string. Ordered longest-first.
+6. Dropped **without CASCADE** and recreated inside one transaction, restored the
+   index and grants.
+
+**Result: fingerprint identical, 43 tiles, 11 departments — every number
+unchanged, only the drill targets moved.** `REFRESH … CONCURRENTLY` re-tested and
+still works.
+
+| Drill was | Now |
+|---|---|
+| `overdue_harvests` | `harvest_issues` |
+| `missing_lab_results` | `metrc_rpt_lab` |
+| `failed_by_origin` | `failed_testing_by_origin` |
+| `drying_performance` | `dry_room_performance` |
+| `late_pulls` | `schedule_compliance` |
+| `yield_gap` | `issue_yield_gap` |
+| `employees` | `people` |
+| `aging_stock` | `issue_aging` |
+| `ff_dry_equiv` | `fresh_frozen_equiv` |
+| `metrc` | `metrc_mirror` |
+| `metrc_cultivation` | `metrc_mc` |
+| `lab_turnaround` | `lab_turnaround_report` |
+
+18 of the 43 now resolve to `deep`, 7 to `reports`, 1 to `hr` — **they only work
+because of the routing fix**; the two changes are only complete together.
+
+## The four missing views — rebuilt
+
+HANDOFF.md says the definitions are in the session transcript. **They are not** —
+zero mentions of any of the four across the whole transcript. They were rebuilt
+from the underlying tables.
+
+**`v_open_issues`** — the register holding the owner's fix/leave/ignore/reset
+decisions, and the most serious of the four. Built from `watchdog_findings` joined
+to `issue_decisions`. Each run records a single finding, so "latest run" is not a
+snapshot; it takes the **most recent observation per distinct fingerprint**, with
+`times_seen` and `first_seen_on`. Honours rule H1 — a decided issue still appears,
+and an ignored one says so explicitly. **14 open issues, 2,634.7 lb at stake, all
+awaiting a decision.**
+
+**`v_lab_fail_rate_by_origin`** — fail rate per supplier, splitting ours from third
+party (rule C6), stating plainly when no completed test exists to compute a rate.
+28 rows.
+
+**`v_lab_turnaround_summary`** — monthly, from `lab_turnaround_log`.
+Two honest findings surfaced rather than smoothed over:
+- `laboratory` and `category` are **null on all 2,384 rows**, so they cannot be
+  broken out. The view says so and names the Lab Results import as the fix.
+- **13 records show the result returning BEFORE the sample went out**, worst −22
+  days. Impossible. They were dragging April's average to **−0.67 days**. They are
+  now excluded from the averages and **counted in `impossible_records_excluded`**
+  so the defect is visible. April now reads +0.72.
+
+**`v_issue_yield_gap`** — shortfall against our own average, per room, from
+`v_issue_yield_by_harvest`. 3 rows.
+
+## Access and security
+
+- **`is_finance_reader()`** added and applied as `cfo_read` SELECT policies on 19
+  tables. The `cfo` role could previously read none of the Metrc mirror, because
+  every table gates on `is_executive()` = owner|executive. Adding `cfo` there would
+  have granted **write** as well, since those policies are `FOR ALL` — so a
+  read-only predicate was used instead.
+- **`abh_write`** on `ai_bridge_heartbeat` (anon, ALL, `USING true`) replaced with
+  scoped insert/update/select policies. **anon can no longer DELETE.** Verified the
+  bridge still upserts (HTTP 200) and the delete is now a no-op.
+- **Zero anon-permissive `ALL` policies remain**, and no table allows anon to
+  insert freely.
+
+## Verified after every change (rule E2)
+
+| | |
+|---|---|
+| Views readable | **185 of 185** |
+| Materialized views populated | **7 of 7** |
+| Nav rows pointing at nothing | **0** (was 4) |
+| Dashboard drill targets broken | **0** (was 29) |
+| Cron jobs active | 20 |
