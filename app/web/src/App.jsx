@@ -5229,6 +5229,220 @@ function QrDecode({ onDecoded }) {
 }
 
 /* ---------- Integrations ---------- */
+/* ---------- Settings → Metrc Scan Schedule ----------
+   Design cloned exactly from the owner-approved page, 6 Aug 2026. Every rule is
+   scoped under .tgss so it cannot collide with the rest of the platform, and the
+   palette is fixed rather than themed, because the approved design is dark.
+   Schedule rows and the timeline read live from v_metrc_scan_settings. */
+const TGSS_CSS = `
+.tgss{--g:#080B09;--pnl:#0F1411;--ln:#1E2A22;--ink:#EAF3EC;--dim:#8FA396;--faint:#5C6E63;
+  --neon:#3DFF6E;--neonsoft:#3DFF6E22;--red:#FF4438;
+  --mono:ui-monospace,"SF Mono","Cascadia Mono","Roboto Mono",Menlo,Consolas,monospace;
+  background:var(--g);color:var(--ink);line-height:1.5;padding:clamp(20px,4vw,52px) clamp(16px,4vw,40px);
+  display:flex;flex-direction:column;gap:40px}
+.tgss *{box-sizing:border-box}
+.tgss .eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.16em;text-transform:uppercase;
+  color:var(--neon);margin:0 0 10px}
+.tgss h1{font-size:clamp(28px,4.4vw,42px);line-height:1.08;margin:0;font-weight:650;
+  letter-spacing:-.02em;text-wrap:balance;color:var(--ink)}
+.tgss .sub{color:var(--dim);margin:12px 0 0;max-width:62ch;font-size:15px}
+.tgss .headline{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:1px;
+  background:var(--ln);border:1px solid var(--ln);border-radius:3px;overflow:hidden}
+.tgss .stat{background:var(--pnl);padding:20px 22px}
+.tgss .stat .k{font-family:var(--mono);font-size:10.5px;letter-spacing:.13em;text-transform:uppercase;
+  color:var(--faint);margin:0 0 10px}
+.tgss .stat .v{font-family:var(--mono);font-size:29px;font-weight:600;letter-spacing:-.02em;
+  font-variant-numeric:tabular-nums;line-height:1}
+.tgss .stat .n{font-size:12.5px;color:var(--dim);margin:8px 0 0}
+.tgss .was .v{color:var(--red)}.tgss .now .v{color:var(--neon)}.tgss .cut .v{color:var(--neon)}
+.tgss h2{font-size:19px;font-weight:620;margin:0 0 4px;letter-spacing:-.01em;color:var(--ink)}
+.tgss .lede{color:var(--dim);font-size:14px;margin:0 0 18px;max-width:64ch}
+.tgss .scroll{overflow-x:auto;border:1px solid var(--ln);border-radius:3px;background:var(--pnl)}
+.tgss .tl{min-width:720px;padding:20px 22px 8px}
+.tgss .tlrow{display:grid;grid-template-columns:132px repeat(12,1fr);align-items:center;
+  min-height:38px;border-bottom:1px solid var(--ln)}
+.tgss .tlrow:last-child{border-bottom:0}
+.tgss .tlhead{min-height:30px}
+.tgss .tlhead .hr{font-family:var(--mono);font-size:10px;color:var(--faint);text-align:center;letter-spacing:.04em}
+.tgss .nm{font-size:13.5px;font-weight:560;padding-right:14px}
+.tgss .nm small{display:block;font-weight:400;color:var(--faint);font-size:11px;
+  font-family:var(--mono);letter-spacing:.02em}
+.tgss .cell{height:100%;display:flex;align-items:center;justify-content:center;
+  border-left:1px solid rgba(30,42,34,.55)}
+.tgss .dot{width:11px;height:11px;border-radius:50%;background:var(--neon);box-shadow:0 0 0 4px var(--neonsoft)}
+.tgss .dot.q{background:var(--faint);box-shadow:none;width:7px;height:7px}
+.tgss table{border-collapse:collapse;width:100%;min-width:620px;font-size:13.5px}
+.tgss th,.tgss td{text-align:left;padding:11px 16px;border-bottom:1px solid var(--ln)}
+.tgss th{font-family:var(--mono);font-size:10px;letter-spacing:.13em;text-transform:uppercase;
+  color:var(--faint);font-weight:500}
+.tgss tbody tr:last-child td{border-bottom:0}
+.tgss td.num{font-family:var(--mono);text-align:right;font-variant-numeric:tabular-nums}
+.tgss .times{font-family:var(--mono);font-size:12px;color:var(--dim)}
+.tgss tr.off td{color:var(--faint)}
+.tgss tr.total td{border-top:2px solid var(--ln);font-weight:640}
+.tgss .pill{display:inline-block;font-family:var(--mono);font-size:10px;letter-spacing:.08em;
+  text-transform:uppercase;padding:3px 8px;border-radius:2px;border:1px solid}
+.tgss .pill.on{color:var(--neon);border-color:var(--neon);background:var(--neonsoft)}
+.tgss .pill.no{color:var(--red);border-color:var(--red)}
+.tgss .bars{display:flex;flex-direction:column;gap:16px}
+.tgss .bar b{display:block;font-size:13px;font-weight:560;margin-bottom:7px}
+.tgss .bar b span{float:right;font-family:var(--mono);color:var(--dim);font-weight:400;font-variant-numeric:tabular-nums}
+.tgss .track{height:26px;background:var(--pnl);border:1px solid var(--ln);border-radius:2px;overflow:hidden}
+.tgss .fill{height:100%}
+.tgss .fill.red{background:var(--red)}.tgss .fill.grn{background:var(--neon)}
+.tgss .note{border-left:2px solid var(--neon);padding:2px 0 2px 16px;color:var(--dim);font-size:14px;max-width:66ch}
+.tgss .note strong{color:var(--ink);font-weight:600}
+.tgss .rule{height:1px;background:var(--ln);border:0;margin:0}
+.tgss footer{color:var(--faint);font-size:12px;font-family:var(--mono);letter-spacing:.02em}
+`;
+const TGSS_HOURS = [7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18];
+const tgssHourLabel = (h) => (h === 12 ? "12pm" : h === 7 ? "7am" : h === 18 ? "6pm" : h > 12 ? String(h - 12) : String(h));
+const tgssTimeLabel = (t) => {
+  const h = Number(String(t).slice(0, 2));
+  return h === 12 ? "12pm" : h > 12 ? `${h - 12}pm` : `${h}am`;
+};
+function MetrcScanSchedule() {
+  const [rows, setRows] = useState(null);
+  useEffect(() => {
+    supabase.from("v_metrc_scan_settings").select("*").order("sort_order")
+      .then(({ data, error }) => setRows(error ? [] : (data ?? [])));
+  }, []);
+  const live = rows ?? [];
+  const on = live.filter((r) => r.enabled);
+  const scheduled = on.reduce((a, r) => a + (r.calls_per_day ?? 0), 0);
+  const daytime = scheduled + 10;
+  const total = daytime + 1099;
+  const hoursOf = (r) => new Set((r.run_times ?? []).map((t) => Number(String(t).slice(0, 2))));
+  return (
+    <div className="tgss">
+      <style>{TGSS_CSS}</style>
+      <header>
+        <p className="eyebrow">Twisted Growers · Metrc integration</p>
+        <h1>Scan schedule</h1>
+        <p className="sub">Every call this platform makes to Metrc, and when. All times Eastern —
+          stored as local wall-clock, so 9am stays 9am through daylight saving.</p>
+      </header>
+
+      <section className="headline">
+        <div className="stat was"><p className="k">Calls per day — before</p><p className="v">5,141</p>
+          <p className="n">Polling every 10–15 minutes, around the clock</p></div>
+        <div className="stat now"><p className="k">Calls per day — after</p>
+          <p className="v">{total.toLocaleString()}</p>
+          <p className="n">Scheduled scans plus the nightly reconcile</p></div>
+        <div className="stat cut"><p className="k">Daytime scanning cut</p>
+          <p className="v">{Math.round((1 - daytime / 4032) * 100)}%</p>
+          <p className="n">4,032 → {daytime.toLocaleString()} calls between scans</p></div>
+      </section>
+
+      <section>
+        <h2>The working day</h2>
+        <p className="lede">Each dot is one scan. Nothing runs after 6pm or before 7am — in two days of
+          measurement, the overnight hours produced 4 records from roughly 400 calls.</p>
+        <div className="scroll"><div className="tl">
+          <div className="tlrow tlhead">
+            <div />
+            {TGSS_HOURS.map((h) => <div key={h} className="hr">{tgssHourLabel(h)}</div>)}
+          </div>
+          {on.map((r) => {
+            const hrs = hoursOf(r);
+            return (
+              <div className="tlrow" key={r.job_name}>
+                <div className="nm">{r.display_name || r.job_name}<small>{r.endpoints}</small></div>
+                {TGSS_HOURS.map((h) => (
+                  <div className="cell" key={h}>{hrs.has(h) ? <i className="dot" /> : null}</div>
+                ))}
+              </div>
+            );
+          })}
+          <div className="tlrow">
+            <div className="nm">Nightly reconcile<small>07:10 · safety net</small></div>
+            {TGSS_HOURS.map((h) => (
+              <div className="cell" key={h}>{h === 7 ? <i className="dot q" /> : null}</div>
+            ))}
+          </div>
+        </div></div>
+      </section>
+
+      <section>
+        <h2>What each scan costs</h2>
+        <p className="lede">A “call” is one request to Metrc. Each scan asks for several lists — packages
+          alone has four states — across both licences.</p>
+        <div className="scroll">
+          <table>
+            <thead><tr>
+              <th>Scan</th><th>Times (Eastern)</th><th className="num">Per day</th>
+              <th className="num">Calls</th><th>Status</th>
+            </tr></thead>
+            <tbody>
+              {live.filter((r) => r.enabled).map((r) => (
+                <tr key={r.job_name}>
+                  <td>{r.display_name || r.job_name}</td>
+                  <td className="times">{(r.run_times ?? []).map(tgssTimeLabel).join(" · ")}</td>
+                  <td className="num">{r.scans_per_day}</td>
+                  <td className="num">{(r.calls_per_day ?? 0).toLocaleString()}</td>
+                  <td><span className="pill on">on</span></td>
+                </tr>
+              ))}
+              <tr><td>Lookups</td><td className="times">7:20am</td>
+                <td className="num">1</td><td className="num">10</td><td><span className="pill on">on</span></td></tr>
+              <tr><td>Nightly reconcile</td><td className="times">7:10am</td>
+                <td className="num">1</td><td className="num">1,099</td><td><span className="pill on">on</span></td></tr>
+              {live.filter((r) => !r.enabled).map((r) => (
+                <tr className="off" key={r.job_name}>
+                  <td>{r.display_name || r.job_name}</td><td className="times">—</td>
+                  <td className="num">0</td><td className="num">0</td><td><span className="pill no">off</span></td>
+                </tr>
+              ))}
+              <tr className="total"><td>Total</td><td />
+                <td className="num">{on.reduce((a, r) => a + (r.scans_per_day ?? 0), 0) + 2}</td>
+                <td className="num">{total.toLocaleString()}</td><td /></tr>
+            </tbody>
+          </table>
+        </div>
+        <p className="note" style={{ marginTop: 18 }}><strong>Sales is switched off permanently.</strong>{" "}
+          Twisted Growers holds cultivation and manufacturing licences — neither is retail, so Metrc has
+          no sales receipts to give. That endpoint was returning an error 200 times a day.</p>
+      </section>
+
+      <hr className="rule" />
+
+      <section>
+        <h2>Before and after</h2>
+        <p className="lede">The nightly reconcile is unchanged on purpose. It re-reads all 21,132 records,
+          which is what makes cutting the daytime scans safe rather than risky.</p>
+        <div className="bars">
+          <div className="bar">
+            <b>Daytime scanning — before <span>4,032 calls</span></b>
+            <div className="track"><div className="fill red" style={{ width: "100%" }} /></div>
+          </div>
+          <div className="bar">
+            <b>Daytime scanning — after <span>{daytime.toLocaleString()} calls</span></b>
+            <div className="track"><div className="fill grn" style={{ width: `${Math.max(2, (daytime / 4032) * 100)}%` }} /></div>
+          </div>
+          <div className="bar">
+            <b>Nightly reconcile — unchanged <span>1,099 calls</span></b>
+            <div className="track"><div className="fill grn" style={{ width: "27%" }} /></div>
+          </div>
+        </div>
+      </section>
+
+      <hr className="rule" />
+
+      <section>
+        <h2>Scan now</h2>
+        <p className="lede">When you need something immediately — a manifest you are waiting on —
+          the schedule is not the only way to get it.</p>
+        <p className="note"><strong>Administrators only.</strong> Owner and executive accounts can trigger
+          any scan on demand. The same group will not be scanned twice within 15 minutes —{" "}
+          <strong>unless the last attempt failed</strong>, in which case you can retry straight away. Every
+          manual scan records who ran it and when.</p>
+      </section>
+
+      <footer>Times are owner-set and editable — no code change. Measured 6 August 2026.</footer>
+    </div>
+  );
+}
+
 function Integrations({ session }) {
   const [status, setStatus] = useState(null);
   const [form, setForm] = useState({ METRC_LICENSES: "", METRC_VENDOR_KEYS: "", METRC_USER_KEY: "", METRC_STATE: "", CLICKUP_TOKEN: "" });
@@ -6553,6 +6767,7 @@ export default function App() {
   const isOpen = (name) => openCats[name] !== false;
 
   const special = {
+    v_metrc_scan_settings: <MetrcScanSchedule />,
     tower: <ControlTower go={setView} session={session} />,
     fg_inventory: <FinishedGoods session={session} />,
     alerts: <AlertsScreen go={setView} />,
