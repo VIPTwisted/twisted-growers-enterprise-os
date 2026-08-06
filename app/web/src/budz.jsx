@@ -1041,6 +1041,48 @@ export function BudzPet({ go, onClose }) {
   );
 }
 
+/* Budz — the Hover Bot. Approved by the owner 6 Aug 2026.
+   Small eyes, a grin that stays a grin while talking, TG cannabis leaf chest
+   badge. Nothing moves at rest: motion only on hover, or when he is actually
+   thinking or talking. No glow panel behind the mouth, no cheek dots — both
+   were tried and rejected. Everything stays inside the face panel, which runs
+   y51 to y123, at every animation frame including the widest talking one. */
+export function BudzBot({ state = "rest", size = 132 }) {
+  return (
+    <svg className={`budzbot ${state}`} width={size} height={size * 225 / 210}
+      viewBox="0 0 210 225" role="img" aria-label="Budz, the assistant">
+      <title>Budz</title>
+      <ellipse className="bb-glow" cx="105" cy="206" rx="42" ry="8" fill="#5cff92" opacity=".5" />
+      <g className="bb-body">
+        <line x1="105" y1="42" x2="105" y2="24" stroke="#7d8a80" strokeWidth="4" strokeLinecap="round" />
+        <circle cx="105" cy="20" r="6" fill="#5cff92" />
+        <rect x="53" y="42" width="104" height="90" rx="30" fill="#c9d2cb" />
+        <rect x="61" y="51" width="88" height="72" rx="24" fill="#2b322c" />
+        <circle className="bb-eye" cx="86" cy="76" r="6.5" fill="#5cff92" />
+        <circle className="bb-eye" cx="124" cy="76" r="6.5" fill="#5cff92" />
+        <path className="bb-smile" d="M84 94 q21 12 42 0 q-21 4 -42 0 Z" fill="#5cff92" />
+        <rect x="71" y="136" width="68" height="52" rx="18" fill="#c9d2cb" />
+        <g className="bb-badge">
+          <circle cx="105" cy="162" r="21" fill="#0d100e" />
+          <circle cx="105" cy="162" r="21" fill="none" stroke="#5cff92" strokeWidth="2" />
+          <path d="M105 147 L109 157 L118 151 L113 161 L124 162 L113 163 L118 173 L109 167
+                   L105 178 L101 167 L92 173 L97 163 L86 162 L97 161 L92 151 L101 157 Z"
+            fill="#5cff92" />
+          <text x="105" y="166" textAnchor="middle" fontSize="9" fontWeight="800"
+            fill="#0d100e" letterSpacing="0.5">TG</text>
+        </g>
+        <g className="bb-arm l"><rect x="47" y="152" width="24" height="7" rx="3.5" fill="#8e9a91" />
+          <circle cx="45" cy="155" r="8" fill="#c9d2cb" /></g>
+        <g className="bb-arm r"><rect x="139" y="152" width="24" height="7" rx="3.5" fill="#8e9a91" />
+          <circle cx="165" cy="155" r="8" fill="#c9d2cb" /></g>
+      </g>
+      <circle className="bb-d1" cx="166" cy="48" r="4" fill="#5cff92" opacity=".2" />
+      <circle className="bb-d2" cx="180" cy="38" r="5" fill="#5cff92" opacity=".2" />
+      <circle className="bb-d3" cx="194" cy="28" r="3.2" fill="#5cff92" opacity=".2" />
+    </svg>
+  );
+}
+
 export function BudzScreen({ go }) {
   const prof = useAssistantProfile();
   const [log, setLog] = useState([{ who: "budz", text: BUDZ_INTRO }]);
@@ -1175,6 +1217,9 @@ export function BudzScreen({ go }) {
             records — never a guess.
           </div>
         </div>
+      </div>
+      <div className="budzstageband">
+        <BudzBot state={busy ? "think" : "listen"} size={124} />
       </div>
       <div className="budzwrap">
         <div className="budzchat">

@@ -448,3 +448,49 @@ tr.rowbad td{background:color-mix(in srgb,#ff5a5a 7%,transparent)}
 .ratewarn{display:none}
 .buildnote{font-size:11.5px;line-height:1.6;color:#f5c542;margin:0 0 10px;overflow-wrap:anywhere}
 .flowstage.opened{border-color:var(--neon);background:color-mix(in srgb,var(--neon) 12%,transparent)}
+
+/* ── Budz the Hover Bot. Scoped to .budzbot only — touches nothing else. ── */
+.budzstageband{display:flex;justify-content:center;padding:4px 0 10px}
+.budzbot *{transform-box:fill-box;transform-origin:center}
+.budzbot .bb-body,.budzbot .bb-glow,.budzbot .bb-eye,
+.budzbot .bb-smile,.budzbot .bb-badge,.budzbot .bb-arm{animation:none}
+
+/* still at rest — motion only on hover or a real state */
+.budzbot:hover .bb-body,.budzbot.listen .bb-body,.budzbot.think .bb-body,
+.budzbot.talk .bb-body{animation:bbFloat 3s ease-in-out infinite}
+@keyframes bbFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-7px)}}
+
+.budzbot:hover .bb-glow,.budzbot.listen .bb-glow,.budzbot.think .bb-glow,
+.budzbot.talk .bb-glow{animation:bbPulse 3s ease-in-out infinite}
+@keyframes bbPulse{0%,100%{opacity:.5;transform:scaleX(1)}50%{opacity:.85;transform:scaleX(.82)}}
+
+.budzbot:hover .bb-eye,.budzbot.listen .bb-eye,.budzbot.talk .bb-eye{animation:bbBlink 4.2s infinite}
+@keyframes bbBlink{0%,95%,100%{transform:scaleY(1)}97%{transform:scaleY(.08)}}
+
+/* Pivot at the SHOULDER. With transform-box:fill-box the origin is relative to
+   the arm's own box, so viewBox coordinates here swung it from empty space and
+   made the wave look obscene. 0% 50% is the inner end of the arm. */
+.budzbot .bb-arm.r{transform-origin:0% 50%}
+.budzbot .bb-arm.l{transform-origin:100% 50%}
+.budzbot:hover .bb-arm.r,.budzbot.listen .bb-arm.r{animation:bbWave 1.1s ease-in-out infinite}
+@keyframes bbWave{0%,100%{transform:rotate(0deg)}50%{transform:rotate(-16deg)}}
+
+.budzbot:hover .bb-badge,.budzbot.listen .bb-badge,.budzbot.think .bb-badge,
+.budzbot.talk .bb-badge{animation:bbBeat 3s ease-in-out infinite}
+@keyframes bbBeat{0%,100%{opacity:.92}50%{opacity:1;transform:scale(1.05)}}
+
+.budzbot.talk .bb-smile{animation:bbSpeak .36s steps(1,end) infinite}
+@keyframes bbSpeak{
+  0%{d:path("M84 94 q21 12 42 0 q-21 4 -42 0 Z")}
+  25%{d:path("M84 93 q21 20 42 0 q-21 11 -42 0 Z")}
+  50%{d:path("M86 94 q19 16 38 0 q-19 8 -38 0 Z")}
+  75%{d:path("M83 92 q22 24 44 0 q-22 15 -44 0 Z")}
+  100%{d:path("M84 94 q21 12 42 0 q-21 4 -42 0 Z")}}
+
+.budzbot.think .bb-eye{transform:scaleY(.5)}
+.budzbot.think .bb-d1{animation:bbBlip 1.1s infinite}
+.budzbot.think .bb-d2{animation:bbBlip 1.1s .18s infinite}
+.budzbot.think .bb-d3{animation:bbBlip 1.1s .36s infinite}
+@keyframes bbBlip{0%,100%{opacity:.2;transform:translateY(0)}50%{opacity:1;transform:translateY(-5px)}}
+
+@media(prefers-reduced-motion:reduce){.budzbot *{animation:none!important}}
