@@ -270,6 +270,51 @@ daily; the 2025 figure still requires the Metrc export.
 **Decision:** build against these endpoints. The desktop bridge is not needed for
 reports and should not be built for that purpose.
 
+### PROBE RESULTS — every endpoint tested live, 6 August 2026
+
+Owner confirmed a single API key covering both licences, so nothing below is a
+key-scoping problem.
+
+| Endpoint | Result | Verdict |
+|---|---|---|
+| `/labtests/v2/results` | **works** | **D5 CLOSED — see below** |
+| `/transfers/v2/manifest/{id}/pdf` | **200, real PDF** (`FileContents` base64, `%PDF-1.3`) | manifests available |
+| `/transfers/v2/deliveries/{id}/packages` | **200** — PackageId, Label, Type, SourceHarvestNames, SourcePackageLabels | manifest line detail available |
+| `/packages/v2/adjustments` | **200** — PackageLabel, ItemName, **AdjustmentQuantity −6.0000 Grams**, reason | **speaks directly to D1** |
+| `/labtests/v2/states`, `/labtests/v2/types` | 200 | metadata available |
+| `/transfers/v2/deliveries/{id}/packages/wholesale` | **401 on both licences** | wholesale price NOT available |
+| `/processing/v2/active` | **401** | manufacturing jobs NOT available |
+| `/processing/v2/jobtypes` | 405 — GET unsupported | n/a |
+
+### D5 IS CLOSED — the blocker was one missing index
+
+`metrc-lab-sync` upserts with `onConflict "license,package_tag,test_name"`, but
+the table only carried a unique on `(license, package_tag, test_type,
+result_date)`. Every write was rejected on the way **in**, after Metrc had already
+answered. Fixed **without redeploying the function** by adding the index the code
+asks for:
+
+```sql
+create unique index metrc_lab_results_license_pkg_testname_key
+  on metrc_lab_results (license, package_tag, test_name);
+```
+
+First run, 3 packages: **282 tests recorded, 224 certificates linked, zero errors.**
+
+Real values landed — THCA 30.80%, 27.24%, 19.91%; Total Cannabinoids 21.18%;
+THC, THCV, THCVA, Total CBD, Total Aflatoxins — each with pass/fail, result date
+and laboratory (SafeTiva Labs LLC). COA links resolve to
+`https://ma.metrc.com/reports/labtests/{id}/document`.
+
+**This corrects HANDOFF.md D5**, which states no analyte values or COA URL are
+obtainable and that the Metrc Lab Results report import is the only route. The
+*package* interface indeed carries none — but `/labtests/v2/results` is a separate
+endpoint and carries all of it.
+
+**1,000 tested packages remain unwalked.** The backfill is roughly one API call
+per package and has NOT been run — deliberately, given the call-reduction work in
+this same change. It needs an explicit decision on pacing.
+
 **Blocked on the owner:** the Reports Control Panel list — every report name and
 its filters. That screen requires his login and cannot be enumerated from the
 Metrc manual (searched, 1.75M characters, no reports catalogue — it is the
