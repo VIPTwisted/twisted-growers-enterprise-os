@@ -152,3 +152,51 @@ Every one of these is editable in the platform. None is hardcoded.
 - **Check units before comparing to a benchmark.** Grams per plant against grams
   per square foot produced a "you are at half your plan" finding that was wrong
   by a factor of six.
+
+---
+
+## HARD RULE — EVERY TILE MUST PROVE ITSELF
+
+Set by the owner, 6 August 2026. Binding on every AI and every person who
+touches this platform. Not negotiable, not "later", not "phase two".
+
+**A tile, a total or a headline number is a CLAIM. It is worthless without the
+evidence behind it.** Every single one must open to the individual items that
+make it up — no summarising, no sampling, no "top 20".
+
+### What every drill-down must show, per item
+
+For **each and every** package, batch or record behind a figure:
+
+- Package tag, product name, cultivar, stream
+- Source harvest, harvest cut date, drying room, harvest closed date
+- Made from which parent packages, production batch
+- Where it is now, when it arrived there, how long it has been there
+- Quantity **in its own unit of measure** — never an invented conversion
+- **Date it went out for testing, date it came back, days at the laboratory**
+- **Test status stated plainly: RETURNED with the date, PENDING, or NOT SUBMITTED**
+- **THC, TAC, terpenes — the values if returned, or exactly why they are absent**
+- **Certificate of analysis — the link, or why there is none**
+- **Manifest — the number and who shipped it, or why none exists**
+- Origin: grown by us or bought in, under which licence, from whom
+- The rate used to value it and the resulting value
+- Full traceability sentence
+
+### The three unbreakable parts
+
+1. **Totals must reconcile to the items.** If a tile says 1,943.6 lb, the rows
+   behind it must add to 1,943.6 lb. A total that cannot be reconciled is a bug,
+   not a rounding difference.
+2. **Absence must be explained, never blank.** "No certificate" is not acceptable.
+   "No certificate because Metrc's package interface carries no analyte values and
+   the Lab Results report has not been imported" is acceptable. Every missing
+   value states WHY it is missing and WHAT would make it appear.
+3. **Never invent a number to fill a gap.** A countable item has no weight. An
+   unmeasured room has no yield per square foot. Show the gap and name it.
+
+### Where this is implemented
+
+`v_stock_proof` is the evidence view — one row per package with every field above.
+Every money tile and every stock tile drills to it. If a new tile is added, it
+must drill to per-item proof before it ships. **A tile without a drill-down is
+not finished and must not be deployed.**
