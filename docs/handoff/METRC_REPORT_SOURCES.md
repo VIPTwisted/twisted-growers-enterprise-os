@@ -158,3 +158,44 @@ anything closing outside the delta window.
 Plant waste (4,396) · plants destroyed (3,772) · adjustments (4,414) ·
 wholesale price · items 492 / strains 102 / locations 21, all of which read zero
 in our tables while Metrc reports them.
+
+---
+
+## Facility Metrics — BOTH licences (added later, 6 Aug 2026)
+
+The manufacturing scorecard changes the revenue picture materially.
+
+| | MC281714 cultivation | MP281909 manufacturing |
+|---|---|---|
+| Packages total | 1,648 | **2,444** |
+| Transfers total | 1,156 | 1,392 |
+| **Wholesale deliveries** | **99** | **1,152** |
+| **Wholesale packages** | **571** | **12,675** |
+| Received packages | 4,902 | 13,294 |
+| Items | 492 | 685 |
+| Strains | 102 | 107 |
+| Locations | 21 | 17 |
+| Plants / harvests | 4,413 / 380 | N/A |
+| **Sales — every metric** | **N/A** | **N/A** |
+
+### What this means
+
+**The $420,047.46 found in the cultivation Wholesale Transfers export is a small
+fraction of the business.** Cultivation accounts for **99 of 1,251** wholesale
+deliveries and **571 of 13,246** wholesale packages. Manufacturing — vapes,
+edibles, concentrate, pre-rolls — carries the rest and none of its revenue is
+captured anywhere.
+
+**`Packages-Transferred` for MP281909 is the highest-value outstanding export**,
+roughly 12,675 rows each carrying `Shipper Wholesale Price`.
+
+**Sales is N/A on both licences**, confirming no retail anywhere and that
+disabling `/sales/v2/receipts` was correct.
+
+**Combined reference data: 1,177 items, 209 strains, 38 locations.** Our
+`metrc_items`, `metrc_strains` and `metrc_locations` tables hold **zero rows on
+both licences** while the API returns success with no records. That is a genuine
+fault, not a missing export, and a report import will only mask it.
+
+**Packages: 1,648 + 2,444 = 4,092 against 3,548 held — a ~544 gap**, most likely
+the same delta-window issue that hid 227 harvests and 1,104 manifests.
