@@ -1155,6 +1155,99 @@ const MIRROR_SETS = [
   { key: "metrc_locations", label: "Locations" },
   { key: "metrc_sales", label: "Sales" },
 ];
+/* ---------- Shared search / date-range / export toolbar ----------
+   ModuleScreen builds this for every generic page, but the 35 hand-built pages in
+   the `special` map had none — the Metrc Mirror had no search at all. Rather than
+   patch each page separately and let them drift apart again, this is one component
+   they all adopt. Same classes and the same DateRangeSelect as the generic bar, so
+   it looks and behaves identically wherever it appears.
+
+   Server-side by design: it filters the query, not a page of rows already
+   fetched, so searching finds records beyond the current page. */
+function useDataToolbar(table, { eq = {}, limit = 200, orderBy = null, ascending = false } = {}) {
+  const eqKey = JSON.stringify(eq);
+  const [rows, setRows] = useState(null);
+  const [sample, setSample] = useState(null);
+  const [total, setTotal] = useState(null);
+  const [qLive, setQLive] = useState("");
+  const [q, setQ] = useState("");
+  const [dFrom, setDFrom] = useState("");
+  const [dTo, setDTo] = useState("");
+
+  /* one row, to learn the shape: which columns are searchable text and which
+     column the date filter should use. Same rule the generic renderer applies. */
+  useEffect(() => {
+    setSample(null); setQ(""); setQLive(""); setDFrom(""); setDTo("");
+    if (!table) return;
+    let s = supabase.from(table).select("*").limit(1);
+    for (const [k, v] of Object.entries(JSON.parse(eqKey))) if (v != null) s = s.eq(k, v);
+    s.then(({ data }) => setSample(data?.[0] ?? {}));
+  }, [table, eqKey]);
+
+  const textCols = sample
+    ? Object.keys(sample).filter((k) => typeof sample[k] === "string" && k !== "raw").slice(0, 8)
+    : [];
+  const dateCol = sample
+    ? Object.keys(sample).find((k) => /(_date|_on$|_on_|_at$|^date|^month|period)/.test(k))
+    : null;
+
+  const build = (base) => {
+    let x = base;
+    for (const [k, v] of Object.entries(JSON.parse(eqKey))) if (v != null) x = x.eq(k, v);
+    const term = q.replace(/[%,()]/g, " ").trim();
+    if (term && textCols.length) x = x.or(textCols.map((c) => `${c}.ilike.%${term}%`).join(","));
+    if (dateCol && dFrom) x = x.gte(dateCol, dFrom);
+    if (dateCol && dTo) x = x.lte(dateCol, dTo);
+    return x;
+  };
+
+  useEffect(() => {
+    if (!table || sample === null) return;
+    setRows(null);
+    build(supabase.from(table).select("*", { count: "exact" }))
+      .order(orderBy ?? (sample && "id" in sample ? "id" : (dateCol ?? textCols[0] ?? "")), { ascending })
+      .limit(limit)
+      .then(({ data, count }) => { setRows(data ?? []); setTotal(count ?? null); });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [table, eqKey, sample, q, dFrom, dTo, limit, orderBy, ascending]);
+
+  const exportCsv = async () => {
+    const { data } = await build(supabase.from(table).select("*")).limit(5000);
+    const list = data ?? [];
+    if (!list.length) return;
+    const keys = Object.keys(list[0]).filter((k) => k !== "raw" && typeof list[0][k] !== "object");
+    const esc = (v) => v == null ? "" : /[",\n]/.test(String(v)) ? '"' + String(v).replaceAll('"', '""') + '"' : String(v);
+    const csv = [keys.join(","), ...list.map((r) => keys.map((k) => esc(r[k])).join(","))].join("\n");
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
+    a.download = `${table}-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+  };
+
+  const dirty = !!(q || dFrom || dTo);
+  const toolbar = sample === null ? null : (
+    <div className="filterbar">
+      <input className="fsearch" placeholder="Search anything — name, batch, tag…" value={qLive}
+        onChange={(e) => setQLive(e.target.value)}
+        onKeyDown={(e) => { if (e.key === "Enter") setQ(qLive); }} />
+      <button className="btn small" onClick={() => setQ(qLive)}>Find</button>
+      {dateCol
+        ? <DateRangeSelect label={dateCol.replaceAll("_", " ")} from={dFrom} to={dTo} onFrom={setDFrom} onTo={setDTo} />
+        : <span className="flab" title="This dataset carries no date column, so there is nothing to filter by.">no date recorded on this dataset</span>}
+      {dirty && (
+        <button className="btn small ghost"
+          onClick={() => { setQ(""); setQLive(""); setDFrom(""); setDTo(""); }}>Clear</button>
+      )}
+      <span style={{ flex: 1 }} />
+      {total != null && <span className="flab">{total.toLocaleString()} records</span>}
+      <button className="btn small ghost" onClick={exportCsv}>Export CSV</button>
+      <button className="btn small ghost" onClick={() => window.print()}>Print</button>
+    </div>
+  );
+
+  return { rows, toolbar, total, dateCol, searching: dirty };
+}
+
 function MetrcMirror({ license }) {
   const [counts, setCounts] = useState({});
   const [tab, setTab] = useState(MIRROR_SETS[0].key);
@@ -1167,12 +1260,13 @@ function MetrcMirror({ license }) {
       q.then(({ count }) => setCounts((c) => ({ ...c, [s.key]: count ?? 0 })));
     });
   }, [license]);
-  useEffect(() => {
-    setRows(null);
-    let q = supabase.from(tab).select("*").order("id", { ascending: false }).limit(25);
-    if (license) q = q.eq("license", license);
-    q.then(({ data }) => setRows(data ?? []));
-  }, [tab, license]);
+  /* rows now come from the shared toolbar, so this page gains search, a date
+     range, record count, CSV export and print — and the search reaches the whole
+     dataset, not just the rows already on screen. */
+  const { rows: toolbarRows, toolbar } = useDataToolbar(tab, {
+    eq: { license: license ?? null }, limit: 200,
+  });
+  useEffect(() => { setRows(toolbarRows); }, [toolbarRows]);
   const cols = rows?.length
     ? Object.keys(rows[0]).filter((k) =>
         k !== "raw" && k !== "id" && !k.endsWith("_id") && typeof rows[0][k] !== "object").slice(0, 9)
@@ -1194,6 +1288,7 @@ function MetrcMirror({ license }) {
           </button>
         ))}
       </div>
+      {toolbar}
       {rows === null ? (
         <div className="empty"><div className="eicon">{I.plug}</div>Loading…</div>
       ) : rows.length === 0 ? (
