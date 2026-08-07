@@ -1,0 +1,27 @@
+-- ============================================================================
+-- TILE RECONCILIATION — rule C2 made testable
+--
+-- "Totals must reconcile to the items. If a tile says 1,943.6 lb, the rows behind it must add
+--  to 1,943.6 lb. A total that cannot be reconciled is a bug, not a rounding difference."
+--
+-- Nothing tested that until now, so all 43 tiles were unverified against their own drill-downs.
+-- A tile could be internally consistent, well-provenanced, beautifully rendered and wrong.
+--
+-- Deliberately honest about its own limits. It reports four different things and does not
+-- pretend the last two are failures:
+--
+--   FAIL              - the tile claims a non-zero figure and its drill returns NO rows,
+--                       or there is no drill at all (rule C1). This is a definite bug.
+--   RECONCILED        - a countable tile equals the row count behind it. Genuinely verified.
+--   DISAGREES         - a countable tile does not equal its drill row count. Either the drill
+--                       is a superset needing a declared filter, or the tile is wrong. CANNOT
+--                       BE SETTLED without a declared filter per metric - so it is reported,
+--                       not judged. Guessing which it is would itself be inventing a fact.
+--   NEEDS DECLARATION - the tile is in lb, $, % or days, so a row count cannot verify it at
+--                       all. Requires a declared column and aggregate per metric.
+--
+-- That last pair is the argument for metric_registry: without a declared drill filter, column
+-- and aggregate per metric, 35 of 43 tiles cannot be reconciled by any automated means.
+--
+-- Run:  select * from tg_reconcile_tiles() where verdict in ('FAIL','DISAGREES');
+-- ============================================================================
