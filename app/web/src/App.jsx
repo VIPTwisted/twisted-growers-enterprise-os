@@ -6991,7 +6991,36 @@ function WhatChanged({ dept, go }) {
   );
 }
 
-function Spark({ series }) {
+/* Is a movement good, bad, or not ours to judge?
+   ----------------------------------------------
+   The sparkline and the delta used to decide this independently, from the
+   direction of travel alone, and they disagreed: a rising line drew green while
+   the delta beside it drew red for the same movement. On Command Center that
+   rendered "Never submitted for testing +4.1" as a green rising line —
+   untestable product increasing, presented as a win.
+
+   Direction of travel does not carry meaning on its own. Only the target does.
+   Rising is bad for 'at_most' and good for 'at_least'. With no target there is
+   no verdict to give, and 36 of 43 tiles have no target — so most render
+   neutral. That is correct: it shows the gap instead of inventing a judgement. */
+function movementVerdict(rising, direction) {
+  if (rising === null || rising === undefined) return "neutral";   // flat, or no data
+  if (direction === "at_most") return rising ? "bad" : "good";
+  if (direction === "at_least") return rising ? "good" : "bad";
+  return "neutral";                                                // no target set
+}
+
+/* styles.css is WRITE-BLOCKED and encodes sentiment in opposite class names on
+   these two elements: .sparkline.up is green, .dddelta.up is red. Do not "tidy"
+   that by making them consistent — the theme is locked and the inversion is
+   real. These two maps are the translation, and they are the only place it is
+   allowed to live. Omitting the modifier is deliberate: the base .sparkline has
+   no stroke colour and .dddelta alone is muted, so "" renders neutral without
+   any stylesheet change. */
+const SPARK_CLASS = { good: "up", bad: "down", neutral: "" };
+const DELTA_CLASS = { good: "down", bad: "up", neutral: "" };
+
+function Spark({ series, direction }) {
   if (!series || series.length < 2)
     return <span className="sparknone">no history yet — trend builds from tomorrow</span>;
   const n = series.map(Number);
@@ -6999,12 +7028,14 @@ function Spark({ series }) {
   const W = 108, H = 26;
   const pts = n.map((v, i) => [(i / (n.length - 1)) * W, H - ((v - min) / rng) * (H - 4) - 2]);
   const d = pts.map((p, i) => (i ? "L" : "M") + p[0].toFixed(1) + " " + p[1].toFixed(1)).join(" ");
-  const up = n[n.length - 1] >= n[0];
+  const last = n[n.length - 1], first = n[0];
+  const rising = last === first ? null : last > first;   // flat earns no verdict
+  const cls = SPARK_CLASS[movementVerdict(rising, direction)];
   return (
     <svg className="spark" viewBox={`0 0 ${W} ${H}`} width={W} height={H} aria-hidden="true">
-      <path d={`${d} L${W} ${H} L0 ${H} Z`} className={`sparkfill ${up ? "up" : "down"}`} />
-      <path d={d} className={`sparkline ${up ? "up" : "down"}`} />
-      <circle cx={pts[pts.length - 1][0]} cy={pts[pts.length - 1][1]} r="2.6" className={`sparkdot ${up ? "up" : "down"}`} />
+      <path d={`${d} L${W} ${H} L0 ${H} Z`} className={`sparkfill ${cls}`} />
+      <path d={d} className={`sparkline ${cls}`} />
+      <circle cx={pts[pts.length - 1][0]} cy={pts[pts.length - 1][1]} r="2.6" className={`sparkdot ${cls}`} />
     </svg>
   );
 }
@@ -7196,8 +7227,12 @@ function DeptDashboard({ viewKey, go, nav, deep }) {
                     </span>
                   )}
                   {r.context && <span className="ddctx">{r.context}</span>}
-                  <Spark series={tr?.series} />
-                  {dl && <span className={`dddelta ${dl.d > 0 ? "up" : dl.d < 0 ? "down" : ""}`}>{dl.txt}</span>}
+                  {/* Both read the SAME verdict, so they can never disagree again. */}
+                  <Spark series={tr?.series} direction={tg?.direction} />
+                  {dl && (
+                    <span className={`dddelta ${DELTA_CLASS[movementVerdict(
+                      dl.d === 0 ? null : dl.d > 0, tg?.direction)]}`}>{dl.txt}</span>
+                  )}
                   {r.drill && <span className="ddgo">🔍 Open the records</span>}
                 </button>
                 <AssignTask dept={dept} kpi={r.kpi} value={r.value} unit={r.unit} drill={r.drill} onDone={() => setVer((v) => v + 1)} />
