@@ -1,0 +1,44 @@
+-- ============================================================================
+-- FORTIFICATIONS — 7 August 2026
+--
+-- The checks built earlier DETECT. These PREVENT. Detection was losing the race: the anon
+-- surface closed and reopened three times in one afternoon, twice within minutes, because a
+-- nightly check cannot keep up with two agents shipping schema changes.
+--
+-- 1. tg_ddl_guard  (EVENT TRIGGER on ddl_command_end)
+--    Fires inside the creating transaction. Catches a table created without RLS, a
+--    SECURITY DEFINER function with no search_path, and a function left executable by anon -
+--    at the moment of creation, warning the person who ran it in their own session, and
+--    logging to ddl_guard_log either way.
+--    WARNS rather than blocks: RLS cannot be enabled in the same statement as CREATE TABLE,
+--    so blocking would make correct work impossible.
+--    Proven: created a table with no RLS and the guard logged it immediately.
+--
+-- 2. tg_block_forensic_delete  (BEFORE DELETE on the six append-only tables)
+--    Rule H2 was enforced only by the ABSENCE of a delete policy - and RLS does not apply to
+--    a SECURITY DEFINER function or to the table owner. That is exactly how watchdog_findings
+--    lost 57 rows on 7 Aug 2026 despite the rule. A trigger applies to every caller.
+--    Proven: the delete is blocked even running as the table owner.
+--    Covers watchdog_findings, issue_decisions, cost_input_history, metrc_corrections,
+--    moisture_loss_entries, platform_state.
+--
+-- 3. REASON CODES  (reason_code_catalog, reason_policy, f_check_reason, v_reason_settings)
+--    Several paths already demanded a written reason, but each invented its own rules, and the
+--    first version of the H2 escape above took FREE TEXT - unauditable at scale. Free text
+--    cannot be counted, filtered or trended: you can never ask "how many times did we ignore a
+--    flag because Metrc was wrong?"
+--    f_check_reason is the single gate. It validates the code against a controlled vocabulary,
+--    enforces a minimum note length, demands a review date where a decision is a postponement,
+--    and demands a second approver on money and compliance actions.
+--    Config as rows (rule G1): Settings > Reason Codes drives all of it per action, so
+--    enforcement can be switched on one action at a time rather than all at once.
+--    Ten actions seeded, nine codes seeded, ALL marked "draft - owner to confirm" per rule A2 -
+--    they carry no weight until the owner signs them off.
+--    Proven: refuses a missing code, an unknown code, a two-character note, and an ignore with
+--    no review date; accepts a complete one.
+--
+-- Deliberate design note on the escape hatch. A rule with NO legitimate exception gets worked
+-- around silently; one with a loud, recorded exception gets used correctly. So a forensic
+-- delete IS possible - it just requires a valid code, forty characters of explanation and a
+-- named second approver, and it writes all three to audit_events.
+-- ============================================================================
