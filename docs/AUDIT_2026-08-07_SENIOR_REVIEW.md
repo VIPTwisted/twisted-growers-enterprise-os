@@ -422,18 +422,36 @@ Zero `ErrorBoundary` components. One render-time exception anywhere in a 7,797-l
 white-screens the entire OS. For a system people run a licensed facility on, that is not
 acceptable. Add a boundary per route, plus one at the root.
 
-### 🟠 No router — the biggest "it doesn't feel like an OS" cause
+### ~~🟠 No router~~ — **THIS SECTION WAS WRONG. Corrected 7 August 2026.**
 
-Navigation is React state (`setView`). Consequences:
+> I wrote that there were "no deep links, no working Back button, no bookmarks." **All three
+> were false.** Hash routing existed and worked:
+>
+> - `App.jsx:7559` — reads the initial view from `window.location.hash`, so deep links work
+> - `App.jsx:7561` — `pushState` on change, so URLs update and bookmark
+> - `App.jsx:7569` — a `popstate` listener, so Back and Forward work
+>
+> **How I got it wrong:** I grepped for `react-router`, found nothing, and concluded there was
+> no routing. I never checked for hash-based routing. That is exactly the unverified assumption
+> this audit criticises elsewhere, and it is worse than a neutral error — Agent B was about to
+> build a router on top of it. They tested the premise first, found it false, and said so.
+> **Checking the claim before acting on it is the behaviour that caught this.**
 
-- No deep links. You cannot send a colleague "look at this page".
-- The browser Back button does not work as expected.
-- No bookmarks, no refresh-in-place — a reload dumps you at the start.
-- No per-page code splitting, so all **902 KB** of JavaScript loads before anything renders.
+**What was genuinely missing was much narrower, and is now fixed:**
 
-You asked for Microsoft/Google-grade. Addressable URLs are table stakes. Adopt
-`react-router`, map `nav_registry.view_key` to real paths (`/cultivation/harvests`), and the
-site immediately feels like an application rather than a kiosk.
+1. **No `hashchange` listener.** Editing the address bar changed the URL and left the screen
+   where it was. `popstate` does not fire for a hash edit or a same-page hash link.
+2. **An unknown address fell through to the Control Tower in silence.** A stale bookmark, a
+   renamed `view_key` and a typo all looked identical to arriving home on purpose — the same
+   failure shape as `?? []`, where broken and normal are indistinguishable.
+
+Both are live as of 7 August, with a guard (`tools/checks/routing.mjs`) that was proven to fail
+before being trusted.
+
+**A consequence worth recording:** because `view` is already the route, `React.lazy` code
+splitting needs **no routing library at all**. The stated case for adopting `react-router` —
+that code splitting has nowhere to split without routes — does not hold either. The 902 KB
+bundle is still worth splitting; it just does not need a new dependency to do it.
 
 ### 🟠 Performance: aggregation is happening in the browser
 
