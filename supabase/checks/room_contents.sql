@@ -1,0 +1,48 @@
+-- ============================================================================
+-- v_room_contents — what is PHYSICALLY in each room, from ALL sources
+--
+-- The owner raised this and was right: every existing room view was built on v_harvest_forensic,
+-- which is own-harvest data only. Bought-in third-party material and anything staged for
+-- pre-rolls from it were invisible. So neither the CEO dashboard's room figures nor my own
+-- "corrected" ones described a room's actual contents.
+--
+-- WHAT WAS MISSING — 847 lb across 118 packages from 12+ suppliers:
+--   Fulfillment Vault      89 packages   637.5 lb   ACS, Berkley Botanicals, Gibby's Garden,
+--                                                   Holyoke Wilds, Hudson Botanical, Jushi MA,
+--                                                   LC Square, Nature Medicines, Solar
+--                                                   Therapeutics, UC Product Manufacturing
+--   Pre Trim Storage Room  26 packages   208.4 lb   Canna Provisions, Jushi MA
+--   Production Room         3 packages     1.3 lb   Good Chemistry Worcester
+-- That total cross-checks against the "Bought in 847.2 lb" tile, which is a good sign.
+--
+-- TWO MISTAKES I MADE BUILDING IT, both worth recording.
+--
+-- 1. I first identified third party with f_is_ours(metrc_packages.license) and got ZERO
+--    everywhere - which contradicted what the owner had just said was in those rooms.
+--    metrc_packages.license is the licence material is HELD UNDER, and bought-in material is
+--    received into our own licence, so that test is always true. v_third_party_stock already
+--    separates origin_license from held_under. Wrong column, confident answer, contradicted by
+--    the person who knows the business.
+--
+-- 2. I nearly summed unpackaged harvest material and packaged stock into one "room total". They
+--    are different states - material not yet packaged versus finished packages - and adding them
+--    is the same class of error as mixing wet and dry weight. They are now reported side by side
+--    and MUST NEVER be summed.
+--
+-- TWO DATA ISSUES FOUND
+--   Metrc holds BOTH "Pre Trim Storage Room" and "Pre-Trim Storage" for one room. Any room total
+--   splits across the two spellings. Normalised here; the real fix is at source (rule D2).
+--
+--   "Twisted Growers LLC" appears as a third-party supplier in Fulfillment Vault and Pre Trim.
+--   Almost certainly correct rather than a fault: the company holds TWO licences (cultivation
+--   MC281714, manufacturing MP281909), so a transfer between them is genuinely a different origin
+--   licence. Worth confirming, because on the face of a report it reads as an error.
+--
+--   Cure Vault holds 85 packages weighing 0.0 lb. Part of the 2,647 weighed packages carrying
+--   zero quantity. Depleted packages legitimately weigh nothing - split on metrc_packages.finished
+--   before treating any of them as a fault.
+--
+-- Nine rooms hold stock that no previous room view covered at all: Finish Vault, Hydrocarbon,
+-- Quarantine, Packaging Room, Biomass Prep, Solventless, Production Room, BDA/Storage,
+-- Shipping & Receiving, Clone Room.
+-- ============================================================================
