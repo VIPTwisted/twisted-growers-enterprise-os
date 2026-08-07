@@ -1213,7 +1213,7 @@ function ModuleScreen({ entry, actions }) {
       data.forEach((r) => { const v = r[statusCol] ?? "—"; m[v] = (m[v] || 0) + 1; });
       setBrk({ col: statusCol, parts: Object.entries(m).sort((a, b) => b[1] - a[1]).slice(0, 6) });
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [entry.table_ref, sample, statusCol]);
 
   const cols = rows?.length
@@ -1393,7 +1393,7 @@ function useDataToolbar(table, { eq = {}, limit = 200, orderBy = null, ascending
       if (!cancelled) setDims(all.filter((d) => d.values.length > 1 && d.values.length <= 12));
     });
     return () => { cancelled = true; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [table, eqKey, sample]);
 
   useEffect(() => {
@@ -4783,7 +4783,7 @@ function DashboardsScreen({ session, go }) {
       const w = catalog.find((c) => c.key === dw.widget_key);
       if (w) runWidget(w).then((v) => setVals((s) => ({ ...s, [dw.id]: v })));
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [widgets, catalog, active?.id]);
   const create = async (starter) => {
     const { data, error } = await supabase.from("dashboards")
@@ -5113,7 +5113,7 @@ function PlannerScreen({ go, session }) {
       });
       setEvents(ev);
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [span, anchor, plan?.id]);
   const first = new Date(ym.y, ym.m, 1);
   const cells = [...Array(first.getDay()).fill(null),

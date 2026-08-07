@@ -37,11 +37,16 @@ const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, "../..");
 const BASELINE = resolve(here, "eslint-baseline.json");
 
+/* Node refuses to spawn a .cmd shim directly on Windows (EINVAL since the
+   CVE-2024-27980 fix), and CI is Linux. Resolve ESLint's own JS entry point and
+   run it under this same node, so one code path serves both. */
+const eslintBin = resolve(root, "node_modules/eslint/bin/eslint.js");
+
 let raw = "";
 try {
   raw = execFileSync(
-    process.platform === "win32" ? "npx.cmd" : "npx",
-    ["eslint", "app/web/src", "--format", "json"],
+    process.execPath,
+    [eslintBin, "app/web/src", "--format", "json"],
     { cwd: root, encoding: "utf8", maxBuffer: 64 * 1024 * 1024 },
   );
 } catch (e) {

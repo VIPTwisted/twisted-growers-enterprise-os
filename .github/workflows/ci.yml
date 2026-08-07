@@ -54,8 +54,56 @@ jobs:
         run: node tools/checks/no-hardcoded-numbers.mjs
 
       # ---- The linter this repo never had --------------------------------------------
-      - name: ESLint
-        run: npx eslint app/web/src
+      # A ratchet, not a cliff. ERRORS always fail. WARNINGS may never exceed the
+      # recorded baseline, so a new one goes red naming the rule while the 20
+      # outstanding ones — hook dependencies and empty catches, each needing a
+      # judgement call on live code — do not hold the build hostage.
+      # I first wired --max-warnings 0 with 24 warnings outstanding: a gate that is
+      # red on arrival, which is how a gate gets switched off.
+      - name: ESLint (errors block, warnings ratchet)
+        run: node tools/checks/eslint-ratchet.mjs
+
+      # ---- Rule F2 / A3: a crash must be contained, reported, and unable to flood ----
+      # Item 1 proved this app can throw: a hook called after an early return
+      # crashed React the moment data arrived, and with no boundary that
+      # white-screened the whole OS leaving no record.
+      - name: Error boundaries
+        run: node tools/checks/error-boundaries.mjs
+
+      # ---- Rule A3: a navigation failure must never be silent -------------------------
+      # An address matching nothing used to fall through to the Control Tower in
+      # silence, so a stale bookmark looked identical to arriving home on purpose.
+      - name: Routing
+        run: node tools/checks/routing.mjs
+
+      # ---- Rules A1 / A3: a movement is judged by its target, or not judged ----------
+      # The sparkline and the delta each decided sentiment themselves and
+      # disagreed, so "Never submitted for testing +4.1" rendered as a green
+      # rising line — unsellable product increasing, shown as a win.
+      - name: Trend sentiment
+        run: node tools/checks/trend-sentiment.mjs
+
+      # ---- Rule E6: the bridge must never again need a database credential -----------
+      # Routing it through ai_bridge_jobs is what made it authenticate with the
+      # publishable key. Closing the anon hole killed it, and the tempting fix is
+      # to re-grant anon — reopening an internet-reachable write path.
+      - name: Bridge asked directly
+        run: node tools/checks/bridge-direct.mjs
+
+      # ---- Phase 0: recoverability. Written by another agent, never wired. ------------
+      # Caught by all-checks-wired below on its first real run — the repo held 6
+      # migration files describing 4 tables while production held 244. A baseline
+      # that has gone stale is that same failure wearing a hat.
+      - name: Schema baseline is fresh
+        run: node tools/checks/schema-baseline-fresh.mjs
+
+      # ---- The guard that guards the guards -------------------------------------------
+      # Four checks were written on 7 Aug and never wired, so they enforced
+      # nothing while looking like enforcement. This fails if any check in
+      # tools/checks is missing from this file, so a guard written tomorrow
+      # cannot be silently left out. Exemptions live in the check, with reasons.
+      - name: All guards are wired into CI
+        run: node tools/checks/all-checks-wired.mjs
 
       # ---- Rule E1 / E6 / H2: dangerous SQL must not reach a migration ---------------
       # The PreToolUse hook blocks an agent from issuing these interactively. This catches
