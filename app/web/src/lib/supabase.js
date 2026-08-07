@@ -8,3 +8,9 @@ const KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZi
 
 export const supabase = createClient(URL, KEY);
 export const FUNCTIONS_URL = `${URL}/functions/v1`;
+
+// Edge functions need the apikey header explicitly — the client sends it on
+// PostgREST calls but a bare fetch() does not. Exported from here for the same
+// reason the URL is: so no caller reaches for import.meta.env and gets a value
+// that is undefined locally and rewritten by the host at deploy time.
+export const ANON_KEY = KEY;

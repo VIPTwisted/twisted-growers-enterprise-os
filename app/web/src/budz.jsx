@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { supabase } from "./lib/supabase.js";
+import { supabase, FUNCTIONS_URL, ANON_KEY } from "./lib/supabase.js";
 
 /* ---------- BUDZ: the pet agent. Animated, transparent background, chats from live data. ---------- */
 export function BudzAvatar({ mood = "idle", size = 150, src = null }) {
@@ -1242,6 +1242,9 @@ export function BudzScreen({ go }) {
       const cfg = await getAiCfg();
       let composed = null;
       let via = null;
+      /* Why the assistant could not answer, if it could not. Rule A3:
+         absence must be explained. A bare catch hid a total outage. */
+      let askErr = null;
       // Show what the database knows immediately - never make them wait for the model.
       const stamp = Date.now();
       setLog((l) => [...l, { who: "budz", text: a.headline, rows: facts, stamp, pending: true }]);
@@ -1313,26 +1316,49 @@ export function BudzScreen({ go }) {
             .slice(-8)
             .map((m) => ({ role: m.who === "me" ? "user" : "assistant", content: m.text }));
           if (hist2[hist2.length - 1]?.role !== "user") hist2.push({ role: "user", content: question });
+          /* This used to build the URL from import.meta.env.VITE_SUPABASE_URL.
+             app/web has no .env and nothing in vite.config defines it, so
+             locally it was the string "undefined". On the deployed build it was
+             worse: Netlify DOES hold that variable, Vite inlined it, and the
+             host's secret scanner then rewrote it to asterisks in the served
+             file — the shipped bundle literally read
+                 fetch("****************e.co/functions/v1/budz-chat")
+             Either way the request never left the browser, which is why
+             ai_usage_log had zero rows and Budz had never answered anything.
+
+             FUNCTIONS_URL and ANON_KEY are plain constants in lib/supabase.js.
+             They are proven to survive the build: the same URL appears twice,
+             unmasked, in the deployed bundle. */
           const { data: sess } = await supabase.auth.getSession();
-          const rr = await fetch(import.meta.env.VITE_SUPABASE_URL + "/functions/v1/budz-chat", {
+          const rr = await fetch(`${FUNCTIONS_URL}/budz-chat`, {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
-              Authorization: "Bearer " + (sess?.session?.access_token ?? import.meta.env.VITE_SUPABASE_ANON_KEY),
-              apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
+              Authorization: "Bearer " + (sess?.session?.access_token ?? ANON_KEY),
+              apikey: ANON_KEY,
             },
             body: JSON.stringify({ messages: hist2 }),
           });
           const out = await rr.json().catch(() => null);
           if (out?.reply) { composed = out.reply; via = "Claude (API)"; }
-        } catch {}
+          else if (!rr.ok) {
+            /* Rule A3: absence is explained, never blank. A bare catch here is
+               what hid a total outage for as long as this has existed. */
+            askErr = out?.error
+              ? `The assistant service answered but could not help: ${String(out.error).slice(0, 160)}`
+              : `The assistant service returned ${rr.status}${rr.statusText ? " " + rr.statusText : ""}.`;
+          }
+        } catch (e) {
+          askErr = `Could not reach the assistant service: ${String(e?.message ?? e).slice(0, 160)}`;
+        }
       }
       setLog((l) =>
         l.map((m) =>
           m.stamp === stamp
             ? composed
               ? { ...m, text: composed, researched: true, via, pending: false }
-              : { ...m, pending: false, claudeFor: facts.length === 0 ? question : null }
+              : { ...m, pending: false, askErr,
+                  claudeFor: facts.length === 0 && !askErr ? question : null }
             : m
         )
       );
@@ -1373,6 +1399,18 @@ export function BudzScreen({ go }) {
                 <div className="budztext">{m.text}</div>
                 {m.pending && <span className="budzdot">researching…</span>}
                 {m.via && <span className="rsch">Researched by {m.via}</span>}
+                {/* Rule A3: say why there is no answer. Silence here is what let
+                    a total outage of the assistant go unnoticed entirely. */}
+                {m.askErr && (
+                  <div className="asetmsg" style={{ marginTop: 8 }}>
+                    <b>Budz could not reach the assistant.</b>
+                    <div style={{ marginTop: 4, opacity: 0.85 }}>{m.askErr}</div>
+                    <div style={{ marginTop: 6, opacity: 0.7, fontSize: 12 }}>
+                      The figures above still come straight from the database — only the
+                      written explanation is missing.
+                    </div>
+                  </div>
+                )}
                 {m.claudeFor && (
                   <div className="claudebox">
                     <AskExternal question={m.claudeFor} />
