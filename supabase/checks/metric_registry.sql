@@ -1,0 +1,43 @@
+-- ============================================================================
+-- metric_registry  —  ONE definition per metric
+--
+-- WHY. The three dashboard tiers compute independently, so the same fact can carry three
+-- values. "Harvests dried too long" is 248 on the department tile, hardcoded as 78 in the CEO
+-- dashboard, and computed a third way live in the same component. Rule C2 says a total that
+-- cannot be reconciled is a bug; three totals for one fact is three bugs, and an executive
+-- cannot tell which to act on.
+--
+-- THE CONSTRAINTS ARE THE POINT. Each turns a written rule into something the database refuses
+-- to break, rather than something a person must remember:
+--
+--   drill_view NOT NULL
+--       Rule C1 - "a tile without a drill-down is not finished and must not ship." Proven: an
+--       insert with a null drill is refused.
+--
+--   target_rule_key REFERENCES conversion_factors(key)
+--       Rule G4 - thresholds resolve through f_rule(), never a literal. This is what makes the
+--       CEO dashboard's 21-day harvest limit impossible: 'harvest_open_max_days_21' is not a
+--       real key and the row will not insert. Proven both ways - the invented key is refused,
+--       the real 'harvest_open_max_days' is accepted.
+--
+--   provenance_note NOT NULL
+--       Rule A2 - every figure carries its provenance. Proven: refused without it.
+--
+--   rolls_up_to_metric REFERENCES metric_registry(metric_key)
+--       Rule 4 - roll-up becomes DATA. A CEO tile derived from its departments cannot disagree
+--       with them, because it is not a separate calculation.
+--
+-- WHAT IS DELIBERATELY NOT FILLED IN. drill_filter, drill_column, drill_agg and target_rule_key
+-- are null on all 43 seeded metrics. They CANNOT be derived from the existing tiles, and
+-- guessing them would invent facts - the exact failure this registry exists to prevent
+-- (rules A1, A5). v_metric_registry_gaps counts them so the gap is visible and shrinking
+-- instead of forgotten.
+--
+-- WHAT THE SEED ALREADY REVEALED. 7 metrics are registered under more than one department with
+-- identical values - the same fact maintained by REPETITION rather than derivation. Command
+-- repeats Cultivation's "Harvests open too long" (22), Inventory's "Total on hand" (2,544),
+-- Quality's "Out at the laboratory" (213.9) and more. Today they agree. Nothing makes them
+-- agree tomorrow. Declaring rolls_up_to_metric is what replaces coincidence with structure.
+--
+-- Run:  select * from v_metric_registry_gaps;
+-- ============================================================================
