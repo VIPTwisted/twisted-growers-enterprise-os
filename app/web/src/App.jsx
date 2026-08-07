@@ -297,7 +297,7 @@ function usePrefs(session) {
   return { theme, setTheme, collapsed, setCollapsed, navWidth, setNavWidthLive, commitNavWidth };
 }
 
-function useNav(version) {
+function useNav(version, session) {
   const [nav, setNav] = useState(null);
   const [reports, setReports] = useState([]);
   const [apps, setApps] = useState([]);
@@ -305,13 +305,22 @@ function useNav(version) {
   const [finance, setFinance] = useState([]);
   const [tax, setTax] = useState([]);
   const [hr, setHr] = useState([]);
+  /* Reads the menu only once there is a signed-in session.
+
+     This used to run while the visitor was still anonymous, so the whole
+     navigation rail worked ONLY because 'anon' could read nav_registry — and
+     because the effect depended on 'version' alone, it never re-read once the
+     session arrived. Revoking anon access would have emptied every menu with no
+     error. Depending on the session closes that, and also removes a race: the
+     old code called auth.getUser() itself, which could resolve before
+     useSession() had restored a persisted session on a hard refresh. */
   useEffect(() => {
+    const uid = session?.user?.id;
+    if (!uid) { setNav(null); return; }
     (async () => {
-      const { data: auth } = await supabase.auth.getUser();
-      const uid = auth?.user?.id;
       const [{ data: rows }, { data: me }] = await Promise.all([
         supabase.from("nav_registry").select("*").eq("enabled", true).order("category_order").order("item_order"),
-        uid ? supabase.from("app_users").select("role").eq("user_id", uid).maybeSingle() : Promise.resolve({ data: null }),
+        supabase.from("app_users").select("role").eq("user_id", uid).maybeSingle(),
       ]);
       const role = me?.role ?? "guest";
       const { data: vis } = await supabase.from("nav_role_visibility").select("view_key, visible").eq("role", role);
@@ -327,7 +336,7 @@ function useNav(version) {
       setTax(shown.filter((r) => r.surface === "tax"));
       setHr(shown.filter((r) => r.surface === "hr"));
     })();
-  }, [version]);
+  }, [version, session?.user?.id]);
   return { nav, reports, apps, deep, finance, tax, hr };
 }
 function useRole(session) {
@@ -3565,7 +3574,6 @@ function ControlTower({ go, session }) {
               );
             })}
           </div>
-          )}
         </div>
       ))}
       {rows && <div className="note" style={{ marginTop: 18 }}>Zeros before operating data is connected mean “no records yet”, not “all clear”. Connect Metrc and load operations to make this board speak.</div>}
@@ -6706,8 +6714,14 @@ const TELL_YOUR_AI = [
 
 
 
+/* These values must match mv_department_dashboard.department EXACTLY — the
+   dashboard filters on .eq("department", …). 'Command Center' was wrong: the view
+   stores 'Command', so the query returned 0 of 8 tiles and the top-level dashboard
+   rendered empty. It looked alive because FlowStrip and MoneyBar still showed, and
+   the failure was invisible because the query swallowed its result with `?? []`.
+   Verified 7 Aug 2026 against: select distinct department from mv_department_dashboard. */
 const DEPT_BY_VIEW = {
-  dept_dash_command: "Command Center",
+  dept_dash_command: "Command",
   dept_dash_cultivation: "Cultivation",
   dept_dash_inventory: "Inventory",
   dept_dash_quality: "Quality",
@@ -7081,7 +7095,7 @@ function DeptDashboard({ viewKey, go, nav, deep }) {
       </div>
 
       <WhatChanged dept={dept} go={go} />
-      {(dept === "Command Center" || dept === "Cultivation" || dept === "Inventory") && (
+      {(dept === "Command" || dept === "Cultivation" || dept === "Inventory") && (
         <>
           <Section title="Seed to sale — where everything is right now"><FlowStrip go={go} /></Section>
           <Section title="Where the money is standing"><MoneyBar go={go} /></Section>
@@ -7466,7 +7480,7 @@ export default function App() {
   const { session, mustChange, setMustChange, showWelcome, setShowWelcome } = useSession();
   const prefs = usePrefs(session ?? null);
   const [navVersion, setNavVersion] = useState(0);
-  const { nav, reports, apps, deep, finance, tax, hr } = useNav(navVersion);
+  const { nav, reports, apps, deep, finance, tax, hr } = useNav(navVersion, session);
   const [repMenu, setRepMenu] = useState(false);
   const role = useRole(session ?? null);
   const [view, setView] = useState(() => window.location.hash.slice(1) || "tower");
