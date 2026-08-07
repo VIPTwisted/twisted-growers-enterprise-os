@@ -49,3 +49,37 @@
 -- unpackaged_harvest_lb is material not yet packaged; packaged_lb is finished packages. Adding
 -- them mixes pre- and post-packaging states, the same class of error as mixing wet and dry.
 -- ============================================================================
+
+-- ============================================================================
+-- REVISION 2 — I broke rule B4 and shipped it. Corrected.
+--
+-- still_in_room_lb is NOT material sitting in a room. It is wet minus packaged minus waste - an
+-- ARITHMETIC RESIDUAL on a WET basis, still containing the water yet to evaporate. Proof: on the
+-- 350 CLOSED harvests it totals 24,896.6 lb, and wet - packaged - waste = 24,896.6. A closed
+-- harvest has nothing physically left in the room, so that figure is evaporated water.
+--
+-- My first version reported it as "unpackaged harvest material" in pounds, beside dry packaged
+-- pounds. That is rule B4 - the error HANDOFF.md records as having once overstated open harvests
+-- by 3,800 lb. I quoted that rule the same morning and then made it.
+--
+-- Scale of my error, open harvests:
+--     reported as unpackaged material   4,514.8 lb   (WET)
+--     dry equivalent at the 70-77% band 1,038 - 1,354 lb
+--     overstated by roughly 3.8x
+--
+-- Now: unpackaged_WET_lb is named for what it is, with unpackaged_dry_equiv_low/high beside it
+-- for any comparison. Per room, e.g. Fulfillment Vault MC281714: 2,059.7 lb WET = 474-618 lb dry
+-- equivalent, against 192.2 lb already packaged.
+--
+-- ── THE MASS BALANCE, and why it is a DEFINITION that blocks it, not data ────
+-- 350 closed harvests: 39,853.3 lb wet in · 11,289.3 lb packaged · 3,667.4 lb waste.
+--     TEST A  loss excluding waste          = 71.7%  INSIDE the owner-set 70-77% band -> closes
+--     TEST B  evaporation, waste taken out  = 62.5%  BELOW the 70% floor -> does not close
+-- The two differ by exactly the 3,667.4 lb of waste, and nothing defines whether the band
+-- includes it. Agent A independently arrived at 62.5% and recorded D1 as closed on that basis.
+--
+-- So the honest position: the mass balance closes on one reading and not the other, and the
+-- question is a definition the owner must settle - does "expected moisture loss 70-77%" mean
+-- weight lost to evaporation ONLY, or all weight not packaged including waste? Choosing one
+-- silently would decide a 3,667 lb question by assumption. Rule A5.
+-- ============================================================================
