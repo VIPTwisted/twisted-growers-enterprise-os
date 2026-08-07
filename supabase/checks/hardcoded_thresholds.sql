@@ -1,0 +1,39 @@
+-- ============================================================================
+-- v_hardcoded_thresholds  —  rules G1 and G4, checkable in the DATABASE
+--
+-- The front-end check (tools/checks/no-hardcoded-numbers.mjs) only ever looked at .jsx files.
+-- Nothing looked inside the 225 views and the functions. So the same defect the CEO dashboard
+-- was criticised for was sitting in the data layer, unexamined, feeding every tile that read it.
+--
+-- WHAT IT FOUND ON ITS FIRST RUN — 6 violations across 5 views:
+--
+--   v_cultivation_meeting_pack   total_days_start_to_now > 21   owner rule: 28   WRONG
+--   v_cultivation_meeting_pack   dry_days > 16                  owner rule: 14   WRONG
+--   v_dry_room_performance       dry_days > 16                  owner rule: 14   WRONG (fixed)
+--   v_monthly_conversion_truth   dry_days > 16                  owner rule: 14   WRONG
+--   v_issue_attribution          oldest_days > 180              owner rule: 180  right today
+--   v_tower_inventory            oldest_days > 180              owner rule: 180  right today
+--
+-- The 21-day harvest limit was the headline defect on the CEO dashboard. It is ALSO in
+-- v_cultivation_meeting_pack - a view whose name says it briefs people in meetings. The owner's
+-- own rule note on harvest_open_max_days says, verbatim, "not 21 or 65". So the rejected number
+-- was in at least two places and only one had been found by reading code.
+--
+-- WHY IT FLAGS THE TWO THAT ARE CURRENTLY CORRECT. oldest_days > 180 matches the rule today.
+-- It is still a violation: a right number hardcoded is a wrong number the moment the owner
+-- changes the rule, and nothing would tell anyone. The point of f_rule() is that changing a rule
+-- row changes every consumer at once.
+--
+-- WHY THE FIRST VERSION OF THIS CHECK FOUND NOTHING. It searched for literals EQUAL to an
+-- owner-set value. The defect is the opposite - a literal that DIFFERS from it. 16 is not 14 and
+-- 21 is not 28, so the wrong number never matched. The logic was inverted, the check passed
+-- vacuously, and it would have sat there reporting PASS forever. A check that cannot fail is
+-- worse than no check, because it manufactures confidence.
+--
+-- HOW IT WORKS NOW. threshold_column_map declares which COLUMN each rule governs - as rows, not
+-- guesses in code, and each with a written justification. The check then flags any literal
+-- comparison on a governed column that does not resolve through f_rule(), whether the literal is
+-- right or wrong.
+--
+-- Run:  select * from v_hardcoded_thresholds;      -- expect zero rows
+-- ============================================================================
