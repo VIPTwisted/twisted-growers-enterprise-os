@@ -105,7 +105,7 @@ const BUDZ_DEPTS = [
     ],
   },
   {
-    dept: "Inventory & Fulfilment",
+    dept: "Inventory & Fulfillment",
     qs: [
       "What does our on-hand finished goods inventory look like?",
       "What is sitting too long?",
@@ -792,12 +792,23 @@ export async function budzAnswer(question) {
   };
 }
 
+/* The profile comes from the database, which takes a moment. Without a cache
+   the page paints the built-in bot and the default opening line first, then
+   swaps - which reads as the old avatar flashing up. Remember the last one we
+   saw so the first paint is already correct. */
+const PROFILE_CACHE = "tg_assistant_profile";
+const readProfileCache = () => {
+  try { return JSON.parse(localStorage.getItem(PROFILE_CACHE)) || null; } catch { return null; }
+};
+
 export function useAssistantProfile() {
-  const [p, setP] = useState(null);
+  const [p, setP] = useState(readProfileCache);
   useEffect(() => {
     (async () => {
       const { data } = await supabase.from("assistant_profile").select("*").eq("id", 1).maybeSingle();
-      setP(data ?? { name: "Budz", tagline: "Live on the floor", intro: BUDZ_INTRO, avatar_url: null });
+      const row = data ?? { name: "Budz", tagline: "Live on the floor", intro: BUDZ_INTRO, avatar_url: null };
+      setP(row);
+      try { localStorage.setItem(PROFILE_CACHE, JSON.stringify(row)); } catch { /* private mode */ }
     })();
   }, []);
   return p;
@@ -805,20 +816,44 @@ export function useAssistantProfile() {
 
 export function AssistantSettings() {
   const [p, setP] = useState(null);
+  const [draft, setDraft] = useState({});
+  const [saved, setSaved] = useState(false);
   const [msg, setMsg] = useState("");
   const [busy, setBusy] = useState(false);
+  const [lib, setLib] = useState([]);
   const fileRef = useRef(null);
   const load = async () => {
     const { data } = await supabase.from("assistant_profile").select("*").eq("id", 1).maybeSingle();
     setP(data);
+    setDraft({ name: data?.name ?? "", tagline: data?.tagline ?? "",
+               intro: data?.intro ?? "", avatar_url: data?.avatar_url ?? "" });
   };
-  useEffect(() => { load(); }, []);
+  /* Every face ever used, so replacing one never loses it. */
+  const loadLib = async () => {
+    const { data } = await supabase.from("assistant_avatars")
+      .select("*").order("is_builtin", { ascending: false }).order("id");
+    setLib(data ?? []);
+  };
+  useEffect(() => { load(); loadLib(); }, []);
   if (!p) return <div className="empty"><div className="eicon">◐</div>Loading…</div>;
+
+  const dirty = (draft.name ?? "") !== (p.name ?? "")
+    || (draft.tagline ?? "") !== (p.tagline ?? "")
+    || (draft.intro ?? "") !== (p.intro ?? "")
+    || (draft.avatar_url ?? "") !== (p.avatar_url ?? "");
 
   const save = async (patch) => {
     setBusy(true);
     const { error } = await supabase.from("assistant_profile").update({ ...patch, updated_at: new Date().toISOString() }).eq("id", 1);
     setMsg(error ? error.message : "Saved. The menu updates on your next page load.");
+    /* Keep the remembered copy in step, or the page would flash the avatar you
+       just replaced before the new one loads. */
+    if (!error) {
+      try {
+        localStorage.setItem(PROFILE_CACHE,
+          JSON.stringify({ ...(readProfileCache() ?? {}), ...p, ...patch }));
+      } catch { /* private mode */ }
+    }
     setBusy(false);
     load();
   };
@@ -833,8 +868,38 @@ export function AssistantSettings() {
     const { error } = await supabase.storage.from("assistant").upload(path, f, { upsert: true, contentType: f.type });
     if (error) { setMsg("Upload failed: " + error.message); setBusy(false); return; }
     const { data } = supabase.storage.from("assistant").getPublicUrl(path);
+    /* Into the library before it becomes the current face, so it is never the
+       only copy and the one it replaces stays reachable. */
+    await supabase.from("assistant_avatars").insert({
+      label: f.name.replace(/\.[^.]+$/, "").slice(0, 40) || "Uploaded picture",
+      avatar_url: data.publicUrl,
+    });
     await save({ avatar_url: data.publicUrl });
+    await loadLib();
     setBusy(false);
+  };
+
+  /* Switching is just pointing the profile at a face already in the library. */
+  const useFace = async (row) => {
+    await save({ avatar_url: row.avatar_url });
+    setMsg(`Now using ${row.label}.`);
+  };
+
+  const renameFace = async (row) => {
+    const next = window.prompt("Name this one", row.label);
+    if (!next || next === row.label) return;
+    await supabase.from("assistant_avatars").update({ label: next.slice(0, 60) }).eq("id", row.id);
+    loadLib();
+  };
+
+  /* Removing from the library leaves the file itself in storage - nothing here
+     ever deletes a picture for good. */
+  const forgetFace = async (row) => {
+    if (row.is_builtin) return;
+    if (row.avatar_url === p.avatar_url) { setMsg("That one is in use. Switch to another first."); return; }
+    if (!window.confirm(`Remove "${row.label}" from the library? The file itself is kept.`)) return;
+    await supabase.from("assistant_avatars").delete().eq("id", row.id);
+    loadLib();
   };
 
   return (
@@ -863,17 +928,76 @@ export function AssistantSettings() {
             </button>
           )}
         </div>
+        {/* These used to save only on blur, so anything typed and then navigated
+            away from was silently lost. Held in state now and written by an
+            explicit Save button that tells you it worked. */}
         <div className="asetform">
           <label>Name</label>
-          <input className="inp" defaultValue={p.name} onBlur={(e) => e.target.value !== p.name && save({ name: e.target.value })} />
+          <input className="inp" value={draft.name ?? ""}
+            onChange={(e) => setDraft({ ...draft, name: e.target.value })} />
           <label>Tagline</label>
-          <input className="inp" defaultValue={p.tagline} onBlur={(e) => e.target.value !== p.tagline && save({ tagline: e.target.value })} />
+          <input className="inp" value={draft.tagline ?? ""}
+            onChange={(e) => setDraft({ ...draft, tagline: e.target.value })} />
           <label>Opening line</label>
-          <textarea className="inp" rows={4} defaultValue={p.intro} onBlur={(e) => e.target.value !== p.intro && save({ intro: e.target.value })} />
+          <textarea className="inp" rows={4} value={draft.intro ?? ""}
+            onChange={(e) => setDraft({ ...draft, intro: e.target.value })} />
           <label>Picture address (paste a link instead of uploading)</label>
-          <input className="inp" defaultValue={p.avatar_url ?? ""} placeholder="https://…"
-            onBlur={(e) => e.target.value !== (p.avatar_url ?? "") && save({ avatar_url: e.target.value || null })} />
+          <input className="inp" value={draft.avatar_url ?? ""} placeholder="https://…"
+            onChange={(e) => setDraft({ ...draft, avatar_url: e.target.value })} />
+
+          <div className="asetsave">
+            <button className="btn primary" disabled={busy || !dirty}
+              onClick={async () => {
+                await save({
+                  name: draft.name,
+                  tagline: draft.tagline,
+                  intro: draft.intro,
+                  avatar_url: draft.avatar_url || null,
+                });
+                setSaved(true);
+                setTimeout(() => setSaved(false), 2600);
+              }}>
+              {busy ? "Saving…" : dirty ? "Save changes" : "Saved"}
+            </button>
+            {dirty && <span className="asetdirty">You have unsaved changes.</span>}
+            {saved && !dirty && <span className="asetok">Saved. It is live everywhere now.</span>}
+          </div>
           {msg && <div className="asetmsg">{msg}</div>}
+        </div>
+      </div>
+
+      {/* The library. Replacing a picture used to leave the old one unreachable -
+          the file stayed in storage but nothing pointed at it. Everything ever
+          used is here, including the drawn-in bot, and switching is one click. */}
+      <div className="asetlib">
+        <div className="asetlibhead">
+          <h2>Saved faces</h2>
+          <p>Every picture Budz has worn. Click one to put it on. Nothing here is
+            ever deleted — replacing a picture keeps the old one.</p>
+        </div>
+        <div className="facegrid">
+          {lib.map((row) => {
+            const inUse = (row.avatar_url ?? null) === (p.avatar_url ?? null);
+            return (
+              <div key={row.id} className={`facecard${inUse ? " on" : ""}`}>
+                <button className="facepic" disabled={busy || inUse} onClick={() => useFace(row)}
+                  title={inUse ? "In use" : `Use ${row.label}`}>
+                  {row.avatar_url
+                    ? <BudzAvatar size={120} src={row.avatar_url} />
+                    : <BudzBot state="rest" size={120} />}
+                </button>
+                <div className="facename">{row.label}</div>
+                <div className="faceact">
+                  {inUse
+                    ? <span className="faceon">In use</span>
+                    : <button className="btn small" disabled={busy} onClick={() => useFace(row)}>Use this</button>}
+                  <button className="btn small ghost" onClick={() => renameFace(row)}>Rename</button>
+                  {!row.is_builtin && !inUse &&
+                    <button className="btn small ghost" onClick={() => forgetFace(row)}>Remove</button>}
+                </div>
+              </div>
+            );
+          })}
         </div>
       </div>
     </>
@@ -990,7 +1114,9 @@ export function BudzPet({ go, onClose }) {
       </div>
 
       <div className="petart" onDoubleClick={() => setOpen((v) => !v)} title="Drag to move, double-click to chat">
-        <BudzAvatar mood={busy ? "thinking" : "idle"} size={open ? 150 : size} src={prof?.avatar_url} />
+        {prof == null
+          ? <div className="budzhero-hold" style={{ width: open ? 150 : size, height: open ? 150 : size }} />
+          : <BudzAvatar mood={busy ? "thinking" : "idle"} size={open ? 150 : size} src={prof.avatar_url} />}
       </div>
 
       {open && (
@@ -1085,7 +1211,10 @@ export function BudzBot({ state = "rest", size = 132 }) {
 
 export function BudzScreen({ go }) {
   const prof = useAssistantProfile();
-  const [log, setLog] = useState([{ who: "budz", text: BUDZ_INTRO }]);
+  /* The opening line the owner saves in Settings > Assistant was being fetched
+     and then discarded in favour of the hardcoded constant. Use his. */
+  const [log, setLog] = useState([]);
+  const introSet = useRef(false);
   const [q, setQ] = useState("");
   const [qfind, setQfind] = useState("");
   const [dept, setDept] = useState(() => {
@@ -1096,6 +1225,7 @@ export function BudzScreen({ go }) {
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [log]);
+
   const ask = async (text) => {
     const question = (text ?? q).trim();
     if (!question || busy) return;
@@ -1218,8 +1348,18 @@ export function BudzScreen({ go }) {
           </div>
         </div>
       </div>
-      <div className="budzstageband">
-        <BudzBot state={busy ? "think" : "listen"} size={124} />
+      {/* Hero: him on the left, his greeting beside him. Everything else below. */}
+      <div className="budzhero">
+        <div className="budzhero-pic">
+          {prof == null
+            ? <div className="budzhero-hold" style={{ width: 340, height: 340 }} />
+            : prof.avatar_url
+              ? <BudzAvatar mood={busy ? "thinking" : "idle"} size={340} src={prof.avatar_url} />
+              : <BudzBot state={busy ? "think" : "listen"} size={340} />}
+        </div>
+        <div className="budzhero-say">
+          <p>{prof == null ? "" : (prof.intro || BUDZ_INTRO)}</p>
+        </div>
       </div>
       <div className="budzwrap">
         <div className="budzchat">
@@ -1718,7 +1858,7 @@ The real problem is not conversion. It is that 30 harvests are sitting open, ave
       title: `${d.aging.length} items of capital sitting too long`,
       metric: `${d.aging.length} items`,
       proof: d.aging.slice(0, 5).map((r) => `${r.item} in ${r.location}: ${r.days_here} days — ${r.action}`).join("  ·  ") || "Nothing aging.",
-      who: "Inventory and Fulfilment",
+      who: "Inventory and Fulfillment",
       when: "Live",
       why: "Every day packaged product sits is cash on a shelf instead of in the bank, and shelf life is finite.",
       fix: "Prioritise the oldest for sale, or record a disposition decision against it.",

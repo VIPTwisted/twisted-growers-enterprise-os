@@ -199,3 +199,76 @@ fault, not a missing export, and a report import will only mask it.
 
 **Packages: 1,648 + 2,444 = 4,092 against 3,548 held — a ~544 gap**, most likely
 the same delta-window issue that hid 227 harvests and 1,104 manifests.
+
+---
+
+## The importer — built 6 August 2026
+
+Uploading a Metrc export no longer needs anyone to say what it is. Detection is
+driven by rows in `metrc_report_types`, matched on the report's **column
+signature**, because Metrc appends `(1)`, `(2)`, `(3)` to filenames and people
+rename them. All ten registered reports were verified against the real exports.
+
+| Object | What it does |
+|---|---|
+| `metrc_report_types` | The registry. Signature, target table, key columns, cadence, priority |
+| `tg_detect_report(text[])` | Identifies the report. Every signature column must be present |
+| `tg_near_miss(text[])` | On failure, names the closest report and the exact missing columns |
+| `tg_import_report(rows, licence, as_of, file)` | The one entry point. Administrators only |
+| `metrc_rpt_*` | Ten landing tables. Each row keeps `source_row`, `import_id`, `imported_at` |
+| `v_report_upload_due` | The obligation register: report × licence × period, due or overdue |
+| `v_report_upload_alerts` | The same, resolved to named people |
+
+### Only three files a month
+
+Deliberately the smallest set that works. Everything the API already delivers
+was kept **off** this list — uploading it by hand adds nothing.
+
+| # | Report | Licence | Why nothing else will do |
+|---|---|---|---|
+| 1 | Plants — Harvests Inactive | MC281714 | `Moisture Loss` exists in no API endpoint. Without it wet cannot be reconciled to dry, so the 380 lb/month target cannot be verified |
+| 2 | Packages — Transferred | MC281714 | Package-level wholesale price. `/transfers/v2/.../wholesale` returns **401** |
+| 3 | Packages — Transferred | MP281909 | Same, and manufacturing holds 12,675 of the 13,246 priced packages |
+
+Quarterly: Wholesale Transfers, Plants Waste, Plants Destroyed, Test Batches.
+Yearly (1 January): Inventory Point in Time.
+On demand only: Adjustments, Harvests, Packages Inventory — the API covers all three.
+
+### Metrc exports only the columns visible in the grid
+
+`Metrc-Massachusetts-MC281714-Plants-HarvestsInactive.xlsx` in the owner's
+Downloads folder contains **one column** — `Harvest Batch` — because the export
+was run with the rest hidden. `Moisture Loss` is hidden by default. The importer
+detects this and says so explicitly rather than failing blankly.
+
+### AgentMapper
+
+An unrecognised file is captured into `metrc_report_unmapped` with its exact
+column list and raised as an `agent_findings` entry for **Metrc & Compliance**.
+The agent proposes a mapping; an administrator approves it; the landing table
+and the registry row are created together. New reports need **no code and no
+deploy** — `tg_map_generic` builds the INSERT at run time from `column_map`.
+
+Two guards, both proven to fire:
+
+1. A proposal may only reference columns the uploaded file actually contained.
+   Verified by rejecting a proposal naming `Location` against a file without it.
+2. A file with **repeated headers** is refused outright. Plants Trend has a
+   two-tier header (`Tracked` / `Destroyed`) with `Vegetative` and `Flowering`
+   under both — that needs code, and saying so beats approving a guess.
+
+Guard 1 exists because the first Plants Trend mapping drafted during this work
+was wrong: it invented `Location` and `Strain` columns the real export does not
+have. It was deleted rather than left in place, since a wrong signature silently
+mis-files every future upload.
+
+### Alerts
+
+Outstanding uploads appear on `v_admin_alerts` as **critical** the day they fall
+due, not once late, and clear only when the file arrives (rule H1). Recipients
+are rows in `report_alert_recipients`: `owner` and `executive` exist today;
+`ceo`, `cfo`, `coo` and `admin` are pre-registered and route automatically the
+moment those roles are created.
+
+**In-app alerting is live. Email is not** — no email provider is configured yet.
+That remains P0 on `golive_items`.

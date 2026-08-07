@@ -615,13 +615,26 @@ function ProductIdentity({ term, row }) {
         <Fact label="Cultivator or manufacturer" value={d.cultivator_or_manufacturer}
           why={d.maker_note || `Licence ${d.maker_license || "not recorded"} · ${d.origin}`}
           tone={d.cultivator_or_manufacturer === "Not recorded" ? "warn" : "ok"} />
-        <Fact label="Total THC" value={d.total_thc != null ? d.total_thc + " %" : "Not recorded"}
-          why={d.analyte_note} tone={d.total_thc != null ? "ok" : "warn"} />
-        <Fact label="Total terpenes" value={d.total_terpenes != null ? d.total_terpenes + " %" : "Not recorded"}
-          why={d.total_terpenes == null ? d.analyte_note : `${d.analyte_count} analytes on file`}
-          tone={d.total_terpenes != null ? "ok" : "warn"} />
-        <Fact label="Total CBD" value={d.total_cbd != null ? d.total_cbd + " %" : "Not recorded"}
-          why={d.total_cbd == null ? d.analyte_note : null} tone={d.total_cbd != null ? "ok" : "warn"} />
+        {/* Metrc reports edible potency in milligrams per gram, not percent. Showing
+            a "%" against a milligram figure is simply wrong, so the unit is carried
+            with the number and never assumed. Where Metrc returned nothing, the
+            figure is read off the certificate — and the panel says which it is. */}
+        <Fact label="Total THC"
+          value={d.thc_shown != null ? `${d.thc_shown} ${d.total_thc_unit ?? "%"}` : "Not recorded"}
+          why={d.thc_shown != null ? d.thc_source : d.analyte_note}
+          tone={d.thc_shown != null ? "ok" : "warn"} />
+        <Fact label="Total terpenes"
+          value={d.terpenes_shown != null ? `${d.terpenes_shown} ${d.total_terpenes_unit ?? "%"}` : "Not recorded"}
+          why={d.terpenes_shown != null
+            ? d.terpenes_source
+            : (d.analyte_count > 0
+                ? `${d.analyte_count} analytes on file, but no terpene panel was run on this product.`
+                : d.analyte_note)}
+          tone={d.terpenes_shown != null ? "ok" : "warn"} />
+        <Fact label="Total CBD"
+          value={d.cbd_shown != null ? `${d.cbd_shown} ${d.total_thc_unit ?? "%"}` : "Not recorded"}
+          why={d.cbd_shown == null ? d.analyte_note : null}
+          tone={d.cbd_shown != null ? "ok" : "warn"} />
         <Fact label="Certificate of Analysis"
           value={d.coa_url ? "Open the certificate" : d.lab_state || "Not recorded"}
           href={d.coa_url} hrefLabel="📄 Open the certificate"
@@ -635,6 +648,29 @@ function ProductIdentity({ term, row }) {
         <label>Where it is, with dates</label>
         <LocationHistory term={d.package_tag} tag={d.package_tag} />
       </div>
+      {d.certificate_screens && (
+        <div className="pidscreens">
+          <label>Safety screens, read from the certificate</label>
+          <div className="screenrow">
+            {d.certificate_screens.split(" · ").map((s) => {
+              const failed = /FAIL/i.test(s);
+              return <span key={s} className={`screen ${failed ? "fail" : "pass"}`}>{s}</span>;
+            })}
+          </div>
+        </div>
+      )}
+      {d.certificate_terpene_profile && (
+        <div className="pidscreens">
+          <label>Terpene profile, read from the certificate</label>
+          <div className="screenrow">
+            {Object.entries(d.certificate_terpene_profile)
+              .sort((a, b) => b[1] - a[1])
+              .map(([name, v]) => (
+                <span key={name} className="screen terp">{name} <b>{v}%</b></span>
+              ))}
+          </div>
+        </div>
+      )}
       <div className="pidmeta">
         {d.strain && <span>Strain: <b>{d.strain}</b></span>}
         {d.category && <span>Category: <b>{d.category}</b></span>}
@@ -862,43 +898,104 @@ function TraceDrawer({ term, onClose }) {
     </div>
   );
 }
-function RawRow({ row, cols }) {
-  const [open, setOpen] = useState(false);
+/* The forensic panel. Factored out of RawRow so a page with hand-built columns
+   gets exactly the same drill-down without giving up its own layout — the owner's
+   rule is that a user drills down wherever they are, not only on generic pages. */
+const traceTermOf = (row) => TRACE_KEYS.map((k) => row?.[k]).find(
+  (v) => typeof v === "string" && v.trim().length > 2 && !NEVER_TRACE.has(v.trim())
+);
+function ForensicPanel({ row }) {
   const [showRaw, setShowRaw] = useState(false);
   const [trace, setTrace] = useState(null);
-  const traceTerm = TRACE_KEYS.map((k) => row[k]).find(
-    (v) => typeof v === "string" && v.trim().length > 2 && !NEVER_TRACE.has(v.trim())
-  );
+  const traceTerm = traceTermOf(row);
   return (
     <>
       {trace && <TraceDrawer term={trace} onClose={() => setTrace(null)} />}
+      <div className="dhead">
+        <span className="dtitle">Full record — every field, microscopic</span>
+        {traceTerm && (
+          <button className="dtoggle" style={{ borderColor: "var(--neon-line)", color: "var(--neon)" }}
+            onClick={(e) => { e.stopPropagation(); setTrace(traceTerm); }}>
+            Seed to sale history
+          </button>
+        )}
+        <button className="dtoggle" onClick={(e) => { e.stopPropagation(); setShowRaw(!showRaw); }}>
+          {showRaw ? "Readable view" : "Raw payload (audit)"}
+        </button>
+      </div>
+      {showRaw
+        ? <pre className="drawjson">{JSON.stringify(row, null, 2)}</pre>
+        : <>
+            {traceTerm && <SeedToSaleSummary term={traceTerm} />}
+            <TestingDates row={row} />
+            <ProductIdentity term={traceTerm} row={row} />
+            <DetailGrid obj={row} />
+          </>}
+    </>
+  );
+}
+
+/* Wrap a hand-built <tr> to make it drill down in place. The page keeps its own
+   cells; the row gains the same forensic panel every generic page has. */
+function DrillRow({ row, colCount, children }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <tr onClick={() => setOpen(!open)} style={{ cursor: "pointer" }}
+        title="Open the complete record, its certificate and its manifest">
+        {children}
+      </tr>
+      {open && (
+        <tr>
+          <td colSpan={colCount} className="detailcell"><ForensicPanel row={row} /></td>
+        </tr>
+      )}
+    </>
+  );
+}
+
+/* Certificate and manifest, reachable without expanding anything. The owner's
+   rule: a button, not an instruction to copy a reference. */
+function DocumentChips({ tag }) {
+  const [d, setD] = useState(undefined);
+  useEffect(() => {
+    let live = true;
+    if (!tag || !/^[A-Z0-9]{20,}$/i.test(String(tag).trim())) { setD(null); return; }
+    supabase.rpc("f_package_documents", { p_tag: String(tag).trim() })
+      .then(({ data }) => { if (live) setD(data ?? null); });
+    return () => { live = false; };
+  }, [tag]);
+  if (!d) return <span className="note">—</span>;
+  const coa = d.coa ?? [], man = d.manifests ?? [];
+  if (!coa.length && !man.length) return <span className="note">none held</span>;
+  return (
+    <span className="docchips" onClick={(e) => e.stopPropagation()}>
+      {coa.map((c) => (
+        <a key={c.document_id} className="docchip coa" href={c.url} target="_blank" rel="noreferrer"
+          title={`Certificate of Analysis${c.lab ? " — " + c.lab : ""}${c.tested_on ? ", tested " + String(c.tested_on).slice(0, 10) : ""}. Opens the real document: download, print or send.`}>
+          Certificate
+        </a>
+      ))}
+      {man.map((m) => (
+        <a key={m.manifest_number} className="docchip man" href={m.url} target="_blank" rel="noreferrer"
+          title={`Manifest ${m.manifest_number}. Opens the real document: download, print or send.`}>
+          Manifest {m.manifest_number}
+        </a>
+      ))}
+    </span>
+  );
+}
+
+function RawRow({ row, cols }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
       <tr onClick={() => setOpen(!open)} style={{ cursor: "pointer" }}>
         {cols.map((c) => <td key={c}>{cellView(c, row[c])}</td>)}
       </tr>
       {open && (
         <tr>
-          <td colSpan={cols.length} className="detailcell">
-            <div className="dhead">
-              <span className="dtitle">Full record — every field, microscopic</span>
-              {traceTerm && (
-                <button className="dtoggle" style={{ borderColor: "var(--neon-line)", color: "var(--neon)" }}
-                  onClick={(e) => { e.stopPropagation(); setTrace(traceTerm); }}>
-                  Seed to sale history
-                </button>
-              )}
-              <button className="dtoggle" onClick={(e) => { e.stopPropagation(); setShowRaw(!showRaw); }}>
-                {showRaw ? "Readable view" : "Raw payload (audit)"}
-              </button>
-            </div>
-            {showRaw
-              ? <pre className="drawjson">{JSON.stringify(row, null, 2)}</pre>
-              : <>
-                  {traceTerm && <SeedToSaleSummary term={traceTerm} />}
-                  <TestingDates row={row} />
-                  <ProductIdentity term={traceTerm} row={row} />
-                  <DetailGrid obj={row} />
-                </>}
-          </td>
+          <td colSpan={cols.length} className="detailcell"><ForensicPanel row={row} /></td>
         </tr>
       )}
     </>
@@ -3229,7 +3326,7 @@ function BatchList({ stream, origin, labState }) {
             <th>Harvest cut on</th><th>Dried in</th><th>Packaged on</th><th>Days held</th>
             <th>Quantity</th><th>Quantity held</th><th>Testing state</th><th>Went out</th><th>Came back</th>
             <th>Certificate expires</th><th>Where it is</th><th>Made by</th><th>Shipped to us by</th>
-            <th>Inbound manifest</th><th>Licence</th><th>Traceability</th>
+            <th>Inbound manifest</th><th>Licence</th><th>Traceability</th><th>Documents</th>
           </tr></thead>
           <tbody>
             {rows.map((r) => {
@@ -3238,7 +3335,7 @@ function BatchList({ stream, origin, labState }) {
                 ? Math.round((new Date(back) - new Date(out)) / 86400000)
                 : out ? Math.round((Date.now() - new Date(out)) / 86400000) : null;
               return (
-                <tr key={r.package_tag}>
+                <DrillRow key={r.package_tag} row={r} colCount={21}>
                   <td>{r.package_tag}</td>
                   <td>{r.item_name || "not recorded"}</td>
                   <td>{r.strain || "not recorded"}</td>
@@ -3260,7 +3357,8 @@ function BatchList({ stream, origin, labState }) {
                   <td>{r.inbound_manifest || "none"}</td>
                   <td>{r.license || "not recorded"}</td>
                   <td>{r.traceability}</td>
-                </tr>
+                  <td><DocumentChips tag={r.package_tag} /></td>
+                </DrillRow>
               );
             })}
           </tbody>
@@ -5051,7 +5149,6 @@ function PlannerScreen({ go, session }) {
             })}
           </div>
           )}
-          )}
           {detail && (
             <div className="vedrawerwrap" onClick={() => setDetail(null)}>
               <div className="vedrawer" onClick={(e) => e.stopPropagation()}>
@@ -5692,6 +5789,452 @@ function MetrcScanSchedule() {
       </section>
 
       <footer>Times are owner-set and editable — no code change. Measured 6 August 2026.</footer>
+    </div>
+  );
+}
+
+/* ---------- Settings → Metrc Report Imports (administrators only) ----------
+   Metrc has no reports API. Nine of the figures this business runs on — moisture
+   loss, wholesale price, plant waste — exist only in a report you export by hand.
+   This page names every one of them, says what each adds that the API cannot give,
+   when it is owed, and takes the upload. Nothing is mapped by the person uploading:
+   tg_detect_report identifies the file from its column names, because Metrc appends
+   (1), (2), (3) to filenames and people rename them. */
+const TGRI_CSS = `
+.tgss .up{border:1px dashed var(--ln);border-radius:3px;background:var(--pnl);padding:28px 24px;
+  text-align:center;transition:border-color .15s,background .15s}
+.tgss .up.hot{border-color:var(--neon);background:#0F1411}
+.tgss .up input{display:none}
+.tgss .up label{display:inline-block;font-family:var(--mono);font-size:12px;letter-spacing:.08em;
+  text-transform:uppercase;color:var(--g);background:var(--neon);padding:11px 22px;border-radius:2px;
+  cursor:pointer;font-weight:600}
+.tgss .up p{color:var(--dim);font-size:13.5px;margin:14px 0 0}
+.tgss .req{display:grid;gap:1px;background:var(--ln);border:1px solid var(--ln);border-radius:3px;overflow:hidden}
+.tgss .req .r{background:var(--pnl);padding:16px 20px;display:grid;
+  grid-template-columns:26px 1fr auto;gap:16px;align-items:start}
+.tgss .req .r.crit{background:#160B0A;box-shadow:inset 3px 0 0 var(--red)}
+.tgss .req .r.ok{box-shadow:inset 3px 0 0 var(--neon)}
+.tgss .req .n{font-family:var(--mono);font-size:12px;color:var(--faint);padding-top:2px;
+  font-variant-numeric:tabular-nums}
+.tgss .req b{display:block;font-size:14.5px;font-weight:600;margin-bottom:5px}
+.tgss .req .why{color:var(--dim);font-size:13px;margin:0;max-width:74ch}
+.tgss .req .path{font-family:var(--mono);font-size:11px;color:var(--faint);margin:8px 0 0;
+  letter-spacing:.02em}
+.tgss .req .st{text-align:right;white-space:nowrap}
+.tgss .msg{border:1px solid var(--ln);border-left:2px solid var(--neon);border-radius:3px;
+  background:var(--pnl);padding:16px 20px;font-size:14px;color:var(--dim)}
+.tgss .msg.bad{border-left-color:var(--red)}
+.tgss .msg b{color:var(--ink);display:block;margin-bottom:5px;font-size:14.5px}
+.tgss .who{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
+.tgss .who span{font-family:var(--mono);font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;
+  border:1px solid var(--ln);color:var(--dim);padding:5px 11px;border-radius:2px}
+`;
+
+/* Metrc exports CSV with quoted fields that can contain commas and newlines. */
+function parseCsv(text) {
+  const rows = [];
+  let row = [], field = "", quoted = false;
+  const s = text.charCodeAt(0) === 0xfeff ? text.slice(1) : text;
+  for (let i = 0; i < s.length; i += 1) {
+    const c = s[i];
+    if (quoted) {
+      if (c === '"') { if (s[i + 1] === '"') { field += '"'; i += 1; } else quoted = false; }
+      else field += c;
+    } else if (c === '"') quoted = true;
+    else if (c === ",") { row.push(field); field = ""; }
+    else if (c === "\n") { row.push(field); rows.push(row); row = []; field = ""; }
+    else if (c !== "\r") field += c;
+  }
+  if (field !== "" || row.length) { row.push(field); rows.push(row); }
+  return rows.filter((r) => r.some((v) => v.trim() !== ""));
+}
+
+/* Metrc puts a licence banner and blank lines above the real header. The header is
+   the first row with three or more non-empty cells and no duplicate names. */
+function toObjects(grid) {
+  let h = 0;
+  for (let i = 0; i < Math.min(grid.length, 25); i += 1) {
+    const cells = grid[i].map((c) => c.trim()).filter(Boolean);
+    if (cells.length >= 3 && new Set(cells).size === cells.length) { h = i; break; }
+  }
+  const head = grid[h].map((c) => c.trim().replace(/\s+/g, " "));
+  return grid.slice(h + 1)
+    .map((r) => Object.fromEntries(head.map((k, i) => [k, (r[i] ?? "").trim()]).filter(([k]) => k)))
+    .filter((o) => Object.values(o).some((v) => v !== ""));
+}
+
+function MetrcReportImports({ session }) {
+  const [due, setDue] = useState(null);
+  const [types, setTypes] = useState(null);
+  const [recent, setRecent] = useState([]);
+  const [queue, setQueue] = useState([]);
+  const [coverage, setCoverage] = useState([]);
+  const [pending, setPending] = useState(null);
+  const [msg, setMsg] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [hot, setHot] = useState(false);
+
+  const load = useCallback(async () => {
+    const [d, t, r, q, c] = await Promise.all([
+      supabase.from("v_report_upload_due").select("*"),
+      supabase.from("metrc_report_types").select("*").order("upload_priority"),
+      supabase.from("metrc_report_imports").select("*").order("imported_at", { ascending: false }).limit(20),
+      supabase.from("v_agentmapper_queue").select("*"),
+      supabase.from("v_report_coverage").select("*"),
+    ]);
+    setDue(d.data ?? []); setTypes(t.data ?? []); setRecent(r.data ?? []);
+    setQueue(q.data ?? []); setCoverage(c.data ?? []);
+  }, []);
+  useEffect(() => { load(); }, [load]);
+
+  /* Nothing is written until the person uploading has seen what it would do.
+     The preview says how many rows are new and how many already exist and would
+     be updated; only then is there a choice to make. */
+  async function ingest(files) {
+    setBusy(true); setMsg(null); setPending(null);
+    const staged = [];
+    for (const f of Array.from(files)) {
+      try {
+        const text = await f.text();
+        const rows = toObjects(parseCsv(text));
+        if (!rows.length) { staged.push({ ok: false, file: f.name, error: "No rows found in the file." }); continue; }
+        /* Metrc stamps the licence and the as-of date in the banner above the
+           header. Read them rather than asking for something the file already says. */
+        const banner = text.slice(0, 3000);
+        const lic = (`${f.name} ${banner}`.match(/\bM[CP]\d{6}\b/) ?? [null])[0];
+        const dm = banner.match(/\b(\d{1,2})\/(\d{1,2})\/(\d{4})\b/);
+        const asOf = dm ? `${dm[3]}-${String(dm[1]).padStart(2, "0")}-${String(dm[2]).padStart(2, "0")}` : null;
+        const { data, error } = await supabase.rpc("tg_import_preview", {
+          p_rows: rows, p_file_name: f.name,
+        });
+        if (error) { staged.push({ ok: false, file: f.name, error: error.message }); continue; }
+        staged.push({ ...data, file: f.name, rows, licence: lic, as_of: asOf });
+      } catch (e) {
+        staged.push({ ok: false, file: f.name, error: String(e.message ?? e) });
+      }
+    }
+    setBusy(false);
+    if (staged.every((s) => !s.ok)) setMsg(staged);
+    else setPending(staged);
+  }
+
+  async function commit(mode) {
+    setBusy(true);
+    const results = [];
+    for (const s of pending ?? []) {
+      if (!s.ok) { results.push(s); continue; }
+      const { data, error } = await supabase.rpc("tg_import_report", {
+        p_rows: s.rows, p_licence: s.licence, p_as_of: s.as_of,
+        p_file_name: s.file, p_mode: mode,
+      });
+      results.push(error ? { ok: false, file: s.file, error: error.message } : { ...data, file: s.file });
+    }
+    setMsg(results); setPending(null); setBusy(false); load();
+  }
+
+  const monthly = (due ?? []).filter((r) => (r.cadence ?? "").startsWith("Monthly"));
+  const outstanding = monthly.filter((r) => !r.received).length;
+  const other = (due ?? []).filter((r) => !(r.cadence ?? "").startsWith("Monthly"));
+  const onDemand = (types ?? []).filter((t) => (t.cadence ?? "").startsWith("On demand"));
+
+  const Row = ({ r, n }) => (
+    <div className={`r ${r.received ? "ok" : (r.severity === "critical" ? "crit" : "")}`}>
+      <div className="n">{n}</div>
+      <div>
+        <b>{r.title} — {r.licence}</b>
+        <p className="why">{r.why_it_matters}</p>
+        <p className="path">In Metrc: {r.menu_path} · covers {r.period_label}</p>
+      </div>
+      <div className="st">
+        <span className={`pill ${r.received ? "on" : "no"}`}>{r.received ? "received" : "not yet"}</span>
+        <p className="path" style={{ marginTop: 8 }}>{r.upload_status}</p>
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="tgss">
+      <style>{TGSS_CSS}{TGRI_CSS}</style>
+      <header>
+        <p className="eyebrow">Twisted Growers · Metrc integration · administrators only</p>
+        <h1>Metrc report imports</h1>
+        <p className="sub">Metrc publishes no reports API — nine of the figures this business runs on exist
+          only inside a report you export by hand. Drop any Metrc export below and it maps itself. You never
+          choose a type: the file is recognised from its column names, so a rename or a “(3)” makes no
+          difference.</p>
+      </header>
+
+      <section className="headline">
+        <div className={outstanding ? "stat was" : "stat now"}>
+          <p className="k">Owed this month</p>
+          <p className="v">{outstanding}</p>
+          <p className="n">{outstanding ? "Uploads not yet received" : "Everything required has arrived"}</p>
+        </div>
+        <div className="stat now"><p className="k">Reports mapped</p>
+          <p className="v">{(types ?? []).length}</p>
+          <p className="n">Recognised automatically on upload</p></div>
+        <div className="stat cut"><p className="k">Monthly uploads needed</p>
+          <p className="v">{monthly.length}</p>
+          <p className="n">Deliberately the smallest set that works</p></div>
+      </section>
+
+      <section>
+        <h2>Upload</h2>
+        <p className="lede">Export from Metrc as <strong>CSV</strong>. Several files at once is fine.</p>
+        <div className={`up ${hot ? "hot" : ""}`}
+          onDragOver={(e) => { e.preventDefault(); setHot(true); }}
+          onDragLeave={() => setHot(false)}
+          onDrop={(e) => { e.preventDefault(); setHot(false); ingest(e.dataTransfer.files); }}>
+          <input id="tgri-file" type="file" accept=".csv,text/csv" multiple disabled={busy}
+            onChange={(e) => { ingest(e.target.files); e.target.value = ""; }} />
+          <label htmlFor="tgri-file">{busy ? "Reading…" : "Choose files"}</label>
+          <p>or drag them here</p>
+        </div>
+        <p className="note" style={{ marginTop: 18 }}>
+          <strong>Tick every column before you export.</strong> Metrc exports only the columns visible in
+          the grid — a file exported with columns hidden arrives with those figures missing entirely, and
+          Moisture Loss is hidden by default. Use the column selector above the table and turn everything
+          on. If a file is not recognised, this page names the report it came closest to and lists exactly
+          which columns were absent.</p>
+        {/* Nothing has been written yet. This is the last point at which the
+            person uploading can see what the file would change. */}
+        {pending ? (
+          <div style={{ display: "grid", gap: 10, marginTop: 18 }}>
+            {pending.map((p, i) => (
+              <div key={i} className={`msg ${p.ok ? "" : "bad"}`}>
+                <b>{p.file}</b>
+                {p.ok ? (
+                  <>
+                    Recognised as <strong>{p.title}</strong>. {(p.rows_in_file ?? 0).toLocaleString()} rows —{" "}
+                    <strong>{(p.brand_new ?? 0).toLocaleString()} new</strong>
+                    {p.already_held > 0 && (
+                      <>, <strong style={{ color: "#f5c542" }}>
+                        {p.already_held.toLocaleString()} already held and would be overwritten
+                      </strong></>
+                    )}
+                    .{p.as_of ? ` Covers up to ${p.as_of}.` : ""}
+                    <div className="pidwhy" style={{ marginTop: 6 }}>{p.note}</div>
+                  </>
+                ) : p.error}
+              </div>
+            ))}
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+              <button className="vetab" disabled={busy} onClick={() => commit("new_only")}>
+                Add new rows only — change nothing already held
+              </button>
+              <button className="vetab" disabled={busy} onClick={() => commit("update")}>
+                Add new and update what is held
+              </button>
+              <button className="vetab" disabled={busy} onClick={() => setPending(null)}>
+                Cancel
+              </button>
+            </div>
+            <p className="note">
+              <strong>Either choice is safe.</strong> A complete copy of every affected row is saved before
+              anything is written, and any import can be put back in one click from the list below.</p>
+          </div>
+        ) : null}
+
+        {msg ? (
+          <div style={{ display: "grid", gap: 10, marginTop: 18 }}>
+            {msg.map((m, i) => (
+              <div key={i} className={`msg ${m.ok ? "" : "bad"}`}>
+                <b>{m.file}</b>
+                {m.ok
+                  ? `Recognised as ${m.title}. ${(m.rows_added ?? 0).toLocaleString()} rows added, `
+                    + `${(m.rows_updated ?? 0).toLocaleString()} updated, `
+                    + `${(m.rows_backed_up ?? 0).toLocaleString()} backed up first. Landed in ${m.target_table}.`
+                  : m.error}
+              </div>
+            ))}
+          </div>
+        ) : null}
+      </section>
+
+      <hr className="rule" />
+
+      <section>
+        <h2>Required every month</h2>
+        <p className="lede">Only what cannot be obtained any other way. Everything the API can already
+          deliver has been kept off this list on purpose — there is no value in uploading it by hand.</p>
+        <div className="req">{monthly.map((r, i) => <Row key={r.report_key + r.licence} r={r} n={i + 1} />)}</div>
+        <p className="note" style={{ marginTop: 18 }}>
+          <strong>Three files, once a month.</strong> Harvests (Inactive) carries Moisture Loss, which appears
+          in no API endpoint and is the only way to reconcile wet weight to dry — without it the 380 lb
+          monthly target cannot be verified. Packages-Transferred carries wholesale price; that endpoint
+          returns 401, and manufacturing alone holds 12,675 of the 13,246 priced packages.</p>
+      </section>
+
+      <section>
+        <h2>Less often</h2>
+        <p className="lede">Real data the API does not hold, but not month-end blockers.</p>
+        <div className="req">{other.map((r, i) => <Row key={r.report_key + r.licence} r={r} n={i + 1} />)}</div>
+      </section>
+
+      <section>
+        <h2>Recognised, but do not upload these</h2>
+        <p className="lede">The API already delivers all of it. These are mapped so that if one is ever
+          uploaded — to backfill history, or to check the sync independently — it lands correctly rather
+          than being rejected.</p>
+        <div className="scroll">
+          <table>
+            <thead><tr><th>Report</th><th>Why it is not needed</th><th>Lands in</th></tr></thead>
+            <tbody>
+              {onDemand.map((t) => (
+                <tr className="off" key={t.report_key}>
+                  <td>{t.title}</td><td>{t.why_it_matters}</td><td className="times">{t.target_table}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <hr className="rule" />
+
+      <section>
+        <h2>Who is told</h2>
+        <p className="lede">An outstanding upload raises a critical alert on the executive dashboard the day
+          it falls due, not once it is late. It cannot be dismissed — it clears when the file arrives.</p>
+        <div className="who">
+          <span>Owner</span><span>Executive</span><span>CEO</span><span>CFO</span><span>COO</span><span>Admin</span>
+        </div>
+        <p className="note" style={{ marginTop: 16 }}>
+          <strong>CEO, CFO and COO are pre-registered.</strong> Those roles do not exist as separate accounts
+          yet — everyone in that group currently signs in as executive and sees the alert that way. The
+          moment the roles are created the alert routes to them with no code change.</p>
+      </section>
+
+      {queue.length ? (
+        <>
+          <hr className="rule" />
+          <section>
+            <h2>AgentMapper</h2>
+            <p className="lede">A file nobody has taught the platform to read does not fail quietly. It is
+              captured with its exact column list and handed to the Metrc &amp; Compliance agent, which drafts
+              the mapping. You approve it, and the table and the mapping come into being together — no code
+              change, no deploy.</p>
+            <div className="req">
+              {queue.map((q) => (
+                <div className={`r ${q.state === "proposed" ? "" : "crit"}`} key={q.id}>
+                  <div className="n">{q.times_seen}×</div>
+                  <div>
+                    <b>{q.proposed_title ?? q.file_name ?? "Unrecognised file"}</b>
+                    <p className="why">{q.what_happens_next}
+                      {q.state === "proposed"
+                        ? ` — lands in ${q.proposed_table}, ${q.proposed_column_count} columns mapped, identified by ${q.proposed_signature_count}.`
+                        : ""}
+                      {q.state === "new" && q.closest_report
+                        ? ` Closest known report is ${q.closest_report}, missing ${(q.closest_missing ?? []).join(", ")}.`
+                        : ""}
+                    </p>
+                    <p className="path">{(q.row_count ?? 0).toLocaleString()} rows · columns in the file: {(q.columns ?? []).join(", ")}</p>
+                  </div>
+                  <div className="st">
+                    {q.state === "proposed" ? (
+                      <button className="vetab" disabled={busy}
+                        onClick={async () => {
+                          setBusy(true);
+                          const { data } = await supabase.rpc("tg_agentmapper_approve", { p_id: q.id, p_note: null });
+                          setMsg([{ ...(data ?? {}), file: q.file_name ?? "mapping", error: data?.error }]);
+                          setBusy(false); load();
+                        }}>Approve mapping</button>
+                    ) : <span className="pill no">{q.state}</span>}
+                  </div>
+                </div>
+              ))}
+            </div>
+            <p className="note" style={{ marginTop: 18 }}>
+              <strong>Nothing is created until you approve it.</strong> A proposal is rejected automatically
+              if it names a column the uploaded file did not contain, or if the file has a grouped two-row
+              header the importer cannot read unambiguously — in that case it needs code, and saying so is
+              better than approving a guess.</p>
+          </section>
+        </>
+      ) : null}
+
+      <hr className="rule" />
+
+      <section>
+        <h2>What to export next</h2>
+        <p className="lede">You never have to remember a date range. This is measured from the data actually
+          held — not from what anyone meant to export — so a short export or a skipped month shows up as a
+          gap instead of passing unnoticed.</p>
+        <div className="scroll">
+          <table>
+            <thead><tr>
+              <th>Report</th><th>Licence</th><th className="num">Rows held</th>
+              <th>Covers</th><th>Status</th><th>What to export</th>
+            </tr></thead>
+            <tbody>
+              {coverage.map((c) => (
+                <tr key={c.report_key + c.required_for_licence}
+                  className={c.coverage === "Covered" ? "" : "off"}>
+                  <td>{c.title}</td>
+                  <td className="times">{c.required_for_licence}</td>
+                  <td className="num">{(c.rows_held ?? 0).toLocaleString()}</td>
+                  <td className="times">
+                    {c.first_event ? `${c.first_event} → ${c.last_event}` : "—"}
+                  </td>
+                  <td>
+                    <span className={`pill ${c.coverage === "Covered" ? "on" : "no"}`}>
+                      {c.coverage === "Covered" ? "covered" : "gap"}
+                    </span>
+                  </td>
+                  <td>{c.what_to_export}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <p className="note" style={{ marginTop: 18 }}>
+          <strong>Overlapping a previous upload is safe.</strong> Every row is matched on its own identity,
+          so re-importing one corrects it — it never duplicates. Harvests Inactive has been uploaded eight
+          times and still holds exactly 350 harvests. That is why each range above starts a fortnight before
+          the last record held: a generous overlap costs nothing and covers anything entered in Metrc late.</p>
+      </section>
+
+      <section>
+        <h2>Recent uploads</h2>
+        <div className="scroll">
+          <table>
+            <thead><tr>
+              <th>File</th><th>Recognised as</th><th className="num">Rows</th>
+              <th className="num">Added</th><th className="num">Updated</th>
+              <th>Covers</th><th>Uploaded</th><th>Put back</th>
+            </tr></thead>
+            <tbody>
+              {recent.length ? recent.map((r) => (
+                <tr key={r.id} className={r.undone_at ? "off" : ""}>
+                  <td>{r.file_name ?? "—"}</td><td>{r.report_type}</td>
+                  <td className="num">{(r.row_count ?? 0).toLocaleString()}</td>
+                  <td className="num">{r.rows_new ?? "—"}</td>
+                  <td className="num">{r.rows_changed ?? "—"}</td>
+                  <td className="times">{r.as_of_date ?? r.period_start ?? "—"}</td>
+                  <td className="times">{r.imported_at ? new Date(r.imported_at).toLocaleDateString() : "—"}</td>
+                  <td>
+                    {r.undone_at ? (
+                      <span className="pill no">undone</span>
+                    ) : (
+                      <button className="vetab" disabled={busy}
+                        onClick={async () => {
+                          setBusy(true);
+                          const { data } = await supabase.rpc("tg_import_undo", { p_id: r.id, p_note: null });
+                          setMsg([{ ...(data ?? {}), file: r.file_name ?? "import", error: data?.error }]);
+                          setBusy(false); load();
+                        }}>Undo this import</button>
+                    )}
+                  </td>
+                </tr>
+              )) : (
+                <tr className="off"><td colSpan={8}>Nothing uploaded yet.</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <footer>Detection is driven by rows in metrc_report_types, not code. Signed in as {session?.user?.email}.</footer>
     </div>
   );
 }
@@ -7029,6 +7572,7 @@ export default function App() {
 
   const special = {
     v_metrc_scan_settings: <MetrcScanSchedule />,
+    metrc_report_imports: <MetrcReportImports session={session} />,
     tower: <ControlTower go={setView} session={session} />,
     fg_inventory: <FinishedGoods session={session} />,
     alerts: <AlertsScreen go={setView} />,
