@@ -1,0 +1,49 @@
+-- ============================================================================
+-- ROLE CLEARANCE — what a staff account can actually see
+--
+-- FOUND BEFORE ONBOARDING, which is the only reason it matters. The owner asked whether the
+-- platform was ready for a non-owner user before creating 15 staff accounts. It was not.
+--
+-- A `staff` account could see 38 of the 39 sensitive pages: payroll, wages, valuation rates,
+-- cost inputs, cash, overhead and licences. So did dept_head, planner and readonly. Onboarding
+-- 15 people would have handed every one of them the company's margin and payroll data on their
+-- first login.
+--
+-- THE CAUSE IS A DEFAULT, not an oversight. useNav does this:
+--     hidden = rows where visible = false
+--     shown  = every enabled page NOT in hidden
+-- It is a DENY-LIST. Anything unconfigured is SHOWN. With 1,319 rows spread across 11 role
+-- names it looked configured, and was not.
+--
+-- A SCHEMA CONTRADICTION MADE IT INVISIBLE. Two role vocabularies exist and share only two
+-- values:
+--     app_role ENUM (what app_users.role accepts):  owner, executive, planner, dept_head,
+--                                                   staff, readonly, cfo
+--     app_roles table (which carries the ranks):    guest, limited, member, manager,
+--                                                   executive, owner
+-- So 5 of the 7 real roles had no rank, and 626 nav_role_visibility rows configure roles that
+-- NO USER CAN HOLD. Those 626 rows are dead - they can never match - which is why the config
+-- looked far more complete than it was. Left in place deliberately rather than deleted: whether
+-- to add those 4 to the enum or drop them is an architecture decision, not a cleanup.
+--
+-- WHAT WAS BUILT
+--   app_roles       - the 5 missing real roles given ranks. The ORDERING IS A JUDGEMENT
+--                     (cfo 85, dept_head 60, planner 50, staff 30, readonly 20) and is marked
+--                     for owner confirmation. Rule A5: never assume business practice.
+--   sensitive_page_policy - 39 pages classified from their own surface and view_key, each with
+--                     a written reason. 26 Money, 10 People and pay, 3 Licences.
+--   nav_role_visibility  - explicit visible=false rows generated for every role below a page's
+--                     clearance. NO front-end change required, which matters because
+--                     app/web/src belongs to another agent.
+--   v_role_clearance_breaches - the guard. Two breach types: a sensitive page with no policy
+--                     row, and a role able to see a page above its clearance.
+--   tg_check_role_clearance() - raises a critical finding. Scheduled 06:55 UTC.
+--
+-- RESULT
+--   staff      38 of 39 sensitive pages  ->  0
+--   dept_head  38  ->  0        planner  38  ->  0        readonly  38  ->  0
+--   cfo        38  ->  26  (Money only, which is the point of the role)
+--   executive  38  ->  38      owner     39  ->  39
+--
+-- Run BEFORE onboarding anyone:  select * from v_role_clearance_breaches;   -- expect zero rows
+-- ============================================================================
