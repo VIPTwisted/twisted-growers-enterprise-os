@@ -6779,7 +6779,7 @@ const TELL_YOUR_AI = [
   "2. Install Claude Code:  npm install -g @anthropic-ai/claude-code",
   "3. Run  claude  in a terminal, then type /login and sign in with my Claude account.",
   "4. Put the bridge folder I was given somewhere sensible, then double-click start-bridge.cmd inside it.",
-  "5. Check it worked by opening http://127.0.0.1:8765/health in a browser. It should say ok true.",
+  "5. Check it worked: the AI chip at the top of this page turns green within 30 seconds. Opening http://127.0.0.1:8765/health in its own browser tab also works — but a check made from inside this page does not, because Chrome will not let a website reach your own computer without permission. The green chip is the real test.",
   "6. Make it start automatically: press Windows+R, type shell:startup, and put a shortcut to start-bridge-hidden.vbs in that folder.",
   "",
   "I am not technical, so please keep it plain, tell me exactly what to type, and tell me what I should see after each step so I know it worked.",
@@ -7384,69 +7384,121 @@ function DeptDashboard({ viewKey, go, nav, deep }) {
   );
 }
 
-/* The bridge listens on the machine the browser is running on. Overridable
-   for anyone who moved the port, but never a database round trip. */
-const BRIDGE_URL = "http://127.0.0.1:8765";
+/* THE CHIP NO LONGER CALLS THE COMPUTER. IT CANNOT.
+
+   Yesterday this fetched http://127.0.0.1:8765/health directly, on the correct
+   reasoning that 127.0.0.1 is a potentially-trustworthy origin and exempt from
+   mixed-content blocking. That reasoning is still true and it is no longer
+   sufficient.
+
+   Chrome 151 treats a public https page reaching a LOCAL address as a user
+   PERMISSION - `local-network-access`, alongside camera and microphone. On the
+   owner's machine it reads DENIED, and once denied Chrome will not re-prompt.
+   Proved in his own browser on 7 Aug 2026: a fetch with `mode:'no-cors'`, which
+   bypasses CORS entirely, still threw `TypeError: Failed to fetch`, and the
+   bridge's own log showed NOTHING arrived. The request never left the browser.
+
+   So the chip read "AI offline" for hours while the bridge answered a question
+   in nine seconds from a terminal on the same machine. Two tools, same port,
+   same request, opposite answers, and nothing in the failure said which.
+
+   The bridge now reports in every 30 seconds through the bridge-queue function,
+   and this reads that row. A row cannot be blocked by a browser permission.
+
+   ⚠ IT SAYS "REPORTED IN", NOT "REACHABLE FROM HERE". That is the honest claim,
+   and it is also now the one that matters: the browser does not need to reach
+   the bridge any more. Questions go into ai_bridge_jobs and the desktop comes
+   and gets them. */
+const BRIDGE_STALE_SECONDS = 90;
 
 function BridgeChip() {
   const [st, setSt] = useState({ state: "checking" });
   const [open, setOpen] = useState(false);
+
   const check = async () => {
-    /* The old comment here said "the browser cannot call http://127.0.0.1 from
-       an https page, so the bridge reports in to the database and we read that
-       instead." That is FALSE, and it was expensive.
-
-       Browsers treat 127.0.0.1 as a potentially-trustworthy origin and exempt it
-       from mixed-content blocking. Verified 7 Aug 2026 from the deployed page:
-       fetch('http://127.0.0.1:8765/health') returned {ok:true, service:
-       'tg-claude-bridge'}.
-
-       Because of that false belief the bridge was routed through ai_bridge_jobs
-       in the database, which meant it needed a database credential - and it
-       authenticated with the PUBLISHABLE key that ships in every visitor's
-       browser. Closing the anonymous-access hole therefore killed the bridge.
-       Asking it directly needs no database access at all, so the hole stays
-       shut and the chip still works. */
-    try {
-      const r = await fetch(`${BRIDGE_URL}/health`, { signal: AbortSignal.timeout(2500) });
-      if (!r.ok) throw new Error(`bridge answered ${r.status}`);
-      const j = await r.json();
-      setSt({ state: "up", machine: j.service ?? "this computer", local: true });
-    } catch (e) {
-      /* Not running, or running on a different machine from this browser. Both
-         are "not reachable from here", and the popup says which to try. */
-      setSt({ state: "down", err: String(e?.message ?? e).slice(0, 90) });
+    const { data, error } = await supabase
+      .from("v_bridge_status")
+      .select("machine, online, seconds_since, verdict, waiting, in_progress")
+      .order("last_seen", { ascending: false })
+      .limit(1);
+    if (error) {
+      /* A3: a failed lookup is not the same as a stopped bridge, and must not
+         be dressed up as one. */
+      setSt({ state: "unknown", err: String(error.message).slice(0, 120) });
+      return;
     }
+    const row = data?.[0];
+    if (!row) { setSt({ state: "never" }); return; }
+    setSt({
+      state: row.online ? "up" : "down",
+      machine: row.machine,
+      ago: row.seconds_since,
+      verdict: row.verdict,
+      waiting: row.waiting,
+      busy: row.in_progress,
+    });
   };
+
   useEffect(() => {
     check();
     const t = setInterval(check, 25000);
     return () => clearInterval(t);
   }, []);
-  const start = () => { window.location.href = "tgbridge://start"; setTimeout(check, 6000); setTimeout(check, 14000); };
+
+  /* The desktop registers tgbridge:// so this starts it without a terminal. It
+     is the one thing here that still touches the local machine, and it is a
+     navigation rather than a fetch - a different mechanism, not covered by the
+     local-network permission. If it does nothing, the shortcut is the fallback. */
+  const start = () => {
+    window.location.href = "tgbridge://start";
+    setTimeout(check, 6000);
+    setTimeout(check, 14000);
+  };
+
+  const label =
+    st.state === "up" ? "AI ready"
+    : st.state === "checking" ? "Checking…"
+    : st.state === "unknown" ? "AI status unknown"
+    : "AI offline";
+
   return (
     <div className="bchipwrap">
       <button className={`bchip ${st.state}`} onClick={() => setOpen((v) => !v)}
-        title={st.state === "up" ? `Bridge online on ${st.machine}` : "The bridge is not reporting in"}>
+        title={st.verdict ?? "Whether a desktop bridge has reported in"}>
         <span className="bdot" />
-        {st.state === "up" ? "AI ready" : st.state === "checking" ? "Checking…" : "AI offline"}
+        {label}
       </button>
       {open && (
         <div className={`bpop ${st.state === "up" ? "" : "warn"}`} onMouseLeave={() => setOpen(false)}>
           {st.state === "up" ? (
             <>
-              <b>Bridge online — {st.machine}</b>
-              <p>Questions in the assistant are researched by Claude on that computer, reading the live records. It costs nothing beyond your own subscription.</p>
+              <b>Answering on {st.machine}</b>
+              <p>Questions you type are researched by Claude on that computer, reading the live records. It costs nothing beyond the subscription you already pay for.</p>
+              {st.busy > 0 && <p>Working on {st.busy} question{st.busy === 1 ? "" : "s"} right now.</p>}
+              {st.waiting > 0 && <p>{st.waiting} waiting to be picked up.</p>}
+              <button className="btn" onClick={check}>Re-check</button>
+            </>
+          ) : st.state === "unknown" ? (
+            <>
+              <b>Cannot tell</b>
+              <p>The bridge may be running perfectly — this is a problem reading its status, not a report that it has stopped. {st.err}</p>
+              <button className="btn" onClick={check}>Try again</button>
+            </>
+          ) : st.state === "never" ? (
+            <>
+              <b>No bridge has ever reported in</b>
+              <p>Nothing has been set up on any computer yet. See bridge/SETUP.md in the repository.</p>
               <button className="btn" onClick={check}>Re-check</button>
             </>
           ) : (
             <>
-              <b>The bridge is not reporting in</b>
+              <b>{st.verdict ?? "The bridge is not reporting in"}</b>
               <p>
-                The assistant still answers from the database, but nothing gets researched and written up.
-                {st.ago ? ` Last seen ${Math.round(st.ago / 60)} minutes ago on ${st.machine}.` : ""}
+                The assistant still answers from the database, and every report, dashboard and
+                suggestion still works. What stops is the free-form research.
               </p>
-              <p>Start it with the <b>TG OS AI Bridge</b> button on your desktop, or click below.</p>
+              <p>Start it with the <b>TG OS AI Bridge</b> shortcut on that computer, or click below.</p>
+              {st.waiting > 0 && <p>{st.waiting} question{st.waiting === 1 ? "" : "s"} waiting — they will be answered as soon as it starts.</p>}
               <button className="btn primary" onClick={start}>Start it now</button>
               <button className="btn" onClick={check}>Re-check</button>
             </>
@@ -7460,14 +7512,21 @@ function BridgeChip() {
 function WelcomeBridge({ onDone }) {
   const [ok, setOk] = useState(null);
   const [step, setStep] = useState(0);
+  /* Same reason as BridgeChip: Chrome 151 blocks a public https page from
+     reaching a local address behind the `local-network-access` permission, so a
+     fetch to 127.0.0.1 here would tell someone setting the bridge up for the
+     first time that it had failed when it had not — the worst possible moment
+     to be wrong. Read the heartbeat it writes instead; that is the thing the
+     platform actually depends on. */
   const check = async () => {
     setOk("checking");
-    try {
-      const r = await fetch("http://127.0.0.1:8765/health", { signal: AbortSignal.timeout(4000) });
-      setOk(r.ok ? "up" : "down");
-    } catch {
-      setOk("down");
-    }
+    const { data, error } = await supabase
+      .from("v_bridge_status")
+      .select("online")
+      .order("last_seen", { ascending: false })
+      .limit(1);
+    if (error) { setOk("unknown"); return; }
+    setOk(data?.[0]?.online ? "up" : "down");
   };
   useEffect(() => { check(); }, []);
   const STEPS = [

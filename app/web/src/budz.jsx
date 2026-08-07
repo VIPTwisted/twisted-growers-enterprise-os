@@ -1418,48 +1418,80 @@ export function BudzScreen({ go }) {
       const stamp = Date.now();
       setLog((l) => [...l, { who: "budz", text: a.headline, rows: facts, stamp, pending: true }]);
 
-      // 1. The desktop bridge: real Claude Code on this machine, on the owner's own
-      //    subscription. Free, and it can read the project as well as the database.
-      /* Asked DIRECTLY, not through the database.
+      /* ── 1. The desktop bridge ────────────────────────────────────────────
+         WHY THIS GOES THROUGH THE DATABASE AND NOT STRAIGHT TO 127.0.0.1.
 
-         This used to write a row into ai_bridge_jobs and poll it for up to 210
-         seconds, because of a belief - written in a comment in App.jsx - that a
-         browser cannot call http://127.0.0.1 from an https page. That is false:
-         127.0.0.1 is a potentially-trustworthy origin and is exempt from
-         mixed-content blocking. Verified 7 Aug 2026 from the deployed site.
+         It used to fetch http://127.0.0.1:8765/ask directly. That was correct
+         reasoning and it is now wrong in practice: Chrome 151 treats a public
+         https page reaching a local address as a USER PERMISSION -
+         `local-network-access`, alongside camera and microphone - and on the
+         owner's machine it reads DENIED. Once denied Chrome does not re-prompt.
 
-         The cost of that belief was real. Routing through the database meant the
-         bridge needed a database credential, and it used the PUBLISHABLE key
-         that ships in every visitor's browser. When the anonymous-access hole
-         was closed the bridge died with it. Asking the bridge directly needs no
-         database access at all, so the hole stays shut and this works.
+         Proved in his own browser, 7 Aug 2026: a fetch with `mode:'no-cors'`,
+         which bypasses CORS entirely, still threw `TypeError: Failed to fetch`,
+         and the bridge's log showed NOTHING arrived. The request never left the
+         browser. No header, allow-list or CORS change on the bridge side could
+         have fixed that, and a browser setting is not something this platform
+         can depend on - a Chrome update can revoke it again tomorrow.
 
-         It is also far better behaviour: one request, an answer or a clear
-         error, instead of a 210-second poll that fails silently. */
+         So the direction is reversed. The question goes into ai_bridge_jobs,
+         which a signed-in owner is already permitted to write, and the bridge on
+         the desktop comes and gets it. NOTHING LOCAL IS CALLED, so no browser
+         has a vote.
+
+         The old objection to this design was that it needed a database
+         credential and used the PUBLISHABLE key that ships in every visitor's
+         browser - so closing the anonymous hole killed it. That objection does
+         not apply here: this runs as a SIGNED-IN user with a real session, under
+         the existing `abj_own` policy, and the bridge writes back through an
+         edge function authenticated with the token it already has. Neither side
+         touches anonymous access. Measured end to end at 11 seconds. */
       if (cfg.bridge_enabled !== false) {
         try {
-          const br = await fetch(`${BRIDGE_URL}/ask`, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "x-tg-token": cfg.bridge_token ?? "",
-            },
-            body: JSON.stringify({
+          const { data: u } = await supabase.auth.getUser();
+          const uid = u?.user?.id;
+          if (!uid) throw new Error("not signed in");
+
+          const { data: created, error: insErr } = await supabase
+            .from("ai_bridge_jobs")
+            .insert({
+              asked_by: uid,
               question,
               context: { summary: a.headline, records: facts.slice(0, 40) },
-            }),
-            signal: AbortSignal.timeout(180000),
-          });
-          const out = await br.json().catch(() => null);
-          if (br.ok && out?.reply) { composed = out.reply; via = "Claude on your desktop"; }
-          else if (br.status === 401) {
-            askErr = "The bridge is running but rejected the token. Settings > Artificial Intelligence "
-              + "must hold the same token as bridge/token.txt on that computer.";
-          } else if (out?.reply) { askErr = String(out.reply).slice(0, 200); }
+              status: "pending",
+            })
+            .select("id")
+            .single();
+          if (insErr) throw insErr;
+
+          /* Poll our own row. Deliberately bounded: an unbounded wait is how the
+             old version sat for 210 seconds and then failed silently. If the
+             desktop is asleep this gives up and SAYS SO, and the answer is still
+             written to the row if it arrives later. */
+          const deadline = Date.now() + 150000;
+          let done = null;
+          while (Date.now() < deadline) {
+            await new Promise((r) => setTimeout(r, 1200));
+            const { data: row } = await supabase
+              .from("ai_bridge_jobs")
+              .select("status, answer, error, seconds")
+              .eq("id", created.id)
+              .maybeSingle();
+            if (row && (row.status === "done" || row.status === "error")) { done = row; break; }
+          }
+
+          if (done?.status === "done" && done.answer) {
+            composed = done.answer;
+            via = "Claude on your desktop";
+          } else if (done?.status === "error") {
+            askErr = String(done.error ?? "The desktop answered with an error.").slice(0, 250);
+          } else {
+            askErr = "Your desktop did not pick the question up. The bridge is not running on "
+              + "that computer, or it has stopped. The question is saved and will be answered "
+              + "if it starts.";
+          }
         } catch (e) {
-          /* Not running, or this browser is on a different machine. Neither is
-             an error worth interrupting for - the other routes are tried next
-             and the chip already says whether the bridge is reachable. */
+          askErr = "Could not reach the desktop: " + String(e?.message ?? e).slice(0, 180);
         }
       }
       if (!composed && cfg.local_model_enabled && cfg.local_model_url) {

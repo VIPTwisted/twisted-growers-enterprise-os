@@ -10,6 +10,7 @@
 import http from "node:http";
 import { spawn } from "node:child_process";
 import { readFileSync, existsSync } from "node:fs";
+import { join } from "node:path";
 import { createHash } from "node:crypto";
 import path from "node:path";
 import os from "node:os";
@@ -201,75 +202,120 @@ server.listen(PORT, "127.0.0.1", () => {
   console.log(`Token:   ${TOKEN.slice(0, 3)}…${TOKEN.slice(-2)} (${TOKEN.length} chars, sha256 ${createHash("sha256").update(TOKEN).digest("hex").slice(0, 12)})`);
 });
 
-/* ── Supabase job queue ──────────────────────────────────────────────
-   A browser on https cannot call http://127.0.0.1, so the OS posts questions
-   into a table and this polls for them, answers, and writes the answer back.
-   Also writes a heartbeat so the OS can show whether the bridge is alive. */
-const SB_URL = "https://fxetuqjryttnypgepsru.supabase.co";
-const SB_KEY = process.env.TG_SB_KEY ||
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZ4ZXR1cWpyeXR0bnlwZ2Vwc3J1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU4NzY4MzksImV4cCI6MjEwMTQ1MjgzOX0.JVNn4OoGrTVRLrl0AhAxaodJUeMQi4NO1aZdOVhGn3M";
+/* ── The job queue ───────────────────────────────────────────────────────────
+   THE BROWSER NO LONGER CALLS THIS MACHINE. IT CANNOT.
+
+   Chrome 151 treats a public https page reaching a local address as a user
+   permission - `local-network-access` - and on the owner's machine it reads
+   DENIED. Once denied Chrome will not re-prompt. Proved in his own browser on
+   7 Aug 2026: a `no-cors` fetch, which bypasses CORS entirely, still threw
+   `TypeError: Failed to fetch`, and NOTHING arrived in this log. The request
+   never left the browser, so nothing in this file could have fixed it.
+
+   The /ask endpoint above stays - it is the fastest path and it works from
+   localhost and from a terminal - but the platform no longer depends on it.
+
+   Instead the browser leaves the question in ai_bridge_jobs, which a signed-in
+   owner is already allowed to write, and this comes and gets it. Nothing local
+   is called, so no browser has a vote and a Chrome update cannot break it.
+
+   TWO CREDENTIALS THIS DELIBERATELY DOES NOT USE.
+
+   1. The project ANON key. The old version of this block had it written out in
+      full, in this file, in the public repository. It only ever worked because
+      anonymous access was wide open; closing that hole killed the queue.
+
+   2. The database connection in .mcp.json. Tried first, and it is deliberately
+      READ-ONLY - "cannot execute UPDATE in a read-only transaction". That guard
+      is worth keeping rather than working around.
+
+   So writes go through the `bridge-queue` edge function, authenticated with the
+   token this bridge ALREADY shares with the platform. Nothing new to install,
+   nothing for anyone to paste, and no key in any tracked file. The function can
+   claim a job, answer a job it claimed, and record a heartbeat. Nothing else. */
 const MACHINE = process.env.TG_MACHINE || os.hostname();
+const QUEUE_URL = process.env.TG_QUEUE_URL ||
+  "https://fxetuqjryttnypgepsru.supabase.co/functions/v1/bridge-queue";
+const VERSION = "2.0-queue";
 
-const sb = (path, init = {}) =>
-  fetch(SB_URL + "/rest/v1/" + path, {
-    ...init,
-    headers: {
-      apikey: SB_KEY,
-      Authorization: "Bearer " + SB_KEY,
-      "Content-Type": "application/json",
-      Prefer: init.prefer || "return=representation",
-      ...(init.headers || {}),
-    },
+async function queue(action, extra = {}) {
+  const r = await fetch(QUEUE_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "x-tg-token": TOKEN },
+    body: JSON.stringify({ action, machine: MACHINE, version: VERSION, ...extra }),
+    signal: AbortSignal.timeout(20000),
   });
+  const out = await r.json().catch(() => ({ ok: false, error: "unreadable reply, http " + r.status }));
+  if (!out.ok) throw new Error(out.error || ("http " + r.status));
+  return out;
+}
 
-async function heartbeat() {
-  try {
-    await sb("ai_bridge_heartbeat", {
-      method: "POST",
-      prefer: "resolution=merge-duplicates",
-      body: JSON.stringify([{ machine: MACHINE, last_seen: new Date().toISOString(), version: "1.0" }]),
-    });
-  } catch {}
+/* A repeated failure must not scroll past as one line among thousands. Say it
+   once, loudly, then stay quiet until it changes - so the log still reads as a
+   record of what happened rather than a wall. */
+let lastFault = "";
+function fault(where, e) {
+  const msg = `${where}: ${String(e && e.message ? e.message : e).slice(0, 200)}`;
+  if (msg !== lastFault) {
+    lastFault = msg;
+    console.log("QUEUE PROBLEM - " + msg);
+    if (/Bad bridge token/i.test(msg)) {
+      console.log("  bridge/token.txt does not match ai_settings.bridge_token.");
+      console.log("  Compare the sha256 of each - never paste the tokens themselves.");
+    }
+    if (/switched off/i.test(msg)) console.log("  Settings > Artificial Intelligence > bridge enabled.");
+  }
+}
+function recovered() {
+  if (lastFault) { console.log("QUEUE RECOVERED - " + lastFault + " is no longer happening"); lastFault = ""; }
 }
 
 let working = false;
 async function pollJobs() {
   if (working) return;
+  working = true;
+  let job = null;
+  const started = Date.now();
   try {
-    const r = await sb("ai_bridge_jobs?status=eq.pending&order=created_at.asc&limit=1");
-    if (!r.ok) return;
-    const rows = await r.json();
-    if (!rows.length) return;
-    const job = rows[0];
-    working = true;
-    await sb("ai_bridge_jobs?id=eq." + job.id, {
-      method: "PATCH",
-      body: JSON.stringify({ status: "running", claimed_at: new Date().toISOString() }),
-    });
+    const claim = await queue("claim");
+    recovered();
+    if (!claim.job) return;
+    job = claim.job;
+    console.log(`[job ${job.id}] claimed: ${String(job.question).slice(0, 70)}`);
+
     const NL2 = String.fromCharCode(10, 10);
     const ctx = job.context
-      ? NL2 + "RECORDS ALREADY PULLED BY THE PLATFORM:" + String.fromCharCode(10) + JSON.stringify(job.context).slice(0, 20000)
+      ? NL2 + "RECORDS ALREADY PULLED BY THE PLATFORM:" + String.fromCharCode(10) +
+        JSON.stringify(job.context).slice(0, 20000)
       : "";
-    const started = Date.now();
     const out = await runClaude(SYSTEM_BRIEF + ctx + NL2 + "QUESTION FROM THE OWNER: " + job.question);
-    await sb("ai_bridge_jobs?id=eq." + job.id, {
-      method: "PATCH",
-      body: JSON.stringify({
-        status: out.ok ? "done" : "error",
-        answer: out.ok ? out.reply : null,
-        error: out.ok ? null : out.reply,
-        seconds: Math.round((Date.now() - started) / 1000),
-        answered_at: new Date().toISOString(),
-      }),
-    });
-    console.log(`[job ${job.id}] ${out.ok ? "answered" : "failed"} in ${Math.round((Date.now() - started) / 1000)}s`);
+    const seconds = Math.round((Date.now() - started) / 1000);
+
+    await queue("answer", { id: job.id, ok: out.ok, answer: out.reply, seconds });
+    console.log(`[job ${job.id}] ${out.ok ? "answered" : "failed"} in ${seconds}s`);
   } catch (e) {
-    console.log("poll error", String(e).slice(0, 200));
+    fault("poll", e);
+    /* A job claimed and then dropped stays 'running' for ever, and the person
+       watching the page waits for an answer that is never coming. Hand it back
+       with the reason written on it. */
+    if (job) {
+      try {
+        await queue("answer", {
+          id: job.id, ok: false,
+          answer: "The bridge failed while answering: " + String(e && e.message ? e.message : e).slice(0, 300),
+          seconds: Math.round((Date.now() - started) / 1000),
+        });
+      } catch (e2) { fault("could not even report the failure", e2); }
+    }
   } finally {
     working = false;
   }
 }
 
-heartbeat();
+async function heartbeat() {
+  try { await queue("heartbeat"); recovered(); } catch (e) { fault("heartbeat", e); }
+}
+
+await heartbeat();
 setInterval(heartbeat, 30000);
-setInterval(pollJobs, 700);
+setInterval(pollJobs, 1500);
