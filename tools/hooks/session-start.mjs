@@ -45,9 +45,14 @@ try {
   out.push("  money. A mass revoke has since cut anon reads to 2 (nav_registry,");
   out.push("  nav_role_visibility) and anon-executable writing functions from 33 to 2.");
   out.push("- HANDOFF.md defect D4 says the front end is NOT deployed. It IS deployed.");
-  out.push("- HANDOFF.md defect D5 says Lab Results were never imported. They HAVE been:");
-  out.push("  metrc_rpt_lab_results holds ~39,500 staged rows. But lab_result_values and");
-  out.push("  coa_documents are both EMPTY, so the gap is staging -> canonical, not the import.");
+  out.push("- HANDOFF.md defect D5 says Lab Results were never imported. They HAVE been, and");
+  out.push("  POTENCY IS LIVE (corrected 7 Aug, this line previously understated it):");
+  out.push("  metrc_lab_results holds 101,608 rows across 2,642 packages, and v_lab_results");
+  out.push("  reads it DIRECTLY - returning total_thc, total_terpenes, coa_expires and");
+  out.push("  total_thc_source ('Metrc' or 'COA - Metrc holds no result') on every row.");
+  out.push("  lab_result_values and coa_documents stay EMPTY BY DECISION - one home per");
+  out.push("  figure. Do not populate them. 983 COAs and 2,690 manifests are stored with");
+  out.push("  signed links; f_package_documents(tag) serves both.");
   out.push("- HANDOFF.md counts are stale. Do not trust a number in it without re-measuring.");
   out.push("- The desktop bridge is currently BROKEN: it authenticates with the publishable");
   out.push("  anon key and lost its grants in the revoke. Do NOT re-grant anon to fix it.");
@@ -71,6 +76,56 @@ try {
   out.push("3. Comparing figures without checking units gave an answer wrong by a factor of six.");
   out.push("4. Presenting an unsourced benchmark as fact. Everything carries provenance.");
   out.push("5. `count(*)` on an aggregate view returns group count, not packages. Use sum().");
+  out.push("");
+  out.push("### RULE ZERO (owner, 7 Aug 2026) — outranks everything, including 'move fast'");
+  out.push("NEVER DO ANYTHING THAT CAN BREAK SYSTEM. Measure before you change. Verify after.");
+  out.push("If a change cannot be undone, it needs the owner. Slow is fine. Broken is not.");
+
+  out.push("");
+  out.push("### THE META-TRAP — the one that has cost most");
+  out.push("A DECISION RECORDED IS NOT A DECISION IMPLEMENTED. Sales endpoints were");
+  out.push("'permanently disabled' on 6 Aug and were still firing 401s a day later. Nine sync");
+  out.push("rules were drafted and never merged. An agent row read 'disabled' in its own");
+  out.push("description while enabled stayed true. A finding is NOT CLOSED until something in");
+  out.push("code, config or a check enforces it. When you close one, NAME THE GUARD. If there");
+  out.push("is no guard, say so plainly in the finding - an unguarded fix expires.");
+
+  out.push("");
+  out.push("### BEFORE YOU TOUCH DATA — read brain/DATA_TRAPS_REGISTER.md");
+  out.push("Every trap in it has already cost real money. The five that bite most often:");
+  out.push("- A summary/footer row is not a transaction. One added $1,692,460 of fabricated");
+  out.push("  revenue and was quoted to the owner before anyone checked.");
+  out.push("- $0.01 placeholder prices: in metrc_rpt_wholesale they aggregate to $0.02/$0.03,");
+  out.push("  so filter >= 1.00, NEVER > 0.01. ~319 lines dragged a price from $807 to $363.");
+  out.push("- Repackaged material keeps the original harvest name. Counting it inflates");
+  out.push("  production up to 142%. Primary production = SourcePackageCount = 0.");
+  out.push("- Catalogue row counts are ESTIMATES. reltuples reads 0 on small tables. ALWAYS");
+  out.push("  select count(*). Five populated tables were reported empty this way on 7 Aug.");
+  out.push("- A custody movement is not a sale. Storage/transporter destinations booked");
+  out.push("  $901,430 as revenue. A transporter (MT) licence destination is NEVER a sale.");
+
+  out.push("");
+  out.push("### HOW TO FIX — the protocol, every time");
+  out.push("1 Measure first, record the number. 2 ONE change, not three. 3 Measure again with");
+  out.push("the same query and report BOTH numbers. 4 Know the undo before you start and state");
+  out.push("it. 5 Verify the thing you did NOT touch - 129 read sites swallow errors as ?? [],");
+  out.push("so a blank dashboard is the classic silent failure. 6 Stay in your lane; out-of-lane");
+  out.push("findings go to actions_register or a work order, never a quiet fix. 7 If you cannot");
+  out.push("verify it, DO NOT DO IT - report instead.");
+
+  out.push("");
+  out.push("### WHEN IT BREAKS — brain/RUNBOOK_RECOVERY.md");
+  out.push("Symptom-by-symptom recovery: blank dashboards, bad deploy, bad import (tg_import_undo");
+  out.push("is proven), sync stopped, wrong number, schema change. FIRST TEST ALWAYS: is it broken");
+  out.push("or is it EMPTY? 43 of 236 pages are legitimately empty. Check canary_runs, not the page.");
+
+  out.push("");
+  out.push("### THE PLAN — brain/PROJECT_PLAN.md");
+  out.push("Five phases with exit tests. Phase 0 (make it safe to change: staging, wire the guards");
+  out.push("already written, attribution) is NOT STARTED and blocks the rest. Phase 2 (the platform");
+  out.push("is 100% READ-ONLY - not one order, weight or approval can be created) is the unlock.");
+  out.push("brain/INDEX.md maps everything the platform has learned. Read it before investigating.");
+
   out.push("");
   out.push("A tile without a drill-down is not finished. A number without provenance is a guess.");
   out.push("THE THEME IS LOCKED: neon green, zero purple. styles.css and rules.css are");
