@@ -1,6 +1,16 @@
 [build]
   base = "app/web"
-  command = "npm install && npm run build"
+  # The gates run HERE, not only in GitHub Actions.
+  #
+  # Actions and Netlify build independently and in parallel, so a failing Action could never
+  # stop a ship - every check was advisory. Worse, a CLI deploy bypasses Actions entirely.
+  # Running them inside the Netlify build is the only place that catches both paths: if a check
+  # exits non-zero the build fails and nothing is published.
+  #
+  # Order matters. app/web installs first because parse-check needs its esbuild; then the repo
+  # root installs eslint and the checks; then the checks run; only then do we build. A doomed
+  # bundle is never produced.
+  command = "npm install --no-audit --no-fund && cd ../.. && npm install --no-audit --no-fund && npm run check && cd app/web && npm run build"
   publish = "dist"
 
 [build.environment]

@@ -5,11 +5,13 @@
   "type": "module",
   "description": "Repository-level gates for the Twisted Growers Enterprise OS. Deliberately separate from app/web/package.json so the front-end build is never altered by tooling — app/web/src is Agent B's lane.",
   "scripts": {
-    "lint": "eslint app/web/src --max-warnings 0",
+    "lint": "eslint app/web/src --quiet",
     "check:parse": "node tools/checks/parse-check.mjs",
     "check:numbers": "node tools/checks/no-hardcoded-numbers.mjs",
     "check:theme": "node tools/checks/theme-lock.mjs",
-    "check": "npm run check:parse && npm run check:numbers && npm run check:theme && npm run lint"
+    "check:boundaries": "node tools/checks/error-boundaries.mjs",
+    "check:routing": "node tools/checks/routing.mjs",
+    "check": "npm run check:theme && npm run check:parse && npm run check:numbers && npm run check:boundaries && npm run check:routing && npm run lint"
   },
   "devDependencies": {
     "eslint": "^9.13.0",
