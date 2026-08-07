@@ -21,12 +21,15 @@
 -- ============================================================================
 
 with allowed_relations(relname, why) as (
-  values
-    -- Remove BOTH of these once the useNav session fix is deployed. The navigation
-    -- rail is fetched before sign-in today, so revoking these before the deploy
-    -- would empty every menu with no error. See commit 88b00df.
-    ('nav_registry',        'TEMPORARY: useNav fetches the menu pre-session. Revoke after the useNav fix is deployed.'),
-    ('nav_role_visibility', 'TEMPORARY: same as nav_registry.')
+  -- EMPTY BY DESIGN, as of 7 August 2026.
+  --
+  -- nav_registry and nav_role_visibility were temporarily allow-listed while the deployed
+  -- bundle still fetched the menu before sign-in. That fix is now live (index-Bu1iHbgh.js)
+  -- and was verified empirically: an anonymous page load makes ZERO Supabase calls, and a
+  -- direct anon read of nav_registry returns 401 permission denied.
+  --
+  -- There are now no exceptions. Anything appearing in this check is a finding.
+  select null::text, null::text where false
 ),
 allowed_functions(proname, why) as (
   values
