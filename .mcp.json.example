@@ -1,0 +1,22 @@
+{
+  "_comment": [
+    "Copy to .mcp.json and fill in the connection string. .mcp.json is gitignored.",
+    "",
+    "It was previously COMMITTED with a live password (tg_desktop_reader) and pushed to",
+    "origin/main in commits a0fe5aa and 9af82a7. That password must be treated as public",
+    "and rotated. Untracking the file stops it recurring; it does not remove it from history.",
+    "",
+    "Use sslmode=require, NOT sslmode=no-verify: no-verify disables certificate validation",
+    "and leaves the connection open to a machine-in-the-middle.",
+    "",
+    "Prefer an environment variable over a literal password in this file."
+  ],
+  "mcpServers": {
+    "twisted-growers": {
+      "command": "mcp-server-postgres",
+      "args": [
+        "postgresql://USER.PROJECT_REF:PASSWORD@aws-0-us-east-1.pooler.supabase.com:5432/postgres?sslmode=require"
+      ]
+    }
+  }
+}

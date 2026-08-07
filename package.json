@@ -1,0 +1,20 @@
+{
+  "name": "twisted-growers-checks",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Repository-level gates for the Twisted Growers Enterprise OS. Deliberately separate from app/web/package.json so the front-end build is never altered by tooling — app/web/src is Agent B's lane.",
+  "scripts": {
+    "lint": "eslint app/web/src --max-warnings 0",
+    "check:parse": "node tools/checks/parse-check.mjs",
+    "check:numbers": "node tools/checks/no-hardcoded-numbers.mjs",
+    "check:theme": "node tools/checks/theme-lock.mjs",
+    "check": "npm run check:parse && npm run check:numbers && npm run check:theme && npm run lint"
+  },
+  "devDependencies": {
+    "eslint": "^9.13.0",
+    "eslint-plugin-react": "^7.37.2",
+    "eslint-plugin-react-hooks": "^5.0.0",
+    "globals": "^15.11.0"
+  }
+}

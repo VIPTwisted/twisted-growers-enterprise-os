@@ -1,6 +1,7 @@
 *.log
 .env
 .env.*
+.mcp.json
 bridge/bridge.err.log
 bridge/bridge.log
 bridge/token.txt
@@ -8,3 +9,5 @@ dist/
 env/
 node_modules/
 workbook_extract/
+__pycache__/
+*.pyc
