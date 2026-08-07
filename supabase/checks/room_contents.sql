@@ -1,48 +1,51 @@
 -- ============================================================================
--- v_room_contents — what is PHYSICALLY in each room, from ALL sources
+-- v_room_contents — the seed-to-sale location mirror
 --
--- The owner raised this and was right: every existing room view was built on v_harvest_forensic,
--- which is own-harvest data only. Bought-in third-party material and anything staged for
--- pre-rolls from it were invisible. So neither the CEO dashboard's room figures nor my own
--- "corrected" ones described a room's actual contents.
+-- Owner requirement, 7 Aug 2026: "you must mirror rooms as metrc has due to seed to sale we must
+-- see and know where all inventory is."
 --
--- WHAT WAS MISSING — 847 lb across 118 packages from 12+ suppliers:
---   Fulfillment Vault      89 packages   637.5 lb   ACS, Berkley Botanicals, Gibby's Garden,
---                                                   Holyoke Wilds, Hudson Botanical, Jushi MA,
---                                                   LC Square, Nature Medicines, Solar
---                                                   Therapeutics, UC Product Manufacturing
---   Pre Trim Storage Room  26 packages   208.4 lb   Canna Provisions, Jushi MA
---   Production Room         3 packages     1.3 lb   Good Chemistry Worcester
--- That total cross-checks against the "Bought in 847.2 lb" tile, which is a good sign.
+-- Every Metrc location, keyed on (licence, name), showing living plants, unpackaged harvest
+-- material AND packages — because inventory moves plants -> harvest -> packages through different
+-- rooms, and a package-only view cannot answer "where is all inventory".
 --
--- TWO MISTAKES I MADE BUILDING IT, both worth recording.
+-- ── THE INSTRUCTION CAUGHT A REAL ERROR I WAS ABOUT TO SHIP ──────────────────
 --
--- 1. I first identified third party with f_is_ours(metrc_packages.license) and got ZERO
---    everywhere - which contradicted what the owner had just said was in those rooms.
---    metrc_packages.license is the licence material is HELD UNDER, and bought-in material is
---    received into our own licence, so that test is always true. v_third_party_stock already
---    separates origin_license from held_under. Wrong column, confident answer, contradicted by
---    the person who knows the business.
+-- My first version normalised location names, collapsing "Pre-Trim Storage" into "Pre Trim
+-- Storage Room" as a Metrc data problem. TWO things were wrong with that.
 --
--- 2. I nearly summed unpackaged harvest material and packaged stock into one "room total". They
---    are different states - material not yet packaged versus finished packages - and adding them
---    is the same class of error as mixing wet and dry weight. They are now reported side by side
---    and MUST NEVER be summed.
+-- 1. It broke rule D2. Metrc is the legal record and this is a read-only mirror; papering over a
+--    Metrc value inside the platform hides it from the state record. That is the rule verbatim.
 --
--- TWO DATA ISSUES FOUND
---   Metrc holds BOTH "Pre Trim Storage Room" and "Pre-Trim Storage" for one room. Any room total
---   splits across the two spellings. Normalised here; the real fix is at source (rule D2).
+-- 2. THE DUPLICATE WAS NOT A DUPLICATE. Keyed on licence, the answer changes completely:
+--        MC281714  "Pre Trim Storage Room"   72 packages, 6 open harvests, 756.9 lb unpackaged
+--        MP281909  "Pre-Trim Storage"        61 packages, 494.9 lb packaged
+--    Two DIFFERENT rooms under two DIFFERENT licences. Nothing to correct at source.
 --
---   "Twisted Growers LLC" appears as a third-party supplier in Fulfillment Vault and Pre Trim.
---   Almost certainly correct rather than a fault: the company holds TWO licences (cultivation
---   MC281714, manufacturing MP281909), so a transfer between them is genuinely a different origin
---   licence. Worth confirming, because on the face of a report it reads as an error.
+-- And the same is true of four more names that exist under BOTH licences with different contents:
+--        Fulfillment Vault   MC 1,222 packages + 16 open harvests   |  MP 394 packages
+--        Finish Vault        MC   171 packages                      |  MP 516 packages
+--        Freezer/Biomass     MC   101 packages                      |  MP 166 packages
+--        Packaging Room      MC     2 packages                      |  MP  81 packages
 --
---   Cure Vault holds 85 packages weighing 0.0 lb. Part of the 2,647 weighed packages carrying
---   zero quantity. Depleted packages legitimately weigh nothing - split on metrc_packages.finished
---   before treating any of them as a fault.
+-- So a view keyed on location NAME ALONE silently sums two legally distinct places. For
+-- seed-to-sale that is exactly the error the owner's instruction was guarding against.
 --
--- Nine rooms hold stock that no previous room view covered at all: Finish Vault, Hydrocarbon,
--- Quarantine, Packaging Room, Biomass Prep, Solventless, Production Room, BDA/Storage,
--- Shipping & Receiving, Clone Room.
+-- ── PLACEMENT IS COMPLETE, which is the good news ────────────────────────────
+--    0 packages with no location
+--    0 packages in a location absent from metrc_locations
+--   15,595 plants all placed: Flower Room #1 4,828 · #2 2,665 · #3 3,903 · #4 4,069 ·
+--   Mother Room 130. That total cross-checks against the "Plants mirrored 15,595" tile.
+--   38 Metrc locations; 25 hold something; the rest are shown as EMPTY rather than omitted, so
+--   an empty room is visibly empty instead of missing.
+--
+-- ── CONFIRMED BUSINESS FACT, owner 7 Aug 2026 ────────────────────────────────
+-- "Twisted Growers LLC" appearing as a THIRD-PARTY SUPPLIER is CORRECT, not a fault. The company
+-- holds two licences — cultivation MC281714 and manufacturing MP281909 — so material moving
+-- between them genuinely has a different origin licence from the one holding it. Anything
+-- reporting third-party material must say so, or it reads as an error every time.
+-- Belongs in the LOCKED FACTS section of CLAUDE.md.
+--
+-- ── NEVER SUM THESE ──────────────────────────────────────────────────────────
+-- unpackaged_harvest_lb is material not yet packaged; packaged_lb is finished packages. Adding
+-- them mixes pre- and post-packaging states, the same class of error as mixing wet and dry.
 -- ============================================================================
