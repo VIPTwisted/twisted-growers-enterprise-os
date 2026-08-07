@@ -1,0 +1,44 @@
+-- ============================================================================
+-- CROSS-SOURCE RECONCILIATION  —  v_cross_source_reconciliation
+--
+-- Where a fact exists in two INDEPENDENT sources, they must agree. Disagreement is the finding.
+-- This catches the deepest class of error: a number that is internally consistent, well
+-- provenanced, beautifully rendered, and wrong.
+--
+-- TWO TRAPS ARE BAKED IN, both hit on the first run, 7 August 2026.
+--
+-- TRAP 1 — UNITS (rules B1, A4). Harvest wet weight compared 20,495,622 against 45,185 and
+-- looked 99.78% wrong. It was GRAMS against POUNDS. Divided by 453.592 the two sources agree to
+-- 0.00 lb. A naive comparison would have raised a critical finding on a perfect match. This is
+-- the same trap that once produced a "you are at half your plan" conclusion wrong by a factor
+-- of six.
+--
+-- TRAP 2 — POPULATION, not value. Wholesale revenue looked $72,828 apart and was reported as
+-- two Metrc reports disagreeing. They do not. On the 1,235 manifests BOTH reports cover they
+-- agree to the DOLLAR. The entire difference is 13 manifests present in one report and absent
+-- from the other - all MP281909, all created in the three days before both were imported.
+--
+-- Those two conclusions demand opposite actions:
+--   "the numbers disagree"          -> hunt a calculation bug   (there was none)
+--   "13 manifests are not in the export" -> re-run the export   (this was it)
+-- Conflating them wastes a day and erodes trust in the next finding.
+--
+-- So the view reports FOUR things separately, and never collapses them into one number:
+--   overlap_a / overlap_b   the same fact from each source, units already normalised
+--   value_difference        disagreement on the SAME population - a real bug
+--   only_in_a / only_in_b   coverage gap - a missing or stale export
+--   value_not_covered       what the gap is worth
+--
+-- Verdicts:
+--   RECONCILED       identical, same population. Genuinely verified.
+--   VALUES AGREE     equal where they overlap, but the sources cover different populations.
+--   DISAGREES        the same fact has two values on the same population. This is a bug.
+--   CANNOT COMPARE   a source is missing or empty. Says so rather than guessing.
+--
+-- Facts currently reconciled: wholesale revenue, harvest wet weight, harvest package count,
+-- harvests held. Adding a fact is one CTE - and it must normalise its own units before
+-- comparing, or it will lie in exactly the way described above.
+--
+-- Run:  select * from v_cross_source_reconciliation;
+--       Anything with a DISAGREES verdict needs a person today.
+-- ============================================================================
