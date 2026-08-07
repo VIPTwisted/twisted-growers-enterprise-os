@@ -1020,6 +1020,10 @@ export function AssistantSettings() {
    first paint so the pet appears instantly and in the right place, instead of
    flashing in from a default position once the round trip returns. The database
    is the truth; the cache only decides what the first frame looks like. */
+/* The bridge listens on the machine the browser runs on. Never a database
+   round trip - see the note in the ask path below. */
+const BRIDGE_URL = "http://127.0.0.1:8765";
+
 const PET_KEY = "tg.pet.v1";
 const petLoad = () => {
   try { return JSON.parse(localStorage.getItem(PET_KEY) || "{}"); } catch { return {}; }
@@ -1416,26 +1420,47 @@ export function BudzScreen({ go }) {
 
       // 1. The desktop bridge: real Claude Code on this machine, on the owner's own
       //    subscription. Free, and it can read the project as well as the database.
+      /* Asked DIRECTLY, not through the database.
+
+         This used to write a row into ai_bridge_jobs and poll it for up to 210
+         seconds, because of a belief - written in a comment in App.jsx - that a
+         browser cannot call http://127.0.0.1 from an https page. That is false:
+         127.0.0.1 is a potentially-trustworthy origin and is exempt from
+         mixed-content blocking. Verified 7 Aug 2026 from the deployed site.
+
+         The cost of that belief was real. Routing through the database meant the
+         bridge needed a database credential, and it used the PUBLISHABLE key
+         that ships in every visitor's browser. When the anonymous-access hole
+         was closed the bridge died with it. Asking the bridge directly needs no
+         database access at all, so the hole stays shut and this works.
+
+         It is also far better behaviour: one request, an answer or a clear
+         error, instead of a 210-second poll that fails silently. */
       if (cfg.bridge_enabled !== false) {
         try {
-          const { data: hb } = await supabase.from("v_bridge_status").select("online").eq("online", true).limit(1);
-          if (hb?.length) {
-            const { data: job } = await supabase
-              .from("ai_bridge_jobs")
-              .insert({ question, context: { summary: a.headline, records: facts.slice(0, 40) } })
-              .select("id")
-              .single();
-            if (job?.id) {
-              for (let i = 0; i < 300; i++) {
-                await new Promise((r) => setTimeout(r, 700));
-                const { data: row } = await supabase
-                  .from("ai_bridge_jobs").select("status, answer, error").eq("id", job.id).maybeSingle();
-                if (row?.status === "done" && row.answer) { composed = row.answer; via = "Claude on your desktop"; break; }
-                if (row?.status === "error") { composed = row.error; via = "the bridge (error)"; break; }
-              }
-            }
-          }
-        } catch { /* bridge unavailable - fall through */ }
+          const br = await fetch(`${BRIDGE_URL}/ask`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "x-tg-token": cfg.bridge_token ?? "",
+            },
+            body: JSON.stringify({
+              question,
+              context: { summary: a.headline, records: facts.slice(0, 40) },
+            }),
+            signal: AbortSignal.timeout(180000),
+          });
+          const out = await br.json().catch(() => null);
+          if (br.ok && out?.reply) { composed = out.reply; via = "Claude on your desktop"; }
+          else if (br.status === 401) {
+            askErr = "The bridge is running but rejected the token. Settings > Artificial Intelligence "
+              + "must hold the same token as bridge/token.txt on that computer.";
+          } else if (out?.reply) { askErr = String(out.reply).slice(0, 200); }
+        } catch (e) {
+          /* Not running, or this browser is on a different machine. Neither is
+             an error worth interrupting for - the other routes are tried next
+             and the chip already says whether the bridge is reachable. */
+        }
       }
       if (!composed && cfg.local_model_enabled && cfg.local_model_url) {
         try {

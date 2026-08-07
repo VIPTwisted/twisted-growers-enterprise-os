@@ -7384,15 +7384,39 @@ function DeptDashboard({ viewKey, go, nav, deep }) {
   );
 }
 
+/* The bridge listens on the machine the browser is running on. Overridable
+   for anyone who moved the port, but never a database round trip. */
+const BRIDGE_URL = "http://127.0.0.1:8765";
+
 function BridgeChip() {
   const [st, setSt] = useState({ state: "checking" });
   const [open, setOpen] = useState(false);
   const check = async () => {
-    // The browser cannot call http://127.0.0.1 from an https page, so the bridge
-    // reports in to the database and we read that instead.
-    const { data } = await supabase.from("v_bridge_status").select("*").order("last_seen", { ascending: false }).limit(1);
-    const r = data?.[0];
-    setSt(r?.online ? { state: "up", machine: r.machine } : { state: "down", machine: r?.machine, ago: r?.seconds_since });
+    /* The old comment here said "the browser cannot call http://127.0.0.1 from
+       an https page, so the bridge reports in to the database and we read that
+       instead." That is FALSE, and it was expensive.
+
+       Browsers treat 127.0.0.1 as a potentially-trustworthy origin and exempt it
+       from mixed-content blocking. Verified 7 Aug 2026 from the deployed page:
+       fetch('http://127.0.0.1:8765/health') returned {ok:true, service:
+       'tg-claude-bridge'}.
+
+       Because of that false belief the bridge was routed through ai_bridge_jobs
+       in the database, which meant it needed a database credential - and it
+       authenticated with the PUBLISHABLE key that ships in every visitor's
+       browser. Closing the anonymous-access hole therefore killed the bridge.
+       Asking it directly needs no database access at all, so the hole stays
+       shut and the chip still works. */
+    try {
+      const r = await fetch(`${BRIDGE_URL}/health`, { signal: AbortSignal.timeout(2500) });
+      if (!r.ok) throw new Error(`bridge answered ${r.status}`);
+      const j = await r.json();
+      setSt({ state: "up", machine: j.service ?? "this computer", local: true });
+    } catch (e) {
+      /* Not running, or running on a different machine from this browser. Both
+         are "not reachable from here", and the popup says which to try. */
+      setSt({ state: "down", err: String(e?.message ?? e).slice(0, 90) });
+    }
   };
   useEffect(() => {
     check();
