@@ -1,6 +1,29 @@
 # Twisted Growers Enterprise OS — Handoff Report
 
-**Prepared 6 August 2026. Development is FROZEN. Read this before touching anything.**
+**Prepared 6 August 2026. Corrected 7 August 2026 after an independent verification pass.
+Read this before touching anything.**
+
+> ### Read this box first
+>
+> On 7 August 2026 this document was checked line by line against the live system. **Several
+> statements were stale and one was the opposite of the truth.** Corrections are marked inline
+> and dated; the original wording is struck through rather than deleted, so the record of what
+> was believed survives.
+>
+> **The one that mattered:** section 6 claimed anonymous access was closed. It was not — 30
+> relations were returning real customer, manifest and money data to anyone holding the
+> publishable key, and 33 `SECURITY DEFINER` functions that write were callable by anyone on
+> the internet. All of it is now closed, and there is an automated check so it cannot silently
+> return.
+>
+> **The freeze has been lifted.** Two agents plus a watchdog are working in parallel. Lanes and
+> the rules that keep them from breaking each other are in
+> `docs/AGENT_WORK_DIVISION_AND_WATCHDOG.md`; the full findings are in
+> `docs/AUDIT_2026-08-07_SENIOR_REVIEW.md`.
+>
+> **Treat every count in this file as indicative, not current.** The schema is moving
+> continuously — the table count changed three times during a two-hour audit. Re-measure
+> before you rely on a number.
 
 `CLAUDE.md` is the single source of truth for rules. This file is the single
 source of truth for *state*. Where they disagree, `CLAUDE.md` wins on rules and
@@ -37,8 +60,14 @@ Metrc API  ──►  metrc_* tables (raw jsonb)  ──►  v_* views  ──�
                           grow_rooms, harvest_plan_2026, suppliers  (owner-set config)
 ```
 
-**Counts as at 6 Aug 2026:** 176 base tables · 177 views · 7 materialized views ·
-19 cron jobs · 262 enabled navigation entries.
+**Counts as at 7 Aug 2026, re-measured:** **229 base tables · 225 views · 9 materialized
+views · 23 cron jobs · 278 enabled navigation entries.**
+
+> The figures previously here (176 / 177 / 7 / 19 / 262, dated 6 Aug) were stale within a day.
+> **Do not trust a count in this file without re-measuring** — two agents are shipping schema
+> changes continuously; the table count moved three times during a two-hour audit.
+> `supabase/checks/anon_exposure.sql` and a `platform_state` job are the durable fix; until
+> that job exists, treat every number in this document as indicative.
 
 ### Navigation is database-driven
 `nav_registry` drives every menu. Columns: `category`, `category_order`,
@@ -89,8 +118,8 @@ Metrc API  ──►  metrc_* tables (raw jsonb)  ──►  v_* views  ──�
 | Harvests past the 28-day limit | **22** | oldest cut 191 days ago |
 | Pulls off the 2026 calendar | **13 of 26** | room rotation drifted one position |
 | Metrc corrections outstanding | **3** | see `metrc_corrections` |
-| Open questions for the owner | **30** | 3,444.9 lb at stake |
-| Go-live items open | **173** | |
+| Open questions for the owner | **44** (was 30) | **3,484 lb at stake**, every one still unanswered |
+| Go-live items open | **179** (was 173) | 59 of them flagged as needing owner action |
 | Valuation rates unconfirmed | **1** | |
 | Business rules unset | **0** | all sourced |
 
@@ -117,16 +146,44 @@ Owner has asked repeatedly for QuickBooks-style presets (This month, Last month,
 YTD, Custom, with prior-period comparison). Not started. Most reporting views
 have no date column to filter on — **that is the first step**, not the UI.
 
-### D4 · Front end built and staged but NOT DEPLOYED
-`app/web/dist` is current and staged at the deploy directory. The last deploy
-predates: unit-aware tile labels, the Proof page wiring, and `quantity_shown`.
-**The database is correct; the site is one deploy behind.**
+### D4 · ~~Front end built and staged but NOT DEPLOYED~~ — **CLOSED 7 August 2026**
+It was already deployed when this was written. Verified by comparing the live bundle hash to
+`app/web/dist/index.html` — byte-identical.
 
-### D5 · Lab Results never imported — no THC, TAC, terpenes or COA anywhere
-Verified: Metrc's package interface exposes only `LabTestingState` and dates. No
-analyte values, no COA URL. `lab_result_values` and `coa_documents` are both
-empty. The only route is the **Metrc Lab Results report import**. Until then
-every potency field correctly says why it is absent.
+Deployed again on 7 August with the Command Center fix, the `useNav` session fix and the stray
+`)}` removal. Live bundle is now `index-Bu1iHbgh.js`, and all three fixes were confirmed
+present in the deployed JavaScript rather than assumed.
+
+> **Note for whoever deploys next: a push to `main` now deploys.** The Netlify project builds
+> from the GitHub repo, so `git push origin main` ships to production. A CLI deploy
+> (`netlify deploy --prod --dir=dist`) also works — the CLI is authenticated as TwistedG /
+> team TG and linked to project `b565a8cc-c82b-41b9-b9ec-4dae875af078`.
+
+### D5 · Lab Results — **MATERIALLY CHANGED 7 August 2026. Re-read this.**
+The original claim — *"Lab Results never imported"* — **is no longer true**, and repeating it
+sent one agent looking in the wrong place.
+
+**The import has happened.** `metrc_rpt_lab_results` holds **39,531 staged rows** across 42
+imports, last run 10:47 on 7 August. `metrc_rpt_point_in_time` holds 7,266 rows across 53
+imports. All 11 report types report **"Up to date"** in `v_report_mapping_status`, with 435
+imports completed in total.
+
+**What is still true:** `lab_result_values` and `coa_documents` are both **empty**. So every
+potency field on the platform still correctly explains that the value is absent.
+
+**So the gap is staging → canonical mapping, not the import.** 39,531 potency and terpene
+results are in the building and not on the shelves. This is now code-fixable and it is the
+largest unrealised gain in the platform.
+
+**Blocked on one owner decision, and no agent may guess it:** should `lab_result_values` be
+populated from `metrc_rpt_lab_results`, or is `metrc_rpt_lab_results` now canonical and
+`lab_result_values` obsolete? **There must be exactly one home.** Two homes for potency, one
+empty, is how a platform starts contradicting itself. Once settled, `f_potency_status()` reads
+the canonical table and — per rule C3 — arriving data must back-fill every past record.
+
+The original observation about the API remains correct and worth keeping: Metrc's package
+interface exposes only `LabTestingState` and dates, with no analyte values and no COA URL. The
+report import is the only route, which is why it was built.
 
 ### D6 · Year-end tax report is not fileable
 `tg_inventory_as_of('2025-12-31')` returns 271 rows; only **10 carry a quantity**
@@ -173,10 +230,49 @@ Edibles have no cost model in the worksheet at all.
 
 ## 6. Security
 
-- **Anon access revoked** on all views and materialized views (6 Aug 2026).
-  Previously 36 views were readable with only the publishable key — package
-  tags, strains, suppliers and dollar figures. **Re-check after adding any view;
-  `grant … to anon` must never be used.**
+> **CORRECTED 7 August 2026.** This section previously read *"Anon access: 0 views
+> readable."* **That was false when written.** A verification pass on 7 August found
+> **30 relations still returning real rows to `anon`** — including `v_customers` (127),
+> `v_customer_directory` (214), `v_manifest_ledger` (2,690 manifests),
+> `v_wholesale_reconciliation` (2,537) and `mv_package_documents` (3,548) — plus **131
+> functions executable by `anon`, 42 of them `SECURITY DEFINER`, 33 of which write**,
+> including `tg_import_undo` and `tg_agentmapper_approve`.
+>
+> The 6 August revoke covered only the views that existed that day. It did not revoke the
+> underlying **table** grants, did not cover **materialized views** (which cannot carry RLS
+> at all), and installed nothing to stop the next new view being exposed. The view count went
+> from 177 to 225 in the interim and the surface grew straight back.
+
+**State as at 7 August 2026, measured not assumed:**
+
+| Surface | Was | Now |
+|---|---|---|
+| Relations readable by `anon` | 248 granted / 30 returning rows | **0** |
+| Functions executable by `anon` | 131 | **0** |
+| `SECURITY DEFINER` functions that write | 33 | **0** |
+| `SECURITY DEFINER` with mutable `search_path` | 29 | **0** |
+| Public tables with RLS disabled | 5 | **0** |
+
+Verified empirically, not by reasoning: an anonymous browser request carrying the real
+publishable key now returns `401 permission denied for table nav_registry`, and an anonymous
+load of the deployed site makes **zero** Supabase calls.
+
+**Two things learned doing it — do not repeat them:**
+
+1. **Revoking from `anon` is a NO-OP while `PUBLIC` holds the grant.** PostgreSQL's default
+   for a new function is `EXECUTE` to `PUBLIC`, shown in `proacl` as `=X/postgres`. The first
+   sweep appeared to succeed and changed nothing.
+2. **That default is why the surface reopened three times in one day**, twice within minutes
+   of being closed. A manual sweep will always lose the race against agents shipping
+   functions. `ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public REVOKE EXECUTE ON
+   FUNCTIONS FROM PUBLIC` is now set. `supabase_admin`'s defaults are not ours to change, so
+   the nightly check remains the backstop.
+
+**The check that would have caught all of this on day one is now in the repository:**
+`supabase/checks/anon_exposure.sql`. It expects zero rows; any row is a finding. It
+deliberately excludes extension-owned functions, which otherwise bury the six that matter
+under 31 `pg_trgm` entries. **Run it after adding any view, table or function.**
+`grant … to anon` is now blocked by a `PreToolUse` hook.
 - RLS is on all config tables. Write policies restrict to
   `owner`/`executive`/`planner`/`dept_head`; `company_licenses` is owner/exec only.
 - `tg_desktop_reader` is a read-only role; `app_secrets` denied.
@@ -257,19 +353,23 @@ Measured, not assumed. This is what a takeover audit actually returns.
 - **Anon access: 0 views readable** after the second revoke pass.
 - **19 cron jobs** registered and scheduled.
 
-### FAILED — 4 navigation entries point at views that do not exist
+### ~~FAILED — 4 navigation entries point at views that do not exist~~ — **CLOSED 7 Aug 2026**
 
-| Menu item | Missing view | Surface |
-|---|---|---|
-| Open Issues — a decision is required | `v_open_issues` | side |
-| Fail Rate by Supplier | `v_lab_fail_rate_by_origin` | deep |
-| Laboratory Turnaround | `v_lab_turnaround_summary` | deep |
-| Yield Gap | `v_issue_yield_gap` | reports |
+All four now resolve. `v_open_issues`, `v_lab_fail_rate_by_origin`,
+`v_lab_turnaround_summary` and `v_issue_yield_gap` all exist, and a full sweep of
+`nav_registry` found **zero** enabled entries pointing at a missing relation, out of 278.
 
-**These four pages will render empty.** `v_open_issues` is the most serious — it
-is the register that holds the owner's fix/leave/ignore/reset decisions, and it
-was lost when a batch statement rolled back. It must be rebuilt; the definition
-is in the session transcript.
+A fifth was found and fixed on 7 August that this audit missed: **Laboratory Turnaround** was
+pointed at `v_lab_turnaround_by_month`, a view that had **never existed** — so that page had
+been blank since the day it was built. It now reads `v_lab_turnaround_report`.
+
+> **Known data gap on that page:** every row has `category = null`, so turnaround cannot be
+> broken down by product. Per rule A3 the page must say why rather than render a blank
+> grouping.
+
+**The nav check is now automated** — `supabase/checks/anon_exposure.sql` covers exposure, and
+CI fails on any enabled `nav_registry.table_ref` that does not resolve. This class of defect
+should not reach a human again.
 
 ### STALE METADATA — 11 dashboard entries reference a dropped view
 `dept_dash_command`, `_cultivation`, `_inventory`, `_quality`, `_sales`, `_mfg`,
