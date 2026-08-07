@@ -31,6 +31,16 @@ const ALLOWED = [
   "http://localhost:4173",
 ];
 
+/* Netlify serves every deploy preview of this project from a hash-prefixed host —
+   https://6a7630441830dee6efe19a92--twisted-growers-enterprise-os.netlify.app.
+   Same site, same owner, but the literal list above does not contain it, so a
+   preview page reads "AI offline" with the bridge answering perfectly. Match the
+   project, not the exact string. Nothing else is admitted, and this only decides
+   whose browser may READ a reply — the token on /ask is the gate that matters. */
+const isOurs = (origin) =>
+  ALLOWED.includes(origin) ||
+  /^https:\/\/[a-z0-9-]+--twisted-growers-enterprise-os\.netlify\.app$/.test(origin || "");
+
 const SYSTEM_BRIEF = `You are the assistant inside the Twisted Growers Enterprise OS, answering a question typed by the owner or an executive while they work.
 
 Twisted Growers is a Massachusetts cannabis company: cultivation licence MC281714, manufacturing licence MP281909.
@@ -58,11 +68,24 @@ v_real_loss_summary, v_goal_status, v_data_verification, v_cultivation_meeting_p
 
 const cors = (req, res) => {
   const origin = req.headers.origin;
-  if (origin && ALLOWED.includes(origin)) res.setHeader("Access-Control-Allow-Origin", origin);
+  if (isOurs(origin)) res.setHeader("Access-Control-Allow-Origin", origin);
   else res.setHeader("Access-Control-Allow-Origin", ALLOWED[0]);
   res.setHeader("Access-Control-Allow-Headers", "content-type, x-tg-token");
   res.setHeader("Access-Control-Allow-Methods", "POST, GET, OPTIONS");
   res.setHeader("Vary", "Origin");
+
+  /* THE REASON THE CHIP READ "AI OFFLINE" WHILE THE BRIDGE WAS ANSWERING FINE.
+     Chrome's Private Network Access: a page on a public https origin reaching a
+     loopback address must first pass a preflight carrying
+     `Access-Control-Request-Private-Network: true`, and the reply MUST carry
+     `Access-Control-Allow-Private-Network: true` or the request is dropped
+     before any handler in this file is ever reached.
+
+     curl does not send that header. That is exactly why /health answered me from
+     the terminal and failed in his browser at the same moment — the same request
+     to the same port, one allowed and one dropped, and nothing in the failure
+     said which. Only ever sent back to an origin isOurs() already recognises. */
+  if (isOurs(origin)) res.setHeader("Access-Control-Allow-Private-Network", "true");
 };
 
 const json = (res, code, body) => {
