@@ -435,9 +435,40 @@ const timeAgo = (iso) => {
 };
 
 /* ---------- Error boundary: one module fails, the OS keeps breathing ---------- */
+/* Crashes reported this session, so a render loop cannot hammer the database.
+   Module scope, not component state — a boundary that has just crashed is not
+   a good place to keep a counter. */
+const REPORTED_CRASHES = new Set();
+
+/* A boundary must never make things worse. Everything below is written so that
+   a failure inside the reporter is invisible to the person using the page:
+   the report is fire-and-forget, deduplicated, capped, and wrapped so that a
+   throw inside it cannot escape. */
+function reportCrash(view, err, info) {
+  try {
+    const message = String(err?.message ?? err ?? "unknown error").slice(0, 300);
+    const key = `${view}|${message}`;
+    if (REPORTED_CRASHES.has(key)) return;      // same crash, same session, once
+    if (REPORTED_CRASHES.size >= 25) return;    // a crash loop must not write forever
+    REPORTED_CRASHES.add(key);
+    supabase.rpc("tg_log_client_error", {
+      p_view: view ?? "unknown",
+      p_message: message,
+      p_stack: String(err?.stack ?? "").slice(0, 2000),
+      p_component: String(info?.componentStack ?? "").slice(0, 2000),
+    }).then(
+      () => {},
+      () => {}                                   // reporting failed; not the user's problem
+    );
+  } catch { /* never let the reporter throw */ }
+}
+
 class Boundary extends React.Component {
   constructor(p) { super(p); this.state = { err: null }; }
   static getDerivedStateFromError(err) { return { err }; }
+  /* Turns a white screen into a ranked finding. Without this the only person
+     who knows the page broke is the one person who cannot fix it. */
+  componentDidCatch(err, info) { reportCrash(this.props.resetKey ?? this.props.name, err, info); }
   componentDidUpdate(prev) { if (prev.resetKey !== this.props.resetKey && this.state.err) this.setState({ err: null }); }
   render() {
     if (this.state.err) {
@@ -445,7 +476,42 @@ class Boundary extends React.Component {
         <div className="boundary">
           <b>This section hit an error — the rest of the OS is unaffected.</b>
           <div className="note">{String(this.state.err)}</div>
+          <div className="note" style={{ marginTop: 6, opacity: 0.75 }}>
+            Recorded as a finding. Nobody has to remember to report it.
+          </div>
           <button className="btn ghost" style={{ marginTop: 12 }} onClick={() => this.setState({ err: null })}>Retry section</button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+/* The last line of defence. The section boundary only helps if App itself is
+   still standing; if the shell throws — the nav, the top bar, a hook order
+   change in App — React unmounts everything and the user gets a white page
+   with no way back. This keeps something on screen and still reports. */
+export class RootBoundary extends React.Component {
+  constructor(p) { super(p); this.state = { err: null }; }
+  static getDerivedStateFromError(err) { return { err }; }
+  componentDidCatch(err, info) { reportCrash("app-shell", err, info); }
+  render() {
+    if (this.state.err) {
+      return (
+        <div style={{ minHeight: "100vh", display: "grid", placeItems: "center", padding: 24 }}>
+          <div style={{ maxWidth: 560, textAlign: "left", lineHeight: 1.6 }}>
+            <h1 style={{ fontSize: 22, marginBottom: 10 }}>The platform hit an error it could not recover from.</h1>
+            <p style={{ opacity: 0.85 }}>
+              It has been recorded automatically — you do not need to report it. Reloading
+              usually clears it. If it happens again on the same page, that page is the fault
+              and the finding will say so.
+            </p>
+            <pre style={{ whiteSpace: "pre-wrap", fontSize: 12, opacity: 0.7, marginTop: 14 }}>
+              {String(this.state.err)}
+            </pre>
+            <button className="btn primary" style={{ marginTop: 16 }}
+              onClick={() => window.location.reload()}>Reload the platform</button>
+          </div>
         </div>
       );
     }
@@ -1913,10 +1979,17 @@ function IntelligenceBriefing({ go }) {
   useEffect(() => {
     supabase.from("v_intelligence_briefing").select("*").then(({ data }) => setRows(data ?? []));
   }, []);
-  if (!rows) return <div className="loading">Reading the latest forensic sweep…</div>;
   /* search and date sit alongside the existing severity chips; the chip counts
-     still read the full sweep so the totals do not appear to shrink when filtering */
+     still read the full sweep so the totals do not appear to shrink when filtering.
+
+     This MUST stay above the early return. useClientToolbar calls five useState
+     hooks, so calling it after "if (!rows) return" changed the hook count between
+     the loading render and the loaded one, and React threw "rendered more hooks
+     than during the previous render" the moment the data arrived. With no error
+     boundary that white-screened the page. It handles a null list itself
+     (rows ?? []), so there is nothing to guard against here. */
   const { filtered: searched, toolbar } = useClientToolbar(rows, { name: "intelligence-briefing" });
+  if (!rows) return <div className="loading">Reading the latest forensic sweep…</div>;
   const shown = sev === "all" ? searched : searched.filter((r) => r.severity === sev);
   const count = (x) => rows.filter((r) => r.severity === x).length;
   const dollars = rows.reduce((a, r) => a + Number(r.dollars || 0), 0);

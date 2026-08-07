@@ -879,8 +879,12 @@ export function AssistantSettings() {
     setBusy(false);
   };
 
-  /* Switching is just pointing the profile at a face already in the library. */
-  const useFace = async (row) => {
+  /* Switching is just pointing the profile at a face already in the library.
+     NOT a hook - a plain handler. It was called useFace, and the "use" prefix made
+     eslint's rules-of-hooks treat it as one and report two errors forever. A check
+     with permanent known failures is a check nobody reads, which is how the stray
+     )} shipped. Renamed so the lint gate can mean something. */
+  const applyFace = async (row) => {
     await save({ avatar_url: row.avatar_url });
     setMsg(`Now using ${row.label}.`);
   };
@@ -980,7 +984,7 @@ export function AssistantSettings() {
             const inUse = (row.avatar_url ?? null) === (p.avatar_url ?? null);
             return (
               <div key={row.id} className={`facecard${inUse ? " on" : ""}`}>
-                <button className="facepic" disabled={busy || inUse} onClick={() => useFace(row)}
+                <button className="facepic" disabled={busy || inUse} onClick={() => applyFace(row)}
                   title={inUse ? "In use" : `Use ${row.label}`}>
                   {row.avatar_url
                     ? <BudzAvatar size={120} src={row.avatar_url} />
@@ -990,7 +994,7 @@ export function AssistantSettings() {
                 <div className="faceact">
                   {inUse
                     ? <span className="faceon">In use</span>
-                    : <button className="btn small" disabled={busy} onClick={() => useFace(row)}>Use this</button>}
+                    : <button className="btn small" disabled={busy} onClick={() => applyFace(row)}>Use this</button>}
                   <button className="btn small ghost" onClick={() => renameFace(row)}>Rename</button>
                   {!row.is_builtin && !inUse &&
                     <button className="btn small ghost" onClick={() => forgetFace(row)}>Remove</button>}
