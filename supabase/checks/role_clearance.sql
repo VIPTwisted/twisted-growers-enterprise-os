@@ -47,3 +47,40 @@
 --
 -- Run BEFORE onboarding anyone:  select * from v_role_clearance_breaches;   -- expect zero rows
 -- ============================================================================
+
+-- ============================================================================
+-- REVISION 2, same day. The owner corrected the role model twice, and both
+-- corrections mattered.
+--
+-- CORRECTION 1 — the roles. Neither existing vocabulary was right. The real roles are
+-- manager, assistant manager, hr, admin, employee. NO GUEST. So my first rank assignment was
+-- built on the wrong role set entirely. Added to the app_role enum; the old names
+-- (planner, dept_head, staff, readonly) are left in place because removing an enum value is
+-- not possible and no user holds them.
+--
+-- CORRECTION 2 — access is TWO-DIMENSIONAL, not one. Roles are created per department, and
+-- some people hold SEVERAL. So:
+--     RANK       decides DEPTH   - may they see money, pay, licences
+--     DEPARTMENT decides BREADTH - whose pages
+-- One dimension alone cannot express "a Cultivation manager who should not see Manufacturing
+-- detail". Built as user_department_access (many-to-many, admin-assigned during onboarding),
+-- page_category_policy (which categories everyone sees), and f_can_see_page() as the single
+-- resolver combining both.
+--
+-- Deliberate design choice: a user with NO department rows sees only shared categories. An
+-- incomplete onboarding therefore fails CLOSED. That is the exact inverse of the defect this
+-- replaces, where anything unconfigured was shown to everyone.
+--
+-- OWNER-SET RANKS, 7 Aug 2026 - his decision, not a derivation:
+--     owner 100 · admin 95 (FULL access, system administrator) · executive 90
+--     hr 90 (FULL - people, pay AND money) · cfo 85 · manager 60
+--     assistant_manager 50 · employee 30
+--
+-- RESULT: no role below rank 85 can see any of the 39 sensitive pages. Before this, staff,
+-- dept_head, planner and readonly could all see 38 of the 39.
+--
+-- STILL OWNER'S TO DO, and it cannot be derived:
+--   - assign departments in user_department_access during onboarding
+--   - confirm which categories are shared (Command Center, Workspace, Reports are PROPOSED)
+--   - decide whether the 4 dead role names in app_roles (guest, limited, member) are dropped
+-- ============================================================================
