@@ -10,6 +10,7 @@
 import http from "node:http";
 import { spawn } from "node:child_process";
 import { readFileSync, existsSync } from "node:fs";
+import { createHash } from "node:crypto";
 import path from "node:path";
 import os from "node:os";
 import { fileURLToPath } from "node:url";
@@ -138,6 +139,22 @@ function runClaude(prompt, sessionId) {
 }
 
 const server = http.createServer(async (req, res) => {
+  /* WHY EVERY REQUEST IS LOGGED.
+     The chip read "AI offline" in the owner's browser at the same moment the
+     bridge answered a browser on the identical origin from this machine. With
+     no record of arrivals there is no way to tell the two cases apart:
+       - the request never got here     -> the browser blocked it (origin, or
+                                           Chrome's private-network preflight)
+       - the request got here and was refused -> the origin is not on the list,
+                                           and this line names the origin it sent
+     One is a browser problem and one is a configuration problem, and they look
+     identical from the outside. They do not look identical in this log. */
+  const org = req.headers.origin ?? "(no Origin header — not a browser)";
+  console.log(
+    `[${new Date().toISOString()}] ${req.method} ${req.url}  origin=${org}  ` +
+    `${isOurs(req.headers.origin) ? "RECOGNISED" : "NOT ON THE ALLOW-LIST"}`
+  );
+
   cors(req, res);
   if (req.method === "OPTIONS") return res.end();
 
@@ -174,7 +191,14 @@ server.listen(PORT, "127.0.0.1", () => {
   console.log(`Twisted Growers Claude bridge listening on http://127.0.0.1:${PORT}`);
   console.log(`Project: ${PROJECT}`);
   console.log(`Claude:  ${CLAUDE}`);
-  console.log(`Token:   ${TOKEN}`);
+  /* The banner used to print the token in full. That was survivable only while
+     the hidden launcher discarded all output; now that output is captured to
+     bridge.log, printing it would write the shared bridge token into a file on
+     every machine that runs this. bridge*.log is gitignored, so it will not
+     reach GitHub — but a token sitting in a plain file is a token that ends up
+     in a screenshot or a support paste. Enough to confirm which token is loaded
+     and to compare against ai_settings, and useless to anyone reading it. */
+  console.log(`Token:   ${TOKEN.slice(0, 3)}…${TOKEN.slice(-2)} (${TOKEN.length} chars, sha256 ${createHash("sha256").update(TOKEN).digest("hex").slice(0, 12)})`);
 });
 
 /* ── Supabase job queue ──────────────────────────────────────────────
