@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback, useRef } from "react";
 import jsQR from "jsqr";
 import { supabase, FUNCTIONS_URL } from "./lib/supabase.js";
-import { BudzScreen, CeoDashboard, AssistantSettings } from "./budz.jsx";
+import { BudzScreen, CeoDashboard, AssistantSettings, BudzPet, useBudzPet } from "./budz.jsx";
 
 // Laws: live numbers (2) · no fake data (3) · nothing hardwired (4) — navigation itself is DB rows.
 
@@ -7586,6 +7586,18 @@ function ForcePasswordChange({ email, onDone }) {
 
 export default function App() {
   const { session, mustChange, setMustChange, showWelcome, setShowWelcome } = useSession();
+  /* Pet mode. Held at APP level, never inside a screen, so Budz survives
+     navigation and floats over every page instead of remounting - and
+     losing his position - each time the view changes. */
+  const [petOn, setPetOn] = useBudzPet();
+  const [aiRoles, setAiRoles] = useState(null);
+  /* Who is allowed an assistant at all. One row, read once. Null until it
+     answers, so the pet never flashes up for a role that may not have it. */
+  useEffect(() => {
+    if (!session) { setAiRoles(null); return; }
+    supabase.from("ai_settings").select("ai_allowed_roles").limit(1).maybeSingle()
+      .then(({ data }) => setAiRoles(data?.ai_allowed_roles ?? []));
+  }, [session]);
   const prefs = usePrefs(session ?? null);
   const [navVersion, setNavVersion] = useState(0);
   const { nav, reports, apps, deep, finance, tax, hr } = useNav(navVersion, session);
@@ -7842,6 +7854,12 @@ export default function App() {
                 <div className="usep" />
                 <button className="uitem" onClick={() => { setUserMenu(false); setView("settings"); }}>{I.gear} Settings</button>
                 <button className="uitem" onClick={() => { setUserMenu(false); setView("alerts"); }}>{I.bell} Notifications</button>
+                {/* Same setter as the Assistant page, so the two can never disagree. */}
+                {aiRoles && role && aiRoles.includes(role) && (
+                  <button className="uitem" onClick={() => { setUserMenu(false); setPetOn(!petOn); }}>
+                    {I.leafline} {petOn ? "Turn Budz off" : "Let Budz follow me"}
+                  </button>
+                )}
                 <button className="uitem dim" disabled title="Cheat-sheet of shortcuts ships with the views engine">{I.clip} Keyboard shortcuts <span className="mtag">SOON</span></button>
                 <button className="uitem dim" disabled title="Installable mobile app (PWA) is registered">{I.out} Get the app <span className="mtag">SOON</span></button>
                 <button className="uitem" onClick={() => { setUserMenu(false); setView("help"); }}>{I.help} Help & Support</button>
@@ -7940,6 +7958,20 @@ export default function App() {
           <Boundary resetKey={view}>{body}</Boundary>
         </main>
       </div>
+
+      {/* Budz, floating over everything. Deliberately OUTSIDE <main> and outside
+          the route boundary: he must survive navigation and keep his position,
+          and a crash in a page must not take him down with it.
+
+          Permission aware — ai_settings.ai_allowed_roles decides who may have an
+          assistant at all. While that setting is still loading aiRoles is null
+          and the pet does not render, so a role without AI access never sees him
+          flash up before the check completes. */}
+      {petOn && aiRoles && role && aiRoles.includes(role) && (
+        <Boundary resetKey="budz-pet">
+          <BudzPet go={setView} onClose={() => setPetOn(false)} />
+        </Boundary>
+      )}
     </div>
   );
 }

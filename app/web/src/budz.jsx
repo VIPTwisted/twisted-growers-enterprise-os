@@ -1009,21 +1009,65 @@ export function AssistantSettings() {
 }
 
 
-/* Budz the pet: floats over any page, draggable, resizable, minimisable. */
+/* Budz the pet: floats over any page, draggable, resizable, minimisable.
+
+   PERSISTENCE. localStorage alone was per BROWSER, not per user - sign in from
+   another machine and the pet was gone, and two people sharing a machine shared
+   each other's pet. It now writes through to user_settings, which is per user
+   and follows you.
+
+   localStorage is KEPT as a cache, deliberately: it is read synchronously on
+   first paint so the pet appears instantly and in the right place, instead of
+   flashing in from a default position once the round trip returns. The database
+   is the truth; the cache only decides what the first frame looks like. */
 const PET_KEY = "tg.pet.v1";
 const petLoad = () => {
   try { return JSON.parse(localStorage.getItem(PET_KEY) || "{}"); } catch { return {}; }
 };
 const petSave = (v) => { try { localStorage.setItem(PET_KEY, JSON.stringify(v)); } catch {} };
 
+/* Write through to the user's row. Fire and forget: a failed save must never
+   interrupt someone dragging a window. */
+const petPersist = async (patch) => {
+  try {
+    const { data } = await supabase.auth.getUser();
+    const uid = data?.user?.id;
+    if (!uid) return;
+    await supabase.from("user_settings").update(patch).eq("user_id", uid);
+  } catch { /* the cache still holds it; the next save will retry */ }
+};
+
 export function useBudzPet() {
   const [on, setOn] = useState(() => petLoad().on ?? false);
+  /* The stored preference wins over the cache once it arrives. */
+  useEffect(() => {
+    let live = true;
+    (async () => {
+      const { data: u } = await supabase.auth.getUser();
+      if (!u?.user?.id) return;
+      const { data } = await supabase.from("user_settings")
+        .select("pet_on").eq("user_id", u.user.id).maybeSingle();
+      if (live && data && typeof data.pet_on === "boolean" && data.pet_on !== on) {
+        setOn(data.pet_on);
+        petSave({ ...petLoad(), on: data.pet_on });
+      }
+    })();
+    return () => { live = false; };
+  }, []);
   useEffect(() => {
     const h = () => setOn(petLoad().on ?? false);
     window.addEventListener("tg-pet-toggle", h);
     return () => window.removeEventListener("tg-pet-toggle", h);
   }, []);
-  return [on, setOn];
+  /* One place turns the pet on or off, so the toggle on the Assistant page and
+     the one in the user menu can never disagree. */
+  const setPet = (next) => {
+    setOn(next);
+    petSave({ ...petLoad(), on: next });
+    petPersist({ pet_on: next });
+    window.dispatchEvent(new Event("tg-pet-toggle"));
+  };
+  return [on, setPet];
 }
 
 export function BudzPet({ go, onClose }) {
@@ -1041,7 +1085,44 @@ export function BudzPet({ go, onClose }) {
   const fileRef = useRef(null);
   const endRef = useRef(null);
 
+  /* Cache immediately so the next first paint is instant and correct, then
+     write through to the user's row so it follows them to another machine.
+     Position and size are debounced - a drag fires this on every pointer move
+     and we are not writing a row per pixel. */
   useEffect(() => { petSave({ ...petLoad(), pos, size, open }); }, [pos, size, open]);
+  useEffect(() => {
+    const t = setTimeout(() => petPersist({
+      pet_x: Math.round(pos.x), pet_y: Math.round(pos.y),
+      pet_size: Math.round(size), pet_minimised: !open,
+    }), 700);
+    return () => clearTimeout(t);
+  }, [pos, size, open]);
+
+  /* What is worth interrupting for. Only the sources the owner has switched on
+     count - defaulting to all of them would pulse at 20 critical findings the
+     first time it is opened, and a pet that cries constantly gets turned off. */
+  const [notif, setNotif] = useState({ total: 0, detail: [] });
+  useEffect(() => {
+    let live = true;
+    const read = async () => {
+      const { data: u } = await supabase.auth.getUser();
+      if (!u?.user?.id) return;
+      const [{ data: rows }, { data: st }] = await Promise.all([
+        supabase.rpc("f_my_notifications"),
+        supabase.from("user_settings").select("pet_notify").eq("user_id", u.user.id).maybeSingle(),
+      ]);
+      const want = st?.pet_notify ?? {};
+      const wanted = (rows ?? []).filter((r) => want[r.source]);
+      if (live) setNotif({
+        total: wanted.reduce((a, r) => a + Number(r.unread ?? 0), 0),
+        detail: wanted.filter((r) => Number(r.unread) > 0),
+      });
+    };
+    read();
+    const t = setInterval(read, 60000);
+    return () => { live = false; clearInterval(t); };
+  }, []);
+
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth" }); }, [log, busy]);
 
   const onDown = (e) => {
@@ -1112,9 +1193,22 @@ export function BudzPet({ go, onClose }) {
     >
       <div className="pethead">
         <span className="petname">{name}</span>
-        <button className="petbtn" title={open ? "Minimise" : "Open chat"} onClick={() => setOpen((v) => !v)}>{open ? "\u2013" : "\u25B8"}</button>
+        {/* Something is waiting. Only counts sources the owner chose to be
+            interrupted by, and it says WHAT rather than just showing a number. */}
+        {notif.total > 0 && (
+          <span className="tbadge" title={notif.detail.map((d) => `${d.unread} ${d.what.toLowerCase()}`).join("\n")}>
+            {notif.total > 99 ? "99+" : notif.total}
+          </span>
+        )}
+        {/* HIDE and CLOSE are different things and used to be the same button.
+            Hide (\u2013) collapses the chat, the pet stays on screen and keeps
+            watching. Close (\u2715) turns pet mode off entirely until it is switched
+            back on from the Assistant page or the user menu. */}
+        <button className="petbtn" title={open ? "Minimise the chat \u2014 Budz stays and keeps watching" : "Open chat"}
+          onClick={() => setOpen((v) => !v)}>{open ? "\u2013" : "\u25B8"}</button>
         <button className="petbtn" title="Open the full page" onClick={() => go("budz")}>{"\u2922"}</button>
-        <button className="petbtn" title="Hide" onClick={onClose}>{"\u2715"}</button>
+        <button className="petbtn" title="Turn Budz off \u2014 switch him back on from Settings or the Assistant page"
+          onClick={onClose}>{"\u2715"}</button>
       </div>
 
       <div className="petart" onDoubleClick={() => setOpen((v) => !v)} title="Drag to move, double-click to chat">
@@ -1210,6 +1304,77 @@ export function BudzBot({ state = "rest", size = 132 }) {
       <circle className="bb-d2" cx="180" cy="38" r="5" fill="#5cff92" opacity=".2" />
       <circle className="bb-d3" cx="194" cy="28" r="3.2" fill="#5cff92" opacity=".2" />
     </svg>
+  );
+}
+
+/* Pet mode, and what may interrupt you. Lives on the Assistant page and is
+   reachable from the user menu. Both drive the same useBudzPet setter, so the
+   two controls can never end up saying different things. */
+const NOTIFY_SOURCES = [
+  { key: "critical_findings", label: "Critical findings",
+    why: "Anything the watchdog rates critical — the licence and the biggest money sit here." },
+  { key: "inventory_alerts", label: "Inventory alerts",
+    why: "Storage limits, ageing stock and testing position." },
+  { key: "alert_outbox", label: "Alerts raised for my role",
+    why: "Escalations addressed to your role that nobody has read yet." },
+  { key: "messages", label: "Messages", why: "Messages addressed to you." },
+];
+
+export function PetControls() {
+  const [on, setOn] = useBudzPet();
+  const [notify, setNotify] = useState(null);
+  const [counts, setCounts] = useState([]);
+  useEffect(() => {
+    let live = true;
+    (async () => {
+      const { data: u } = await supabase.auth.getUser();
+      if (!u?.user?.id) return;
+      const [{ data: st }, { data: rows }] = await Promise.all([
+        supabase.from("user_settings").select("pet_notify").eq("user_id", u.user.id).maybeSingle(),
+        supabase.rpc("f_my_notifications"),
+      ]);
+      if (!live) return;
+      setNotify(st?.pet_notify ?? {});
+      setCounts(rows ?? []);
+    })();
+    return () => { live = false; };
+  }, []);
+  const flip = async (key) => {
+    const next = { ...(notify ?? {}), [key]: !(notify ?? {})[key] };
+    setNotify(next);
+    const { data: u } = await supabase.auth.getUser();
+    if (u?.user?.id) await supabase.from("user_settings").update({ pet_notify: next }).eq("user_id", u.user.id);
+  };
+  const countFor = (k) => Number(counts.find((c) => c.source === k)?.unread ?? 0);
+  return (
+    <div className="petctl">
+      <button className={`btn ${on ? "" : "primary"}`} onClick={() => setOn(!on)}>
+        {on ? "Turn Budz off" : "Let Budz follow me"}
+      </button>
+      <span className="note" style={{ marginLeft: 10 }}>
+        {on
+          ? "He floats over every page. Drag him anywhere — he stays where you put him, on any machine you sign in from."
+          : "He stays on this page only."}
+      </span>
+      {on && (
+        <div style={{ marginTop: 12 }}>
+          <div className="note" style={{ marginBottom: 6 }}>
+            Interrupt me for — nothing is switched on until you choose it:
+          </div>
+          {NOTIFY_SOURCES.map((s) => (
+            <label key={s.key} className="petnotify" title={s.why}
+              style={{ display: "block", marginBottom: 4, cursor: "pointer" }}>
+              <input type="checkbox" checked={!!(notify ?? {})[s.key]}
+                onChange={() => flip(s.key)} disabled={notify === null} />
+              <span style={{ marginLeft: 8 }}>{s.label}</span>
+              {countFor(s.key) > 0 && (
+                <span className="note" style={{ marginLeft: 8 }}>{countFor(s.key)} waiting</span>
+              )}
+            </label>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -1389,6 +1554,7 @@ export function BudzScreen({ go }) {
         </div>
         <div className="budzhero-say">
           <p>{prof == null ? "" : (prof.intro || BUDZ_INTRO)}</p>
+          <PetControls />
         </div>
       </div>
       <div className="budzwrap">
