@@ -7560,10 +7560,18 @@ export default function App() {
   useEffect(() => {
     if (window.location.hash.slice(1) !== view) window.history.pushState(null, "", `#${view}`);
   }, [view]);
+  /* popstate covers Back and Forward. It does NOT fire when the hash is edited
+     in the address bar, or when a link to #something on this same page is
+     followed — that is hashchange, and without it the URL changed while the
+     screen did not. Both are listened for; setView already ignores a no-op. */
   useEffect(() => {
-    const onPop = () => setView(window.location.hash.slice(1) || "tower");
-    window.addEventListener("popstate", onPop);
-    return () => window.removeEventListener("popstate", onPop);
+    const onNav = () => setView(window.location.hash.slice(1) || "tower");
+    window.addEventListener("popstate", onNav);
+    window.addEventListener("hashchange", onNav);
+    return () => {
+      window.removeEventListener("popstate", onNav);
+      window.removeEventListener("hashchange", onNav);
+    };
   }, []);
   const [openCats, setOpenCats] = useState(() => {
     try { return JSON.parse(localStorage.getItem("tg.nav.open") || "{}"); } catch { return {}; }
@@ -7698,9 +7706,27 @@ export default function App() {
       ? <MenuManager onChanged={() => setNavVersion((v) => v + 1)} />
       : <div className="empty"><div className="eicon">{I.shield}</div><b>Admin area</b>Menu Manager is restricted to executives. Ask an owner if a menu change is needed.</div>,
   };
+  /* An address that resolves to nothing used to fall through to the Control
+     Tower in silence. A stale bookmark, a renamed view_key or a typo looked
+     exactly like landing on the home page on purpose — the same failure shape
+     as a query returning [] on error. Say what was asked for and why it is not
+     here; the Control Tower is one click away rather than a silent substitute. */
+  const unknownView = !special[view] && !current && view !== "tower";
   const body = special[view] ?? (current
     ? <ModuleScreen entry={current} actions={current.sync_enabled ? <SyncCenter session={session} /> : undefined} />
-    : <ControlTower go={setView} />);
+    : unknownView
+      ? (
+        <div className="empty">
+          <div className="eicon">{I.shield}</div>
+          <b>No page called “{view}”</b>
+          This address does not match any page you can see. Either the link is out of date,
+          the page was renamed, or your role does not have access to it.
+          <div style={{ marginTop: 14 }}>
+            <button className="btn primary" onClick={() => setView("tower")}>Go to the Control Tower</button>
+          </div>
+        </div>
+      )
+      : <ControlTower go={setView} />);
 
   return (
     <div className="frame">
