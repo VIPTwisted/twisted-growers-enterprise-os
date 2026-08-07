@@ -11,7 +11,8 @@
     "check:theme": "node tools/checks/theme-lock.mjs",
     "check:boundaries": "node tools/checks/error-boundaries.mjs",
     "check:routing": "node tools/checks/routing.mjs",
-    "check": "npm run check:theme && npm run check:parse && npm run check:numbers && npm run check:boundaries && npm run check:routing && npm run lint"
+    "check": "npm run check:baseline && npm run check:theme && npm run check:parse && npm run check:numbers && npm run check:boundaries && npm run check:routing && npm run lint",
+    "check:baseline": "node tools/checks/schema-baseline-fresh.mjs"
   },
   "devDependencies": {
     "eslint": "^9.13.0",

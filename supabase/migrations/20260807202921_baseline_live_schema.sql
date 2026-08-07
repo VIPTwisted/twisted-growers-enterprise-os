@@ -709,6 +709,15 @@ create table if not exists public.facility_profile (
   "notes" text,
   "updated_at" timestamp with time zone default now() not null
 );
+create table if not exists public.failed_material_disposition (
+  "id" bigint default nextval('failed_material_disposition_id_seq'::regclass) not null,
+  "package_tag" text not null,
+  "disposition" text not null,
+  "reason" text not null,
+  "decided_by" text,
+  "decided_at" timestamp with time zone default now() not null,
+  "superseded_at" timestamp with time zone
+);
 create table if not exists public.figure_of_record (
   "figure_key" text not null,
   "source_table" text not null,
@@ -2893,6 +2902,33 @@ create table if not exists public.tg_overrides (
   "metrc_sourced" boolean default false not null,
   "metrc_task_id" uuid
 );
+create table if not exists public.tg_soh_frozen (
+  "origin" text,
+  "stream" text,
+  "license" text,
+  "lab_state" text,
+  "location" text,
+  "supplier" text,
+  "origin_license" text,
+  "packages" bigint,
+  "grams" numeric,
+  "pounds" numeric,
+  "oldest_days" integer,
+  "oldest_packaged" date,
+  "strains" bigint,
+  "units" numeric,
+  "unit_of_measure" text,
+  "sold_by_weight" boolean,
+  "quantity_shown" text,
+  "stock_status" text
+);
+create table if not exists public.tg_tower_rewrite_proof (
+  "metric" text not null,
+  "value" numeric,
+  "label" text,
+  "grp" text,
+  "drill" text
+);
 create table if not exists public.third_party_material (
   "id" uuid default gen_random_uuid() not null,
   "company" text,
@@ -3210,6 +3246,7 @@ alter table public.employee_work_schedules add constraint employee_work_schedule
 alter table public.employees add constraint employees_pkey PRIMARY KEY (id);
 alter table public.facility_contacts add constraint facility_contacts_pkey PRIMARY KEY (facility_licence);
 alter table public.facility_profile add constraint facility_profile_pkey PRIMARY KEY (id);
+alter table public.failed_material_disposition add constraint failed_material_disposition_pkey PRIMARY KEY (id);
 alter table public.figure_of_record add constraint figure_of_record_pkey PRIMARY KEY (figure_key);
 alter table public.finding_owners add constraint finding_owners_pkey PRIMARY KEY (department);
 alter table public.finding_plans add constraint finding_plans_pkey PRIMARY KEY (id);
@@ -3373,6 +3410,7 @@ alter table public.templates add constraint templates_pkey PRIMARY KEY (id);
 alter table public.test_requests add constraint test_requests_pkey PRIMARY KEY (id);
 alter table public.testing_slas add constraint testing_slas_pkey PRIMARY KEY (id);
 alter table public.tg_overrides add constraint tg_overrides_pkey PRIMARY KEY (id);
+alter table public.tg_tower_rewrite_proof add constraint tg_tower_rewrite_proof_pkey PRIMARY KEY (metric);
 alter table public.third_party_material add constraint third_party_material_pkey PRIMARY KEY (id);
 alter table public.third_party_purchases add constraint third_party_purchases_pkey PRIMARY KEY (id);
 alter table public.threshold_column_map add constraint threshold_column_map_pkey PRIMARY KEY (column_pattern);
@@ -3627,6 +3665,8 @@ alter table public.employees add constraint employees_check CHECK (((primary_all
 alter table public.employees add constraint employees_primary_allocation_check CHECK (((primary_allocation >= (0)::numeric) AND (primary_allocation <= (1)::numeric)));
 alter table public.employees add constraint employees_secondary_allocation_check CHECK (((secondary_allocation >= (0)::numeric) AND (secondary_allocation <= (1)::numeric)));
 alter table public.facility_profile add constraint one_row CHECK ((id = 1));
+alter table public.failed_material_disposition add constraint failed_material_disposition_disposition_check CHECK ((disposition = ANY (ARRAY['bought_for_remediation'::text, 'remediate_in_house'::text, 'sell_for_remediation'::text, 'destroy'::text, 'not_yet_decided'::text])));
+alter table public.failed_material_disposition add constraint failed_material_disposition_reason_check CHECK ((length(btrim(reason)) >= 10));
 alter table public.finding_plans add constraint finding_plans_disposition_check CHECK ((disposition = ANY (ARRAY['open'::text, 'planned'::text, 'saved_for_later'::text, 'on_todo_list'::text, 'shared'::text, 'resolved'::text, 'ignored'::text])));
 alter table public.finding_state add constraint closing_needs_a_reason CHECK (((state <> ALL (ARRAY['closed'::text, 'not_a_problem'::text])) OR (length(btrim(COALESCE(note, ''::text))) >= 10)));
 alter table public.finding_state add constraint finding_state_state_check CHECK ((state = ANY (ARRAY['open'::text, 'acknowledged'::text, 'in_progress'::text, 'fixed_in_os'::text, 'fixed_in_metrc'::text, 'closed'::text, 'not_a_problem'::text, 'suppressed'::text])));
@@ -3750,6 +3790,7 @@ CREATE INDEX custody_log_open_idx ON public.custody_alert_log USING btree (flag,
 CREATE INDEX idx_demand_forecasts_week ON public.demand_forecasts USING btree (week_start);
 CREATE UNIQUE INDEX employee_rates_open_period ON public.employee_rates USING btree (employee_id) WHERE (effective_to IS NULL);
 CREATE INDEX idx_employee_schedules_date ON public.employee_schedules USING btree (work_date);
+CREATE UNIQUE INDEX failed_material_disposition_current ON public.failed_material_disposition USING btree (package_tag) WHERE (superseded_at IS NULL);
 CREATE INDEX fp_disp ON public.finding_plans USING btree (disposition, created_at DESC);
 CREATE INDEX fp_key ON public.finding_plans USING btree (finding_key);
 CREATE INDEX fa_run ON public.forensic_audits USING btree (run_at DESC, section);
@@ -3834,6 +3875,11 @@ CREATE INDEX wf_when ON public.watchdog_findings USING btree (observed_at DESC);
 -- FUNCTIONS
 -- ==========================================================================
 
+CREATE OR REPLACE FUNCTION public._tg_autofix_probe()
+ RETURNS integer
+ LANGUAGE sql
+AS $function$ select 1 $function$
+;
 CREATE OR REPLACE FUNCTION public.agent_sheet_reconciliation()
  RETURNS integer
  LANGUAGE plpgsql
@@ -5502,29 +5548,43 @@ CREATE OR REPLACE FUNCTION public.tg_ddl_guard()
  SECURITY DEFINER
  SET search_path TO 'public', 'pg_temp'
 AS $function$
-declare r record; problem text;
+declare r record; problem text; fixed int := 0;
 begin
   for r in select * from pg_event_trigger_ddl_commands() loop
     problem := null;
+
     if r.command_tag = 'CREATE TABLE' and r.object_type = 'table' then
+      -- Still only a warning: RLS cannot be enabled in the same statement as CREATE TABLE, so
+      -- blocking or "fixing" here would make correct work impossible.
       if not exists (select 1 from pg_class c where c.oid = r.objid and c.relrowsecurity) then
         problem := 'Table created WITHOUT row-level security. Run: alter table '||r.object_identity
-                || ' enable row level security; then add policies mirroring a sibling table '
-                || '(read for authenticated, write for owner/executive).';
+                || ' enable row level security; then add policies mirroring a sibling table.';
       end if;
+
     elsif r.command_tag = 'CREATE FUNCTION' and r.object_type = 'function' then
+      -- AUTO-FIX. Postgres grants EXECUTE to PUBLIC on every new function, which is how the anon
+      -- surface reopened five times on 7 Aug 2026. Revoking it here is always correct: a client
+      -- role that genuinely needs the function gets an explicit grant.
+      if exists (select 1 from pg_proc p where p.oid = r.objid
+                 and has_function_privilege('anon', p.oid, 'EXECUTE')) then
+        execute format('revoke all on function %s from public, anon', r.objid::regprocedure);
+        execute format('grant execute on function %s to authenticated', r.objid::regprocedure);
+        problem := 'AUTO-FIXED: EXECUTE was granted to PUBLIC (Postgres default), so anon could '
+                || 'call it. Revoked from public and anon; granted to authenticated. If this '
+                || 'function must NOT be callable by signed-in users either, revoke it explicitly.';
+        fixed := fixed + 1;
+      end if;
+
+      -- search_path is also always safe to pin on a SECURITY DEFINER function.
       if exists (select 1 from pg_proc p where p.oid=r.objid and p.prosecdef and p.proconfig is null) then
-        problem := 'SECURITY DEFINER function with NO search_path - the classic privilege-'
-                || 'escalation shape. Run: alter function '||r.object_identity
-                || ' set search_path = public, pg_temp;';
-      elsif exists (select 1 from pg_proc p where p.oid=r.objid
-                    and has_function_privilege('anon', p.oid, 'EXECUTE')) then
-        problem := 'Function is EXECUTABLE BY anon - every anonymous visitor, since the '
-                || 'publishable key ships in the JavaScript bundle. Run: revoke all on function '
-                || r.object_identity||' from public, anon;  (revoking from anon alone is a no-op '
-                || 'while PUBLIC still holds the grant)';
+        execute format('alter function %s set search_path = public, pg_temp', r.objid::regprocedure);
+        problem := coalesce(problem||' ALSO ','')
+                || 'AUTO-FIXED: SECURITY DEFINER with no search_path - the privilege-escalation '
+                || 'shape. Pinned to public, pg_temp.';
+        fixed := fixed + 1;
       end if;
     end if;
+
     if problem is not null then
       insert into ddl_guard_log (object_type, object_identity, command_tag, problem, actor)
       values (r.object_type, r.object_identity, r.command_tag, problem,
@@ -6803,23 +6863,40 @@ CREATE OR REPLACE FUNCTION public.tg_metrc_fire(p_job metrc_scan_schedule, p_tri
  SET search_path TO 'public'
 AS $function$
 declare url text; lic text; allowed_eps text; skipped text[] := '{}';
+        anon text; hdr jsonb;
 begin
+  -- FIXED 7 Aug 2026 (Agent D, live outage): every scheduled call to an Edge Function
+  -- must carry Authorization: Bearer <anon>. The Supabase gateway checks a bearer token
+  -- BEFORE the function's own x-admin-key is ever seen. metrc-sync was redeployed as v15
+  -- at 11:31 UTC with verify_jwt=true; from that moment every dispatch from this function
+  -- returned 401 UNAUTHORIZED_NO_AUTH_HEADER and produced no sync run, while
+  -- metrc_scan_schedule.last_result still read 'dispatched'. Sync was dead ~5 hours and
+  -- no check noticed, because nothing compares metrc_scan_log against metrc_sync_runs.
+  -- Pattern copied verbatim from tg_call_function, which already did this correctly.
+  select value into anon from integration_secrets where name = 'SUPABASE_ANON_KEY';
+  if anon is null then
+    raise exception 'SUPABASE_ANON_KEY is not stored in integration_secrets. Every '
+      'scheduled Edge Function call needs it: the gateway checks a bearer token before '
+      'the function''s own admin key is ever seen.';
+  end if;
+
+  hdr := jsonb_build_object(
+           'x-admin-key', 'tg-seed-8f3k2m-2026',
+           'Authorization', 'Bearer ' || anon,
+           'Content-Type', 'application/json');
+
   if p_job.job_name = 'deliveries' then
     perform net.http_post(
       url := 'https://fxetuqjryttnypgepsru.supabase.co/functions/v1/metrc-reference-sync?mode=deliveries&limit=60',
-      headers := '{"x-admin-key": "tg-seed-8f3k2m-2026", "Content-Type": "application/json"}'::jsonb,
-      body := '{}'::jsonb, timeout_milliseconds := 300000);
+      headers := hdr, body := '{}'::jsonb, timeout_milliseconds := 300000);
 
   elsif p_job.job_name = 'lookups' then
     perform net.http_post(
       url := 'https://fxetuqjryttnypgepsru.supabase.co/functions/v1/metrc-reference-sync?mode=reference',
-      headers := '{"x-admin-key": "tg-seed-8f3k2m-2026", "Content-Type": "application/json"}'::jsonb,
-      body := '{}'::jsonb, timeout_milliseconds := 300000);
+      headers := hdr, body := '{}'::jsonb, timeout_milliseconds := 300000);
 
   else
     -- One call per licence, carrying only the endpoints that licence can actually serve.
-    -- Previously a single unscoped call made the sync try every endpoint against both
-    -- licences, so a quarter of all Metrc traffic was requests that cannot succeed.
     -- Default is ALLOW: an endpoint is skipped only where a row explicitly says false,
     -- so a missing policy row can never silently stop a real sync.
     foreach lic in array array['MC281714','MP281909'] loop
@@ -6835,10 +6912,8 @@ begin
 
       url := 'https://fxetuqjryttnypgepsru.supabase.co/functions/v1/metrc-sync?endpoints='
              || allowed_eps || '&license=' || lic;
-      perform net.http_post(
-        url := url,
-        headers := '{"x-admin-key": "tg-seed-8f3k2m-2026", "Content-Type": "application/json"}'::jsonb,
-        body := '{}'::jsonb, timeout_milliseconds := 300000);
+      perform net.http_post(url := url, headers := hdr, body := '{}'::jsonb,
+                            timeout_milliseconds := 300000);
     end loop;
   end if;
 
@@ -9700,6 +9775,54 @@ create or replace view public.v_cost_of_goods as
     round(crude_g, 1) AS crude_grams_per_batch,
     'Every figure recomputes from the Production Cost Calculator inputs. Change a cost there and '::text || 'these change, and so does the value of every package of this type on the platform.'::text AS note
    FROM c3;
+create or replace view public.v_cron_health as
+ WITH runs AS (
+         SELECT j.jobid,
+            j.jobname,
+            j.schedule,
+            j.active,
+            count(d.runid) FILTER (WHERE d.start_time > (now() - '24:00:00'::interval)) AS runs_24h,
+            count(d.runid) FILTER (WHERE d.start_time > (now() - '24:00:00'::interval) AND d.status <> 'succeeded'::text) AS failed_24h,
+            max(d.start_time) AS last_start,
+            max(d.start_time) FILTER (WHERE d.status = 'succeeded'::text) AS last_success,
+            (array_agg(d.return_message ORDER BY d.start_time DESC) FILTER (WHERE d.status <> 'succeeded'::text))[1] AS last_error
+           FROM cron.job j
+             LEFT JOIN cron.job_run_details d ON d.jobid = j.jobid
+          GROUP BY j.jobid, j.jobname, j.schedule, j.active
+        )
+ SELECT jobname,
+    schedule,
+    active,
+    runs_24h,
+    failed_24h,
+        CASE
+            WHEN runs_24h = 0 THEN NULL::numeric
+            ELSE round(100.0 * failed_24h::numeric / runs_24h::numeric, 1)
+        END AS failure_pct_24h,
+    (last_start AT TIME ZONE 'America/New_York'::text) AS last_run_et,
+    (last_success AT TIME ZONE 'America/New_York'::text) AS last_success_et,
+        CASE
+            WHEN last_success IS NULL THEN NULL::numeric
+            ELSE round(EXTRACT(epoch FROM now() - last_success) / 3600.0, 1)
+        END AS hours_since_success,
+        CASE
+            WHEN NOT active THEN 'TURNED OFF'::text
+            WHEN last_start IS NULL THEN 'NEVER RUN — active, scheduled, no run has ever been recorded'::text
+            WHEN last_success IS NULL THEN 'NEVER SUCCEEDED — every attempt has failed'::text
+            WHEN failed_24h = 0 THEN 'HEALTHY'::text
+            WHEN failed_24h = runs_24h THEN 'FAILING EVERY RUN'::text
+            ELSE ((('FAILING INTERMITTENTLY — '::text || failed_24h) || ' of '::text) || runs_24h) || ' runs in 24h'::text
+        END AS verdict,
+        CASE
+            WHEN NOT active THEN 5
+            WHEN last_success IS NULL AND last_start IS NOT NULL THEN 1
+            WHEN last_start IS NULL THEN 3
+            WHEN failed_24h = runs_24h AND runs_24h > 0 THEN 1
+            WHEN failed_24h > 0 THEN 2
+            ELSE 4
+        END AS rank,
+    "left"(COALESCE(last_error, ''::text), 300) AS last_error
+   FROM runs;
 create or replace view public.v_cross_source_reconciliation as
  WITH revenue AS (
          SELECT 'Wholesale revenue'::text AS fact,
@@ -12975,16 +13098,24 @@ UNION ALL
            FROM metrc_harvests h2
           WHERE COALESCE((h2.raw ->> 'TotalWetWeight'::text)::numeric, 0::numeric) > 0::numeric)))
 UNION ALL
- SELECT 'Failed testing'::text AS loss_type,
+ SELECT 'Destroyed after failing testing'::text AS loss_type,
     COALESCE(p.item_name, '(unnamed)'::text) AS scope,
     COALESCE(p.location, '(no location)'::text) AS location,
     1::numeric AS units,
     'package'::text AS unit_label,
-    round(COALESCE(p.quantity, 0::numeric) / 453.592, 2) AS pounds,
-    'Packaged product that failed laboratory testing. This is finished goods that cannot be sold - a real loss at full cost.'::text AS why_it_is_a_loss,
-    'Decide remediation or destruction and record it.'::text AS what_to_check
+        CASE p.uom
+            WHEN 'g'::text THEN round(COALESCE(p.quantity, 0::numeric) / f_rule('grams_per_pound'::text), 2)
+            WHEN 'kg'::text THEN round(COALESCE(p.quantity, 0::numeric) * 1000.0 / f_rule('grams_per_pound'::text), 2)
+            WHEN 'lb'::text THEN round(COALESCE(p.quantity, 0::numeric), 2)
+            WHEN 'oz'::text THEN round(COALESCE(p.quantity, 0::numeric) / 16.0, 2)
+            ELSE NULL::numeric
+        END AS pounds,
+    'Material that failed testing AND was destroyed. Only destroyed material is a loss: per the owner, failed material is remediated in house, sold on for remediation, or destroyed, and this business buys failed material at a discount to remediate it. Failing a test is not losing the value.'::text AS why_it_is_a_loss,
+    'Confirm the destruction is recorded in Metrc.'::text AS what_to_check
    FROM metrc_packages p
-  WHERE p.lab_testing_state = 'TestFailed'::text AND (p.source_state = ANY (ARRAY['active'::text, 'onhold'::text]))
+  WHERE p.lab_testing_state = 'TestFailed'::text AND (p.source_state = ANY (ARRAY['active'::text, 'onhold'::text])) AND (EXISTS ( SELECT 1
+           FROM failed_material_disposition fd
+          WHERE fd.package_tag = p.tag AND fd.superseded_at IS NULL AND fd.disposition = 'destroy'::text))
 UNION ALL
  SELECT 'Missed pull'::text AS loss_type,
     COALESCE(pl.cultivars, 'not recorded'::text) AS scope,
@@ -17457,7 +17588,7 @@ create or replace view public.v_item_flags_all as
              LEFT JOIN import_reconciliation_run run ON run.id = r.run_id
           WHERE r.outcome = 'differs'::text AND r.decision IS NULL
         UNION ALL
-         SELECT 'package'::text,
+         SELECT 'package'::text AS text,
             t.tag,
                 CASE
                     WHEN c.urgency = 'urgent'::text THEN 'critical'::text
@@ -17467,10 +17598,10 @@ create or replace view public.v_item_flags_all as
             c.what_is_wrong,
             c.why_it_matters,
             c.how_to_fix_in_metrc,
-            'metrc_corrections'::text,
+            'metrc_corrections'::text AS text,
             (c.id::text || ':'::text) || t.tag,
             c.raised_on,
-            'Metrc record'::text,
+            'Metrc record'::text AS text,
             ( SELECT p.license
                    FROM metrc_packages p
                   WHERE p.tag = t.tag
@@ -17482,7 +17613,7 @@ create or replace view public.v_item_flags_all as
                    FROM metrc_packages p
                   WHERE p.tag = t.tag))
         UNION ALL
-         SELECT 'correction'::text,
+         SELECT 'correction'::text AS text,
             c.id::text AS id,
                 CASE
                     WHEN c.urgency = 'urgent'::text THEN 'critical'::text
@@ -17492,11 +17623,11 @@ create or replace view public.v_item_flags_all as
             c.what_is_wrong,
             c.why_it_matters,
             c.how_to_fix_in_metrc,
-            'metrc_corrections'::text,
+            'metrc_corrections'::text AS text,
             c.id::text AS id,
             c.raised_on,
             COALESCE(NULLIF(btrim(c.packages_affected), ''::text), 'Company-wide'::text) AS "coalesce",
-            NULL::text
+            NULL::text AS text
            FROM metrc_corrections c
           WHERE c.fixed_in_metrc = false AND NOT (EXISTS ( SELECT 1
                    FROM unnest(string_to_array(COALESCE(c.packages_affected, ''::text), ','::text)) x(x)
@@ -17504,35 +17635,58 @@ create or replace view public.v_item_flags_all as
                            FROM metrc_packages p
                           WHERE p.tag = btrim(x.x)))))
         UNION ALL
-         SELECT 'package'::text,
+         SELECT 'package'::text AS text,
             p.package_tag,
                 CASE
                     WHEN p.verdict ~~ 'METRC HOLDS ZERO%'::text THEN 'critical'::text
                     ELSE 'elevated'::text
                 END AS "case",
-            'Potency disagrees with the COA'::text,
+            'Potency disagrees with the COA'::text AS text,
             ((((((((('Metrc records '::text || p.metrc_value) || ' '::text) || COALESCE(p.metrc_unit, ''::text)) || '; COA '::text) || COALESCE(p.coa_document, '(no document id)'::text)) || ' reports '::text) || p.coa_percent) || '%. Difference '::text) || p.difference) || ' percentage points.'::text,
-            'The certificate of analysis is independent of Metrc, so it is the only thing that can catch a wrong figure inside Metrc.'::text,
-            'Compare against the COA document and raise a Metrc correction if the state record is wrong. Do not edit the figure only here.'::text,
-            'v_potency_vs_coa'::text,
+            'The certificate of analysis is independent of Metrc, so it is the only thing that can catch a wrong figure inside Metrc.'::text AS text,
+            'Compare against the COA document and raise a Metrc correction if the state record is wrong. Do not edit the figure only here.'::text AS text,
+            'v_potency_vs_coa'::text AS text,
             p.package_tag,
             CURRENT_DATE AS "current_date",
-            'Lab result'::text,
+            'Lab result'::text AS text,
             p.license
            FROM v_potency_vs_coa p
           WHERE p.verdict = ANY (ARRAY['disagrees with the COA - needs a person'::text, 'METRC HOLDS ZERO, THE COA DOES NOT - raise a correction'::text])
         UNION ALL
-         SELECT 'package'::text,
+         SELECT 'package'::text AS text,
+            p.tag,
+                CASE
+                    WHEN (p.raw ->> 'ItemFromFacilityLicenseNumber'::text) = ANY (ARRAY['MC281714'::text, 'MP281909'::text]) THEN 'elevated'::text
+                    ELSE 'watch'::text
+                END AS text,
+            'Failed testing, no disposition recorded'::text AS text,
+            ((((COALESCE(p.item_name, '(unnamed)'::text) || ' failed testing and is still held with no decision on record: '::text) || round(COALESCE(p.quantity, 0::numeric) / f_rule('grams_per_pound'::text), 2)) || ' lb in '::text) || COALESCE(p.location, 'no location recorded'::text)) || '.'::text AS text,
+                CASE
+                    WHEN (p.raw ->> 'ItemFromFacilityLicenseNumber'::text) = ANY (ARRAY['MC281714'::text, 'MP281909'::text]) THEN 'Our own material. Until a disposition is recorded nobody can tell whether this is stock awaiting rework or value already gone.'::text
+                    ELSE 'Bought in from a third party, most likely at a discount to remediate - in which case it is feedstock, not a loss. Recording that makes it inventory rather than an open question.'::text
+                END AS text,
+            'Record it in failed_material_disposition: bought_for_remediation, remediate_in_house, sell_for_remediation or destroy. Only destroy counts as a loss.'::text AS text,
+            'failed_material_disposition'::text AS text,
+            p.tag,
+            CURRENT_DATE AS "current_date",
+            'Failed testing'::text AS text,
+            p.license
+           FROM metrc_packages p
+          WHERE p.lab_testing_state = 'TestFailed'::text AND (p.source_state = ANY (ARRAY['active'::text, 'onhold'::text])) AND NOT (EXISTS ( SELECT 1
+                   FROM failed_material_disposition fd
+                  WHERE fd.package_tag = p.tag AND fd.superseded_at IS NULL))
+        UNION ALL
+         SELECT 'package'::text AS text,
             a.package_tag,
-            'watch'::text,
-            'Conflicting adjustment records'::text,
+            'watch'::text AS text,
+            'Conflicting adjustment records'::text AS text,
             ((('We hold '::text || a.rows_held) || ' adjustment rows for this package with '::text) || a.distinct_quantities) || ' different quantities.'::text,
             COALESCE(a.reading, 'The same package was adjusted to more than one quantity.'::text) AS "coalesce",
-            'Establish which adjustment is correct and record the decision.'::text,
-            'v_adjustment_conflicts'::text,
+            'Establish which adjustment is correct and record the decision.'::text AS text,
+            'v_adjustment_conflicts'::text AS text,
             a.package_tag,
             COALESCE(a.adjusted_on, CURRENT_DATE) AS "coalesce",
-            'Adjustment'::text,
+            'Adjustment'::text AS text,
             a.licence
            FROM v_adjustment_conflicts a
           WHERE a.needs_a_decision
@@ -17738,169 +17892,234 @@ create or replace view public.v_tower_inventory as
          SELECT conversion_factors.value AS r
            FROM conversion_factors
           WHERE conversion_factors.key = 'fresh_frozen_wet_to_dry'::text
+        ), s AS MATERIALIZED (
+         SELECT v_stock_on_hand.origin,
+            v_stock_on_hand.stream,
+            v_stock_on_hand.license,
+            v_stock_on_hand.lab_state,
+            v_stock_on_hand.location,
+            v_stock_on_hand.supplier,
+            v_stock_on_hand.origin_license,
+            v_stock_on_hand.packages,
+            v_stock_on_hand.grams,
+            v_stock_on_hand.pounds,
+            v_stock_on_hand.oldest_days,
+            v_stock_on_hand.oldest_packaged,
+            v_stock_on_hand.strains,
+            v_stock_on_hand.units,
+            v_stock_on_hand.unit_of_measure,
+            v_stock_on_hand.sold_by_weight,
+            v_stock_on_hand.quantity_shown,
+            v_stock_on_hand.stock_status
+           FROM v_stock_on_hand
+        ), tp AS MATERIALIZED (
+         SELECT v_third_party_lifecycle.supplier,
+            v_third_party_lifecycle.origin_license,
+            v_third_party_lifecycle.inbound_manifest,
+            v_third_party_lifecycle.received_on,
+            v_third_party_lifecycle.tag,
+            v_third_party_lifecycle.item_name,
+            v_third_party_lifecycle.strain,
+            v_third_party_lifecycle.category,
+            v_third_party_lifecycle.held_under,
+            v_third_party_lifecycle.location,
+            v_third_party_lifecycle.qty_received,
+            v_third_party_lifecycle.qty_remaining,
+            v_third_party_lifecycle.uom,
+            v_third_party_lifecycle.qty_consumed,
+            v_third_party_lifecycle.lab_state,
+            v_third_party_lifecycle.tested_on,
+            v_third_party_lifecycle.days_receipt_to_test,
+            v_third_party_lifecycle.products_made,
+            v_third_party_lifecycle.became,
+            v_third_party_lifecycle.output_qty,
+            v_third_party_lifecycle.output_passed,
+            v_third_party_lifecycle.output_failed,
+            v_third_party_lifecycle.first_output_on,
+            v_third_party_lifecycle.days_receipt_to_first_output,
+            v_third_party_lifecycle.recovery_pct,
+            v_third_party_lifecycle.first_shipped_on,
+            v_third_party_lifecycle.outbound_manifests,
+            v_third_party_lifecycle.sold_to,
+            v_third_party_lifecycle.days_receipt_to_first_sale,
+            v_third_party_lifecycle.days_since_received,
+            v_third_party_lifecycle."position"
+           FROM v_third_party_lifecycle
+        ), sl AS MATERIALIZED (
+         SELECT v_storage_limit_status.stream,
+            v_storage_limit_status.location,
+            v_storage_limit_status.max_lb,
+            v_storage_limit_status.max_age_days,
+            v_storage_limit_status.warn_at_pct,
+            v_storage_limit_status.note,
+            v_storage_limit_status.on_hand_lb,
+            v_storage_limit_status.oldest_days,
+            v_storage_limit_status.pct_of_limit,
+            v_storage_limit_status.status
+           FROM v_storage_limit_status
         )
  SELECT 'onhand_dried_flower_lb'::text AS metric,
-    round(sum(v_stock_on_hand.pounds), 1) AS value,
+    round(sum(s.pounds), 1) AS value,
     'Dried flower on hand, all licences'::text AS label,
     'stock'::text AS grp,
     'stock_summary'::text AS drill
-   FROM v_stock_on_hand
-  WHERE v_stock_on_hand.stream = 'Dried flower'::text
+   FROM s
+  WHERE s.stream = 'Dried flower'::text
 UNION ALL
  SELECT 'onhand_fresh_frozen_lb'::text AS metric,
-    round(sum(v_stock_on_hand.pounds), 1) AS value,
+    round(sum(s.pounds), 1) AS value,
     'Fresh frozen on hand, as recorded (still holds its water)'::text AS label,
     'stock'::text AS grp,
     'fresh_frozen_equiv'::text AS drill
-   FROM v_stock_on_hand
-  WHERE v_stock_on_hand.stream = 'Fresh frozen'::text
+   FROM s
+  WHERE s.stream = 'Fresh frozen'::text
 UNION ALL
  SELECT 'onhand_fresh_frozen_dry_equiv_lb'::text AS metric,
-    round(sum(v_stock_on_hand.pounds) / (( SELECT f.r
+    round(sum(s.pounds) / (( SELECT f.r
            FROM f)), 1) AS value,
     'Fresh frozen in dry-equivalent pounds - the only figure comparable to dried flower'::text AS label,
     'stock'::text AS grp,
     'fresh_frozen_equiv'::text AS drill
-   FROM v_stock_on_hand
-  WHERE v_stock_on_hand.stream = 'Fresh frozen'::text
+   FROM s
+  WHERE s.stream = 'Fresh frozen'::text
 UNION ALL
  SELECT 'onhand_shake_trim_lb'::text AS metric,
-    round(sum(v_stock_on_hand.pounds), 1) AS value,
+    round(sum(s.pounds), 1) AS value,
     'Shake and trim on hand'::text AS label,
     'stock'::text AS grp,
     'stock_summary'::text AS drill
-   FROM v_stock_on_hand
-  WHERE v_stock_on_hand.stream = 'Shake and trim'::text
+   FROM s
+  WHERE s.stream = 'Shake and trim'::text
 UNION ALL
  SELECT 'onhand_concentrate_lb'::text AS metric,
-    round(sum(v_stock_on_hand.pounds), 1) AS value,
+    round(sum(s.pounds), 1) AS value,
     'Concentrate on hand'::text AS label,
     'stock'::text AS grp,
     'stock_summary'::text AS drill
-   FROM v_stock_on_hand
-  WHERE v_stock_on_hand.stream = 'Concentrate'::text
+   FROM s
+  WHERE s.stream = 'Concentrate'::text
 UNION ALL
  SELECT 'onhand_total_dry_equiv_lb'::text AS metric,
     round(sum(
         CASE
-            WHEN v_stock_on_hand.stream = 'Fresh frozen'::text THEN v_stock_on_hand.pounds / (( SELECT f.r
+            WHEN s.stream = 'Fresh frozen'::text THEN s.pounds / (( SELECT f.r
                FROM f))
-            ELSE v_stock_on_hand.pounds
+            ELSE s.pounds
         END), 1) AS value,
     'Everything on hand in like-for-like dry-equivalent pounds'::text AS label,
     'stock'::text AS grp,
     'production_true_position'::text AS drill
-   FROM v_stock_on_hand
+   FROM s
 UNION ALL
  SELECT 'onhand_grown_by_us_lb'::text AS metric,
-    round(sum(v_stock_on_hand.pounds), 1) AS value,
+    round(sum(s.pounds), 1) AS value,
     'On hand that we grew'::text AS label,
     'origin'::text AS grp,
     'own_vs_bought'::text AS drill
-   FROM v_stock_on_hand
-  WHERE v_stock_on_hand.origin = 'Grown by us'::text
+   FROM s
+  WHERE s.origin = 'Grown by us'::text
 UNION ALL
  SELECT 'onhand_bought_in_lb'::text AS metric,
-    round(sum(v_stock_on_hand.pounds), 1) AS value,
+    round(sum(s.pounds), 1) AS value,
     'On hand that we bought in'::text AS label,
     'origin'::text AS grp,
     'third_party_stock'::text AS drill
-   FROM v_stock_on_hand
-  WHERE v_stock_on_hand.origin = 'Bought in'::text
+   FROM s
+  WHERE s.origin = 'Bought in'::text
 UNION ALL
  SELECT 'pct_bought_in'::text AS metric,
-    round(100.0 * sum(v_stock_on_hand.pounds) FILTER (WHERE v_stock_on_hand.origin = 'Bought in'::text) / NULLIF(sum(v_stock_on_hand.pounds), 0::numeric), 1) AS value,
+    round(100.0 * sum(s.pounds) FILTER (WHERE s.origin = 'Bought in'::text) / NULLIF(sum(s.pounds), 0::numeric), 1) AS value,
     'Percent of everything on hand that was bought in'::text AS label,
     'origin'::text AS grp,
     'own_vs_bought'::text AS drill
-   FROM v_stock_on_hand
+   FROM s
 UNION ALL
  SELECT 'third_party_suppliers'::text AS metric,
-    count(DISTINCT v_stock_on_hand.supplier)::numeric AS value,
+    count(DISTINCT s.supplier)::numeric AS value,
     'Suppliers we currently hold material from'::text AS label,
     'origin'::text AS grp,
     'third_party_stock'::text AS drill
-   FROM v_stock_on_hand
-  WHERE v_stock_on_hand.origin = 'Bought in'::text
+   FROM s
+  WHERE s.origin = 'Bought in'::text
 UNION ALL
  SELECT 'third_party_untouched_pkgs'::text AS metric,
     count(*)::numeric AS value,
     'Purchased packages received and never drawn from'::text AS label,
     'origin'::text AS grp,
     'third_party_lifecycle'::text AS drill
-   FROM v_third_party_lifecycle
-  WHERE v_third_party_lifecycle."position" ~~ 'RECEIVED%'::text OR v_third_party_lifecycle."position" ~~ 'SITTING%'::text
+   FROM tp
+  WHERE tp."position" ~~ 'RECEIVED%'::text OR tp."position" ~~ 'SITTING%'::text
 UNION ALL
  SELECT 'third_party_sitting_over_90d'::text AS metric,
     count(*)::numeric AS value,
     'Purchased packages sitting untouched over 90 days'::text AS label,
     'origin'::text AS grp,
     'third_party_lifecycle'::text AS drill
-   FROM v_third_party_lifecycle
-  WHERE v_third_party_lifecycle."position" ~~ 'SITTING%'::text
+   FROM tp
+  WHERE tp."position" ~~ 'SITTING%'::text
 UNION ALL
  SELECT 'sellable_lb'::text AS metric,
-    round(sum(v_stock_on_hand.pounds), 1) AS value,
+    round(sum(s.pounds), 1) AS value,
     'Test-passed and sellable'::text AS label,
     'quality'::text AS grp,
     'stock_summary'::text AS drill
-   FROM v_stock_on_hand
-  WHERE v_stock_on_hand.lab_state = 'TestPassed'::text
+   FROM s
+  WHERE s.lab_state = 'TestPassed'::text
 UNION ALL
  SELECT 'failed_testing_lb'::text AS metric,
-    round(sum(v_stock_on_hand.pounds), 1) AS value,
+    round(sum(s.pounds), 1) AS value,
     'Failed testing and held'::text AS label,
     'quality'::text AS grp,
     'failed_testing_by_origin'::text AS drill
-   FROM v_stock_on_hand
-  WHERE v_stock_on_hand.lab_state = 'TestFailed'::text
+   FROM s
+  WHERE s.lab_state = 'TestFailed'::text
 UNION ALL
  SELECT 'never_submitted_lb'::text AS metric,
-    round(sum(v_stock_on_hand.pounds), 1) AS value,
+    round(sum(s.pounds), 1) AS value,
     'Never submitted for testing'::text AS label,
     'quality'::text AS grp,
     'lab_results'::text AS drill
-   FROM v_stock_on_hand
-  WHERE v_stock_on_hand.lab_state = 'NotSubmitted'::text
+   FROM s
+  WHERE s.lab_state = 'NotSubmitted'::text
 UNION ALL
  SELECT 'out_for_testing_lb'::text AS metric,
-    round(sum(v_stock_on_hand.pounds), 1) AS value,
+    round(sum(s.pounds), 1) AS value,
     'Out for testing right now'::text AS label,
     'quality'::text AS grp,
     'lab_results'::text AS drill
-   FROM v_stock_on_hand
-  WHERE v_stock_on_hand.lab_state ~~ '%ubmitted%'::text AND v_stock_on_hand.lab_state <> 'NotSubmitted'::text
+   FROM s
+  WHERE s.lab_state ~~ '%ubmitted%'::text AND s.lab_state <> 'NotSubmitted'::text
 UNION ALL
  SELECT 'oldest_stock_days'::text AS metric,
-    max(v_stock_on_hand.oldest_days)::numeric AS value,
+    max(s.oldest_days)::numeric AS value,
     'Age of the oldest thing we own, in days'::text AS label,
     'ageing'::text AS grp,
     'stock_on_hand'::text AS drill
-   FROM v_stock_on_hand
+   FROM s
 UNION ALL
  SELECT 'stock_over_180d_lb'::text AS metric,
-    round(sum(v_stock_on_hand.pounds), 1) AS value,
+    round(sum(s.pounds), 1) AS value,
     'On hand sitting over 180 days'::text AS label,
     'ageing'::text AS grp,
     'stock_on_hand'::text AS drill
-   FROM v_stock_on_hand
-  WHERE v_stock_on_hand.oldest_days > 180
+   FROM s
+  WHERE s.oldest_days > 180
 UNION ALL
  SELECT 'limits_breached'::text AS metric,
     count(*)::numeric AS value,
     'Storage limits currently breached'::text AS label,
     'control'::text AS grp,
     'storage_limit_status'::text AS drill
-   FROM v_storage_limit_status
-  WHERE v_storage_limit_status.status = ANY (ARRAY['OVER THE STORAGE LIMIT'::text, 'MATERIAL OLDER THAN THE LIMIT'::text])
+   FROM sl
+  WHERE sl.status = ANY (ARRAY['OVER THE STORAGE LIMIT'::text, 'MATERIAL OLDER THAN THE LIMIT'::text])
 UNION ALL
  SELECT 'limits_not_set'::text AS metric,
     count(*)::numeric AS value,
     'Storage limits nobody has set yet'::text AS label,
     'control'::text AS grp,
     'storage_limits'::text AS drill
-   FROM v_storage_limit_status
-  WHERE v_storage_limit_status.status ~~ 'NO LIMIT%'::text
+   FROM sl
+  WHERE sl.status ~~ 'NO LIMIT%'::text
 UNION ALL
  SELECT 'open_questions'::text AS metric,
     count(*)::numeric AS value,
@@ -20289,6 +20508,7 @@ alter table public.employee_work_schedules enable row level security;
 alter table public.employees enable row level security;
 alter table public.facility_contacts enable row level security;
 alter table public.facility_profile enable row level security;
+alter table public.failed_material_disposition enable row level security;
 alter table public.figure_of_record enable row level security;
 alter table public.finding_owners enable row level security;
 alter table public.finding_plans enable row level security;
@@ -20452,6 +20672,8 @@ alter table public.templates enable row level security;
 alter table public.test_requests enable row level security;
 alter table public.testing_slas enable row level security;
 alter table public.tg_overrides enable row level security;
+alter table public.tg_soh_frozen enable row level security;
+alter table public.tg_tower_rewrite_proof enable row level security;
 alter table public.third_party_material enable row level security;
 alter table public.third_party_purchases enable row level security;
 alter table public.threshold_column_map enable row level security;
@@ -20693,6 +20915,8 @@ create policy fc_write on public.facility_contacts as permissive for all to auth
 create policy fp_read on public.facility_profile as permissive for select to authenticated using (true);
 create policy fp_write on public.facility_profile as permissive for all to authenticated using (true) with check (true);
 create policy tg_desktop_read on public.facility_profile as permissive for select to tg_desktop_reader using (true);
+create policy fmd_read on public.failed_material_disposition as permissive for select to authenticated using (true);
+create policy fmd_write on public.failed_material_disposition as permissive for insert to authenticated with check ((current_app_role() = ANY (ARRAY['owner'::app_role, 'executive'::app_role, 'dept_head'::app_role])));
 create policy for_read on public.figure_of_record as permissive for select to authenticated using (true);
 create policy fo_read on public.finding_owners as permissive for select to authenticated using (true);
 create policy fo_write on public.finding_owners as permissive for all to authenticated using ((EXISTS ( SELECT 1
