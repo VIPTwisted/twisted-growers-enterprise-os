@@ -100,7 +100,44 @@ function check(payload) {
       );
     }
 
+    /* ADDED 8 Aug 2026, after the owner asked why the guard was not catching things.
+     * He was right. This file only ever looked for CASCADE, so every one of these walked
+     * straight through:
+     *
+     *     drop view v_x;                 allowed
+     *     drop view if exists v_x;       allowed
+     *     drop materialized view mv_x;   allowed  <- worse: a matview cannot be brought
+     *                                                back with CREATE OR REPLACE at all
+     *
+     * The database itself is stricter than this hook was: tg_block_view_drops() refuses
+     * ANY view drop and demands `set tg.allow_drop` plus a dependents check. A hook that
+     * permits what the database forbids teaches people the wrong habit and only fails at
+     * the last moment. They now agree. */
+    if (/\bdrop\s+(materialized\s+)?view\b/.test(sql)) {
+      const isCascade = /\bcascade\b/.test(sql);
+      block(
+        "RULE E1: never drop a view" + (isCascade ? " — and never with CASCADE" : ""),
+        isCascade ? "a DROP VIEW ... CASCADE statement" : "a DROP VIEW statement",
+        isCascade
+          ? "CASCADE destroyed mv_department_dashboard three times and blanked every dashboard with no visible error, because the front end swallows the failure with `?? []`."
+          : "Dropping a view breaks every view built on it, and a materialized view cannot be restored with CREATE OR REPLACE at all. The database refuses this too — this hook previously did not, which is how a plain DROP reached production tooling unchallenged.",
+        "Use CREATE OR REPLACE VIEW; columns may be appended at the end. If the view genuinely must go, prove nothing depends on it first, then `set local tg.allow_drop = 'yes';` in the same transaction — the database will still make you justify it."
+      );
+    }
+
     for (const t of IMMUTABLE) {
+      /* DROP TABLE was missing here until 8 Aug 2026. The guard blocked DELETE and TRUNCATE
+       * against the forensic logs while leaving the single most destructive statement
+       * unchallenged — you could not remove 57 rows, but you could remove the table. */
+      const dropped = new RegExp("\\bdrop\\s+table\\s+(if\\s+exists\\s+)?(public\\.)?" + t + "\\b");
+      if (dropped.test(sql)) {
+        block(
+          "RULE H2: forensic records are immutable",
+          "a DROP TABLE against " + t,
+          "That table is an append-only forensic log — it is evidence of what the business knew and when. DELETE and TRUNCATE against it were already blocked; DROP TABLE destroys the same evidence and the structure with it, and was not.",
+          "Do not. If the schema genuinely must change, add a column or a new table; never remove the record. Any removal needs an issue_decisions row first — who, when and why — and the owner's agreement."
+        );
+      }
       const del = new RegExp("\\b(delete\\s+from|truncate)\\s+(public\\.)?" + t + "\\b");
       if (del.test(sql)) {
         block(

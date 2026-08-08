@@ -195,9 +195,15 @@ jobs:
           set -euo pipefail
           fail=0
           # Rule E1 — destroyed mv_department_dashboard three times.
-          if grep -rniE 'drop[[:space:]]+(materialized[[:space:]]+)?view[^;]*cascade' \
-               --include='*.sql' . ; then
-            echo "::error::RULE E1 — 'drop view ... cascade' found. Use CREATE OR REPLACE."
+          # WIDENED 8 Aug 2026: this required the word CASCADE, so a plain `drop view` and
+          # `drop materialized view` both passed CI untouched — and a matview cannot be
+          # restored with CREATE OR REPLACE at all. The database's own trigger refuses ANY
+          # view drop; CI now agrees with it and with tools/hooks/guard-sql.mjs.
+          # Comment lines are excluded: this file and the migrations DISCUSS the rule, and a
+          # check that fires on prose held the build red for a day on 8 Aug.
+          if grep -rniE 'drop[[:space:]]+(materialized[[:space:]]+)?view' \
+               --include='*.sql' . | grep -viE ':[0-9]+:[[:space:]]*--' ; then
+            echo "::error::RULE E1 — a DROP VIEW was found. Use CREATE OR REPLACE VIEW."
             fail=1
           fi
           # Rule E6 — 36 views once leaked package tags and dollar figures.
@@ -218,9 +224,11 @@ jobs:
             fail=1
           fi
           # Rule H2 — watchdog_findings silently lost 57 rows on 7 Aug 2026.
-          if grep -rniE '(delete[[:space:]]+from|truncate)[[:space:]]+(public\.)?(watchdog_findings|issue_decisions|cost_input_history|metrc_corrections|moisture_loss_entries)' \
-               --include='*.sql' . ; then
-            echo "::error::RULE H2 — deletion from an append-only forensic table."
+          # DROP TABLE added 8 Aug 2026. Removing 57 rows was blocked; removing the entire
+          # table was not. The most destructive of the three verbs was the one missing.
+          if grep -rniE '(delete[[:space:]]+from|truncate|drop[[:space:]]+table([[:space:]]+if[[:space:]]+exists)?)[[:space:]]+(public\.)?(watchdog_findings|issue_decisions|cost_input_history|metrc_corrections|moisture_loss_entries)' \
+               --include='*.sql' . | grep -viE ':[0-9]+:[[:space:]]*--' ; then
+            echo "::error::RULE H2 — deletion of, or from, an append-only forensic table."
             fail=1
           fi
           exit $fail

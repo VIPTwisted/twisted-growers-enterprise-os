@@ -64,6 +64,17 @@ const SQL_FIXTURES = [
     sql: `${DROP} materialized view mv_tower_counts cascade;` },
   { rule: "E1", mustBlock: false, why: "the sanctioned replacement must never be blocked",
     sql: "create or replace view v_money_position as select 1;" },
+  /* THE 8 AUG HOLE. The owner asked why the guard was not catching things and he was
+     right: E1 only ever looked for the word CASCADE, so all three of these walked through.
+     The database's own tg_block_view_drops() refused them the whole time - the hook and CI
+     were the weak links, and a guard that permits what the database forbids teaches the
+     wrong habit until the last moment. */
+  { rule: "E1", mustBlock: true,  why: "THE 8 AUG HOLE — plain drop, no cascade, previously allowed",
+    sql: `${DROP} view v_money_position;` },
+  { rule: "E1", mustBlock: true,  why: "THE 8 AUG HOLE — if exists was the easiest way past it",
+    sql: `${DROP} view if exists v_money_position;` },
+  { rule: "E1", mustBlock: true,  why: "THE 8 AUG HOLE — worst case: a matview cannot be brought back by CREATE OR REPLACE",
+    sql: `${DROP} materialized view mv_tower_counts;` },
 
   // --- Rule E6: 36 views once leaked tags, suppliers and dollar figures ---
   { rule: "E6", mustBlock: true,  why: "the plain form",
@@ -90,6 +101,17 @@ const SQL_FIXTURES = [
     sql: "delete from watchdog_findings where id < 10;" },
   { rule: "H2", mustBlock: true,  why: "truncate is the same act with a different verb",
     sql: "truncate issue_decisions;" },
+  /* THE 8 AUG HOLE, and the worse half. Removing 57 rows from watchdog_findings was
+     blocked. Removing the entire table was not - the most destructive of the three verbs
+     was the one nobody had written a rule for. */
+  { rule: "H2", mustBlock: true,  why: "THE 8 AUG HOLE — DELETE was blocked, DROP TABLE destroys the same evidence and was not",
+    sql: `${DROP} table watchdog_findings;` },
+  { rule: "H2", mustBlock: true,  why: "THE 8 AUG HOLE — if exists variant",
+    sql: `${DROP} table if exists public.issue_decisions;` },
+  { rule: "H2", mustBlock: true,  why: "THE 8 AUG HOLE — the cost history is evidence too",
+    sql: `${DROP} table cost_input_history;` },
+  { rule: "H2", mustBlock: false, why: "dropping an ordinary table is normal work",
+    sql: `${DROP} table scratch_tmp;` },
   { rule: "H2", mustBlock: false, why: "appending to a forensic log is the sanctioned move",
     sql: "insert into watchdog_findings (what) values ('a new finding');" },
   { rule: "H2", mustBlock: false, why: "deleting from an ordinary table is normal work",
