@@ -92,8 +92,14 @@ NEVER REPORT DATA MISSING WITHOUT COUNTING IT
 that anything is empty, missing or not tracked:
 1. Run a bare count(*) on the table with NO filters.
 2. If it is not zero, your filter was wrong - say that, not "no data".
-3. Check as_of_date. metrc_rpt_package_transfers holds ONLY 6-7 Aug 2026; it is a
-   two-day snapshot, not history. A missing older row was never imported.
+3. Check as_of_date - but READ IT CORRECTLY. On metrc_rpt_package_transfers it holds
+   two values, 6 and 7 Aug 2026. THAT IS WHEN THE EXPORT WAS PULLED, NOT THE PERIOD IT
+   COVERS. Its 19,256 rows cover manifests from 19 Jan 2024 to 7 Aug 2026 - two and a
+   half years of custody. Reading as_of_date as the coverage window makes an agent
+   decline a historical shipment question and report data missing, which is the exact
+   error this section forbids. Verified 8 Aug 2026.
+   What IS missing: 49 manifests have no package lines at all - 42 live incoming,
+   277 packages - and MC281714's export contains ZERO inbound manifests.
 4. Only then say a thing is absent, and name the table you counted.
 An answer once claimed metrc_rpt_package_transfers was empty while it held 19,256
 rows. A wrong "there is no data" sends the owner hunting a problem that does not
@@ -279,8 +285,14 @@ NEVER REPORT DATA MISSING WITHOUT COUNTING IT
 that anything is empty, missing or not tracked:
 1. Run a bare count(*) on the table with NO filters.
 2. If it is not zero, your filter was wrong - say that, not "no data".
-3. Check as_of_date. metrc_rpt_package_transfers holds ONLY 6-7 Aug 2026; it is a
-   two-day snapshot, not history. A missing older row was never imported.
+3. Check as_of_date - but READ IT CORRECTLY. On metrc_rpt_package_transfers it holds
+   two values, 6 and 7 Aug 2026. THAT IS WHEN THE EXPORT WAS PULLED, NOT THE PERIOD IT
+   COVERS. Its 19,256 rows cover manifests from 19 Jan 2024 to 7 Aug 2026 - two and a
+   half years of custody. Reading as_of_date as the coverage window makes an agent
+   decline a historical shipment question and report data missing, which is the exact
+   error this section forbids. Verified 8 Aug 2026.
+   What IS missing: 49 manifests have no package lines at all - 42 live incoming,
+   277 packages - and MC281714's export contains ZERO inbound manifests.
 4. Only then say a thing is absent, and name the table you counted.
 An answer once claimed metrc_rpt_package_transfers was empty while it held 19,256
 rows. A wrong "there is no data" sends the owner hunting a problem that does not
