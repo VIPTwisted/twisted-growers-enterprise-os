@@ -545,6 +545,102 @@ tasks — never a list of links.
 
 **I4. Reports live in the Reports dropdown**, not as side-menu items.
 
+## J · Data intake, and what happens when a guard cannot fix it
+
+**Owner-set, 8 August 2026. Sitewide. Binding on every agent, every import, every page.**
+Recorded in the owner's own words: *"no data what so ever can enter OS unless it is
+totally balanced, accurate without discrepancies! Guards must flag and force fix."*
+
+**J1. NOTHING ENTERS THE OS UNBALANCED — AND "NOTHING" MEANS NOTHING.** Owner,
+8 August 2026: *"all data means all API, uploaded documents, synced spreadsheets all
+must go through guard. nothing does not pass by it. all inventory employee everything."*
+
+Data lands only if it is **balanced, accurate and free of discrepancies**. This is a
+gate, not a warning. Data that does not reconcile is **held** — never written and
+flagged afterwards, because flagging after the write is how a wrong number gets used
+before anyone reads the flag.
+
+**Every intake path, without exception:**
+
+| Path | Examples here |
+|---|---|
+| **API sync** | Metrc packages, plants, harvests, transfers, lab results |
+| **Report imports** | every Metrc Reports Control Panel export, `metrc_rpt_*` |
+| **Uploaded documents** | certificates of analysis, manifests, PDFs, anything reaching `metrc_documents` |
+| **Synced spreadsheets** | Sheet Sync, the Google Sheet via the bridge, pasted tables, CSV and XLSX uploads |
+| **Accounting** | QuickBooks, any profit-and-loss upload |
+| **Manual entry** | every form on every page, by any role |
+| **Agent writes** | anything an agent inserts or updates, including its own findings |
+| **Employee and HR data** | roster, timesheets, payroll, employee files |
+| **Inventory** | counts, weights, adjustments, allocations, third-party custody |
+
+**A new intake path that does not pass the guard is a defect in the path, not an
+exception to this rule.** If a route into the database exists that the guard cannot
+see, that route must be closed or brought under it. There is no "trusted source":
+Metrc itself is the legal record and it still gets checked, because our *copy* of it
+can be wrong even when Metrc is right.
+
+**J2. THE GUARD FLAGS AND FORCES THE FIX.** A guard does not merely report. It holds
+the data, names the discrepancy, and the material stays out until the discrepancy is
+resolved. "Imported with warnings" is not a state this platform has.
+
+**J3. IF AN AGENT CANNOT FIX IT, EVERY ADMIN IS TOLD.** Not one admin, not the
+accountable party alone — **all of them**. An unresolvable guard issue is not allowed
+to sit in a table waiting to be noticed. It is pushed.
+
+**J4. THE ALERT MUST BE DETAILED, AND THE SHAPE IS FIXED.** Every alert carries, in
+plain English (rule I3):
+
+| | |
+|---|---|
+| **Who** | who is accountable, and who raised it |
+| **What** | the discrepancy, with the arithmetic |
+| **When** | when it started, when it was detected |
+| **Where** | the table, page, import or package it sits in |
+| **Why** | why it matters, in money or in compliance |
+| **How** | how it was detected, so the finding can be re-derived |
+| **Solutions** | the available options — **more than one where more than one exists** |
+| **Recommendation** | **the guard's own final recommendation**, stated plainly |
+
+A finding missing any of these is not finished and must not be sent. A single
+`what_to_do` line is **not** a solutions list: rule C6b was born from advice that read
+*"remediate or destroy"* and silently omitted a legitimate third option worth real money.
+
+**J6. A GUARD IS THE FLOOR, NOT THE CEILING — EVERYTHING GETS DOUBLE-CHECKED OR
+BETTER.** Owner, 8 August 2026: *"strains, coa, manifest, all reports, spreadsheet
+everything must have double check system or greater agents check point system plus
+guards."*
+
+**Two layers, and both are required. A guard alone is not enough.**
+
+1. **The guard** — mechanical, fast, at the gate. It knows the shapes that are always
+   wrong and refuses them.
+2. **At least two independent agent checkpoints** — each deriving the same fact a
+   different way. **Disagreement is the finding**, never averaged and never silently
+   resolved. This is what `verification_checks` already exists to hold.
+
+**Why both.** A guard only catches what somebody thought of. On 8 August the SQL guard
+passed all twenty of its own fixtures while `DROP TABLE watchdog_findings` walked
+straight through — the tests were green and the evidence log was unprotected. A second,
+differently-derived check is what catches the thing the first one was never taught to
+see.
+
+**Applies to, at minimum:** strains · certificates of analysis · manifests · every
+report import · every spreadsheet and sheet sync · inventory counts and weights ·
+employee and payroll data · anything an agent writes.
+
+**"Or greater" is deliberate.** Two is the floor. Where the figure carries licence risk
+or material money, add a third lens — and run the **Challenger** against the conclusion
+before it leaves the building, which defaults to refuted and makes the claim earn
+survival.
+
+**J5. AGENTS DO NOT WRITE JOURNAL ENTRIES UNLESS A HUMAN SAYS SO.** A user may write
+their own entry, or **ask** an agent to write one. **No agent may create, edit or close
+a journal entry on its own initiative** — not to tidy up, not to record its own work,
+not because it seems helpful. The journal is the human record of human decisions.
+This sits beside H1: an issue never clears itself, and an agent never speaks for a
+person.
+
 ---
 
 ## THE BRAIN — the knowledge index (added 7 August 2026, owner-requested)
