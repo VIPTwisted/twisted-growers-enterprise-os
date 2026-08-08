@@ -148,6 +148,9 @@ for them.
 | `tg_overrides` / `figure_of_record` / `source_precedence` | Manual corrections beside synced data, which source wins, and why. |
 | `alert_outbox` / `item_alert_route` / `alert_recipient` | The nagging machine — append-only reminders until a human resolves the issue. |
 | `reason_code_catalog` / `reason_policy` | Controlled vocabulary for why decisions were taken, and which actions demand one. |
+| `sentinel_expectation` + `f_sentinel_check()` | **The dead-man's switch, built 8 Aug 2026** from `SENTINEL_SPEC.md`. Every other check asks "is what I can see wrong?"; this asks "has something stopped speaking?" Owner-set silence limits per source; `tg_sentinel_sweep()` runs every 15 minutes and raises a critical finding. Built because the Metrc sync was dead **7 h 16 min** while every dashboard reported success. |
+| `v_unchallenged_findings` | Findings nobody has tried to refute. The Challenger defaults to REFUTED and makes a claim earn survival — an unchallenged finding has earned nothing. **86 unchallenged on 8 Aug 2026, 25 of them critical.** |
+| `audit_events.actor_name` + `f_actor()` | Who did it. Added 8 Aug 2026 after `audit_events` was found holding **3,589 rows with 0 actors** — `auth.uid()` is null for every agent, migration and cron job, which is all of them. `nav_registry` is now audited too. |
 
 ### Design and planning — `docs/`
 | File | What it is |
@@ -204,7 +207,10 @@ for them.
 | `app/web/src/App.jsx` | The product — single-file React SPA (~6,400 lines as of 7 Aug), plus `styles.css`, `rules.css`, `budz.jsx`. |
 | `supabase/` | `checks/` (including `anon_exposure.sql`, the security tripwire) and `functions/`. |
 | `bridge/` | Local bridge service — `server.mjs`, `sheet-sync.mjs`, start scripts, `SETUP.md`. ⚠ `token.txt` holds a live credential: never share, never commit. |
-| `tools/` | `checks/`, `hooks/`, `pushreports.py`, `report_fixtures.py`. |
+| `tools/` | `checks/`, `hooks/`, `pushreports.py`, `report_fixtures.py`, and `gen-handoff.mjs` — regenerates the measured-state block of HANDOFF.md from `tg_handoff_state_md()`, so state stops being retyped. Operator tool: needs a live credential, correctly not a CI gate. |
+| `tools/checks/guard-fixtures.mjs` | **Proves the guards still catch what they claim**, and that the PreToolUse hook and `ci.yml` agree on every fixture. Built 8 Aug 2026 after one false positive locked a database function and simultaneously held CI red — two enforcement points, one rule, the same bug, found by accident. |
+| `tools/checks/secret-scan.mjs` | Scans the **working tree** (not just commits) for credential shapes, and shares its patterns with `tools/hooks/guard-secrets.mjs` so writing one is refused. Anon keys are decoded and ignored — they are public by design. Ratchets against `secret-scan.baseline.json`, which carries 4 known exposures with their required actions. |
+| `tools/checks/rule-ledger.mjs` | **How much of CLAUDE.md is real, as a number.** Derives enforcement by reading which rules each guard NAMES, so it cannot go stale. **17 of 50 enforced on 8 Aug 2026; 33 hold only while somebody remembers them.** Ratchets — the count may rise, never fall. |
 | `.github/workflows/` | CI. |
 | `netlify.toml`, `.netlify/` | Deploy config. Live site and IDs are in HANDOFF.md §1. |
 | `.mcp.json` | MCP server config for this project. |
