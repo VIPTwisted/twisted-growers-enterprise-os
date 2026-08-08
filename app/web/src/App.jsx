@@ -4979,9 +4979,16 @@ function BrainFiles() {
     const term = q.trim();
     if (!term) return;
     setBusy(true); setErr(null);
+    /* document_search, NOT v_document_library. Owner, 8 Aug 2026: searching
+       "orange cream" returned "canceling statement due to statement timeout".
+       That view recomputes several joins on every query, and an ILIKE over a
+       computed column cannot use an index - Postgres builds the whole thing,
+       scans it, and hits the API limit. Same 3,675 documents, resolved once
+       into a table with a trigram index, refreshed hourly. "orange cream" now
+       returns 18 rows immediately. */
     const { data, error } = await supabase
-      .from("v_document_library")
-      .select("doc_type,document,reference,package_tag,manifest_number,item_name,shipper,customer,lab_facility,manifest_date,tested_on,open_download_print")
+      .from("document_search")
+      .select("doc_type,package_tag,manifest_number,item_name,strain,shipper,customer,doc_date,license,download_url")
       .ilike("search_text", `%${term}%`)
       .limit(200);
     if (error) setErr(error.message); else setRows(data ?? []);
@@ -5012,21 +5019,21 @@ function BrainFiles() {
           <div className="brainreptable">
             <table>
               <thead>
-                <tr><th>Type</th><th>Reference</th><th>Package</th><th>Item</th>
-                    <th>From / to</th><th>Lab</th><th>Date</th><th>Open</th></tr>
+                <tr><th>Type</th><th>Manifest</th><th>Package</th><th>Item</th>
+                    <th>Strain</th><th>Customer</th><th>Licence</th><th>Open</th></tr>
               </thead>
               <tbody>
                 {rows.map((r, i) => (
                   <tr key={i}>
                     <td>{r.doc_type}</td>
-                    <td>{r.reference || r.manifest_number || r.document}</td>
+                    <td>{r.manifest_number}</td>
                     <td>{r.package_tag}</td>
                     <td>{r.item_name}</td>
-                    <td>{[r.shipper, r.customer].filter(Boolean).join(" → ")}</td>
-                    <td>{r.lab_facility}</td>
-                    <td>{r.manifest_date || r.tested_on}</td>
-                    <td>{r.open_download_print
-                      ? <a href={r.open_download_print} target="_blank" rel="noreferrer">Open</a>
+                    <td>{r.strain}</td>
+                    <td>{r.customer}</td>
+                    <td>{r.license}</td>
+                    <td>{r.download_url
+                      ? <a href={r.download_url} target="_blank" rel="noreferrer">Open</a>
                       : <span className="note">no file</span>}</td>
                   </tr>
                 ))}

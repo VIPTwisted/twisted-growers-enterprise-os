@@ -40,24 +40,38 @@ is a decision, not a deletion).
   `Desktop\Twisted Growers\.claude\settings.local.json`, which syncs to OneDrive.
   Removed; file verified clean. **No key was rotated** at the owner's direction,
   so every credential remains valid — it is simply no longer stored there.
-- **The nightly self-check miscounted cron in both directions.** See
-  [LESSONS.md](LESSONS.md). Fix written but **BLOCKED** — see below.
+- **The nightly self-check miscounted cron in both directions. FIXED and proven.**
+  `cron_failing` now counts only a genuinely *failed* latest run, so an in-flight
+  job is no longer called a failure — it read **8** this morning and reads **0**
+  now, correctly. New `cron_failing_24h` catches intermittent failures the old
+  check structurally could not see, and it immediately found the one that was
+  hiding: **`refresh-tower-inventory`, 7 timeouts in 48 runs**, invisible for two
+  days because its most recent run kept passing. It now raises a real
+  `watchdog_findings` row naming the job, where before the check recorded a
+  number and raised nothing.
+- **The SQL guard had a false positive that locked a function.** Owner-directed
+  fix, 8 Aug: `guard-sql.mjs` required only the *words* "grant … to … anon", so
+  English prose inside `tg_nightly_platform_check()` blocked every edit to it.
+  `grant` must now be followed by an actual privilege keyword — true of every
+  real GRANT, false of prose. **Deliberately not anchored to a statement start,
+  so a GRANT buried inside a plpgsql body is still caught.** Test suite extended
+  from 8 to 14 cases and all pass, including five real GRANT shapes that must
+  still block and two prose cases that must not.
 - **`brain/INDEX.md` described less than half the brain.** 24 files existed and
   none were listed. All 24 now indexed.
 - **Sessions opened on the Desktop stub started with no rules and no guards.**
   The stub now injects the full rule set by hook and carries the agents, skills
   and SQL guards by junction. Verified 8/8.
 
-### ⛔ BLOCKED, needs an owner ruling
-**The SQL guard cannot be edited because the SQL guard blocks the edit.**
-`tools/hooks/guard-sql.mjs` matches `grant … to … anon` across *any* string in a
-tool call, including English prose. The finding text inside
-`tg_nightly_platform_check()` contains *"…holds the grant. Then run
-… to confirm zero"* followed by *"anon relations"* — no `GRANT` statement
-anywhere, but the pattern matches. **Any future edit to that function is
-blocked, permanently.** The guard's own message says to tell the owner rather
-than work around it, so nothing was worked around. Ruling needed: tighten the
-pattern to real SQL statements, or reword the finding text.
+### The lesson from the guard, worth keeping
+A guard that scans *every string* in a tool call cannot tell SQL from English.
+This one read its own documentation as an attack and locked the function that
+writes its findings — the safety mechanism became the outage. **The general
+form: a check that fires on prose will eventually fire on the text explaining
+the check.** Guards must match the shape of the thing they forbid, not its
+vocabulary. Both changes here kept the guard strictly no weaker: every real
+`GRANT` shape still blocks, proven by test, including one hidden inside a
+plpgsql body.
 
 ---
 

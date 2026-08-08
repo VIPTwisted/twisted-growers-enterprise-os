@@ -10,7 +10,7 @@ plugins = []
 publish = "C:\\Users\\demar\\Documents\\Claude_Twisted Growers\\app\\web\\dist"
 publishOrigin = "config"
 commandOrigin = "config"
-command = "npm install --no-audit --no-fund && cd ../.. && npm install --no-audit --no-fund && npm run check && cd app/web && npm run build"
+command = "npm install --include=dev --no-audit --no-fund && cd ../.. && npm install --include=dev --no-audit --no-fund && npm run check && cd app/web && npm run build"
 base = "C:\\Users\\demar\\Documents\\Claude_Twisted Growers\\app\\web"
 
 [build.environment]
