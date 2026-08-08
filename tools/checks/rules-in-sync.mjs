@@ -78,6 +78,12 @@ const MUST_CARRY = [
      is only enforced to the extent it is named here. */
   "YOU HOLD EVERY SEAT IN THIS COMPANY",
   "THAT LIST IS A SNAPSHOT, NOT THE LIMIT",
+  /* The owner's write rulings, 8 Aug 2026. A runtime that carries the seats
+     training but not these would act on a system it must only explain. */
+  "NOTHING IS EVER AUTOMATIC",
+  "METRC IS READ ONLY. YOU NEVER WRITE TO IT",
+  "NOTHING ELSE ON ANYONE'S PHONE",
+  "THE PHONE IS STRICT",
 ];
 
 let failed = 0;
