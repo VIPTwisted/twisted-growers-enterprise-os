@@ -4962,6 +4962,82 @@ function BrainFold({ id, title, note, children, defaultOpen = false }) {
   );
 }
 
+/* DOCUMENTS ONLY. Owner, 8 Aug 2026: "we also need one for only looking up
+   files". When you want the manifest for a tag you want the manifest - not a
+   paragraph about it, and not a 90-second wait while a model composes one.
+
+   v_document_library already carries a search_text column built for this, over
+   every COA and manifest on the platform. No model is involved and nothing is
+   billed. Deliberately the plainest thing on the page. */
+function BrainFiles() {
+  const [q, setQ] = useState("");
+  const [rows, setRows] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState(null);
+  const find = async () => {
+    const term = q.trim();
+    if (!term) return;
+    setBusy(true); setErr(null);
+    const { data, error } = await supabase
+      .from("v_document_library")
+      .select("doc_type,document,reference,package_tag,manifest_number,item_name,shipper,customer,lab_facility,manifest_date,tested_on,open_download_print")
+      .ilike("search_text", `%${term}%`)
+      .limit(200);
+    if (error) setErr(error.message); else setRows(data ?? []);
+    setBusy(false);
+  };
+  return (
+    <div className="agentspanel">
+      <p className="bnote" style={{ margin: "0 0 10px" }}>
+        Every COA and manifest on the platform. Search a package tag, a manifest number, a
+        strain, a customer or a laboratory. No model, no waiting, nothing billed — and every
+        result opens, downloads or prints.
+      </p>
+      <div className="askbar" style={{ marginBottom: 12 }}>
+        <input value={q} placeholder="A tag, a manifest number, a strain, a customer, a lab…"
+          onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") find(); }} />
+        <button className="btn" onClick={find} disabled={busy}>{busy ? "…" : "Find"}</button>
+      </div>
+      {err && <div className="msg err">{err}</div>}
+      {rows?.length === 0 && (
+        <div className="note">
+          Nothing matches that. It searches the text of the document record, so a partial tag or
+          a partial manifest number works — this is not a report saying the document does not exist.
+        </div>
+      )}
+      {rows?.length > 0 && (
+        <>
+          <div className="note">{rows.length}{rows.length === 200 ? "+ (first 200)" : ""} found.</div>
+          <div className="brainreptable">
+            <table>
+              <thead>
+                <tr><th>Type</th><th>Reference</th><th>Package</th><th>Item</th>
+                    <th>From / to</th><th>Lab</th><th>Date</th><th>Open</th></tr>
+              </thead>
+              <tbody>
+                {rows.map((r, i) => (
+                  <tr key={i}>
+                    <td>{r.doc_type}</td>
+                    <td>{r.reference || r.manifest_number || r.document}</td>
+                    <td>{r.package_tag}</td>
+                    <td>{r.item_name}</td>
+                    <td>{[r.shipper, r.customer].filter(Boolean).join(" → ")}</td>
+                    <td>{r.lab_facility}</td>
+                    <td>{r.manifest_date || r.tested_on}</td>
+                    <td>{r.open_download_print
+                      ? <a href={r.open_download_print} target="_blank" rel="noreferrer">Open</a>
+                      : <span className="note">no file</span>}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 function BrainScreen({ session, go, isExec, dictation }) {
   /* Identical to the pet and the assistant page - same hook, same limits, same
      three ways in. Owner, 8 Aug 2026: "we need to be able to upload files, and
@@ -5082,17 +5158,26 @@ function BrainScreen({ session, go, isExec, dictation }) {
           <div className="braincore"><img src="/tg-mark.png" alt="" /></div>
         </div>
         <h1>TG <b>Brain</b></h1>
-        <p className="bsub">Every record this company generates — Metrc, the rooms, the floor, the sheets, the money — one mind. Ask it anything: it answers with the same assistant the pet and the Budz page use, on the same training, and searches every table for what you named at the same time. Attach documents, images, video or a zip. It answers from live data only, never from guesses.</p>
+        {/* Two sentences. Owner, 8 Aug 2026: "strech this into to sentences so
+            it does not take up so much of the lengh of apge at top" - five lines
+            of explanation above the thing you came to use is five lines of the
+            answer pushed off the screen. */}
+        <p className="bsub">Every record this company generates — Metrc, the rooms, the floor, the sheets, the money — one mind, answering from live data only and never from guesses. Ask it anything, look up any document, or attach your own.</p>
         <div className="askwrap">
           <div className="asktabs">
             <button className={tab === "ask" ? "on" : ""} onClick={() => setTab("ask")}>
               {I.dna} Ask / Find
+            </button>
+            <button className={tab === "files" ? "on" : ""} onClick={() => setTab("files")}
+              title="Look up a COA or a manifest. Documents only - no model, no waiting.">
+              {I.clip} Files
             </button>
             <button className={tab === "agents" ? "on" : ""} onClick={() => setTab("agents")}
               title="Every agent's claim about this company, and where two of them disagree">
               {I.gear} Agents
             </button>
           </div>
+          {tab === "files" && <BrainFiles />}
           {tab === "agents" && (
             <div className="agentspanel">
               <p className="bnote" style={{ margin: "0 0 10px" }}>
@@ -5113,7 +5198,10 @@ function BrainScreen({ session, go, isExec, dictation }) {
           <div className={`askbar${bag.dropping ? " dropping" : ""}`} {...bag.dropProps}>
             <input ref={brainFileRef} type="file" multiple style={{ display: "none" }}
               onChange={(e) => { bag.add(e.target.files); e.target.value = ""; }} />
-            <button className="btn ghost" title="Attach anything - documents, zips, images, video. Drag them onto this bar, or paste."
+            {/* Owner, 8 Aug 2026: "cant see this make it bold". A ghost button
+                renders a grey glyph on a near-black bar, which is close to
+                invisible. It is the accent colour and larger now. */}
+            <button className="btn ghost clipbtn" title="Attach anything - documents, zips, images, video. Drag them onto this bar, or paste."
               onClick={() => brainFileRef.current?.click()}>📎</button>
             <input value={q} placeholder="Ask anything, or search for a tag, a strain, a batch, a person…"
               onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") ask(); }} />

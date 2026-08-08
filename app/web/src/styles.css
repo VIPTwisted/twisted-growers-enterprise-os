@@ -1786,3 +1786,16 @@ button.teamcard:hover { border-color: var(--neon-line); }
 @keyframes thinkpulse { 0%, 100% { opacity: 0.25; } 50% { opacity: 1; } }
 /* Someone who has asked for less motion gets the seconds and no pulse. */
 @media (prefers-reduced-motion: reduce) { .thinkdot { animation: none; opacity: 0.6; } }
+
+
+/* The paperclip. Owner, 8 Aug 2026: "cant see this make it bold." A ghost
+   button puts a grey glyph on a near-black bar - technically present, in
+   practice invisible. Accent colour, larger, and it lifts on hover so it reads
+   as a control rather than decoration. */
+.clipbtn { font-size: 19px; line-height: 1; color: var(--accent);
+  border-color: var(--neon-line); padding: 8px 12px;
+  box-shadow: 0 0 10px rgba(0, 255, 140, 0.10); }
+.clipbtn:hover { color: var(--accent); border-color: var(--accent);
+  box-shadow: 0 0 16px rgba(0, 255, 140, 0.28); }
+.agentspanel { border: 1px solid var(--line); border-radius: 14px;
+  background: var(--panel); padding: 16px; text-align: left; }

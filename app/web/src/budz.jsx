@@ -2587,7 +2587,7 @@ export function BudzScreen({ go }) {
           <div className={`budzask${bag.dropping ? " dropping" : ""}`} {...bag.dropProps}>
             <input ref={askFileRef} type="file" multiple style={{ display: "none" }}
               onChange={(e) => { bag.add(e.target.files); e.target.value = ""; }} />
-            <button className="btn ghost" title="Attach anything - documents, zips, images, video. Drag them onto this box, or paste."
+            <button className="btn ghost clipbtn" title="Attach anything - documents, zips, images, video. Drag them onto this box, or paste."
               onClick={() => askFileRef.current?.click()}>📎</button>
             <input
               placeholder="Ask Budz anything about the operation…"
