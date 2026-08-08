@@ -588,6 +588,26 @@ resolved. "Imported with warnings" is not a state this platform has.
 accountable party alone — **all of them**. An unresolvable guard issue is not allowed
 to sit in a table waiting to be noticed. It is pushed.
 
+**And the admin works it with an agent.** Owner, 8 August 2026: *"admin will use brains
+or budz assistant as needed for alerts too and tell them to fix, or desktop Claude to
+view alerts like we are working now to help fix."*
+
+| Where the admin picks it up | What they can do |
+|---|---|
+| **TG Brain**, in the OS | Read the alert, ask for the arithmetic, instruct a fix |
+| **Budz assistant**, in the OS | Same, conversationally, on any page |
+| **Desktop Claude** | Read the full alert and work the fix directly, as in this session |
+| **Email** | The pushed copy, with all eight elements |
+
+**So the alert must be legible to a machine as well as a person** — every element in
+its own field, never one blob of prose. An agent that cannot read `solutions` as a list
+cannot offer the choice back to the admin.
+
+**⚠ And the agent still does not act on its own.** Reading an alert is not
+authorisation. An agent may investigate, derive, and propose — it may **only fix when
+an admin tells it to** (J5, and H1: an issue never clears itself). An alert arriving in
+Budz is a conversation starter, not a work order.
+
 **J4. THE ALERT MUST BE DETAILED, AND THE SHAPE IS FIXED.** Every alert carries, in
 plain English (rule I3):
 
@@ -605,6 +625,29 @@ plain English (rule I3):
 A finding missing any of these is not finished and must not be sent. A single
 `what_to_do` line is **not** a solutions list: rule C6b was born from advice that read
 *"remediate or destroy"* and silently omitted a legitimate third option worth real money.
+
+**J7. EVERY ITEM IN OUR POSSESSION HAS A KNOWN ROOM. NO EXCEPTIONS.** Owner,
+8 August 2026: *"all inventory in our possession we must know exactly what room it is
+in."*
+
+This extends **C0b** — which already required a named room for untested items — to
+**everything we hold**, whether we own it or not. Massachusetts law requires Metrc to
+carry the current room for every tagged package, so a package we hold with no room is
+either a recording failure or material we cannot account for. Both are compliance
+matters.
+
+- **Ours, bought-in, tolled and consigned all count.** Custody is the test, not
+  ownership. Other licensees' material sitting in our Fulfillment Vault is in our
+  possession and must be locatable (see C6d and `third_party_material`).
+- **A room name is only useful if it is the SAME name every time.** Measured 8 Aug
+  2026: `Pre-Trim Storage` holds 36 packages / 384.1 lb and `Pre Trim Storage Room`
+  holds 29 packages / 190.3 lb. If those are one room, **574 lb is split across a
+  spelling** and any question about that room returns a wrong answer from either name.
+  **Room names need a controlled vocabulary, not free text.**
+- **A room is not a sublocation.** Sublocation is empty on all 862 held packages. That
+  is permitted, but it must be *stated* as unknown rather than implied (A3) — "Finish
+  Vault" is not the same as "shelf 3 of the Finish Vault", and a physical count needs
+  the second.
 
 **J6. A GUARD IS THE FLOOR, NOT THE CEILING — EVERYTHING GETS DOUBLE-CHECKED OR
 BETTER.** Owner, 8 August 2026: *"strains, coa, manifest, all reports, spreadsheet
