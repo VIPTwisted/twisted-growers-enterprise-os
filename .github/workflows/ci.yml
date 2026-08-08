@@ -194,6 +194,9 @@ jobs:
         run: node tools/checks/tile-drills.mjs
       - name: ui-language
         run: node tools/checks/ui-language.mjs
+      # Three functions ran in production with no source here at all.
+      - name: Edge functions are versioned
+        run: node tools/checks/edge-functions-versioned.mjs
       - run: node tools/checks/all-checks-wired.mjs
 
       # ---- Rule E1 / E6 / H2: dangerous SQL must not reach a migration ---------------
