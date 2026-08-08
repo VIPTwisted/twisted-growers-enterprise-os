@@ -169,12 +169,24 @@ Deno.serve(async (req) => {
     const question = String(messages[messages.length - 1]?.content ?? '');
 
     const { data: cfg } = await sb.from('ai_settings').select('*').eq('id', 1).maybeSingle();
-    const model = cfg?.model || 'claude-opus-5';
+
     /* OWNER RULING 8 Aug 2026: "Budz chat must be FULL Claude AI for me and Vincent
-       and anyone with permissions", and "trained as good as the main agent who
-       oversees every aspect of this OS and the company". It defaulted to Haiku with
-       a 900-token ceiling - a fast assistant, not a colleague. The rules above are
-       now the same ones the overseeing agent obeys. */
+       and anyone with permissions", "trained as good as the main agent who oversees
+       every aspect of this OS and the company", and "model - user can change to
+       whatever they want per their account, whatever they want".
+
+       It defaulted to Haiku with a 900-token ceiling: a fast lookup tool, not a
+       colleague, and structurally incapable of obeying the standing rule that every
+       answer carries full detail and full chain of custody.
+
+       The choice is resolved by f_ai_model_for(user) - the user's own preference
+       first, the company default second. That precedence lives in ONE place; never
+       re-implement it here, or the two will disagree the first time someone changes
+       a setting. */
+    let model = cfg?.model || 'claude-opus-5';
+    let modelSource = 'company default';
+    /* Resolved BELOW, once the caller's identity is known. It is not available here:
+       `sb` is the service-role client and carries no user. */
     const inRate = Number(cfg?.input_usd_per_mtok ?? 1);
     const outRate = Number(cfg?.output_usd_per_mtok ?? 5);
 
@@ -202,6 +214,18 @@ Deno.serve(async (req) => {
           global: { headers: { Authorization: authHeader } },
         })
       : null;
+
+    /* The caller's own model choice, resolved now that we know who they are.
+       f_ai_model_for() puts the user's preference first and the company default
+       second - the precedence lives THERE and must not be duplicated here. */
+    try {
+      const { data: who } = await asCaller.auth.getUser();
+      const uid = who?.user?.id;
+      if (uid) {
+        const { data: pick } = await sb.rpc('f_ai_model_for', { p_user: uid });
+        if (pick?.model) { model = pick.model; modelSource = pick.source ?? modelSource; }
+      }
+    } catch (_e) { /* never fail a question over a preference lookup */ }
 
     if (!asCaller) {
       await sb.from('ai_usage_log').insert({ feature:'budz-chat', answered_by:'no-anon-key', cost_usd:0 });
