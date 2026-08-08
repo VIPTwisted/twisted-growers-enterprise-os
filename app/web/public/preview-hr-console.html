@@ -1,0 +1,761 @@
+<title>Twisted Growers — HR Console</title>
+
+<style>
+/* Tokens mirror app/web/src/styles.css. Answers to :root[data-theme].
+   On integration this block is deleted and styles.css supplies it. */
+:root,:root[data-theme="dark"]{
+  --canvas:#0a0c0b; --surface:#111513; --surface-2:#181d1a;
+  --ink:#fff; --ink-2:#e2eae5; --muted:#9aa69f; --line:#242a26;
+  --neon:#2df26a; --neon-hi:#5cff92; --neon-ink:#051509;
+  --neon-soft:rgba(45,242,106,.11); --neon-line:rgba(45,242,106,.33);
+  --gold:#e2bd63; --gold-soft:rgba(232,196,104,.12);
+  --blue:#57a9ff; --blue-soft:rgba(87,169,255,.12);
+  --red:#ff4245; --red-soft:rgba(255,66,69,.13);
+  --amber:#ffea00; --amber-soft:rgba(255,234,0,.1);
+  --shadow-sm:0 1px 2px rgba(0,0,0,.45);
+  --glow:0 0 16px rgba(45,242,106,.35);
+  --input-bg:#0d100e; --thead:#151a17; --row-hover:rgba(45,242,106,.045);
+}
+:root[data-theme="light"]{
+  --canvas:#fdfefd; --surface:#fff; --surface-2:#eef1ee;
+  --ink:#101312; --ink-2:#3e4944; --muted:#6e7a73; --line:#e0e5e1;
+  --neon:#0fae4f; --neon-hi:#14cc5d; --neon-ink:#04230f;
+  --neon-soft:rgba(15,174,79,.1); --neon-line:rgba(15,174,79,.38);
+  --gold:#9c7a1e; --gold-soft:rgba(156,122,30,.11);
+  --blue:#2673c4; --blue-soft:rgba(38,115,196,.09);
+  --red:#f5222d; --red-soft:rgba(245,34,45,.1);
+  --amber:#d4b800; --amber-soft:rgba(212,184,0,.12);
+  --shadow-sm:0 1px 2px rgba(16,24,40,.05);
+  --glow:0 3px 12px rgba(15,174,79,.3);
+  --input-bg:#fafcfa; --thead:#f2f5f2; --row-hover:rgba(15,174,79,.045);
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{background:var(--canvas);color:var(--ink);
+  font-family:Figtree,-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;
+  font-size:13.5px;-webkit-font-smoothing:antialiased}
+h1,h2,h3{font-family:Figtree,Inter,sans-serif;margin:0}
+.wrap{max-width:1180px;margin:0 auto;padding:24px 26px 60px;display:flex;flex-direction:column;gap:14px}
+
+.rig{display:flex;gap:8px;align-items:center;flex-wrap:wrap;
+  border:1px dashed var(--line);border-radius:8px;padding:9px 13px}
+.rig b{font-size:9.5px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+.rig button{background:none;border:1px solid var(--line);color:var(--muted);border-radius:5px;
+  padding:6px 12px;font-size:11.5px;font-weight:700;font-family:inherit;cursor:pointer}
+.rig button.on{border-color:var(--neon-line);color:var(--neon);background:var(--neon-soft)}
+
+.top{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.top h1{font-size:24px;font-weight:700;letter-spacing:.01em}
+.top h1 em{font-style:normal;color:var(--neon-hi)}
+.top .sub{font-size:12.5px;color:var(--muted);margin-top:4px;line-height:1.5}
+.aistate{margin-left:auto;display:inline-flex;align-items:center;gap:9px;background:var(--surface);
+  border:1px solid var(--neon-line);border-radius:5px;padding:9px 14px;font-size:12px;color:var(--ink-2)}
+.aistate i{width:7px;height:7px;border-radius:50%;background:var(--neon);
+  box-shadow:0 0 9px var(--neon-line);flex:none;animation:pulse 2.6s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.45}}
+.aistate b{color:var(--ink);font-weight:800}
+
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.kpi{background:var(--surface);border:1px solid var(--line);border-radius:6px;
+  padding:14px 16px;box-shadow:var(--shadow-sm);display:flex;flex-direction:column;gap:5px}
+.kpi .kv{font-size:26px;font-weight:800;line-height:1;font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+.kpi .kv.hot{color:var(--red)} .kpi .kv.warn{color:var(--amber)}
+.kpi .kv.ok{color:var(--neon)} .kpi .kv.mute{color:var(--muted)}
+.kpi .kl{font-size:10.5px;color:var(--muted);line-height:1.4}
+
+.tabs{display:flex;gap:6px;flex-wrap:wrap}
+.tab{background:var(--surface);border:1px solid var(--line);border-radius:5px;padding:8px 14px;
+  font-size:12px;font-weight:700;color:var(--muted);font-family:inherit;cursor:pointer;
+  display:inline-flex;align-items:center;gap:7px}
+.tab:hover{border-color:var(--neon-line)}
+.tab.on{color:var(--neon);border-color:var(--neon-line);background:var(--neon-soft)}
+.tab .n{background:var(--surface-2);border-radius:20px;padding:1px 7px;font-size:10.5px;
+  font-variant-numeric:tabular-nums}
+.tab.on .n{background:var(--neon);color:var(--neon-ink)}
+
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:8px;
+  padding:20px 22px;box-shadow:var(--shadow-sm);display:flex;flex-direction:column;gap:13px}
+.phead{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+.phead h3{font-size:14px;font-weight:800;letter-spacing:.02em}
+.phead svg{width:15px;height:15px;color:var(--neon);flex:none}
+.pill,.schip{display:inline-flex;align-items:center;gap:6px;padding:2px 9px;border-radius:3px;
+  font-size:11px;font-weight:700;letter-spacing:.03em}
+.phead .pill{margin-left:auto}
+.pill.ok,.schip.ok{background:var(--neon-soft);color:var(--neon)}
+.pill.hot,.schip.bad{background:var(--red-soft);color:var(--red)}
+.pill.wait,.schip.warn{background:var(--amber-soft);color:var(--amber)}
+.pill.info,.schip.info{background:var(--blue-soft);color:var(--blue)}
+.pill.mute,.schip.mute{background:var(--surface-2);color:var(--muted)}
+
+/* ── The review card. AI drafts; a person decides. ───────────────── */
+.rc{display:grid;grid-template-columns:4px 1fr;background:var(--surface);
+  border:1px solid var(--line);border-radius:8px;overflow:hidden;box-shadow:var(--shadow-sm);
+  transition:border-color .15s}
+.rc:hover{border-color:var(--neon-line)}
+.rc .sev{background:var(--neon)}
+.rc.hot .sev{background:var(--red)} .rc.warn .sev{background:var(--amber)}
+.rc.info .sev{background:var(--blue)}
+.rc.done{opacity:.62}
+.rcb{padding:16px 19px;min-width:0;display:flex;flex-direction:column;gap:11px}
+.rctop{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+.agent{display:inline-flex;align-items:center;gap:6px;font-size:10px;font-weight:800;
+  letter-spacing:.08em;text-transform:uppercase;color:var(--neon);
+  background:var(--neon-soft);border:1px solid var(--neon-line);border-radius:3px;padding:2px 8px}
+.agent svg{width:11px;height:11px}
+.rctop .when{font-size:10.5px;color:var(--muted);margin-left:auto}
+.who2{display:flex;align-items:center;gap:10px}
+.who2 .av{width:34px;height:34px;border-radius:50%;flex:none;display:grid;place-items:center;
+  font-size:11.5px;font-weight:800;color:var(--neon-ink);
+  background:linear-gradient(180deg,var(--neon-hi),var(--neon));
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.3)}
+.who2 .wn b{display:block;font-size:13.5px;font-weight:800}
+.who2 .wn span{font-size:11px;color:var(--muted)}
+.rc h4{margin:0;font-size:15px;font-weight:800;letter-spacing:-.01em;line-height:1.35}
+.why{background:var(--surface-2);border:1px solid var(--line);border-radius:6px;padding:11px 13px;
+  font-size:12.5px;line-height:1.6;color:var(--ink-2)}
+.why b{color:var(--ink);font-weight:800}
+.why .wl{display:block;font-size:9.5px;font-weight:800;letter-spacing:.13em;
+  text-transform:uppercase;color:var(--muted);margin-bottom:5px}
+.draft{border:1px dashed var(--line);border-radius:6px;padding:0;overflow:hidden}
+.draft summary{cursor:pointer;padding:10px 13px;font-size:11.5px;font-weight:800;
+  letter-spacing:.06em;text-transform:uppercase;color:var(--muted);list-style:none;
+  display:flex;align-items:center;gap:8px}
+.draft summary::-webkit-details-marker{display:none}
+.draft summary::before{content:"▸";color:var(--neon);font-size:13px}
+.draft[open] summary::before{content:"▾"}
+.draft summary:hover{color:var(--ink-2)}
+.draft .dc{padding:0 15px 15px;font-size:12.5px;line-height:1.7;color:var(--ink-2);
+  white-space:pre-wrap;border-top:1px solid var(--line);padding-top:13px}
+.draft textarea{width:100%;min-height:170px;background:var(--input-bg);border:1px solid var(--neon-line);
+  border-radius:5px;padding:12px;font-size:12.5px;line-height:1.7;color:var(--ink);
+  font-family:inherit;outline:none;resize:vertical}
+.rcacts{display:flex;gap:8px;flex-wrap:wrap;border-top:1px solid var(--line);padding-top:12px}
+.outcome{display:flex;align-items:flex-start;gap:10px;background:var(--surface-2);
+  border:1px solid var(--line);border-radius:6px;padding:11px 13px;font-size:12px;
+  line-height:1.6;color:var(--ink-2)}
+.outcome svg{width:15px;height:15px;flex:none;margin-top:1px}
+.outcome b{color:var(--ink);font-weight:800}
+.outcome.sent{border-color:var(--neon-line)} .outcome.sent svg{color:var(--neon)}
+.outcome.ign{border-color:rgba(255,234,0,.35)} .outcome.ign svg{color:var(--amber)}
+.outcome.later{border-color:var(--blue-soft)} .outcome.later svg{color:var(--blue)}
+
+/* ── Modules & reports ───────────────────────────────────────────── */
+.mods{display:grid;grid-template-columns:repeat(auto-fit,minmax(196px,1fr));gap:10px}
+.mod{display:flex;align-items:center;gap:12px;background:var(--surface-2);border:1px solid var(--line);
+  border-radius:6px;padding:13px 15px;cursor:pointer;font-family:inherit;color:var(--ink);
+  text-align:left;transition:border-color .15s,transform .13s}
+.mod:hover{border-color:var(--neon-line);transform:translateY(-2px)}
+.mod .mi{width:32px;height:32px;border-radius:6px;flex:none;display:grid;place-items:center;
+  background:var(--neon);box-shadow:inset 0 1px 0 rgba(255,255,255,.3)}
+.mod .mi svg{width:16px;height:16px;color:var(--neon-ink)}
+.mod .mt{min-width:0}
+.mod .mt b{display:block;font-size:12.5px;font-weight:700}
+.mod .mt span{font-size:10.5px;color:var(--muted)}
+.rep{display:grid;grid-template-columns:repeat(auto-fit,minmax(238px,1fr));gap:9px}
+.rl{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--line);
+  border-radius:5px;background:var(--surface-2);cursor:pointer;font-family:inherit;
+  color:var(--ink-2);font-size:12.5px;text-align:left;transition:border-color .15s,color .15s}
+.rl:hover{border-color:var(--neon-line);color:var(--ink)}
+.rl svg{width:14px;height:14px;color:var(--neon);flex:none}
+.rl .rn{margin-left:auto;font-size:10px;color:var(--muted);white-space:nowrap}
+
+.scroll{overflow-y:auto;overscroll-behavior:contain;max-height:520px;margin-right:-6px;
+  padding-right:6px;display:flex;flex-direction:column;gap:11px;
+  scrollbar-width:thin;scrollbar-color:var(--line) transparent}
+.scroll::-webkit-scrollbar{width:8px}
+.scroll::-webkit-scrollbar-thumb{background:var(--line);border-radius:20px}
+
+/* Modal */
+.veil{position:fixed;inset:0;z-index:60;background:rgba(0,0,0,.66);display:none;
+  align-items:center;justify-content:center;padding:24px}
+.veil.on{display:flex}
+.modal{background:var(--surface);border:1px solid var(--line);border-radius:8px;
+  box-shadow:0 30px 70px rgba(0,0,0,.6);width:100%;max-width:520px;max-height:86vh;
+  overflow-y:auto;padding:24px;display:flex;flex-direction:column;gap:15px}
+.mhead{display:flex;gap:12px;align-items:flex-start}
+.mhead .mi2{width:38px;height:38px;border-radius:6px;flex:none;display:grid;place-items:center;
+  background:var(--amber-soft);border:1px solid rgba(255,234,0,.35)}
+.mhead .mi2 svg{width:19px;height:19px;color:var(--amber)}
+.mhead h3{font-size:17px;font-weight:800;line-height:1.3}
+.mhead p{margin:5px 0 0;font-size:12.5px;color:var(--muted);line-height:1.55}
+.fld{display:flex;flex-direction:column;gap:6px}
+label.lb{font-size:10px;font-weight:800;letter-spacing:.11em;text-transform:uppercase;color:var(--muted)}
+select,textarea{background:var(--input-bg);border:1px solid var(--line);border-radius:5px;
+  padding:9px 11px;font-size:13px;color:var(--ink);font-family:inherit;outline:none;width:100%}
+textarea{min-height:80px;resize:vertical;line-height:1.55}
+select:focus,textarea:focus{border-color:var(--neon-line);box-shadow:var(--glow)}
+select.bad,textarea.bad{border-color:rgba(255,66,69,.6)}
+.err{font-size:11.5px;color:var(--red);font-weight:700;display:none}
+.err.on{display:block}
+.mnote{background:var(--surface-2);border:1px solid var(--line);border-radius:6px;
+  padding:12px 14px;font-size:12.5px;line-height:1.6;color:var(--ink-2)}
+.mnote b{color:var(--ink);font-weight:800}
+.mfoot{display:flex;gap:9px;flex-wrap:wrap;justify-content:flex-end;
+  border-top:1px solid var(--line);padding-top:14px}
+
+.btn{background:linear-gradient(180deg,var(--neon-hi),var(--neon));color:var(--neon-ink);
+  border:none;border-radius:5px;padding:10px 18px;font-weight:800;font-size:13.5px;cursor:pointer;
+  letter-spacing:.02em;font-family:inherit;box-shadow:var(--glow),inset 0 1px 0 rgba(255,255,255,.3);
+  transition:transform .08s,filter .15s}
+.btn:hover{filter:brightness(1.07)}
+.btn:active{transform:translateY(1px)}
+.btn:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+.btn.ghost{background:none;color:var(--ink-2);border:1px solid var(--line);box-shadow:none}
+.btn.ghost:hover{border-color:var(--neon-line);color:var(--ink);filter:none}
+.btn.warnb{background:none;color:var(--amber);border:1px solid rgba(255,234,0,.4);box-shadow:none}
+.btn.warnb:hover{filter:none;background:var(--amber-soft)}
+.btn.small{padding:8px 14px;font-size:12px}
+
+@media (max-width:700px){.top h1{font-size:20px}.aistate{margin-left:0}}
+</style>
+
+<div class="wrap">
+
+  <div class="rig"><b>Demo</b>
+    <button id="tDark" class="on">Dark</button><button id="tLight">Light</button>
+    <span style="font-size:11px;color:var(--muted)">every action below is reversible in this prototype</span>
+  </div>
+
+  <div class="top">
+    <div>
+      <h1>HR <em>Console</em></h1>
+      <div class="sub">Four agents draft. <b>You decide.</b> Nothing reaches an employee without your sign-off.</div>
+    </div>
+    <span class="aistate"><i></i>4 agents active · last run <b>6 min ago</b></span>
+  </div>
+
+  <div class="kpis">
+    <div class="kpi"><span class="kv hot" id="kPend">7</span><span class="kl">Awaiting your review</span></div>
+    <div class="kpi"><span class="kv warn">2</span><span class="kl">Overdue · past 48 h</span></div>
+    <div class="kpi"><span class="kv ok" id="kSent">14</span><span class="kl">Sent this week</span></div>
+    <div class="kpi"><span class="kv mute" id="kIgn">3</span><span class="kl">Ignored · filed to record</span></div>
+    <div class="kpi"><span class="kv">21</span><span class="kl">Active employees</span></div>
+    <div class="kpi"><span class="kv warn">4</span><span class="kl">Agent cards expiring &lt;60 d</span></div>
+  </div>
+
+  <div class="tabs">
+    <button class="tab on">All <span class="n">7</span></button>
+    <button class="tab">Attendance <span class="n">3</span></button>
+    <button class="tab">Discipline <span class="n">2</span></button>
+    <button class="tab">Onboarding <span class="n">1</span></button>
+    <button class="tab">Scheduling <span class="n">1</span></button>
+    <button class="tab">Compliance <span class="n">0</span></button>
+  </div>
+
+  <!-- ══ THE REVIEW QUEUE ══════════════════════════════════════════ -->
+  <div class="panel">
+    <div class="phead">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"
+           stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3 8-8"/><path d="M20 12v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h9"/></svg>
+      <h3>Drafted and waiting on you</h3>
+      <span class="pill hot" id="qCount">7 pending</span>
+    </div>
+
+    <div class="mnote">
+      <b>Every outcome is filed.</b> Send, edit, defer or ignore — the decision, who made it, when,
+      and why is written to that employee's file. An ignored draft is still a record, which is
+      what makes enforcement provably consistent if it is ever challenged.
+    </div>
+
+    <div class="scroll" id="queue">
+
+      <!-- 1 — attendance escalation -->
+      <div class="rc hot" data-id="1">
+        <div class="sev"></div>
+        <div class="rcb">
+          <div class="rctop">
+            <span class="agent"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"
+              stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>HR-Attendance</span>
+            <span class="schip bad">Written warning</span>
+            <span class="schip mute">Confidence high</span>
+            <span class="when">Drafted 6 min ago</span>
+          </div>
+          <div class="who2"><span class="av">MR</span>
+            <span class="wn"><b>Marissa Reyes</b><span>Vape Line 2 · Production Operator · 2 y 4 m</span></span></div>
+          <h4>Attendance points reached 4.0 — written warning is due</h4>
+          <div class="why"><span class="wl">Why this fired</span>
+            Late <b>8 min</b> on 8 Aug (unexplained, 0.5) took the rolling total from 3.5 to
+            <b>4.0</b>. Policy escalates to a <b>written warning</b> at 4.0. Prior: verbal warning
+            issued 12 Jun at 3.0. Five occurrences in the last 90 days, three of them unexplained.</div>
+          <details class="draft"><summary>Draft written warning · WW-2026-047</summary>
+            <div class="dc">WRITTEN WARNING — ATTENDANCE
+
+Employee: Marissa Reyes
+Issued: 8 August 2026
+Reference: WW-2026-047
+Policy: Employee manual s.6.1 — attendance and punctuality
+
+Your attendance point total has reached 4.0 under the rolling twelve-month policy. A written warning is issued at 4.0 points.
+
+Occurrences contributing:
+  12 Jun 2026  Late 8 min      0.5   unexplained
+   3 Jun 2026  Late 6 min      0.5   unexplained
+   2 Jul 2026  Left early      0.5   family emergency
+  14 Jul 2026  Absent          1.0   sick, notice given
+  28 Jul 2026  Late 11 min     0.5   traffic — excused
+   8 Aug 2026  Late 8 min      0.5   unexplained
+
+A verbal warning was issued on 12 June 2026 at 3.0 points.
+
+Reaching 6.0 points escalates to a final warning. Points fall off twelve months after each occurrence; your total returns to 3.5 on 12 June 2027.
+
+You may add a written response, which is filed alongside this warning. Signing confirms receipt only and is not an admission of fault.
+
+Issued by: ______________________
+Employee signature: ______________________</div></details>
+          <div class="rcacts">
+            <button class="btn small act-send">Send to employee</button>
+            <button class="btn ghost small act-edit">Suggest edits</button>
+            <button class="btn ghost small act-later">Review later</button>
+            <button class="btn warnb small act-ign">Ignore</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 2 — PTO approval -->
+      <div class="rc info" data-id="2">
+        <div class="sev"></div>
+        <div class="rcb">
+          <div class="rctop">
+            <span class="agent"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"
+              stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 10h18"/></svg>HR-Scheduling</span>
+            <span class="schip info">PTO request</span>
+            <span class="when">Drafted 22 min ago</span>
+          </div>
+          <div class="who2"><span class="av">DK</span>
+            <span class="wn"><b>Devon Keane</b><span>Packaging · Shift Supervisor · 4 y 1 m</span></span></div>
+          <h4>Approve 16 hours PTO, 1–2 September</h4>
+          <div class="why"><span class="wl">Why this fired</span>
+            Balance <b>62 h</b>, request <b>16 h</b>, leaves 46 h. Coverage on both days is
+            <b>adequate</b> — Packaging runs 6 of 6 without him. No blackout period. Requested
+            <b>26 days</b> ahead, well past the 14-day notice rule. <b>Recommend approve.</b></div>
+          <details class="draft"><summary>Draft approval notice</summary>
+            <div class="dc">Devon — your time off request is approved.
+
+  Dates:    1–2 September 2026
+  Hours:    16.0 PTO
+  Balance:  62.0 before, 46.0 after
+
+Packaging is covered both days. Your shifts have been released from the schedule and the calendar is updated.
+
+Approved by: [HR manager]
+Twisted Growers — Human Resources</div></details>
+          <div class="rcacts">
+            <button class="btn small act-send">Approve &amp; send</button>
+            <button class="btn ghost small act-edit">Suggest edits</button>
+            <button class="btn ghost small act-later">Review later</button>
+            <button class="btn warnb small act-ign">Ignore</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 3 — compliance / agent card -->
+      <div class="rc warn" data-id="3">
+        <div class="sev"></div>
+        <div class="rcb">
+          <div class="rctop">
+            <span class="agent"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"
+              stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>HR-Compliance</span>
+            <span class="schip warn">Registration expiry</span>
+            <span class="when">Drafted 1 h ago</span>
+          </div>
+          <div class="who2"><span class="av">JC</span>
+            <span class="wn"><b>Jordan Cruz</b><span>Extraction · Lab Technician · 1 y 7 m</span></span></div>
+          <h4>Agent Registration expires in 27 days — renewal not started</h4>
+          <div class="why"><span class="wl">Why this fired</span>
+            Card expires <b>4 September 2026</b>. State processing runs <b>three weeks</b>, so the
+            window closes <b>14 August</b>. No renewal on file. After 4 September this person
+            <b>cannot legally be on the floor</b> and Extraction drops to one qualified tech.</div>
+          <details class="draft"><summary>Draft reminder — employee and lead</summary>
+            <div class="dc">Jordan — your Cannabis Agent Registration expires on 4 September 2026, in 27 days.
+
+State processing takes about three weeks, so please submit your renewal by 14 August to avoid a gap.
+
+You cannot work on the floor after the expiry date until the renewal is granted. HR can help with the paperwork — reply to this message.
+
+Copied to: T. Lopez (Production Lead), Compliance
+Twisted Growers — Human Resources</div></details>
+          <div class="rcacts">
+            <button class="btn small act-send">Send to employee</button>
+            <button class="btn ghost small act-edit">Suggest edits</button>
+            <button class="btn ghost small act-later">Review later</button>
+            <button class="btn warnb small act-ign">Ignore</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 4 — onboarding -->
+      <div class="rc" data-id="4">
+        <div class="sev"></div>
+        <div class="rcb">
+          <div class="rctop">
+            <span class="agent"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"
+              stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.2"/><path d="M2 20c0-3.5 3-6 7-6s7 2.5 7 6M19 8h4M21 6v4"/></svg>HR-Onboarding</span>
+            <span class="schip ok">Day-one pack</span>
+            <span class="when">Drafted 3 h ago</span>
+          </div>
+          <div class="who2"><span class="av">AS</span>
+            <span class="wn"><b>Amara Silva</b><span>Packaging · starts Mon 11 Aug</span></span></div>
+          <h4>Onboarding pack ready — 9 items, 3 need you before day one</h4>
+          <div class="why"><span class="wl">Why this fired</span>
+            Start date is <b>3 days</b> out. Outstanding: <b>I-9 verification</b> (must be within
+            3 business days of start), <b>Agent Registration</b> (not yet submitted — she cannot
+            touch product without it), and <b>emergency contact</b>. The other six are queued to
+            send automatically on acceptance.</div>
+          <details class="draft"><summary>Draft welcome pack &amp; checklist</summary>
+            <div class="dc">Welcome to Twisted Growers, Amara.
+
+Your first day is Monday 11 August, 7:00 AM. Ask for Devon Keane at the Packaging door.
+
+Before day one:
+  □ I-9 verification — bring original documents (list A, or B + C)
+  □ Cannabis Agent Registration — HR submits, you sign
+  □ Emergency contact form
+
+Sent to you already:
+  ✓ Offer letter (signed 2 Aug)
+  ✓ Employee manual v4.2
+  ✓ Safety and gowning SOP
+  ✓ Benefits enrolment — you have 30 days
+  ✓ Direct deposit form
+  ✓ Parking and site access
+
+What to bring: photo ID, comfortable closed-toe shoes, a water bottle. Gowning is provided.
+
+Twisted Growers — Human Resources</div></details>
+          <div class="rcacts">
+            <button class="btn small act-send">Send pack</button>
+            <button class="btn ghost small act-edit">Suggest edits</button>
+            <button class="btn ghost small act-later">Review later</button>
+            <button class="btn warnb small act-ign">Ignore</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 5 — overtime / scheduling -->
+      <div class="rc warn" data-id="5">
+        <div class="sev"></div>
+        <div class="rcb">
+          <div class="rctop">
+            <span class="agent"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"
+              stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/></svg>HR-Scheduling</span>
+            <span class="schip warn">Overtime exposure</span>
+            <span class="when">Drafted 4 h ago</span>
+          </div>
+          <div class="who2"><span class="av">TL</span>
+            <span class="wn"><b>Next week's schedule</b><span>All departments · w/c 11 Aug</span></span></div>
+          <h4>Published schedule carries 31 overtime hours — $1,140 above plan</h4>
+          <div class="why"><span class="wl">Why this fired</span>
+            Six people scheduled past 40 h. <b>Three of the six</b> can be levelled by moving
+            shifts to staff currently at 24–32 h, with no coverage loss. Remaining 11 h are
+            genuine — Extraction has one qualified tech on Thursday.</div>
+          <details class="draft"><summary>Draft levelling proposal · 3 moves</summary>
+            <div class="dc">Overtime levelling — week commencing 11 August
+
+Current exposure: 31.0 OT hours, ≈ $1,140 loaded
+
+Proposed moves (no coverage loss):
+  1. Tue 12 Aug, Packaging 07:00–15:00
+     M. Reyes (would hit 44 h) → A. Silva (currently 24 h)
+     Saves 4.0 OT h
+
+  2. Wed 13 Aug, Vape Line 2 07:00–17:00
+     D. Keane (would hit 46 h) → R. Okafor (currently 30 h)
+     Saves 6.0 OT h
+
+  3. Fri 15 Aug, Packaging 07:00–15:00
+     M. Reyes → J. Whitfield (currently 32 h)
+     Saves 8.0 OT h
+
+Residual: 13.0 OT h, of which 11.0 is unavoidable (Extraction, Thu — single qualified tech).
+
+Net saving: ≈ $660 loaded.</div></details>
+          <div class="rcacts">
+            <button class="btn small act-send">Apply &amp; notify</button>
+            <button class="btn ghost small act-edit">Suggest edits</button>
+            <button class="btn ghost small act-later">Review later</button>
+            <button class="btn warnb small act-ign">Ignore</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 6 — discipline, non-attendance -->
+      <div class="rc hot" data-id="6">
+        <div class="sev"></div>
+        <div class="rcb">
+          <div class="rctop">
+            <span class="agent"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"
+              stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>HR-Discipline</span>
+            <span class="schip bad">Verbal warning</span>
+            <span class="schip warn">Needs your judgement</span>
+            <span class="when">Drafted 5 h ago</span>
+          </div>
+          <div class="who2"><span class="av">RO</span>
+            <span class="wn"><b>Rhea Okafor</b><span>Packaging · Operator · 8 m</span></span></div>
+          <h4>Second gowning breach in 30 days — verbal warning drafted</h4>
+          <div class="why"><span class="wl">Why this fired</span>
+            Badge log shows Room B entry at <b>06:58</b> on 6 Aug with no gowning scan in the
+            preceding 4 minutes. Same pattern on 19 July. <b>Caution:</b> the airlock scanner
+            logged two faults that week, so the badge data may be wrong. Verify before sending.</div>
+          <details class="draft"><summary>Draft verbal warning · VW-2026-023</summary>
+            <div class="dc">VERBAL WARNING — GOWNING PROCEDURE
+
+Employee: Rhea Okafor
+Date of incident: 6 August 2026
+Reference: VW-2026-023
+Policy: Employee manual s.4.2 — gowning and clean-area entry
+
+Badge records show entry to Room B at 06:58 without a completed gowning sequence in the preceding four minutes. A similar record exists for 19 July 2026.
+
+Gowning protects product integrity and the licence. A further occurrence within 90 days escalates to a written warning.
+
+NOTE TO REVIEWER — the Room B airlock scanner logged two faults during the week of 3 August. Confirm the badge data against the room camera before issuing.
+
+Issued by: ______________________</div></details>
+          <div class="rcacts">
+            <button class="btn small act-send">Send to employee</button>
+            <button class="btn ghost small act-edit">Suggest edits</button>
+            <button class="btn ghost small act-later">Review later</button>
+            <button class="btn warnb small act-ign">Ignore</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 7 — timecard correction -->
+      <div class="rc info" data-id="7">
+        <div class="sev"></div>
+        <div class="rcb">
+          <div class="rctop">
+            <span class="agent"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"
+              stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2"/></svg>HR-Attendance</span>
+            <span class="schip info">Timecard correction</span>
+            <span class="when">Drafted 6 h ago</span>
+          </div>
+          <div class="who2"><span class="av">MR</span>
+            <span class="wn"><b>Marissa Reyes</b><span>Missed clock-out · Tue 5 Aug</span></span></div>
+          <h4>Reconstruct 5 Aug clock-out from badge exit at 5:06 PM</h4>
+          <div class="why"><span class="wl">Why this fired</span>
+            Clock-in <b>6:52 AM</b>, no clock-out. Badge exit logged <b>5:06 PM</b>, and the Line 2
+            run closed at <b>4:58 PM</b>. Both corroborate a normal shift end. Proposed
+            <b>9.73 h</b> less 30 min lunch. Employee requested the correction.</div>
+          <details class="draft"><summary>Draft correction · TC-2026-0119</summary>
+            <div class="dc">TIMECARD CORRECTION
+
+Employee: Marissa Reyes
+Date: Tuesday 5 August 2026
+Reference: TC-2026-0119
+
+  Recorded:   in 06:52, out —
+  Corrected:  in 06:52, out 17:06
+  Lunch:      30 min unpaid
+  Worked:     9.73 h
+
+Evidence: badge exit 17:06; Line 2 production run closed 16:58; scheduled end 17:00.
+
+Employee requested this correction on 8 August. No attendance points attach to a corrected missed punch.
+
+Approved by: ______________________
+Payroll: included in the run of 14 August</div></details>
+          <div class="rcacts">
+            <button class="btn small act-send">Approve correction</button>
+            <button class="btn ghost small act-edit">Suggest edits</button>
+            <button class="btn ghost small act-later">Review later</button>
+            <button class="btn warnb small act-ign">Ignore</button>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ══ HR MODULES ════════════════════════════════════════════════ -->
+  <div class="panel">
+    <div class="phead">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"
+           stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+      <h3>Modules</h3>
+    </div>
+    <div class="mods">
+      <button class="mod"><span class="mi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"
+        stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.2"/><path d="M2 20c0-3.5 3-6 7-6s7 2.5 7 6"/></svg></span>
+        <span class="mt"><b>Roster &amp; directory</b><span>21 active · 2 pending</span></span></button>
+      <button class="mod"><span class="mi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"
+        stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 10h18"/></svg></span>
+        <span class="mt"><b>Schedule builder</b><span>w/c 11 Aug · draft</span></span></button>
+      <button class="mod"><span class="mi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"
+        stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2M9 2h6"/></svg></span>
+        <span class="mt"><b>Time &amp; attendance</b><span>6 punches to approve</span></span></button>
+      <button class="mod"><span class="mi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"
+        stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M17 6H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></span>
+        <span class="mt"><b>Payroll &amp; rates</b><span>Next run 14 Aug</span></span></button>
+      <button class="mod"><span class="mi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"
+        stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg></span>
+        <span class="mt"><b>Employee files</b><span>Docs, e-sign, history</span></span></button>
+      <button class="mod"><span class="mi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"
+        stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 4 5.5V11c0 5 3.4 9.4 8 11 4.6-1.6 8-6 8-11V5.5z"/></svg></span>
+        <span class="mt"><b>Compliance</b><span>I-9, agent cards, training</span></span></button>
+      <button class="mod"><span class="mi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"
+        stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="9" r="6"/><path d="M8.5 14 7 22l5-2.6L17 22l-1.5-8"/></svg></span>
+        <span class="mt"><b>Performance</b><span>4 reviews due</span></span></button>
+      <button class="mod"><span class="mi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"
+        stroke-linecap="round" stroke-linejoin="round"><path d="M3 11v2a1 1 0 0 0 1 1h3l5 4V6L7 10H4a1 1 0 0 0-1 1z"/><path d="M16 9a4 4 0 0 1 0 6"/></svg></span>
+        <span class="mt"><b>Announcements</b><span>Compose &amp; track receipts</span></span></button>
+    </div>
+  </div>
+
+  <!-- ══ REPORTS ═══════════════════════════════════════════════════ -->
+  <div class="panel">
+    <div class="phead">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"
+           stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 15l4-5 3 3 5-7"/></svg>
+      <h3>Reports</h3>
+      <span class="pill wait">needs punch data</span>
+    </div>
+    <div class="rep">
+      <button class="rl"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"><path d="M3 3v18h18M7 15l4-5 3 3 5-7"/></svg>Scheduled vs worked hours<span class="rn">variance</span></button>
+      <button class="rl"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"><path d="M12 2v20M17 6H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>Labour cost vs plan<span class="rn">by dept</span></button>
+      <button class="rl"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"><path d="M3 17l6-6 4 4 8-8M15 7h6v6"/></svg>Overtime forecast<span class="rn">weekly</span></button>
+      <button class="rl"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>Punctuality by department<span class="rn">rolling 90 d</span></button>
+      <button class="rl"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18"/></svg>Absence &amp; no-show rate<span class="rn">by reason code</span></button>
+      <button class="rl"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"><path d="M9 11l3 3 8-8M20 12v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h9"/></svg>Schedule adherence<span class="rn">per person</span></button>
+      <button class="rl"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"><path d="M17 2l4 4-4 4M3 6h18M7 22l-4-4 4-4M21 18H3"/></svg>Coverage gaps &amp; open shifts<span class="rn">forward 14 d</span></button>
+      <button class="rl"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6"/></svg>Disciplinary actions<span class="rn">by type &amp; dept</span></button>
+      <button class="rl"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>Turnover &amp; tenure<span class="rn">rolling 12 m</span></button>
+      <button class="rl"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>Agent card &amp; cert expiry<span class="rn">forward 90 d</span></button>
+      <button class="rl"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"><path d="M12 2 4 5.5V11c0 5 3.4 9.4 8 11 4.6-1.6 8-6 8-11V5.5z"/></svg>Acknowledgement receipts<span class="rn">who read what</span></button>
+      <button class="rl"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"><path d="M3 3v18h18M7 15l4-5 3 3 5-7"/></svg>PTO liability &amp; accrual<span class="rn">balance sheet</span></button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ IGNORE — reason required, and it is still filed ══════════════ -->
+<div class="veil" id="ignVeil">
+  <div class="modal">
+    <div class="mhead">
+      <span class="mi2"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"
+        stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v5M12 17.5v.01"/><path d="M10.3 3.9 1.9 18a2 2 0 0 0 1.7 3h16.8a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg></span>
+      <div><h3>Ignore this draft</h3>
+        <p>Nothing is sent to the employee — but the decision is still recorded.</p></div>
+    </div>
+    <div class="mnote">
+      This is <b>filed to the employee's record</b> with your name, the timestamp, the draft that
+      was declined, and your reason. That is what proves enforcement was consistent if the
+      decision is ever questioned — by the employee, by counsel, or in an audit.
+    </div>
+    <div class="fld"><label class="lb" for="ignCode">Reason</label>
+      <select id="ignCode"><option value="">Select a reason…</option>
+        <option>Evidence is unreliable or disputed</option>
+        <option>Already handled in person</option>
+        <option>Mitigating circumstances known to me</option>
+        <option>Policy does not apply in this case</option>
+        <option>Duplicate of an existing action</option>
+        <option>Agent drew the wrong conclusion</option>
+        <option>Deferring to the department lead</option>
+        <option>Other</option></select></div>
+    <div class="fld"><label class="lb" for="ignWhy">Your note <span style="color:var(--red)">— required</span></label>
+      <textarea id="ignWhy" placeholder="Why you are not acting on this. Written to the employee file."></textarea>
+      <span class="err" id="ignErr">Pick a reason and write a note — both are required.</span></div>
+    <div class="mfoot">
+      <button class="btn ghost" id="ignCancel" type="button">Cancel</button>
+      <button class="btn warnb" id="ignConfirm" type="button">Ignore &amp; file the decision</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  var d = document.documentElement;
+  function setT(t){ d.dataset.theme = t;
+    document.getElementById('tDark').classList.toggle('on', t==='dark');
+    document.getElementById('tLight').classList.toggle('on', t==='light'); }
+  setT('dark');
+  document.getElementById('tDark').onclick = function(){ setT('dark'); };
+  document.getElementById('tLight').onclick = function(){ setT('light'); };
+})();
+
+var pend = 7, sent = 14, ign = 3, target = null;
+function counts(){
+  document.getElementById('kPend').textContent = pend;
+  document.getElementById('kSent').textContent = sent;
+  document.getElementById('kIgn').textContent = ign;
+  document.getElementById('qCount').textContent = pend === 0 ? 'Queue clear' : pend + ' pending';
+  document.getElementById('qCount').className = 'pill ' + (pend === 0 ? 'ok' : 'hot');
+}
+function stamp(){ return new Date().toLocaleString([], {dateStyle:'medium', timeStyle:'short'}); }
+function resolve(card, cls, icon, html, spent){
+  card.classList.add('done');
+  var acts = card.querySelector('.rcacts');
+  acts.className = 'outcome ' + cls;
+  acts.innerHTML = icon + '<span>' + html + '</span>';
+  if(spent){ pend--; counts(); }
+}
+var TICK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>';
+var CLOCK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>';
+var FILE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>';
+
+document.getElementById('queue').addEventListener('click', function(e){
+  var b = e.target.closest('button'); if(!b) return;
+  var card = b.closest('.rc'); if(!card) return;
+
+  if(b.classList.contains('act-send')){
+    sent++; resolve(card, 'sent', TICK,
+      '<b>Sent ' + stamp() + '</b> by you. Delivered to the employee and filed to their record. ' +
+      'A read receipt is tracked.', true);
+  }
+  if(b.classList.contains('act-edit')){
+    var det = card.querySelector('.draft');
+    det.open = true;
+    var dc = det.querySelector('.dc');
+    if(dc.tagName !== 'TEXTAREA'){
+      var ta = document.createElement('textarea');
+      ta.value = dc.textContent; dc.replaceWith(ta);
+      det.querySelector('summary').textContent = 'Editing the draft — your changes are tracked against the original';
+      b.textContent = 'Save edits'; b.className = 'btn small act-edit';
+    } else {
+      det.querySelector('summary').textContent = 'Draft · edited by you';
+      b.textContent = 'Suggest edits'; b.className = 'btn ghost small act-edit';
+      var note = document.createElement('div');
+      note.className = 'why';
+      note.innerHTML = '<span class="wl">Your edit</span>Draft revised by you at ' + stamp() +
+        '. The original agent draft is retained alongside it.';
+      card.querySelector('.rcacts').before(note);
+    }
+  }
+  if(b.classList.contains('act-later')){
+    resolve(card, 'later', CLOCK,
+      '<b>Deferred</b> at ' + stamp() + '. Returns to the queue in 24 hours and is flagged ' +
+      'overdue after 48. The delay is recorded.', true);
+  }
+  if(b.classList.contains('act-ign')){
+    target = card;
+    document.getElementById('ignVeil').classList.add('on');
+  }
+});
+
+document.getElementById('ignCancel').onclick = function(){
+  document.getElementById('ignVeil').classList.remove('on');
+};
+document.getElementById('ignConfirm').onclick = function(){
+  var code = document.getElementById('ignCode'), why = document.getElementById('ignWhy');
+  var bad = !code.value || why.value.trim().length < 8;
+  document.getElementById('ignErr').classList.toggle('on', bad);
+  code.classList.toggle('bad', !code.value);
+  why.classList.toggle('bad', why.value.trim().length < 8);
+  if(bad) return;
+  document.getElementById('ignVeil').classList.remove('on');
+  ign++;
+  resolve(target, 'ign', FILE,
+    '<b>Ignored and filed</b> ' + stamp() + '. Reason: <b>' + code.value + '</b> — “' +
+    why.value.trim() + '” Nothing was sent to the employee. The draft, your reason and your ' +
+    'name are written to their file.', true);
+  code.value = ''; why.value = '';
+};
+
+document.querySelectorAll('.tab').forEach(function(t){
+  t.onclick = function(){
+    document.querySelectorAll('.tab').forEach(function(x){ x.classList.remove('on'); });
+    t.classList.add('on');
+  };
+});
+counts();
+</script>

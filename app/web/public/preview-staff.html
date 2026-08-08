@@ -1,0 +1,1215 @@
+<title>Twisted Growers — Staff Landing</title>
+
+<style>
+/* ═══════════════════════════════════════════════════════════════════
+   THEME-WIRED. Tokens mirror app/web/src/styles.css exactly, and the
+   page answers to :root[data-theme="dark"|"light"] — the same switch
+   App.jsx sets from user_settings.theme. Nothing is a hardcoded colour;
+   on integration this whole :root block is deleted and styles.css
+   supplies it. Every value below is copied, not invented.
+   ═══════════════════════════════════════════════════════════════════ */
+:root,:root[data-theme="dark"]{
+  --canvas:#0a0c0b; --surface:#111513; --surface-2:#181d1a;
+  --ink:#fff; --ink-2:#e2eae5; --muted:#9aa69f; --line:#242a26;
+  --neon:#2df26a; --neon-hi:#5cff92; --neon-ink:#051509;
+  --neon-soft:rgba(45,242,106,.11); --neon-line:rgba(45,242,106,.33);
+  --gold:#e2bd63; --gold-soft:rgba(232,196,104,.12);
+  --blue:#57a9ff; --blue-soft:rgba(87,169,255,.12);
+  --red:#ff4245; --red-soft:rgba(255,66,69,.13);
+  --amber:#ffea00; --amber-soft:rgba(255,234,0,.1);
+  --shadow-sm:0 1px 2px rgba(0,0,0,.45);
+  --glow:0 0 16px rgba(45,242,106,.35);
+  --input-bg:#0d100e; --thead:#151a17; --row-hover:rgba(45,242,106,.045);
+}
+:root[data-theme="light"]{
+  --canvas:#fdfefd; --surface:#fff; --surface-2:#eef1ee;
+  --ink:#101312; --ink-2:#3e4944; --muted:#6e7a73; --line:#e0e5e1;
+  --neon:#0fae4f; --neon-hi:#14cc5d; --neon-ink:#04230f;
+  --neon-soft:rgba(15,174,79,.1); --neon-line:rgba(15,174,79,.38);
+  --gold:#9c7a1e; --gold-soft:rgba(156,122,30,.11);
+  --blue:#2673c4; --blue-soft:rgba(38,115,196,.09);
+  --red:#f5222d; --red-soft:rgba(245,34,45,.1);
+  --amber:#d4b800; --amber-soft:rgba(212,184,0,.12);
+  --shadow-sm:0 1px 2px rgba(16,24,40,.05);
+  --glow:0 3px 12px rgba(15,174,79,.3);
+  --input-bg:#fafcfa; --thead:#f2f5f2; --row-hover:rgba(15,174,79,.045);
+}
+
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{background:var(--canvas);color:var(--ink);
+  font-family:Figtree,-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;
+  font-size:13.5px;-webkit-font-smoothing:antialiased}
+h1,h2,h3{font-family:Figtree,Inter,sans-serif;margin:0}
+
+.wrap{max-width:1120px;margin:0 auto;padding:26px 26px 56px;
+  display:flex;flex-direction:column;gap:14px}
+
+/* Demo rig — not shipped. */
+.rig{display:flex;gap:8px;align-items:center;flex-wrap:wrap;
+  border:1px dashed var(--line);border-radius:8px;padding:10px 14px;margin-bottom:4px}
+.rig b{font-size:9.5px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+.rig button{background:none;border:1px solid var(--line);color:var(--muted);border-radius:5px;
+  padding:6px 13px;font-size:11.5px;font-weight:700;font-family:inherit;cursor:pointer}
+.rig button.on{border-color:var(--neon-line);color:var(--neon);background:var(--neon-soft)}
+
+/* ── Header ───────────────────────────────────────────────────────── */
+.top{display:flex;align-items:center;gap:15px;flex-wrap:wrap}
+.top img{width:50px;height:50px;flex:none;display:block}
+.top h1{font-size:25px;font-weight:700;letter-spacing:.01em;line-height:1.2}
+.top h1 em{font-style:normal;color:var(--neon-hi)}
+.top .sub{font-size:12.5px;color:var(--muted);margin-top:4px;line-height:1.55}
+.top .sub b{color:var(--ink-2);font-weight:700}
+.clockchip{margin-left:auto;display:inline-flex;align-items:center;gap:8px;
+  border:1px solid var(--line);border-radius:5px;padding:9px 14px;
+  font-size:12px;color:var(--ink-2);background:var(--surface)}
+.clockchip i{width:6px;height:6px;border-radius:50%;background:var(--neon);
+  box-shadow:0 0 8px var(--neon-line);flex:none}
+.clockchip b{font-weight:800;color:var(--ink);font-variant-numeric:tabular-nums}
+
+/* ── Banners: agent card, overtime, missed punch ─────────────────── */
+.banner{display:flex;align-items:center;gap:13px;border-radius:6px;
+  padding:12px 16px;flex-wrap:wrap;border:1px solid}
+.banner svg{width:17px;height:17px;flex:none}
+.banner .bt{flex:1;min-width:220px;font-size:12.5px;line-height:1.5;color:var(--ink-2)}
+.banner .bt b{color:var(--ink);font-weight:800}
+.banner.warn{background:var(--amber-soft);border-color:rgba(255,234,0,.35)}
+.banner.warn svg{color:var(--amber)}
+.banner.bad{background:var(--red-soft);border-color:rgba(255,66,69,.4)}
+.banner.bad svg{color:var(--red)}
+
+/* ── Zone ─────────────────────────────────────────────────────────── */
+.zone{background:var(--surface);border:1px solid var(--neon-line);border-radius:8px;
+  padding:20px 22px;box-shadow:var(--glow),var(--shadow-sm);
+  display:flex;align-items:center;gap:20px;flex-wrap:wrap}
+.zone .zi{width:50px;height:50px;border-radius:6px;flex:none;display:grid;place-items:center;
+  background:linear-gradient(180deg,var(--neon-hi),var(--neon));
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.3)}
+.zone .zi svg{width:26px;height:26px;color:var(--neon-ink)}
+.zone .zt{flex:1;min-width:220px}
+.lab{font-size:10px;font-weight:800;letter-spacing:.13em;text-transform:uppercase;color:var(--muted)}
+.zone h2{font-size:23px;font-weight:700;letter-spacing:.01em;margin-top:5px;line-height:1.2}
+.zone p{margin:6px 0 0;font-size:12.5px;color:var(--ink-2);line-height:1.55}
+.zone p b{color:var(--ink);font-weight:700}
+.zmeta{display:flex;gap:24px;flex-wrap:wrap}
+.zmeta div{display:flex;flex-direction:column;gap:4px}
+.zmeta .v{font-size:15px;font-weight:800;font-variant-numeric:tabular-nums}
+
+/* ── Panels ───────────────────────────────────────────────────────── */
+.cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(452px,1fr));gap:12px}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:8px;
+  padding:20px 22px;box-shadow:var(--shadow-sm);display:flex;flex-direction:column;gap:13px}
+.phead{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+.phead h3{font-size:14px;font-weight:800;letter-spacing:.02em}
+.phead svg{width:15px;height:15px;color:var(--neon);flex:none}
+.pill,.schip{display:inline-flex;align-items:center;gap:6px;padding:2px 9px;border-radius:3px;
+  font-size:11px;font-weight:700;letter-spacing:.03em}
+.phead .pill,.phead .schip{margin-left:auto}
+.pill.ok,.schip.ok{background:var(--neon-soft);color:var(--neon)}
+.pill.hot,.schip.bad{background:var(--red-soft);color:var(--red)}
+.pill.wait,.schip.warn{background:var(--amber-soft);color:var(--amber)}
+.pill.info,.schip.info{background:var(--blue-soft);color:var(--blue)}
+.pill.mute,.schip.mute{background:var(--surface-2);color:var(--muted)}
+
+/* Scroll inside a tile, never the page — same pattern as .brainreptable. */
+.scroll{overflow-y:auto;overscroll-behavior:contain;max-height:238px;
+  margin-right:-6px;padding-right:6px;
+  scrollbar-width:thin;scrollbar-color:var(--line) transparent}
+.scroll::-webkit-scrollbar{width:8px}
+.scroll::-webkit-scrollbar-track{background:transparent}
+.scroll::-webkit-scrollbar-thumb{background:var(--line);border-radius:20px}
+.scroll::-webkit-scrollbar-thumb:hover{background:var(--neon-line)}
+
+/* Rows */
+.srow{display:flex;align-items:center;gap:13px;padding:10px 0;border-bottom:1px solid var(--line)}
+.srow:last-of-type{border-bottom:0}
+.srow .dt{width:46px;flex:none;text-align:center}
+.srow .dt b{display:block;font-size:16px;font-weight:800;line-height:1;font-variant-numeric:tabular-nums}
+.srow .dt span{font-size:9.5px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.srow .si{flex:1;min-width:0}
+.srow .si b{display:block;font-size:13px;font-weight:700}
+.srow .si span{font-size:11.5px;color:var(--muted)}
+.srow .hrs{font-size:12px;font-weight:800;color:var(--ink-2);font-variant-numeric:tabular-nums;flex:none}
+.srow.off .si b{color:var(--muted)}
+.srow.open{border:1px dashed var(--neon-line);border-radius:6px;padding:10px 12px;margin-bottom:7px}
+
+/* Balance cards */
+.grid3{display:grid;grid-template-columns:repeat(auto-fit,minmax(96px,1fr));gap:10px}
+.card{background:var(--surface-2);border:1px solid var(--line);border-radius:6px;
+  padding:13px 15px;box-shadow:var(--shadow-sm);display:flex;flex-direction:column;gap:5px}
+.card .cv{font-size:22px;font-weight:800;letter-spacing:-.01em;line-height:1;font-variant-numeric:tabular-nums}
+.card .cv.warn{color:var(--amber)}
+.card .cl{font-size:10.5px;color:var(--muted);line-height:1.4}
+
+/* Tasks — ClickUp standard, rule 2: assignee, due date, priority, and
+   the number that triggered it, on the row itself. */
+.task{display:flex;align-items:flex-start;gap:11px;padding:11px 0;border-bottom:1px solid var(--line)}
+.task:last-of-type{border-bottom:0}
+.task input{accent-color:var(--neon);width:16px;height:16px;margin:1px 0 0;flex:none;cursor:pointer}
+.task .tb{flex:1;min-width:0}
+.task .tt{font-size:13px;font-weight:700;line-height:1.4}
+.task .tm{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-top:5px}
+.task .tm span{font-size:11px;color:var(--muted)}
+.task .who{display:inline-flex;align-items:center;gap:5px;font-size:11px;color:var(--ink-2)}
+.task .who i{width:17px;height:17px;border-radius:50%;display:grid;place-items:center;
+  font-size:8px;font-weight:800;font-style:normal;color:var(--neon-ink);
+  background:linear-gradient(180deg,var(--neon-hi),var(--neon))}
+.task .num{font-variant-numeric:tabular-nums;color:var(--ink-2);font-weight:700}
+.flag{display:inline-flex;align-items:center;gap:5px;padding:2px 8px;border-radius:3px;
+  font-size:10px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;flex:none}
+.flag::before{content:"";width:0;height:0;border-left:5px solid currentColor;
+  border-top:3px solid transparent;border-bottom:3px solid transparent}
+.flag.urgent{background:var(--red-soft);color:var(--red)}
+.flag.high{background:var(--amber-soft);color:var(--amber)}
+.flag.normal{background:var(--blue-soft);color:var(--blue)}
+.task.did .tt{text-decoration:line-through;color:var(--muted)}
+
+/* Messages / memos */
+.msg{display:flex;gap:11px;align-items:flex-start;padding:11px 0;border-bottom:1px solid var(--line)}
+.msg:last-of-type{border-bottom:0}
+.msg .av{width:30px;height:30px;border-radius:50%;flex:none;display:grid;place-items:center;
+  font-size:10.5px;font-weight:800;color:var(--neon-ink);
+  background:linear-gradient(180deg,var(--neon-hi),var(--neon));
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.3)}
+.msg .av.co{background:var(--surface-2);color:var(--gold);border:1px solid var(--gold-soft);box-shadow:none}
+.msg .av.hr{background:var(--surface-2);color:var(--blue);border:1px solid var(--blue-soft);box-shadow:none}
+.msg .mb{flex:1;min-width:0}
+.msg .hd{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.msg .hd b{font-size:12.5px;font-weight:800}
+.msg .hd .ago{font-size:10.5px;color:var(--muted);margin-left:auto}
+.msg .hd .new{width:6px;height:6px;border-radius:50%;background:var(--neon);
+  box-shadow:0 0 7px var(--neon-line);flex:none}
+.msg p{margin:3px 0 0;font-size:12px;line-height:1.55;color:var(--ink-2)}
+
+/* ── Forms: PTO / time off ───────────────────────────────────────── */
+.form{display:grid;grid-template-columns:repeat(auto-fit,minmax(132px,1fr));gap:10px}
+.fld{display:flex;flex-direction:column;gap:6px;min-width:0}
+.fld.wide{grid-column:1/-1}
+label.lb{font-size:10px;font-weight:800;letter-spacing:.11em;text-transform:uppercase;color:var(--muted)}
+input[type=date],input[type=number],select,textarea{background:var(--input-bg);
+  border:1px solid var(--line);border-radius:5px;padding:9px 11px;font-size:13px;
+  color:var(--ink);font-family:inherit;outline:none;width:100%;
+  transition:border-color .15s,box-shadow .15s}
+textarea{resize:vertical;min-height:62px;line-height:1.55}
+input:focus,select:focus,textarea:focus{border-color:var(--neon-line);box-shadow:var(--glow)}
+.reqrow{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--line)}
+.reqrow:last-of-type{border-bottom:0}
+.reqrow .ri{flex:1;min-width:0}
+.reqrow .ri b{display:block;font-size:12.5px;font-weight:700}
+.reqrow .ri span{font-size:11px;color:var(--muted)}
+
+/* ── Writeups & warnings. Signable, and the signature is the record. ── */
+.wu{border:1px solid var(--line);border-radius:6px;padding:14px 16px;
+  background:var(--surface-2);display:flex;flex-direction:column;gap:10px}
+.wu+.wu{margin-top:9px}
+.wu.unsigned{border-color:rgba(255,66,69,.4)}
+.wu .wh{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+.wu .wh b{font-size:13px;font-weight:800}
+.wu .wh .when{font-size:11px;color:var(--muted);margin-left:auto}
+.wu p{margin:0;font-size:12.5px;line-height:1.6;color:var(--ink-2)}
+.wu .by{font-size:11px;color:var(--muted)}
+.wu .sigbox{display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+  border-top:1px dashed var(--line);padding-top:11px}
+.wu .sigbox .sn{font-size:11.5px;color:var(--muted);flex:1;min-width:180px;line-height:1.5}
+.wu .sigbox .sn b{color:var(--ink-2)}
+.signed{font-family:"Segoe Script","Brush Script MT",cursive;font-size:17px;color:var(--neon)}
+
+/* ── Timecards ───────────────────────────────────────────────────── */
+.tcwrap{overflow-x:auto;overflow-y:auto;max-height:272px;overscroll-behavior:contain;
+  border:1px solid var(--line);border-radius:6px}
+table{border-collapse:collapse;width:100%;font-size:12.5px}
+th{position:sticky;top:0;z-index:1;background:var(--thead);text-align:left;padding:9px 12px;
+  border-bottom:1px solid var(--line);white-space:nowrap;font-size:10px;letter-spacing:.11em;
+  text-transform:uppercase;color:var(--muted);font-weight:800}
+td{padding:9px 12px;border-bottom:1px solid var(--line);white-space:nowrap;font-variant-numeric:tabular-nums}
+tr:last-child td{border-bottom:0}
+tbody tr:hover{background:var(--row-hover)}
+td.day{font-weight:700;color:var(--ink)}
+td.tot{font-weight:800}
+tr.bad td{background:var(--red-soft)}
+tr.bad td.day{color:var(--red)}
+
+/* ── Documents ───────────────────────────────────────────────────── */
+.docs{display:grid;grid-template-columns:repeat(auto-fit,minmax(212px,1fr));gap:10px}
+.doc{display:flex;align-items:center;gap:12px;background:var(--surface-2);
+  border:1px solid var(--line);border-radius:6px;padding:13px 15px;cursor:pointer;
+  text-align:left;font-family:inherit;color:var(--ink);transition:border-color .15s,transform .13s}
+.doc:hover{border-color:var(--neon-line);transform:translateY(-2px)}
+.doc .di{width:32px;height:32px;border-radius:6px;flex:none;display:grid;place-items:center;
+  background:var(--neon);box-shadow:inset 0 1px 0 rgba(255,255,255,.3)}
+.doc .di svg{width:17px;height:17px;color:var(--neon-ink)}
+.doc .dt2{min-width:0}
+.doc .dt2 b{display:block;font-size:12.5px;font-weight:700}
+.doc .dt2 span{font-size:11px;color:var(--muted)}
+
+/* ── Admin visibility ────────────────────────────────────────────── */
+.admin{background:var(--surface);border:1px dashed var(--line);border-radius:8px;
+  padding:16px 20px;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+.admin .ah{display:flex;align-items:center;gap:9px;font-size:11px;font-weight:800;
+  letter-spacing:.11em;text-transform:uppercase;color:var(--muted)}
+.admin .ah svg{width:14px;height:14px;color:var(--gold)}
+.toggles{display:flex;gap:8px;flex-wrap:wrap}
+.tg{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--line);border-radius:5px;
+  padding:7px 12px;font-size:12px;color:var(--ink-2);cursor:pointer;transition:border-color .15s,color .15s}
+.tg:hover{border-color:var(--neon-line)}
+.tg input{accent-color:var(--neon);width:14px;height:14px;cursor:pointer;margin:0}
+.tg.off{color:var(--muted);opacity:.6}
+[data-tile].hidden{display:none}
+
+/* ── Announcements & memos ───────────────────────────────────────── */
+.ann{display:flex;gap:12px;align-items:flex-start;padding:13px 0;border-bottom:1px solid var(--line)}
+.ann:last-of-type{border-bottom:0}
+.ann .ai{width:30px;height:30px;border-radius:6px;flex:none;display:grid;place-items:center;
+  border:1px solid var(--line);background:var(--surface-2)}
+.ann .ai svg{width:15px;height:15px}
+.ann.urgent .ai{background:var(--red-soft);border-color:rgba(255,66,69,.4)}
+.ann.urgent .ai svg{color:var(--red)}
+.ann.safety .ai{background:var(--amber-soft);border-color:rgba(255,234,0,.35)}
+.ann.safety .ai svg{color:var(--amber)}
+.ann.hr .ai{background:var(--blue-soft);border-color:var(--blue-soft)}
+.ann.hr .ai svg{color:var(--blue)}
+.ann.mgmt .ai{background:var(--neon-soft);border-color:var(--neon-line)}
+.ann.mgmt .ai svg{color:var(--neon)}
+.ann.good .ai{background:var(--gold-soft);border-color:var(--gold-soft)}
+.ann.good .ai svg{color:var(--gold)}
+.ann .ab{flex:1;min-width:0}
+.ann .ah2{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.ann .ah2 b{font-size:13px;font-weight:800;line-height:1.35}
+.ann .ah2 .ago{font-size:10.5px;color:var(--muted);margin-left:auto;white-space:nowrap}
+.ann p{margin:4px 0 0;font-size:12.5px;line-height:1.6;color:var(--ink-2)}
+.src{display:inline-flex;align-items:center;gap:5px;font-size:10px;font-weight:800;
+  letter-spacing:.07em;text-transform:uppercase;color:var(--muted)}
+.src svg{width:11px;height:11px}
+
+/* ── Quick actions. The bar every workforce app leads with. ─────── */
+.quick{display:grid;grid-template-columns:repeat(auto-fit,minmax(148px,1fr));gap:9px}
+.qa{display:flex;align-items:center;gap:11px;background:var(--surface);
+  border:1px solid var(--line);border-radius:6px;padding:13px 15px;cursor:pointer;
+  font-family:inherit;color:var(--ink);text-align:left;
+  transition:border-color .15s,transform .13s}
+.qa:hover{border-color:var(--neon-line);transform:translateY(-2px)}
+.qa:focus-visible{outline:2px solid var(--neon);outline-offset:2px}
+.qa .qi{width:34px;height:34px;border-radius:6px;flex:none;display:grid;place-items:center;
+  background:var(--surface-2);border:1px solid var(--line)}
+.qa .qi svg{width:17px;height:17px;color:var(--neon)}
+.qa.danger .qi svg{color:var(--red)}
+.qa.warn .qi svg{color:var(--amber)}
+.qa .qt{min-width:0}
+.qa .qt b{display:block;font-size:12.5px;font-weight:800;line-height:1.3}
+.qa .qt span{font-size:10.5px;color:var(--muted)}
+
+/* ── Attendance points ───────────────────────────────────────────── */
+.ptsbar{display:flex;align-items:center;gap:16px;flex-wrap:wrap;
+  background:var(--surface-2);border:1px solid var(--line);border-radius:6px;padding:15px 18px}
+.ptsbig{font-size:34px;font-weight:800;line-height:1;font-variant-numeric:tabular-nums;
+  color:var(--amber);flex:none}
+.ptsbig small{font-size:13px;font-weight:700;color:var(--muted)}
+.ptsmeter{flex:1;min-width:220px}
+.track{height:9px;border-radius:20px;background:var(--canvas);border:1px solid var(--line);
+  overflow:hidden;display:flex}
+.track i{display:block;height:100%}
+.track i.used{background:linear-gradient(90deg,var(--amber),#ff8a00)}
+.ticks{display:flex;justify-content:space-between;margin-top:7px;font-size:10px;color:var(--muted)}
+.ticks b{color:var(--ink-2);font-weight:700}
+.ptsnote{font-size:11.5px;color:var(--ink-2);line-height:1.55;flex:1;min-width:200px}
+.ptsnote b{color:var(--ink);font-weight:800}
+
+/* ── Modal. Normal flow overlay so it never collapses. ───────────── */
+.veil{position:fixed;inset:0;z-index:60;background:rgba(0,0,0,.66);
+  display:none;align-items:center;justify-content:center;padding:24px;
+  backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px)}
+.veil.on{display:flex}
+.modal{background:var(--surface);border:1px solid var(--line);border-radius:8px;
+  box-shadow:0 30px 70px rgba(0,0,0,.6);width:100%;max-width:520px;
+  max-height:86vh;overflow-y:auto;overscroll-behavior:contain;
+  padding:24px;display:flex;flex-direction:column;gap:16px}
+.modal.wide{max-width:600px}
+.mhead{display:flex;align-items:flex-start;gap:12px}
+.mhead .mi{width:38px;height:38px;border-radius:6px;flex:none;display:grid;place-items:center}
+.mhead .mi svg{width:20px;height:20px}
+.mhead.bad .mi{background:var(--red-soft);border:1px solid rgba(255,66,69,.4)}
+.mhead.bad .mi svg{color:var(--red)}
+.mhead.warn .mi{background:var(--amber-soft);border:1px solid rgba(255,234,0,.35)}
+.mhead.warn .mi svg{color:var(--amber)}
+.mhead.ok .mi{background:var(--neon-soft);border:1px solid var(--neon-line)}
+.mhead.ok .mi svg{color:var(--neon)}
+.mhead h3{font-size:17px;font-weight:800;letter-spacing:.01em;line-height:1.3}
+.mhead p{margin:5px 0 0;font-size:12.5px;color:var(--muted);line-height:1.55}
+.mbody{font-size:13px;line-height:1.65;color:var(--ink-2)}
+.mbody b{color:var(--ink);font-weight:800}
+.mnote{background:var(--surface-2);border:1px solid var(--line);border-radius:6px;
+  padding:12px 14px;font-size:12.5px;line-height:1.6;color:var(--ink-2)}
+.mnote b{color:var(--ink);font-weight:800}
+.mfoot{display:flex;gap:9px;flex-wrap:wrap;justify-content:flex-end;
+  border-top:1px solid var(--line);padding-top:15px}
+.err{font-size:11.5px;color:var(--red);font-weight:700;display:none}
+.err.on{display:block}
+textarea.bad,select.bad{border-color:rgba(255,66,69,.6)}
+
+/* ── Buttons — .btn from styles.css, verbatim ────────────────────── */
+.acts{display:flex;gap:9px;flex-wrap:wrap;margin-top:auto}
+.btn{background:linear-gradient(180deg,var(--neon-hi),var(--neon));color:var(--neon-ink);
+  border:none;border-radius:5px;padding:10px 18px;font-weight:800;font-size:13.5px;
+  cursor:pointer;letter-spacing:.02em;font-family:inherit;
+  box-shadow:var(--glow),inset 0 1px 0 rgba(255,255,255,.3);
+  transition:transform .08s,filter .15s}
+.btn:hover{filter:brightness(1.07)}
+.btn:active{transform:translateY(1px)}
+.btn:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+.btn.ghost{background:none;color:var(--ink-2);border:1px solid var(--line);box-shadow:none}
+.btn.ghost:hover{border-color:var(--neon-line);color:var(--ink);filter:none}
+.btn.small{padding:7px 13px;font-size:12px}
+.btn.grow{flex:1}
+.btn[disabled]{opacity:.55;cursor:default;filter:none}
+
+@media (max-width:720px){
+  .top h1{font-size:21px} .zone h2{font-size:19px} .clockchip{margin-left:0}
+}
+</style>
+
+<div class="wrap">
+
+  <div class="rig">
+    <b>Demo</b>
+    <button id="tDark" class="on">Dark theme</button>
+    <button id="tLight">Light theme</button>
+    <span style="font-size:11px;color:var(--muted)">both read from <code>user_settings.theme</code></span>
+  </div>
+
+  <div class="top">
+    <img alt="Twisted Growers" width="50" height="50"
+      src="data:image/webp;base64,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" />
+    <div>
+      <h1>Morning, <em>Marissa</em>.</h1>
+      <div class="sub">You're on <b>Vape Line 2</b> today. <b>2 messages</b>,
+        <b>1 warning to sign</b>, <b>1 timecard to fix</b>.</div>
+    </div>
+    <span class="clockchip"><i></i>Clocked in <b>6:58 AM</b></span>
+  </div>
+
+  <!-- Quick actions. What every workforce app leads with. -->
+  <div class="quick" data-tile="quick">
+    <button class="qa" id="qClock">
+      <span class="qi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"
+        stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2M9 2h6"/></svg></span>
+      <span class="qt"><b>Clock out</b><span>On since 6:58 AM</span></span></button>
+
+    <button class="qa danger" id="qCallout">
+      <span class="qi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"
+        stroke-linecap="round" stroke-linejoin="round"><path d="M10.7 13.3a10 10 0 0 0 4 4l1.4-1.9a1.4 1.4 0 0 1 1.5-.5l3 .9a1.4 1.4 0 0 1 1 1.4v2.4a1.4 1.4 0 0 1-1.5 1.4A17 17 0 0 1 3 5.4 1.4 1.4 0 0 1 4.4 4h2.4a1.4 1.4 0 0 1 1.4 1l.9 3a1.4 1.4 0 0 1-.5 1.5z"/><path d="m2 2 20 20"/></svg></span>
+      <span class="qt"><b>Call out</b><span>Reason code required</span></span></button>
+
+    <button class="qa" id="qPto">
+      <span class="qi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"
+        stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 10h18M9 16l2 2 4-4"/></svg></span>
+      <span class="qt"><b>Use PTO</b><span>41 hours available</span></span></button>
+
+    <button class="qa" id="qSwap">
+      <span class="qi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"
+        stroke-linecap="round" stroke-linejoin="round"><path d="M17 2l4 4-4 4M3 6h18M7 22l-4-4 4-4M21 18H3"/></svg></span>
+      <span class="qt"><b>Swap a shift</b><span>Needs lead approval</span></span></button>
+
+    <button class="qa warn" id="qLateDemo">
+      <span class="qi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"
+        stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v5M12 17.5v.01"/><path d="M10.3 3.9 1.9 18a2 2 0 0 0 1.7 3h16.8a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg></span>
+      <span class="qt"><b>Demo: late punch</b><span>See the challenge flow</span></span></button>
+  </div>
+
+  <!-- Agent card expiry. The one item that can legally stop a shift. -->
+  <div class="banner warn" data-tile="agentcard">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"
+         stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20M7 15h4"/></svg>
+    <span class="bt"><b>Your Cannabis Agent Registration expires in 34 days</b> — 11 September.
+      You cannot legally be on the floor after that date. Renewal takes about three weeks.</span>
+    <button class="btn small">Start renewal</button>
+  </div>
+
+  <!-- Where you are today -->
+  <div class="zone" data-tile="zone">
+    <div class="zi">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"
+           stroke-linecap="round" stroke-linejoin="round"><path d="M3 8h18v12H3zM3 8l2-4h14l2 4M12 8v12"/></svg>
+    </div>
+    <div class="zt">
+      <div class="lab">Where you are today</div>
+      <h2>Vape Line 2 — Room B</h2>
+      <p>Gelato 41 carts, 0.5 g. Changeover to <b>Blue Dream</b> after lunch.</p>
+    </div>
+    <div class="zmeta">
+      <div><span class="lab">Starts</span><span class="v">7:15 AM</span></div>
+      <div><span class="lab">Ends</span><span class="v">5:00 PM</span></div>
+      <div><span class="lab">Lead</span><span class="v">T. Lopez</span></div>
+    </div>
+  </div>
+
+  <div class="cols">
+
+    <!-- Shifts + open shifts to claim -->
+    <div class="panel" data-tile="shifts">
+      <div class="phead">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"
+             stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 10h18"/></svg>
+        <h3>Your shifts</h3><span class="pill info">2 open to claim</span>
+      </div>
+      <div class="scroll">
+        <div class="srow open">
+          <span class="dt"><b>12</b><span>Tue</span></span>
+          <span class="si"><b>Packaging — open shift</b><span>Nobody has claimed it · no overtime for you</span></span>
+          <button class="btn small claim">Claim</button>
+        </div>
+        <div class="srow open">
+          <span class="dt"><b>14</b><span>Thu</span></span>
+          <span class="si"><b>Packaging — open shift</b><span>Nobody has claimed it · no overtime for you</span></span>
+          <button class="btn small claim">Claim</button>
+        </div>
+        <div class="srow"><span class="dt"><b>09</b><span>Sat</span></span>
+          <span class="si"><b>Vape Line 2</b><span>Room B · with T. Lopez</span></span><span class="hrs">7–5</span></div>
+        <div class="srow"><span class="dt"><b>11</b><span>Mon</span></span>
+          <span class="si"><b>Vape Line 2</b><span>Room B</span></span><span class="hrs">7–5</span></div>
+        <div class="srow"><span class="dt"><b>12</b><span>Tue</span></span>
+          <span class="si"><b>Packaging</b><span>Covering D. Keane</span></span><span class="hrs">7–3</span></div>
+        <div class="srow off"><span class="dt"><b>13</b><span>Wed</span></span>
+          <span class="si"><b>Off</b><span>Approved 2 Aug</span></span><span class="hrs">—</span></div>
+      </div>
+      <div class="acts">
+        <button class="btn ghost grow">Swap a shift</button>
+        <button class="btn ghost grow">Full schedule</button>
+      </div>
+    </div>
+
+    <!-- Tasks -->
+    <div class="panel" data-tile="tasks">
+      <div class="phead">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"
+             stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3 8-8"/><path d="M20 12v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h9"/></svg>
+        <h3>Your tasks &amp; to-do</h3><span class="pill hot" id="taskCount">4 open</span>
+      </div>
+      <div class="scroll">
+        <label class="task"><input type="checkbox" />
+          <span class="tb"><span class="tt">Weigh &amp; tag batch IPR-2214</span>
+            <span class="tm"><span class="who"><i>TL</i>T. Lopez</span><span>·</span>
+              <span>Metrc entry</span><span>·</span><span class="num">1,250 target</span></span></span>
+          <span class="flag urgent">By 10:00</span></label>
+        <label class="task"><input type="checkbox" />
+          <span class="tb"><span class="tt">QC sign-off — cart seal check</span>
+            <span class="tm"><span class="who"><i>TL</i>T. Lopez</span><span>·</span>
+              <span>First run</span><span>·</span><span class="num">50-unit sample</span></span></span>
+          <span class="flag high">Today</span></label>
+        <label class="task"><input type="checkbox" />
+          <span class="tb"><span class="tt">Log Room B humidity</span>
+            <span class="tm"><span class="who"><i>DK</i>D. Keane</span><span>·</span>
+              <span>Ran <span class="num">4%</span> high yesterday</span></span></span>
+          <span class="flag normal">2:00 PM</span></label>
+        <label class="task"><input type="checkbox" />
+          <span class="tb"><span class="tt">Restock cart housings at station 4</span>
+            <span class="tm"><span class="who"><i>MR</i>You</span><span>·</span>
+              <span>Before changeover</span></span></span>
+          <span class="flag normal">12:30 PM</span></label>
+      </div>
+      <div class="acts">
+        <button class="btn ghost grow">Open my task list</button>
+        <button class="btn ghost grow">Add a task</button>
+      </div>
+    </div>
+
+    <!-- Hours, with the overtime warning -->
+    <div class="panel" data-tile="hours">
+      <div class="phead">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"
+             stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+        <h3>Your hours &amp; balances</h3><span class="pill wait">Week to date</span>
+      </div>
+      <div class="banner warn" style="padding:10px 13px">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"
+             stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v4l3 2"/></svg>
+        <span class="bt"><b>7.5 hours to overtime.</b> Claiming Tuesday's open shift keeps you under.</span>
+      </div>
+      <div class="grid3">
+        <div class="card"><span class="cv warn">32.5</span><span class="cl">Hours<br>this week</span></div>
+        <div class="card"><span class="cv">41</span><span class="cl">PTO hours<br>remaining</span></div>
+        <div class="card"><span class="cv">16</span><span class="cl">Sick hours<br>remaining</span></div>
+      </div>
+      <div class="acts">
+        <button class="btn ghost grow">My timesheet</button>
+        <button class="btn ghost grow">Pay stubs</button>
+      </div>
+    </div>
+
+    <!-- Messages & memos, acknowledge-required -->
+    <div class="panel" data-tile="messages">
+      <div class="phead">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"
+             stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+        <h3>Messages &amp; memos</h3><span class="pill hot">1 to acknowledge</span>
+      </div>
+      <div class="scroll">
+        <div class="msg"><span class="av co">TG</span><div class="mb">
+          <div class="hd"><b>Memo — inspector on site</b><span class="new"></span>
+            <span class="schip warn">Acknowledge required</span><span class="ago">2 h</span></div>
+          <p>State inspector on site Tuesday. Gowning enforced all week, no exceptions.</p>
+          <button class="btn small ack" style="margin-top:8px">Acknowledge &amp; log</button>
+        </div></div>
+        <div class="msg"><span class="av">TL</span><div class="mb">
+          <div class="hd"><b>T. Lopez</b><span class="new"></span><span class="ago">18 min</span></div>
+          <p>You're on Line 2 all week — no need to check the board each morning.</p></div></div>
+        <div class="msg"><span class="av hr">HR</span><div class="mb">
+          <div class="hd"><b>Human Resources</b><span class="ago">Yesterday</span></div>
+          <p>Open enrolment closes 22 Aug. Your election is still blank.</p></div></div>
+      </div>
+      <div class="acts">
+        <button class="btn ghost grow">Message HR</button>
+        <button class="btn ghost grow">All messages</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ Announcements & memos ════════════════════════════════════
+       Icon carries the type, the source line carries who said it.
+       Anything compliance-relevant demands an acknowledgement. -->
+  <div class="panel" data-tile="announcements">
+    <div class="phead">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"
+           stroke-linecap="round" stroke-linejoin="round"><path d="M3 11v2a1 1 0 0 0 1 1h3l5 4V6L7 10H4a1 1 0 0 0-1 1z"/><path d="M16 9a4 4 0 0 1 0 6M19 6a8 8 0 0 1 0 12"/></svg>
+      <h3>Announcements &amp; memos</h3>
+      <span class="pill hot">2 to acknowledge</span>
+    </div>
+
+    <div class="scroll" style="max-height:300px">
+      <div class="ann urgent">
+        <span class="ai"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"
+          stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v5M12 17.5v.01"/><path d="M10.3 3.9 1.9 18a2 2 0 0 0 1.7 3h16.8a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg></span>
+        <div class="ab">
+          <div class="ah2"><b>State inspector on site Tuesday</b>
+            <span class="schip warn">Acknowledge required</span><span class="ago">2 h</span></div>
+          <p>Every room stays tagged and logged all week. Gowning enforced with no exceptions.
+            If an inspector asks you a question, answer it honestly and call a lead.</p>
+          <div class="ah2" style="margin-top:7px">
+            <span class="src"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"
+              stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Compliance</span>
+            <button class="btn small ack">Acknowledge &amp; log</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="ann safety">
+        <span class="ai"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"
+          stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 4 5.5V11c0 5 3.4 9.4 8 11 4.6-1.6 8-6 8-11V5.5z"/><path d="M9 12l2 2 4-4"/></svg></span>
+        <div class="ab">
+          <div class="ah2"><b>Updated SOP — Vape Line 2 cart seals</b>
+            <span class="schip warn">Acknowledge required</span><span class="ago">Yesterday</span></div>
+          <p>Seal torque spec changed after the loose-seal batch. Read the revised step 7
+            before your next run on the line.</p>
+          <div class="ah2" style="margin-top:7px">
+            <span class="src"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"
+              stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 4 5.5V11c0 5 3.4 9.4 8 11 4.6-1.6 8-6 8-11V5.5z"/></svg>Safety &amp; quality</span>
+            <button class="btn small ack">Acknowledge &amp; log</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="ann mgmt">
+        <span class="ai"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"
+          stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span>
+        <div class="ab">
+          <div class="ah2"><b>Line 2 running Gelato 41 all week</b><span class="ago">18 min</span></div>
+          <p>No need to check the board each morning — you're on Line 2 through Friday.
+            Changeover to Blue Dream happens after lunch each day.</p>
+          <div class="ah2" style="margin-top:7px">
+            <span class="src"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"
+              stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.2"/><path d="M2 20c0-3.5 3-6 7-6s7 2.5 7 6"/></svg>T. Lopez · Production Lead</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="ann hr">
+        <span class="ai"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"
+          stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20M7 15h4"/></svg></span>
+        <div class="ab">
+          <div class="ah2"><b>Open enrolment closes 22 August</b><span class="ago">Yesterday</span></div>
+          <p>Your election is still blank. If you make no choice you keep last year's plan
+            at the new rate.</p>
+          <div class="ah2" style="margin-top:7px">
+            <span class="src"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"
+              stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>Human Resources</span>
+            <button class="btn small ghost">Make my election</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="ann good">
+        <span class="ai"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"
+          stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="9" r="6"/><path d="M8.5 14 7 22l5-2.6L17 22l-1.5-8"/></svg></span>
+        <div class="ab">
+          <div class="ah2"><b>Floor record — 1,412 carts in one shift</b><span class="ago">Wed</span></div>
+          <p>Set on Line 2. The old mark was 1,190 and it stood for seven months.</p>
+          <div class="ah2" style="margin-top:7px">
+            <span class="src"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"
+              stroke-linecap="round" stroke-linejoin="round"><path d="M3 8h18v12H3zM3 8l2-4h14l2 4"/></svg>Management</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="acts">
+      <button class="btn ghost">All announcements</button>
+      <button class="btn ghost">Message HR</button>
+      <button class="btn ghost">Message my lead</button>
+    </div>
+  </div>
+
+  <!-- ══ Time off & PTO requests ═══════════════════════════════════ -->
+  <div class="panel" data-tile="timeoff">
+    <div class="phead">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"
+           stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 10h18M9 16l2 2 4-4"/></svg>
+      <h3>Time off &amp; PTO requests</h3><span class="pill wait">1 pending</span>
+    </div>
+
+    <div class="cols" style="grid-template-columns:repeat(auto-fit,minmax(300px,1fr))">
+      <form class="form" id="ptoForm">
+        <div class="fld"><label class="lb" for="tType">Type</label>
+          <select id="tType"><option>PTO — paid time off</option><option>Sick</option>
+            <option>Unpaid leave</option><option>Bereavement</option><option>Jury duty</option></select></div>
+        <div class="fld"><label class="lb" for="tHours">Hours</label>
+          <input id="tHours" type="number" min="1" max="80" step="0.5" value="8" /></div>
+        <div class="fld"><label class="lb" for="tFrom">From</label>
+          <input id="tFrom" type="date" value="2026-08-20" /></div>
+        <div class="fld"><label class="lb" for="tTo">To</label>
+          <input id="tTo" type="date" value="2026-08-20" /></div>
+        <div class="fld wide"><label class="lb" for="tNote">Reason (optional)</label>
+          <textarea id="tNote" placeholder="Anything your lead should know"></textarea></div>
+        <div class="fld wide acts" style="margin-top:0">
+          <button class="btn" type="submit">Submit request</button>
+          <span id="ptoMsg" style="font-size:11.5px;color:var(--muted);align-self:center"></span>
+        </div>
+      </form>
+
+      <div>
+        <div class="lab" style="margin-bottom:9px">Your requests</div>
+        <div class="scroll" id="reqList">
+          <div class="reqrow"><span class="ri"><b>PTO — 8 h</b><span>Wed 13 Aug · submitted 2 Aug</span></span>
+            <span class="schip ok">Approved</span></div>
+          <div class="reqrow"><span class="ri"><b>PTO — 16 h</b><span>1–2 Sep · submitted 6 Aug</span></span>
+            <span class="schip warn">Pending T. Lopez</span></div>
+          <div class="reqrow"><span class="ri"><b>Unpaid — 8 h</b><span>Fri 18 Jul · submitted 10 Jul</span></span>
+            <span class="schip bad">Denied — coverage</span></div>
+          <div class="reqrow"><span class="ri"><b>Sick — 8 h</b><span>Mon 7 Jul · auto-logged</span></span>
+            <span class="schip ok">Approved</span></div>
+          <div class="reqrow"><span class="ri"><b>Shift swap with D. Keane</b><span>Tue 12 Aug · submitted 5 Aug</span></span>
+            <span class="schip ok">Approved</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ Attendance record ════════════════════════════════════════
+       Every occurrence, what it cost, how close the next step is.
+       Nobody should ever be surprised by a write-up. -->
+  <div class="panel" data-tile="attendance">
+    <div class="phead">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"
+           stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 10h18M8 15h2M14 15h2M8 18h2"/></svg>
+      <h3>My attendance record</h3>
+      <span class="schip warn">Rolling 12 months</span>
+    </div>
+
+    <div class="ptsbar">
+      <div class="ptsbig" id="ptsNow">2.5<small> pts</small></div>
+      <div class="ptsmeter">
+        <div class="track"><i class="used" id="ptsFill" style="width:31.25%"></i></div>
+        <div class="ticks">
+          <span>0</span><span><b>3</b> verbal</span><span><b>4</b> written</span>
+          <span><b>6</b> final</span><span><b>8</b> review</span>
+        </div>
+      </div>
+      <div class="ptsnote" id="ptsNote">
+        <b>0.5 points from a verbal warning.</b> Points fall off 12 months after the
+        occurrence — your oldest, 0.5 from 12 Jun, clears 12 Jun 2027.
+      </div>
+    </div>
+
+    <div class="tcwrap" style="max-height:236px">
+      <table>
+        <thead><tr><th>Date</th><th>Type</th><th>Detail</th><th>Reason given</th>
+          <th>Points</th><th>Clears</th><th>Status</th></tr></thead>
+        <tbody id="attBody">
+          <tr><td class="day">5 Aug 2026</td><td>Missed punch</td><td>No clock-out</td>
+            <td>Correction requested</td><td class="tot">0</td><td>—</td>
+            <td><span class="schip warn">Under review</span></td></tr>
+          <tr><td class="day">28 Jul 2026</td><td>Late</td><td>11 min</td>
+            <td>Traffic — Route 2 closure</td><td class="tot">0.5</td><td>28 Jul 2027</td>
+            <td><span class="schip mute">Excused</span></td></tr>
+          <tr><td class="day">14 Jul 2026</td><td>Absent</td><td>Full shift</td>
+            <td>Sick — called out 5:40 AM</td><td class="tot">1.0</td><td>14 Jul 2027</td>
+            <td><span class="schip ok">Notice given</span></td></tr>
+          <tr><td class="day">2 Jul 2026</td><td>Left early</td><td>52 min</td>
+            <td>Family emergency</td><td class="tot">0.5</td><td>2 Jul 2027</td>
+            <td><span class="schip ok">Approved</span></td></tr>
+          <tr><td class="day">12 Jun 2026</td><td>Late</td><td>8 min</td>
+            <td>Overslept</td><td class="tot">0.5</td><td>12 Jun 2027</td>
+            <td><span class="schip bad">Verbal warning</span></td></tr>
+          <tr><td class="day">3 Jun 2026</td><td>Late</td><td>6 min</td>
+            <td>Overslept</td><td class="tot">0.5</td><td>3 Jun 2027</td>
+            <td><span class="schip mute">Logged</span></td></tr>
+          <tr><td class="day">19 May 2026</td><td>Late</td><td>4 min</td>
+            <td>Gowning queue</td><td class="tot">0</td><td>—</td>
+            <td><span class="schip mute">Excused</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="mnote">
+      <b>How points work.</b> Late 0.5 · absent with notice 1.0 · absent without notice 2.0 ·
+      no call no show 3.0 · leaving early 0.5. Excused occurrences carry 0. Points drop off
+      12 months to the day. Verbal at 3, written at 4, final at 6, review at 8.
+    </div>
+
+    <div class="acts">
+      <button class="btn ghost">Dispute an occurrence</button>
+      <button class="btn ghost">Download my record (PDF)</button>
+      <button class="btn ghost">Message HR</button>
+    </div>
+  </div>
+
+  <!-- ══ Writeups & warnings ══════════════════════════════════════ -->
+  <div class="panel" data-tile="discipline">
+    <div class="phead">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"
+           stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M9 15l2 2 4-4"/></svg>
+      <h3>Write-ups, warnings &amp; acknowledgements</h3>
+      <span class="pill hot" id="wuCount">1 unsigned</span>
+    </div>
+
+    <div class="wu unsigned" id="wu1">
+      <div class="wh"><span class="schip warn">Written warning</span>
+        <b>Gowning procedure — Room B airlock</b><span class="when">Issued 4 Aug 2026</span></div>
+      <p>On 1 August you entered Room B without completing the gowning sequence. This is a
+        written warning under section 4.2 of the employee manual. A further occurrence within
+        90 days escalates to a final warning.</p>
+      <div class="by">Issued by <b>T. Lopez</b>, Production Lead · HR reference <b>WW-2026-041</b></div>
+      <div class="sigbox">
+        <span class="sn">Signing confirms you have <b>read and received</b> this warning.
+          It is not an admission of fault, and you may add a written response.</span>
+        <button class="btn ghost small" type="button">Add my response</button>
+        <button class="btn small" type="button" id="signBtn">Sign &amp; acknowledge</button>
+      </div>
+    </div>
+
+    <div class="wu">
+      <div class="wh"><span class="schip mute">Verbal warning</span>
+        <b>Late clock-in — three occurrences</b><span class="when">Issued 12 Jun 2026</span></div>
+      <p>Three clock-ins past the 7:15 line start in a rolling two-week window. Discussed on
+        the floor and logged. No further action taken.</p>
+      <div class="by">Issued by <b>D. Keane</b>, Shift Supervisor · HR reference <b>VW-2026-018</b></div>
+      <div class="sigbox">
+        <span class="sn">Signed <span class="signed">Marissa Reyes</span> — 12 Jun 2026, 4:52 PM
+          · IP logged</span>
+        <span class="schip ok">Signed</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ Clock-in history & timecards ═════════════════════════════ -->
+  <div class="panel" data-tile="timecards">
+    <div class="phead">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"
+           stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2M9 2h6"/></svg>
+      <h3>Clock-in history &amp; timecards</h3><span class="pill hot">1 needs fixing</span>
+    </div>
+
+    <div class="banner bad">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"
+           stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v5M12 17.5v.01"/><path d="M10.3 3.9 1.9 18a2 2 0 0 0 1.7 3h16.8a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg>
+      <span class="bt"><b>Tuesday 5 Aug — no clock-out recorded.</b> Your card shows 6:52 AM in
+        and nothing out, so that day is unpaid until it's corrected.</span>
+      <button class="btn small">Request a correction</button>
+    </div>
+
+    <div class="tcwrap">
+      <table>
+        <thead><tr><th>Day</th><th>Clock in</th><th>Clock out</th><th>Break</th>
+          <th>Worked</th><th>Zone</th><th>Status</th></tr></thead>
+        <tbody>
+          <tr><td class="day">Fri 8 Aug</td><td>6:58 AM</td><td>—</td><td>—</td>
+            <td class="tot">in progress</td><td>Vape Line 2</td><td><span class="schip ok">On the clock</span></td></tr>
+          <tr><td class="day">Thu 7 Aug</td><td>6:55 AM</td><td>5:04 PM</td><td>30 m</td>
+            <td class="tot">9.65</td><td>Vape Line 2</td><td><span class="schip ok">Approved</span></td></tr>
+          <tr><td class="day">Wed 6 Aug</td><td>6:49 AM</td><td>5:11 PM</td><td>30 m</td>
+            <td class="tot">9.87</td><td>Vape Line 2</td><td><span class="schip ok">Approved</span></td></tr>
+          <tr class="bad"><td class="day">Tue 5 Aug</td><td>6:52 AM</td><td>missing</td><td>—</td>
+            <td class="tot">—</td><td>Packaging</td><td><span class="schip bad">Needs fixing</span></td></tr>
+          <tr><td class="day">Mon 4 Aug</td><td>7:01 AM</td><td>3:02 PM</td><td>30 m</td>
+            <td class="tot">7.52</td><td>Packaging</td><td><span class="schip ok">Approved</span></td></tr>
+          <tr><td class="day">Fri 1 Aug</td><td>6:57 AM</td><td>5:00 PM</td><td>30 m</td>
+            <td class="tot">9.55</td><td>Vape Line 2</td><td><span class="schip ok">Approved</span></td></tr>
+          <tr><td class="day">Thu 31 Jul</td><td>6:44 AM</td><td>5:22 PM</td><td>45 m</td>
+            <td class="tot">9.88</td><td>Vape Line 2</td><td><span class="schip ok">Approved</span></td></tr>
+          <tr><td class="day">Wed 30 Jul</td><td>6:58 AM</td><td>5:03 PM</td><td>30 m</td>
+            <td class="tot">9.58</td><td>Extraction</td><td><span class="schip ok">Approved</span></td></tr>
+          <tr><td class="day">Tue 29 Jul</td><td>7:04 AM</td><td>5:00 PM</td><td>30 m</td>
+            <td class="tot">9.43</td><td>Extraction</td><td><span class="schip warn">Pending lead</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="acts">
+      <button class="btn ghost">Message HR about my timecard</button>
+      <button class="btn ghost">Download timecard (PDF)</button>
+      <button class="btn ghost">Full punch history</button>
+    </div>
+  </div>
+
+  <!-- ══ Documents ════════════════════════════════════════════════ -->
+  <div class="panel" data-tile="docs">
+    <div class="phead">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"
+           stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v14"/><path d="M4 19a2 2 0 0 0 2 2h14M8 7h8M8 11h8"/></svg>
+      <h3>Handbook &amp; documents</h3>
+    </div>
+    <div class="docs">
+      <button class="doc"><span class="di"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"
+        stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v14"/><path d="M4 19a2 2 0 0 0 2 2h14"/></svg></span>
+        <span class="dt2"><b>Employee manual</b><span>v4.2 · updated 12 Jul 2026</span></span></button>
+      <button class="doc"><span class="di"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"
+        stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg></span>
+        <span class="dt2"><b>SOP — Vape Line 2</b><span>Your line · v2.1</span></span></button>
+      <button class="doc"><span class="di"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"
+        stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 4 5.5V11c0 5 3.4 9.4 8 11 4.6-1.6 8-6 8-11V5.5z"/></svg></span>
+        <span class="dt2"><b>Safety &amp; gowning</b><span>Required reading</span></span></button>
+      <button class="doc"><span class="di"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"
+        stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg></span>
+        <span class="dt2"><b>Benefits &amp; enrolment</b><span>Closes 22 Aug</span></span></button>
+    </div>
+  </div>
+
+  <!-- ══ Admin only ═══════════════════════════════════════════════ -->
+  <div class="admin">
+    <span class="ah">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"
+           stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-2.9 1.2v.2a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0-1.2-2.9H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 2.9 1.2l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+      Settings · visible to staff
+    </span>
+    <div class="toggles" id="toggles">
+      <label class="tg"><input type="checkbox" checked data-for="agentcard" /> Agent card alert</label>
+      <label class="tg"><input type="checkbox" checked data-for="zone" /> Today's zone</label>
+      <label class="tg"><input type="checkbox" checked data-for="shifts" /> Shifts</label>
+      <label class="tg"><input type="checkbox" checked data-for="tasks" /> Tasks</label>
+      <label class="tg"><input type="checkbox" checked data-for="hours" /> Hours</label>
+      <label class="tg"><input type="checkbox" checked data-for="messages" /> Messages</label>
+      <label class="tg"><input type="checkbox" checked data-for="timeoff" /> Time off</label>
+      <label class="tg"><input type="checkbox" checked data-for="discipline" /> Write-ups</label>
+      <label class="tg"><input type="checkbox" checked data-for="timecards" /> Timecards</label>
+      <label class="tg"><input type="checkbox" checked data-for="announcements" /> Announcements</label>
+      <label class="tg"><input type="checkbox" checked data-for="attendance" /> Attendance record</label>
+      <label class="tg"><input type="checkbox" checked data-for="quick" /> Quick actions</label>
+      <label class="tg"><input type="checkbox" checked data-for="docs" /> Documents</label>
+    </div>
+  </div>
+</div>
+
+<!-- ══ LATE PUNCH CHALLENGE ══════════════════════════════════════════
+     Fires at the clock, the moment the punch lands late. It states the
+     occurrence, shows where it puts them, and will not close without an
+     explanation — an unexplained late is an occurrence nobody can defend
+     later, which is exactly what causes disputes at the write-up stage. -->
+<div class="veil" id="lateVeil">
+  <div class="modal">
+    <div class="mhead bad">
+      <span class="mi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"
+        stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span>
+      <div>
+        <h3>You clocked in late</h3>
+        <p>7:23 AM · your shift started 7:15 AM — <b>8 minutes late</b></p>
+      </div>
+    </div>
+
+    <div class="mnote">
+      This is recorded as an attendance occurrence worth <b>0.5 points</b>. It takes you
+      from 2.5 to <b>3.0</b>, which reaches the <b>verbal warning</b> threshold and
+      <b>may result in a disciplinary warning</b>.
+    </div>
+
+    <div class="mbody">
+      If you have an excusable reason, state it now. Your lead reviews every explanation
+      and can mark the occurrence excused, which carries zero points. Leaving this blank
+      records the occurrence as unexplained.
+    </div>
+
+    <div class="fld">
+      <label class="lb" for="lateReason">Reason code</label>
+      <select id="lateReason">
+        <option value="">Select a reason…</option>
+        <option>Traffic or road closure</option>
+        <option>Public transport delay</option>
+        <option>Vehicle breakdown</option>
+        <option>Childcare or dependant</option>
+        <option>Medical or appointment</option>
+        <option>Weather</option>
+        <option>Gowning or badge queue on site</option>
+        <option>Overslept</option>
+        <option>Other</option>
+      </select>
+    </div>
+
+    <div class="fld">
+      <label class="lb" for="lateWhy">Explain what happened <span style="color:var(--red)">— required</span></label>
+      <textarea id="lateWhy" placeholder="Be specific. Your lead reads this before deciding whether it is excused."></textarea>
+      <span class="err" id="lateErr">Pick a reason code and explain what happened — both are required.</span>
+    </div>
+
+    <div class="mfoot">
+      <button class="btn ghost" id="lateLater" type="button">I have no explanation</button>
+      <button class="btn" id="lateSend" type="button">Submit explanation</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ CALL OUT ═════════════════════════════════════════════════════ -->
+<div class="veil" id="coVeil">
+  <div class="modal wide">
+    <div class="mhead warn">
+      <span class="mi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"
+        stroke-linecap="round" stroke-linejoin="round"><path d="M10.7 13.3a10 10 0 0 0 4 4l1.4-1.9a1.4 1.4 0 0 1 1.5-.5l3 .9a1.4 1.4 0 0 1 1 1.4v2.4a1.4 1.4 0 0 1-1.5 1.4A17 17 0 0 1 3 5.4 1.4 1.4 0 0 1 4.4 4h2.4a1.4 1.4 0 0 1 1.4 1l.9 3a1.4 1.4 0 0 1-.5 1.5z"/><path d="m2 2 20 20"/></svg></span>
+      <div>
+        <h3>Call out of a shift</h3>
+        <p>This notifies <b>T. Lopez</b> immediately and opens the shift for another person to claim.</p>
+      </div>
+    </div>
+
+    <div class="form">
+      <div class="fld"><label class="lb" for="coShift">Which shift</label>
+        <select id="coShift">
+          <option>Today — Sat 9 Aug · Vape Line 2 · 7:00–5:00</option>
+          <option>Mon 11 Aug · Vape Line 2 · 7:00–5:00</option>
+          <option>Tue 12 Aug · Packaging · 7:00–3:00</option>
+        </select></div>
+      <div class="fld"><label class="lb" for="coCode">Reason code</label>
+        <select id="coCode">
+          <option value="">Select a reason…</option>
+          <option data-pts="1.0">Sick — self</option>
+          <option data-pts="1.0">Sick — family member</option>
+          <option data-pts="0">Injury on the job</option>
+          <option data-pts="1.0">Family emergency</option>
+          <option data-pts="0">Bereavement</option>
+          <option data-pts="0">Medical appointment — pre-approved</option>
+          <option data-pts="0">Jury duty</option>
+          <option data-pts="1.0">Transport or vehicle</option>
+          <option data-pts="1.0">Childcare</option>
+          <option data-pts="1.0">Personal</option>
+        </select></div>
+      <div class="fld wide"><label class="lb" for="coWhy">Explanation <span style="color:var(--red)">— required</span></label>
+        <textarea id="coWhy" placeholder="What is happening, and when do you expect to be back?"></textarea>
+        <span class="err" id="coErr">Pick a reason code and explain — both are required.</span></div>
+      <div class="fld wide">
+        <label class="lb">Cover the hours</label>
+        <label class="tg" style="width:100%"><input type="checkbox" id="coPto" checked />
+          Use <b style="margin:0 4px">8 PTO hours</b> so this shift is paid (41 available)</label>
+      </div>
+    </div>
+
+    <div class="mnote" id="coNotice">
+      <b>Notice check.</b> Your shift starts in <b>14 h 22 m</b>. Policy requires two hours —
+      this meets it, so no additional points for short notice.
+    </div>
+
+    <div class="mfoot">
+      <button class="btn ghost" id="coCancel" type="button">Cancel</button>
+      <button class="btn" id="coSend" type="button">Submit call-out</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ CONFIRMATION ═════════════════════════════════════════════════ -->
+<div class="veil" id="okVeil">
+  <div class="modal" style="max-width:430px">
+    <div class="mhead ok">
+      <span class="mi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"
+        stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>
+      <div><h3 id="okTitle">Submitted</h3><p id="okSub">Sent to T. Lopez.</p></div>
+    </div>
+    <div class="mnote" id="okBody"></div>
+    <div class="mfoot"><button class="btn" id="okClose" type="button">Done</button></div>
+  </div>
+</div>
+
+<script>
+/* Theme — the same switch App.jsx sets from user_settings.theme. */
+(function(){
+  var d = document.documentElement;
+  function set(t){
+    d.dataset.theme = t;
+    document.getElementById('tDark').classList.toggle('on', t==='dark');
+    document.getElementById('tLight').classList.toggle('on', t==='light');
+  }
+  set('dark');
+  document.getElementById('tDark').onclick = function(){ set('dark'); };
+  document.getElementById('tLight').onclick = function(){ set('light'); };
+})();
+
+/* Tasks. */
+(function(){
+  var count = document.getElementById('taskCount');
+  document.querySelectorAll('.task input').forEach(function(cb){
+    cb.addEventListener('change', function(){
+      cb.closest('.task').classList.toggle('did', cb.checked);
+      var open = document.querySelectorAll('.task input:not(:checked)').length;
+      count.textContent = open === 0 ? 'All clear' : open + ' open';
+      count.className = 'pill ' + (open === 0 ? 'ok' : 'hot');
+    });
+  });
+})();
+
+/* Claim an open shift. */
+document.querySelectorAll('.claim').forEach(function(b){
+  b.addEventListener('click', function(){
+    var row = b.closest('.srow');
+    row.classList.remove('open');
+    row.querySelector('.si b').textContent = 'Packaging — claimed by you';
+    row.querySelector('.si span').textContent = 'Confirmed · awaiting lead sign-off';
+    b.replaceWith(Object.assign(document.createElement('span'),
+      {className:'schip warn', textContent:'Pending'}));
+  });
+});
+
+/* Acknowledge a memo — logged with a timestamp, which is the point. */
+document.querySelectorAll('.ack').forEach(function(b){
+  b.addEventListener('click', function(){
+    var now = new Date().toLocaleString([], {dateStyle:'medium', timeStyle:'short'});
+    b.replaceWith(Object.assign(document.createElement('div'),
+      {className:'by', innerHTML:'Acknowledged ' + now + ' · logged to the compliance record'}));
+    var chip = document.querySelector('.msg .schip.warn');
+    if(chip){ chip.className = 'schip ok'; chip.textContent = 'Acknowledged'; }
+  });
+});
+
+/* Sign a warning. Name + timestamp is the record. */
+document.getElementById('signBtn').addEventListener('click', function(){
+  var wu = document.getElementById('wu1');
+  var now = new Date().toLocaleString([], {dateStyle:'medium', timeStyle:'short'});
+  wu.classList.remove('unsigned');
+  wu.querySelector('.sigbox').innerHTML =
+    '<span class="sn">Signed <span class="signed">Marissa Reyes</span> — ' + now +
+    ' · IP logged</span><span class="schip ok">Signed</span>';
+  var c = document.getElementById('wuCount');
+  c.textContent = 'All signed'; c.className = 'pill ok';
+});
+
+/* PTO request. */
+document.getElementById('ptoForm').addEventListener('submit', function(e){
+  e.preventDefault();
+  var type = document.getElementById('tType').value.split(' —')[0];
+  var hrs  = document.getElementById('tHours').value;
+  var from = document.getElementById('tFrom').value;
+  var row = document.createElement('div');
+  row.className = 'reqrow';
+  row.innerHTML = '<span class="ri"><b>' + type + ' — ' + hrs + ' h</b><span>' + from +
+    ' · submitted just now</span></span><span class="schip warn">Pending T. Lopez</span>';
+  var list = document.getElementById('reqList');
+  list.insertBefore(row, list.firstChild);
+  document.getElementById('ptoMsg').textContent = 'Sent to T. Lopez for approval.';
+});
+
+/* ── Modal plumbing ───────────────────────────────────────────────── */
+function open(id){ document.getElementById(id).classList.add('on'); }
+function shut(id){ document.getElementById(id).classList.remove('on'); }
+function confirmBox(title, sub, body){
+  document.getElementById('okTitle').textContent = title;
+  document.getElementById('okSub').textContent = sub;
+  document.getElementById('okBody').innerHTML = body;
+  open('okVeil');
+}
+document.getElementById('okClose').onclick = function(){ shut('okVeil'); };
+document.querySelectorAll('.veil').forEach(function(v){
+  v.addEventListener('click', function(e){ if(e.target === v && v.id === 'coVeil') shut(v.id); });
+});
+
+/* ── Late punch. Cannot be dismissed without an explanation. ─────── */
+document.getElementById('qLateDemo').onclick = function(){ open('lateVeil'); };
+document.getElementById('lateSend').onclick = function(){
+  var code = document.getElementById('lateReason'), why = document.getElementById('lateWhy');
+  var bad = !code.value || why.value.trim().length < 8;
+  document.getElementById('lateErr').classList.toggle('on', bad);
+  code.classList.toggle('bad', !code.value);
+  why.classList.toggle('bad', why.value.trim().length < 8);
+  if(bad) return;
+  shut('lateVeil');
+  addOccurrence('Late', '8 min', code.value + ' — ' + why.value.trim(), 0.5, 'Awaiting lead');
+  confirmBox('Explanation submitted', 'T. Lopez will review it today.',
+    'The occurrence is logged at <b>0.5 points</b> pending review. If your lead marks it ' +
+    'excused it drops to <b>0</b> and your total returns to 2.5.');
+};
+document.getElementById('lateLater').onclick = function(){
+  shut('lateVeil');
+  addOccurrence('Late', '8 min', 'No explanation given', 0.5, 'Unexplained');
+  confirmBox('Recorded without explanation', 'Your total is now 3.0 points.',
+    'You have reached the <b>verbal warning</b> threshold. You can still add an ' +
+    'explanation from your attendance record for the next 7 days.');
+};
+
+/* ── Call out ─────────────────────────────────────────────────────── */
+document.getElementById('qCallout').onclick = function(){ open('coVeil'); };
+document.getElementById('coCancel').onclick = function(){ shut('coVeil'); };
+document.getElementById('coSend').onclick = function(){
+  var code = document.getElementById('coCode'), why = document.getElementById('coWhy');
+  var bad = !code.value || why.value.trim().length < 8;
+  document.getElementById('coErr').classList.toggle('on', bad);
+  code.classList.toggle('bad', !code.value);
+  why.classList.toggle('bad', why.value.trim().length < 8);
+  if(bad) return;
+  var pts = parseFloat(code.selectedOptions[0].dataset.pts || '1');
+  var pto = document.getElementById('coPto').checked;
+  shut('coVeil');
+  addOccurrence('Absent', 'Full shift', code.value + ' — ' + why.value.trim(), pts, 'Notice given');
+  confirmBox('Call-out submitted', 'T. Lopez notified, shift opened for cover.',
+    'Recorded at <b>' + pts.toFixed(1) + ' points</b>' +
+    (pts === 0 ? ' — this reason code carries none.' : ' (absent with notice).') +
+    (pto ? ' <b>8 PTO hours</b> applied, so the shift is paid.' : ' No PTO applied — unpaid.'));
+};
+
+/* ── PTO / swap shortcuts jump to the panels that own them. ──────── */
+document.getElementById('qPto').onclick = function(){
+  document.querySelector('[data-tile="timeoff"]').scrollIntoView({behavior:'smooth', block:'center'});
+  document.getElementById('tHours').focus();
+};
+document.getElementById('qSwap').onclick = function(){
+  document.querySelector('[data-tile="shifts"]').scrollIntoView({behavior:'smooth', block:'center'});
+};
+document.getElementById('qClock').onclick = function(){
+  confirmBox('Clocked out', 'Fri 8 Aug · 9.62 hours worked.',
+    'Sent to payroll on tonight’s run. Your lead approves it before it locks.');
+};
+
+/* ── Occurrences write straight into the attendance record. ──────── */
+var pts = 2.5;
+function addOccurrence(type, detail, reason, add, status){
+  pts = Math.round((pts + add) * 10) / 10;
+  var tone = status === 'Unexplained' ? 'bad' : (add === 0 ? 'mute' : 'warn');
+  var row = document.createElement('tr');
+  row.innerHTML = '<td class="day">Today</td><td>' + type + '</td><td>' + detail + '</td>' +
+    '<td>' + reason.slice(0,64) + '</td><td class="tot">' + add.toFixed(1) + '</td>' +
+    '<td>' + (add ? '12 months' : '—') + '</td><td><span class="schip ' + tone + '">' + status + '</span></td>';
+  var body = document.getElementById('attBody');
+  body.insertBefore(row, body.firstChild);
+
+  document.getElementById('ptsNow').innerHTML = pts + '<small> pts</small>';
+  document.getElementById('ptsFill').style.width = Math.min(100, pts / 8 * 100) + '%';
+  var step = pts >= 8 ? 'a termination review' : pts >= 6 ? 'a final warning'
+           : pts >= 4 ? 'a written warning' : pts >= 3 ? 'a verbal warning' : null;
+  document.getElementById('ptsNote').innerHTML = step
+    ? '<b>You have reached ' + step + ' at ' + pts + ' points.</b> HR has been notified. ' +
+      'Points still fall off 12 months after each occurrence.'
+    : '<b>' + (Math.round((3 - pts) * 10) / 10) + ' points from a verbal warning.</b> ' +
+      'Points fall off 12 months after the occurrence.';
+}
+
+/* Admin visibility. In the real app these read from a per-role settings
+   row — a tile switched off is not rendered for that role at all. Hidden
+   in the DOM is not the same as not sent, and this page carries wage and
+   disciplinary data. */
+document.getElementById('toggles').addEventListener('change', function(e){
+  var cb = e.target; if(!cb.dataset.for) return;
+  var tile = document.querySelector('[data-tile="' + cb.dataset.for + '"]');
+  if(tile) tile.classList.toggle('hidden', !cb.checked);
+  cb.closest('.tg').classList.toggle('off', !cb.checked);
+});
+</script>
