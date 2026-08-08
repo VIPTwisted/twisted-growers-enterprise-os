@@ -383,7 +383,23 @@ const json = (res, code, body) => {
    model with another is not something to rely on. */
 const warmSession = new Map();
 
-function runClaude(prompt, sessionId, provider = "claude", model = null) {
+/* CONCURRENCY, AND WHY EACH SLOT NEEDS ITS OWN SESSION.
+
+   Two jobs resuming the SAME session id do not run twice as fast - they
+   interleave two conversations into one transcript, and the answers begin
+   referring to each other's questions. That is a far worse failure than being
+   slow, because it looks like the assistant hallucinating.
+
+   So a slot is the unit: slot 0, 1 and 2 each keep their own session and
+   resume only their own. Three because the desktop is answering, not
+   computing - the wait is the model, so a handful of parallel questions costs
+   almost nothing locally and turns a queue of three into one answer's wait
+   instead of three. */
+const MAX_CONCURRENT = Number(process.env.TG_BRIDGE_CONCURRENCY || 3);
+const freeSlots = Array.from({ length: MAX_CONCURRENT }, (_, i) => i);
+let inFlight = 0;
+
+function runClaude(prompt, sessionId, provider = "claude", model = null, slot = 0) {
   return new Promise((resolve) => {
     /* NO TOKEN CEILING HERE, DELIBERATELY. Owner, 8 Aug 2026: "There should be no
        limits for admins with Claude or GPT — we use our plan." This runs the
@@ -396,7 +412,7 @@ function runClaude(prompt, sessionId, provider = "claude", model = null) {
     // long text and newlines on Windows.
     /* An explicit sessionId (the http path) wins; otherwise reuse the warm one
        for this model. */
-    const key = `${provider}:${model || "default"}`;
+    const key = `${provider}:${model || "default"}:slot${slot}`;
     const useSession = sessionId || warmSession.get(key) || null;
     const args = p.args(useSession, model);
     const startedAt = Date.now();
@@ -591,10 +607,14 @@ function recovered() {
   if (lastFault) { console.log("QUEUE RECOVERED - " + lastFault + " is no longer happening"); lastFault = ""; }
 }
 
-let working = false;
 async function pollJobs() {
-  if (working) return;
-  working = true;
+  /* No `working` boolean any more. It was a mutex over the entire platform:
+     one question at a time, everybody else waiting on a machine that was
+     otherwise idle. */
+  if (inFlight >= MAX_CONCURRENT) return;
+  const slot = freeSlots.pop();
+  if (slot === undefined) return;
+  inFlight++;
   let job = null;
   const started = Date.now();
   try {
@@ -607,7 +627,13 @@ async function pollJobs() {
     const NL2 = String.fromCharCode(10, 10);
     const ctx = job.context
       ? NL2 + "RECORDS ALREADY PULLED BY THE PLATFORM:" + String.fromCharCode(10) +
-        JSON.stringify(job.context).slice(0, 400000) /* the desktop plan is the limit, not us */
+        /* 60KB, not 400KB. The plan is not the limit that matters here - reading
+           is. 400KB in front of the question is the model working through a
+           novel before it reaches the sentence it was asked, on every single
+           question, and the records are already the database's own answer. This
+           is a LATENCY cap, not a plan cap; nothing about the reply is
+           truncated. */
+        JSON.stringify(job.context).slice(0, 60000)
       : "";
     /* job.model is the person's own choice, resolved by f_bridge_model_for
        before the job was written. Owner, 8 Aug 2026: "we get to select what
@@ -615,7 +641,7 @@ async function pollJobs() {
        nobody reads, which is worse than having no picker. */
     const out = await runClaude(SYSTEM_BRIEF + ctx + NL2 + "QUESTION FROM THE OWNER: " + job.question,
                                 null, job.provider || "claude",
-                                job.model || job.context?.model || null);
+                                job.model || job.context?.model || null, slot);
     const seconds = Math.round((Date.now() - started) / 1000);
 
     await queue("answer", { id: job.id, ok: out.ok, answer: out.reply, seconds });
@@ -635,7 +661,13 @@ async function pollJobs() {
       } catch (e2) { fault("could not even report the failure", e2); }
     }
   } finally {
-    working = false;
+    inFlight--;
+    freeSlots.push(slot);
+    /* LOOK AGAIN IMMEDIATELY. Waiting for the next tick meant a backlog was
+       worked through at one job per poll interval of doing nothing, rather than
+       as fast as it can answer. Only when there was actually work - an empty
+       claim does not spin. */
+    if (job) setImmediate(pollJobs);
   }
 }
 
@@ -645,4 +677,8 @@ async function heartbeat() {
 
 await heartbeat();
 setInterval(heartbeat, 30000);
-setInterval(pollJobs, 1500);
+/* 250ms, not 1500ms. A question arriving just after a tick used to wait the
+   full interval for nothing - 750ms of dead time on average, on every question,
+   before any work began. The claim is a single indexed lookup; four a second is
+   nothing, and it comes straight off the number the person is watching. */
+setInterval(pollJobs, 250);
