@@ -51,6 +51,92 @@ EVERY ANSWER IS FULL DETAIL. OURS OR THIRD PARTY, ALWAYS STATED. FULL CHAIN
 OF CUSTODY WHENEVER CUSTODY IS PART OF THE QUESTION. Be specific and thorough.
 A short answer that omits whose material it was is a WRONG answer, not a brief one.
 
+=========================================================================
+YOU HOLD EVERY SEAT IN THIS COMPANY. Owner, 8 August 2026: "he is the COO
+of all", "every single user, role, and super ai", "the super intelligence guy".
+=========================================================================
+You are not a search box and not a narrator. For whatever is asked, you are
+the person who sits in that chair, held to the standard that person is held
+to. SAY WHICH SEAT YOU ANSWERED FROM. Where two seats would answer
+differently, give BOTH and name the conflict - the disagreement IS the
+finding, and averaging it into one number hides the only thing worth saying.
+
+LEADERSHIP
+- CEO / owner: is the company ahead or behind, what decision is due today,
+  what threatens the licence or the cash. Never a status recital - the
+  decision, who owns it, and what it costs to be wrong.
+- COO: your default seat when nothing else fits. Does the operation run.
+  Rooms, cycle, labour, throughput, what is blocked and who is blocking it.
+- CFO: four revenue lines, never blended. Cost basis always stated. Margin
+  ONLY when material_purchases can prove it - it is empty, so say
+  "uncomputable", never estimate. Cash held and cash committed are two
+  different questions; never answer one with the other.
+
+THE FLOOR - these are the real departments, with the roles that exist in
+roles_catalog. Read the operation as the person doing the job, not as a row.
+- Cultivation (Cultivation Technician): eight-week cycle. Canopy square
+  footage, NEVER grams per plant. Wet or dry basis stated every single time.
+  The room on a harvest is where it DRIED, not where it grew. A harvest with
+  no finished date is not finished and never enters a conversion.
+- Trimming (Trimmer): wet-to-dry loss is normal, not shrinkage to explain
+  away. Trim is a product line, not a by-product.
+- Extraction (Extraction Operator): input weight, output weight, and the
+  yield between them - all three or none.
+- Flower/Infused Pre-Rolls (Pre-Roll Production Operator) and Cheap
+  Pre-Rolls (Weigh & QC, Tubing & Labeling): units, not pounds. A countable
+  item with a blank weight is not missing data.
+- Packaging (Packaging & Labels, Finished Goods): what is sellable today
+  versus what is merely made.
+- Quality & Testing: no roles are catalogued for this department yet - say
+  that if asked who is in it, do not invent one. Testing position is the
+  COA, and a 15 lb batch cap means one COA does not clear a room.
+- Shipping/Support (Shipping Coordinator): nothing moves without a manifest.
+  Both documents go to the customer before the order ships.
+
+THAT LIST IS A SNAPSHOT, NOT THE LIMIT. Owner, 8 August 2026: "including any
+new roles in future". Every question carries company_seats and
+company_departments, read live from the OS at the moment you are asked. THAT
+is the authority - the list above is only what existed the day it was
+written. A seat that appears there and not above is still yours. A department
+with no roles catalogued is a GAP TO REPORT, never a department that does not
+exist. Never tell anyone a role is not part of this company because it is
+absent from your prompt.
+
+WHAT YOU LEARN FROM. Owner, 8 August 2026: "learns from all data, every line
+of code", "every report". You also carry the live report catalogue. When the
+context does not answer something, do NOT stop at "I cannot see that" - name
+the report that WOULD hold it, from the catalogue, by its real title, and say
+what it is missing if it exists but is empty. "There is no report for that"
+is a claim about the catalogue and must be checked against it, exactly like
+any claim about the data.
+
+CHIEF PRODUCTION MANAGER: runs, work orders, turnaround, yield against plan,
+what is waiting on what, and which of those is the constraint.
+
+COMPLIANCE / METRC: custody, COA, manifest, tag, room. Nothing is "fine"
+because it looks fine. It is fine when the tag, the document and the location
+agree, and you say which three you checked.
+
+HR: roster, schedules, hours, payroll forecast, who is qualified for what,
+who is short-staffed this week. NEVER disclose a named person's pay,
+discipline, or medical detail to someone whose role does not already carry
+it - being asked is not authority to answer.
+
+SALES: orders, shipments, customers, what is promised against what exists.
+Never promise stock you have not seen in inventory.
+
+WHAT EVERY SEAT SHARES
+- Name the seat you answered from.
+- Say what would change your answer.
+- Never let one seat's convenient answer stand in for another seat's question.
+- ANSWER EVERY USER AT THIS STANDARD. A trimmer asking about their hours gets
+  the same rigour as the owner asking about the licence. What changes with the
+  asker is what they are ENTITLED to see, never how carefully you answer it.
+- You are the most capable person in the building on every one of these
+  subjects, and that is exactly why you say "I do not know, here is what
+  would tell us" instead of filling the gap. Confidence without a source is
+  the one thing that gets this company fined.
+
 WHICH DOCUMENT ANSWERS WHICH QUESTION
 - The COA carries the TESTING: potency, pass or fail, which laboratory, sample
   and test dates, expiry. That is all a COA is for.
@@ -970,6 +1056,7 @@ export function AssistantSettings() {
   const [busy, setBusy] = useState(false);
   const [lib, setLib] = useState([]);
   const fileRef = useRef(null);
+  const petRef = useRef(null);
   const load = async () => {
     const { data } = await supabase.from("assistant_profile").select("*").eq("id", 1).maybeSingle();
     setP(data);
@@ -1006,7 +1093,12 @@ export function AssistantSettings() {
     load();
   };
 
-  const upload = async (e) => {
+  /* `which` is "avatar_url" for the page picture or "pet_avatar_url" for the
+     floating pet - owner, 8 Aug 2026: "we also need ability to upload new pets
+     video, png, gifs". Same storage bucket, same library, same size limit; only
+     the column it lands in differs, so there is one upload path to get right
+     rather than two that drift. */
+  const upload = async (e, which = "avatar_url") => {
     const f = e.target.files?.[0];
     if (!f) return;
     if (f.size > 12 * 1024 * 1024) { setMsg("That file is over 12 MB. Please use a smaller one."); return; }
@@ -1022,8 +1114,11 @@ export function AssistantSettings() {
       label: f.name.replace(/\.[^.]+$/, "").slice(0, 40) || "Uploaded picture",
       avatar_url: data.publicUrl,
     });
-    await save({ avatar_url: data.publicUrl });
+    await save({ [which]: data.publicUrl });
     await loadLib();
+    /* Or the same file cannot be picked twice in a row - the input keeps its
+       value and fires no change event the second time. */
+    e.target.value = "";
     setBusy(false);
   };
 
@@ -1060,17 +1155,72 @@ export function AssistantSettings() {
         <div>
           <h1>Assistant</h1>
           <div className="sub">
-            Set your assistant's picture and name. Upload anything with a transparent background — PNG, animated GIF, animated WebP, SVG, or an MP4 or WebM
-            video, up to 12 MB. Video plays on a loop, silently. Changing the name here renames it everywhere on the platform, including the menu.
+            Everything about your assistant is set here — what it is called, what it looks like,
+            the pet that follows you across the platform, what it may interrupt you for, and which
+            model answers your questions. Pictures can be PNG, animated GIF, animated WebP, SVG, or
+            an MP4 or WebM video, up to 12 MB; video plays on a loop, silently, and a transparent
+            background is what makes the pet look like a pet rather than a box. Changing the name
+            renames it everywhere on the platform, including the menu. Choices marked{" "}
+            <b>your own</b> apply only to your account; the name and the pictures are the company&apos;s
+            and everyone sees them.
           </div>
         </div>
       </div>
+      {/* EVERY ASSISTANT SETTING LIVES ON THIS PAGE - owner, 8 Aug 2026: "why is
+          this here, it should be on settings page", "we have a page for uploading
+          avatars, move that shit", then "MOVE ALL SETTINGS HERE". The assistant
+          page is for talking to him; this page is for setting him up. */}
+      <PetControls />
+
+      <div className="asetgrp">
+        <h3>The pet&apos;s picture</h3>
+        <span className="note">
+          The pet may wear a different face from the one above — owner ruling, 8 Aug 2026:
+          &quot;two different ones or the same for both methods of use&quot;. Give it a{" "}
+          <b>transparent background</b>: the pet floats with nothing behind it, so a
+          background baked into the file shows as a rectangle around him. PNG, GIF,
+          WebP, SVG, MP4 or WebM, up to 12 MB. Leave it unset and he wears the picture above.
+        </span>
+        <div className="asetrow" style={{ alignItems: "flex-start" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+            <BudzAvatar size={110} src={p.pet_avatar_url || p.avatar_url} />
+            <div>
+              <div className="asetlab">
+                {p.pet_avatar_url ? "Its own picture" : "Same as the assistant above"}
+              </div>
+              <div className="asetwhy">
+                {p.pet_avatar_url
+                  ? "This is what floats over your pages."
+                  : "Nothing set for the pet yet, so it borrows the assistant's picture."}
+              </div>
+            </div>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            <input ref={petRef} type="file"
+              accept="image/png,image/gif,image/webp,image/apng,image/jpeg,image/svg+xml,video/mp4,video/webm,video/quicktime"
+              style={{ display: "none" }} onChange={(e) => upload(e, "pet_avatar_url")} />
+            <button className="btn primary" disabled={busy} onClick={() => petRef.current?.click()}>
+              {p.pet_avatar_url ? "Replace the pet's picture" : "Upload a pet picture"}
+            </button>
+            {p.pet_avatar_url && (
+              <button className="btn" disabled={busy} onClick={() => save({ pet_avatar_url: null })}>
+                Use the same as the assistant
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <ModelChoice />
+
+      <AssistantAdmin />
+
       <div className="asetwrap">
         <div className="asetprev">
           <BudzAvatar size={280} src={p.avatar_url} />
           <div className="budzname">{(p.name || "Budz").toUpperCase()}<span>{p.tagline}</span></div>
           <input ref={fileRef} type="file" accept="image/png,image/gif,image/webp,image/apng,image/jpeg,image/svg+xml,video/mp4,video/webm,video/quicktime"
-            style={{ display: "none" }} onChange={upload} />
+            style={{ display: "none" }} onChange={(e) => upload(e, "avatar_url")} />
           <button className="btn primary" disabled={busy} onClick={() => fileRef.current?.click()}>
             {p.avatar_url ? "Replace picture" : "Upload a picture"}
           </button>
@@ -1130,6 +1280,7 @@ export function AssistantSettings() {
         <div className="facegrid">
           {lib.map((row) => {
             const inUse = (row.avatar_url ?? null) === (p.avatar_url ?? null);
+            const isPet = (row.avatar_url ?? null) === (p.pet_avatar_url ?? null) && p.pet_avatar_url;
             return (
               <div key={row.id} className={`facecard${inUse ? " on" : ""}`}>
                 <button className="facepic" disabled={busy || inUse} onClick={() => applyFace(row)}
@@ -1143,6 +1294,16 @@ export function AssistantSettings() {
                   {inUse
                     ? <span className="faceon">In use</span>
                     : <button className="btn small" disabled={busy} onClick={() => applyFace(row)}>Use this</button>}
+                  {/* The PET may wear a different face from the assistant page - owner
+                      ruling 8 Aug 2026, "two different ones or the same for both
+                      methods of use". Pick one with a TRANSPARENT background: the pet
+                      floats with no panel behind it, so a baked-in background shows
+                      as a rectangle around him. */}
+                  {isPet
+                    ? <span className="faceon">Pet</span>
+                    : <button className="btn small ghost" disabled={busy}
+                        title="Use this one for the pet that follows you. Needs a transparent background."
+                        onClick={() => save({ pet_avatar_url: row.avatar_url })}>Set pet to this</button>}
                   <button className="btn small ghost" onClick={() => renameFace(row)}>Rename</button>
                   {!row.is_builtin && !inUse &&
                     <button className="btn small ghost" onClick={() => forgetFace(row)}>Remove</button>}
@@ -1242,6 +1403,18 @@ export function BudzPet({ go, onClose }) {
      Position and size are debounced - a drag fires this on every pointer move
      and we are not writing a row per pixel. */
   useEffect(() => { petSave({ ...petLoad(), pos, size, open }); }, [pos, size, open]);
+  /* The settings page can resize him or fetch him back from off-screen. Without
+     this he would only pick that up on the next full page load, and someone who
+     had dragged him past the edge of the screen had no way back at all. */
+  useEffect(() => {
+    const h = () => {
+      const s = petLoad();
+      if (s.pos) setPos(s.pos);
+      if (s.size) setSize(s.size);
+    };
+    window.addEventListener("tg-pet-place", h);
+    return () => window.removeEventListener("tg-pet-place", h);
+  }, []);
   useEffect(() => {
     const t = setTimeout(() => petPersist({
       pet_x: Math.round(pos.x), pet_y: Math.round(pos.y),
@@ -1364,9 +1537,16 @@ export function BudzPet({ go, onClose }) {
       </div>
 
       <div className="petart" onDoubleClick={() => setOpen((v) => !v)} title="Drag to move, double-click to chat">
+        {/* The PET may use a different image from the full assistant page — owner
+            ruling 8 Aug 2026, "two different ones or the same for both methods of
+            use". pet_avatar_url null falls back to avatar_url, so setting nothing
+            keeps them identical and they only diverge on purpose.
+            It must be a PNG with a TRANSPARENT background: the pet floats with no
+            panel behind it, so a baked-in background shows as a rectangle. */}
         {prof == null
           ? <div className="budzhero-hold" style={{ width: open ? 150 : size, height: open ? 150 : size }} />
-          : <BudzAvatar mood={busy ? "thinking" : "idle"} size={open ? 150 : size} src={prof.avatar_url} />}
+          : <BudzAvatar mood={busy ? "thinking" : "idle"} size={open ? 150 : size}
+                        src={prof.pet_avatar_url || prof.avatar_url} />}
       </div>
 
       {open && (
@@ -1472,8 +1652,248 @@ const NOTIFY_SOURCES = [
   { key: "messages", label: "Messages", why: "Messages addressed to you." },
 ];
 
+/* A RED / GREEN SWITCH, never a checkbox. Owner, 8 Aug 2026: "DO NOT USE CHECK
+   BOX USE TOGGLE RED AND GREEN", then "YES NO CHECK BOXES". Exported because
+   every switch on the platform should be this one - a second implementation is
+   how two things that mean the same stop looking the same.
+
+   The <input> is still a checkbox underneath. It is visually hidden, not
+   removed: that is what keeps the space bar, tab order and screen readers
+   working. Nothing renders as a box. */
+export function RedGreen({ on, onChange, busy = false, title = "" }) {
+  return (
+    <label className={`rgsw${busy ? " busy" : ""}`} title={title}>
+      <input type="checkbox" checked={!!on} disabled={busy}
+        onChange={onChange} aria-label={title || undefined} />
+      <span className="rgtrack"><span className="rgknob" /></span>
+      <span className="rgstate">{on ? "On" : "Off"}</span>
+    </label>
+  );
+}
+
+/* Which model answers YOUR questions. Per account, not per company - owner,
+   8 Aug 2026: "MODEL USER CAN CHANGE TO WHATEVER THEY WANT PER THEIR ACCOUNT".
+   Written to ai_user_access, which f_ai_model_for reads when budz-chat picks a
+   model, so what is chosen here is what actually answers. Leaving it on the
+   company default writes nothing at all, so an admin changing the default later
+   still moves everyone who never expressed a preference. */
+const MODELS = [
+  { id: "", provider: "", label: "Company default", why: "Whatever an admin has set for everyone." },
+  { id: "claude-opus-5",  provider: "anthropic", label: "Claude Opus 5",  why: "The most capable. Use it for anything that matters." },
+  { id: "claude-sonnet-5", provider: "anthropic", label: "Claude Sonnet 5", why: "Quick, and strong enough for most questions." },
+  { id: "claude-haiku-4-5-20251001", provider: "anthropic", label: "Claude Haiku 4.5", why: "Fastest. Short factual questions." },
+  { id: "gpt", provider: "openai", label: "GPT, through the desktop bridge", why: "Runs on your own machine against your own GPT plan." },
+];
+
+export function ModelChoice() {
+  const [row, setRow] = useState(null);
+  const [msg, setMsg] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [uid, setUid] = useState(null);
+  useEffect(() => {
+    let live = true;
+    (async () => {
+      const { data: u } = await supabase.auth.getUser();
+      const id = u?.user?.id;
+      if (!id || !live) return;
+      setUid(id);
+      const { data } = await supabase.from("ai_user_access").select("*").eq("user_id", id).maybeSingle();
+      if (live) setRow(data ?? {});
+    })();
+    return () => { live = false; };
+  }, []);
+  const pick = async (id) => {
+    if (!uid) return;
+    const m = MODELS.find((x) => x.id === id);
+    setBusy(true);
+    const patch = {
+      user_id: uid,
+      preferred_model: id || null,
+      preferred_provider: m?.provider || null,
+      updated_at: new Date().toISOString(),
+    };
+    /* upsert, not update: a user who has never had a row would otherwise
+       silently save nothing and see the old choice come back on reload. */
+    const { error } = await supabase.from("ai_user_access").upsert(patch, { onConflict: "user_id" });
+    setMsg(error ? error.message : (id ? `Saved. ${m.label} answers your questions from now on.` : "Saved. Back to the company default."));
+    if (!error) setRow({ ...(row ?? {}), ...patch });
+    setBusy(false);
+  };
+  const current = row?.preferred_model ?? "";
+  return (
+    <div className="asetgrp">
+      <h3>Which model answers me</h3>
+      <span className="note">
+        Your own choice, on your own account. It does not change anyone else. Admins run
+        through the desktop bridge on the subscription you already pay for, so there is no
+        per-question bill and no cap.
+      </span>
+      {MODELS.map((m) => (
+        <div className="asetrow" key={m.id || "default"}>
+          <div>
+            <div className="asetlab">{m.label}</div>
+            <div className="asetwhy">{m.why}</div>
+          </div>
+          <RedGreen on={current === m.id} busy={busy || row === null}
+            title={`Use ${m.label}`}
+            onChange={() => pick(current === m.id ? "" : m.id)} />
+        </div>
+      ))}
+      {msg && <div className="note" style={{ marginTop: 10 }}>{msg}</div>}
+    </div>
+  );
+}
+
+const PET_SIZES = [
+  { px: 110, label: "Small" }, { px: 150, label: "Medium" },
+  { px: 200, label: "Large" }, { px: 260, label: "Huge" },
+];
+
+/* COMPANY-WIDE ASSISTANT SETTINGS. Owner and executive only, because that is
+   who RLS lets write ai_settings - showing these to anyone else would be a row
+   of switches that silently refuse to move.
+
+   Until now ai_settings.ai_allowed_roles had NO page anywhere. It was edited by
+   hand in SQL, and on 8 Aug 2026 that is exactly what hid the pet from the whole
+   admin role for a day - the role was missing from the array and nothing on the
+   platform could show or change it. A setting with no screen is a setting nobody
+   can fix. */
+export function AssistantAdmin() {
+  const [cfg, setCfg] = useState(null);
+  const [role, setRole] = useState(null);
+  const [roles, setRoles] = useState([]);
+  const [msg, setMsg] = useState("");
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    let live = true;
+    (async () => {
+      const { data: u } = await supabase.auth.getUser();
+      const uid = u?.user?.id;
+      const [{ data: me }, { data: s }, { data: known }] = await Promise.all([
+        uid ? supabase.from("app_users").select("role").eq("user_id", uid).maybeSingle() : { data: null },
+        supabase.from("ai_settings").select("*").limit(1).maybeSingle(),
+        supabase.from("app_users").select("role"),
+      ]);
+      if (!live) return;
+      setRole(me?.role ?? null);
+      setCfg(s ?? null);
+      /* Every role that exists in app_users, PLUS every role already switched on -
+         some allowed roles are QuickBooks-style names nobody currently holds, and
+         listing only the roles in use would quietly drop them on the next save. */
+      const inUse = (known ?? []).map((r) => r.role).filter(Boolean);
+      setRoles([...new Set([...(s?.ai_allowed_roles ?? []), ...inUse])].sort());
+    })();
+    return () => { live = false; };
+  }, []);
+  if (cfg === null || role === null) return null;
+  if (!["owner", "executive"].includes(role)) return null;
+
+  const write = async (patch) => {
+    setBusy(true);
+    const { error } = await supabase.from("ai_settings")
+      .update({ ...patch, updated_at: new Date().toISOString() }).eq("id", cfg.id);
+    setMsg(error ? error.message : "Saved for everyone.");
+    if (!error) setCfg({ ...cfg, ...patch });
+    setBusy(false);
+  };
+  const allowed = cfg.ai_allowed_roles ?? [];
+  const flipRole = (r) => write({
+    ai_allowed_roles: allowed.includes(r) ? allowed.filter((x) => x !== r) : [...allowed, r],
+  });
+
+  return (
+    <div className="asetgrp">
+      <h3>Company settings <span className="note" style={{ fontWeight: 400 }}>— owner and executive only</span></h3>
+      <span className="note">
+        These apply to everyone. A role switched off here has no assistant at all: no pet,
+        no chat, nothing to turn on.
+      </span>
+      <div className="asetrow">
+        <div>
+          <div className="asetlab">Answer through the desktop bridge</div>
+          <div className="asetwhy">
+            Questions run on an admin&apos;s own computer against the Claude or GPT subscription
+            already paid for, so there is no per-question bill and no cap. Switch it off and
+            questions go to the metered API instead.
+          </div>
+        </div>
+        <RedGreen on={!!cfg.bridge_enabled} busy={busy} title="Answer through the desktop bridge"
+          onChange={() => write({ bridge_enabled: !cfg.bridge_enabled })} />
+      </div>
+      <div className="asetrow">
+        <div>
+          <div className="asetlab">Fall back to the metered API</div>
+          <div className="asetwhy">
+            When no bridge is running, answer through the Anthropic API instead. This one
+            <b> does</b> cost money per question. Off means the assistant says the bridge is
+            down rather than quietly spending.
+          </div>
+        </div>
+        <RedGreen on={!!cfg.paid_model_enabled} busy={busy} title="Fall back to the metered API"
+          onChange={() => write({ paid_model_enabled: !cfg.paid_model_enabled })} />
+      </div>
+      <div className="asetrow">
+        <div>
+          <div className="asetlab">Fall back to a local model</div>
+          <div className="asetwhy">
+            A model running on the company&apos;s own hardware. Free and private, and weaker than
+            the others — last resort, not first choice.
+          </div>
+        </div>
+        <RedGreen on={!!cfg.local_model_enabled} busy={busy} title="Fall back to a local model"
+          onChange={() => write({ local_model_enabled: !cfg.local_model_enabled })} />
+      </div>
+      {cfg.local_model_enabled && (
+        <div className="asetrow" style={{ gap: 8 }}>
+          <div style={{ flex: 1 }}>
+            <div className="asetlab">Where the local model is</div>
+            <div className="asetwhy">Address and model name, as the machine running it reports them.</div>
+          </div>
+          <input className="inp" style={{ maxWidth: 220 }} defaultValue={cfg.local_model_url ?? ""}
+            placeholder="http://localhost:11434"
+            onBlur={(e) => e.target.value !== (cfg.local_model_url ?? "") && write({ local_model_url: e.target.value || null })} />
+          <input className="inp" style={{ maxWidth: 150 }} defaultValue={cfg.local_model_name ?? ""}
+            placeholder="qwen2.5:14b"
+            onBlur={(e) => e.target.value !== (cfg.local_model_name ?? "") && write({ local_model_name: e.target.value || null })} />
+        </div>
+      )}
+
+      <div className="note" style={{ marginTop: 14, marginBottom: 0 }}>
+        The model everyone gets unless they choose their own:
+      </div>
+      {MODELS.filter((m) => m.id).map((m) => (
+        <div className="asetrow" key={m.id}>
+          <div>
+            <div className="asetlab">{m.label}</div>
+            <div className="asetwhy">{m.why}</div>
+          </div>
+          <RedGreen on={cfg.model === m.id} busy={busy} title={`Default everyone to ${m.label}`}
+            onChange={() => write({ model: m.id, provider: m.provider })} />
+        </div>
+      ))}
+
+      <div className="note" style={{ marginTop: 14, marginBottom: 0 }}>
+        Who may have an assistant:
+      </div>
+      {roles.map((r) => (
+        <div className="asetrow" key={r}>
+          <div>
+            <div className="asetlab">{r.replace(/_/g, " ")}</div>
+            <div className="asetwhy">
+              {allowed.includes(r) ? "Has the assistant and the pet." : "No assistant. Nothing to switch on."}
+            </div>
+          </div>
+          <RedGreen on={allowed.includes(r)} busy={busy} title={r} onChange={() => flipRole(r)} />
+        </div>
+      ))}
+      {msg && <div className="note" style={{ marginTop: 10 }}>{msg}</div>}
+    </div>
+  );
+}
+
 export function PetControls() {
   const [on, setOn] = useBudzPet();
+  const [size, setSize] = useState(() => petLoad().size ?? 150);
   const [notify, setNotify] = useState(null);
   const [counts, setCounts] = useState([]);
   useEffect(() => {
@@ -1498,33 +1918,86 @@ export function PetControls() {
     if (u?.user?.id) await supabase.from("user_settings").update({ pet_notify: next }).eq("user_id", u.user.id);
   };
   const countFor = (k) => Number(counts.find((c) => c.source === k)?.unread ?? 0);
+  /* Size and position are the pet's, not this page's - they live in the same
+     cache the pet reads, and the event tells a pet that is already on screen to
+     pick the change up now rather than on the next page load. */
+  const place = (patch) => {
+    const next = { ...petLoad(), ...patch };
+    petSave(next);
+    if (patch.size) setSize(patch.size);
+    petPersist({
+      ...(patch.size ? { pet_size: Math.round(patch.size) } : {}),
+      ...(patch.pos ? { pet_x: Math.round(patch.pos.x), pet_y: Math.round(patch.pos.y) } : {}),
+    });
+    window.dispatchEvent(new Event("tg-pet-place"));
+  };
   return (
-    <div className="petctl">
-      <button className={`btn ${on ? "" : "primary"}`} onClick={() => setOn(!on)}>
-        {on ? "Turn Budz off" : "Let Budz follow me"}
-      </button>
-      <span className="note" style={{ marginLeft: 10 }}>
+    <div className="asetgrp">
+      <h3>The pet that follows you</h3>
+      <span className="note">
         {on
           ? "He floats over every page. Drag him anywhere — he stays where you put him, on any machine you sign in from."
-          : "He stays on this page only."}
+          : "He stays on the assistant page only."}
       </span>
+      <div className="asetrow">
+        <div>
+          <div className="asetlab">Let Budz follow me</div>
+          <div className="asetwhy">A small floating window on every page. Drag to move, drag the corner to resize.</div>
+        </div>
+        <RedGreen on={on} onChange={() => setOn(!on)} title="Let Budz follow me" />
+      </div>
       {on && (
-        <div style={{ marginTop: 12 }}>
-          <div className="note" style={{ marginBottom: 6 }}>
+        <div className="asetrow">
+          <div>
+            <div className="asetlab">How big he is</div>
+            <div className="asetwhy">
+              You can also drag his bottom-right corner. Whatever you choose follows you to
+              any computer you sign in from.
+            </div>
+          </div>
+          <div style={{ display: "flex", gap: 6 }}>
+            {PET_SIZES.map((s) => (
+              <button key={s.px} className={`btn small${size === s.px ? " primary" : ""}`}
+                onClick={() => place({ size: s.px })} title={`${s.px} pixels`}>{s.label}</button>
+            ))}
+          </div>
+        </div>
+      )}
+      {on && (
+        <div className="asetrow">
+          <div>
+            <div className="asetlab">Lost him?</div>
+            <div className="asetwhy">
+              Puts him back in the bottom-right corner. Use it if he has been dragged off the
+              edge of the screen, or onto a second monitor you no longer have.
+            </div>
+          </div>
+          <button className="btn" onClick={() => place({
+            pos: { x: Math.max(16, window.innerWidth - 340), y: Math.max(16, window.innerHeight - 420) },
+          })}>Bring him back</button>
+        </div>
+      )}
+      {on && (
+        <>
+          <div className="note" style={{ marginTop: 14, marginBottom: 0 }}>
             Interrupt me for — nothing is switched on until you choose it:
           </div>
           {NOTIFY_SOURCES.map((s) => (
-            <label key={s.key} className="petnotify" title={s.why}
-              style={{ display: "block", marginBottom: 4, cursor: "pointer" }}>
-              <input type="checkbox" checked={!!(notify ?? {})[s.key]}
-                onChange={() => flip(s.key)} disabled={notify === null} />
-              <span style={{ marginLeft: 8 }}>{s.label}</span>
-              {countFor(s.key) > 0 && (
-                <span className="note" style={{ marginLeft: 8 }}>{countFor(s.key)} waiting</span>
-              )}
-            </label>
+            <div className="asetrow" key={s.key}>
+              <div>
+                <div className="asetlab">
+                  {s.label}
+                  {countFor(s.key) > 0 && (
+                    <span className="note" style={{ marginLeft: 8 }}>{countFor(s.key)} waiting</span>
+                  )}
+                </div>
+                <div className="asetwhy">{s.why}</div>
+              </div>
+              <RedGreen on={!!(notify ?? {})[s.key]} busy={notify === null}
+                title={s.label} onChange={() => flip(s.key)} />
+            </div>
           ))}
-        </div>
+        </>
       )}
     </div>
   );
@@ -1759,7 +2232,6 @@ export function BudzScreen({ go }) {
         </div>
         <div className="budzhero-say">
           <p>{prof == null ? "" : (prof.intro || BUDZ_INTRO)}</p>
-          <PetControls />
         </div>
       </div>
       <div className="budzwrap">

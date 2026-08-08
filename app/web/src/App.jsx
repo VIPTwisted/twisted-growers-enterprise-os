@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import jsQR from "jsqr";
 import { supabase, FUNCTIONS_URL } from "./lib/supabase.js";
-import { BudzScreen, CeoDashboard, AssistantSettings, BudzPet, useBudzPet } from "./budz.jsx";
+import { BudzScreen, CeoDashboard, AssistantSettings, BudzPet, useBudzPet, RedGreen } from "./budz.jsx";
 
 // Laws: live numbers (2) · no fake data (3) · nothing hardwired (4) — navigation itself is DB rows.
 
@@ -5810,7 +5810,14 @@ function WhiteboardsScreen({ session }) {
       </div>
       <form className="teamform" onSubmit={create}>
         <input placeholder="Name this whiteboard…" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
-        <label className="wbpriv"><input type="checkbox" checked={!form.priv} onChange={(e) => setForm({ ...form, priv: !e.target.checked })} /> Share with everyone (private by default)</label>
+        {/* Owner, 8 Aug 2026: "DO NOT USE CHECK BOX USE TOGGLE RED AND GREEN".
+            Same switch as the assistant settings - one control for on and off
+            everywhere, so on never looks like two different things. */}
+        <span className="wbpriv" style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+          <RedGreen on={!form.priv} title="Share with everyone"
+            onChange={() => setForm({ ...form, priv: !form.priv })} />
+          Share with everyone (private by default)
+        </span>
         <button className="btn" type="submit">Create whiteboard</button>
       </form>
       {boards === null ? <div className="empty"><div className="eicon">{I.board}</div>Loading…</div> : boards.length === 0 ? (
@@ -5936,9 +5943,10 @@ function DashboardsScreen({ session, go }) {
           <div className="ptitle">Start a dashboard</div>
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center", margin: "10px 0" }}>
             <input className="in" placeholder="Name it…" value={name} onChange={(e) => setName(e.target.value)} />
-            <label className="note" style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
-              <input type="checkbox" checked={!priv} onChange={(e) => setPriv(!e.target.checked)} /> Share with everyone (private by default)
-            </label>
+            <span className="note" style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <RedGreen on={!priv} title="Share with everyone" onChange={() => setPriv(!priv)} />
+              Share with everyone (private by default)
+            </span>
             <button className="btn small" onClick={() => create(null)}>Create blank</button>
           </div>
           <div className="note">Or one click builds a company preset from live records:</div>

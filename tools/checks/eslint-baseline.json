@@ -1,8 +1,8 @@
 {
-  "warnings": 20,
+  "warnings": 19,
   "byRule": {
     "react-hooks/exhaustive-deps": 9,
-    "react/no-unescaped-entities": 7,
+    "react/no-unescaped-entities": 6,
     "no-empty": 4
   }
 }
