@@ -132,6 +132,13 @@ jobs:
       - name: Aggregate views are summed, not counted
         run: node tools/checks/aggregate-count.mjs
 
+      # ---- The bridge's schema map must describe the real database --------------------
+      # Written by another agent on 8 Aug 2026 and never wired, so it enforced nothing —
+      # caught by all-checks-wired, which is the entire reason that guard exists. A stale
+      # schema map sends the desktop assistant at columns that no longer exist.
+      - name: Schema map is fresh
+        run: node tools/checks/schema-map-fresh.mjs
+
       # ---- Rule A3, where A3 does not reach ------------------------------------------
       # A3 makes a tool explain its own gaps. It does not make anyone LOOK. Our schema
       # dump has been shipping with "NOT CAPTURED: permission denied for schema cron"
@@ -201,6 +208,14 @@ jobs:
       # that has drifted is worse than none - it is confidently wrong.
       - name: Schema map is fresh
         run: node tools/checks/schema-map-fresh.mjs
+      # Owner ruling 8 Aug 2026, twice in capitals: DO NOT EVER USE ONE TEMPLATE FOR
+      # EVERY PAGE. 522 report pages were all rendered by ReportScreen at App.jsx:1952,
+      # which receives a table name and nothing else - so Employee Notes was given a
+      # harvest date filter. This fails if the generic renderer spreads, if a module
+      # imports another module, if a page LAYOUT lands in the shared ui/ folder, or if
+      # pages are added without deciding what kind of page they are.
+      - name: Page architecture - primitives are shared, layouts are not
+        run: node tools/checks/page-architecture.mjs
       - run: node tools/checks/all-checks-wired.mjs
 
       # ---- Rule E1 / E6 / H2: dangerous SQL must not reach a migration ---------------
