@@ -1,7 +1,8 @@
 import React, { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import jsQR from "jsqr";
 import { supabase, FUNCTIONS_URL } from "./lib/supabase.js";
-import { BudzScreen, CeoDashboard, AssistantSettings, BudzPet, useBudzPet, RedGreen } from "./budz.jsx";
+import { BudzScreen, CeoDashboard, AssistantSettings, BudzPet, useBudzPet, RedGreen,
+         askBudzFull, useChatFiles, ChatFiles } from "./budz.jsx";
 
 // Laws: live numbers (2) · no fake data (3) · nothing hardwired (4) — navigation itself is DB rows.
 
@@ -4794,7 +4795,191 @@ const BRAIN_FINDERS = [
     run: (q) => supabase.from("metrc_plants").select("tag,strain,room").or(`strain.ilike.%${q}%,tag.ilike.%${q}%`).limit(5),
     line: (r) => [r.strain ?? `…${String(r.tag).slice(-8)}`, `${r.room ?? ""}`] },
 ];
+
+/* ── BRAIN RUNS REPORTS ────────────────────────────────────────────────────
+   Owner, 8 Aug 2026: "the brain is called a brain for a reason it can run
+   reports", "it must run and deliver reports".
+
+   Matching is deliberately dumb and predictable: every word of the question
+   must appear somewhere in the report's title, key, category or description.
+   A cleverer matcher that guesses would hand somebody the wrong report, and a
+   wrong report read as right is worse than no report at all. Ranked so a hit in
+   the title beats a hit in the description. */
+function brainMatchReports(term, all) {
+  const words = term.toLowerCase().split(/\s+/).filter((w) => w.length > 2);
+  if (!words.length) return [];
+  return all
+    .map((r) => {
+      const title = `${r.title ?? ""} ${r.report_key ?? ""}`.toLowerCase();
+      const rest = `${r.category ?? ""} ${r.description ?? ""} ${r.owner_note ?? ""}`.toLowerCase();
+      const hay = `${title} ${rest}`;
+      if (!words.every((w) => hay.includes(w))) return null;
+      return { r, score: words.filter((w) => title.includes(w)).length };
+    })
+    .filter(Boolean)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 6)
+    .map((x) => x.r);
+}
+
+/* Delivered, not just displayed. Both formats come from the SAME rows the
+   screen is showing, so a figure on the page and a figure in the file cannot
+   differ - which is the whole reason to build the file here rather than
+   re-query for it. */
+function brainDownload(rows, name, kind) {
+  if (!rows?.length) return;
+  const cols = Object.keys(rows[0]);
+  const cell = (v) => (v == null ? "" : typeof v === "object" ? JSON.stringify(v) : String(v));
+  let blob;
+  let file;
+  if (kind === "csv") {
+    /* A leading =, + or - makes Excel treat a cell as a formula. Prefix with an
+       apostrophe so a strain called "-Trim" stays text. */
+    const safe = (v) => {
+      const s = cell(v);
+      const q = /^[=+\-@]/.test(s) ? "'" + s : s;
+      return `"${q.replace(/"/g, '""')}"`;
+    };
+    blob = new Blob([[cols.join(","), ...rows.map((r) => cols.map((c) => safe(r[c])).join(","))].join("\n")],
+      { type: "text/csv;charset=utf-8" });
+    file = `${name}.csv`;
+  } else {
+    const esc = (v) => cell(v).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    blob = new Blob([
+      `<html xmlns:x="urn:schemas-microsoft-com:office:excel"><head><meta charset="utf-8"></head><body><table border="1">`,
+      `<tr>${cols.map((c) => `<th>${esc(c)}</th>`).join("")}</tr>`,
+      rows.map((r) => `<tr>${cols.map((c) => `<td>${esc(r[c])}</td>`).join("")}</tr>`).join(""),
+      `</table></body></html>`,
+    ], { type: "application/vnd.ms-excel" });
+    file = `${name}.xls`;
+  }
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = file; a.click();
+  /* Revoking immediately cancels the download in Safari and older Edge. */
+  setTimeout(() => URL.revokeObjectURL(url), 30000);
+}
+
+function BrainReport({ rep, onClose }) {
+  const [rows, setRows] = useState(null);
+  const [err, setErr] = useState(null);
+  useEffect(() => {
+    let live = true;
+    (async () => {
+      if (!rep.fact_view) { setErr("This report has no view recorded against it, so there is nothing to run."); return; }
+      let sel = supabase.from(rep.fact_view).select("*");
+      /* Newest first when the report knows which column carries its date. Not
+         every one does - 111 of them drop a date their source carries, which is
+         tracked separately and is not this component's job to hide. */
+      if (rep.date_column) sel = sel.order(rep.date_column, { ascending: false, nullsFirst: false });
+      const { data, error } = await sel.limit(500);
+      if (!live) return;
+      if (error) setErr(error.message); else setRows(data ?? []);
+    })();
+    return () => { live = false; };
+  }, [rep.report_key, rep.fact_view, rep.date_column]);
+
+  const cols = rows?.length ? Object.keys(rows[0]).slice(0, 12) : [];
+  return (
+    <div className="brainrep">
+      <div className="brainrephead">
+        <div>
+          <b>{rep.title}</b>
+          <span className="note" style={{ marginLeft: 8 }}>{rep.category} · {rep.fact_view}</span>
+          {rep.owner_note && <div className="note">{rep.owner_note}</div>}
+        </div>
+        <div style={{ display: "flex", gap: 6 }}>
+          <button className="btn small" disabled={!rows?.length}
+            onClick={() => brainDownload(rows, rep.report_key, "csv")}>CSV</button>
+          <button className="btn small" disabled={!rows?.length}
+            onClick={() => brainDownload(rows, rep.report_key, "xls")}>Excel</button>
+          <button className="btn small ghost" onClick={onClose}>Close</button>
+        </div>
+      </div>
+      {err && <div className="msg err">{err}</div>}
+      {!err && rows === null && <div className="note">Running it…</div>}
+      {rows?.length === 0 && <div className="note">It ran and returned no rows. That is an answer, not a failure — nothing currently meets it.</div>}
+      {rows?.length > 0 && (
+        <>
+          <div className="note">
+            {rows.length === 500 ? "First 500 rows shown. The download carries the same 500 — say so before quoting a total." : `${rows.length} rows.`}
+          </div>
+          <div className="brainreptable">
+            <table>
+              <thead><tr>{cols.map((c) => <th key={c}>{c.replace(/_/g, " ")}</th>)}</tr></thead>
+              <tbody>
+                {rows.slice(0, 100).map((r, i) => (
+                  <tr key={i}>{cols.map((c) => (
+                    <td key={c}>{r[c] == null ? "" : typeof r[c] === "object" ? JSON.stringify(r[c]) : String(r[c])}</td>
+                  ))}</tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {rows.length > 100 && <div className="note">100 of {rows.length} shown. Download for all of them.</div>}
+        </>
+      )}
+    </div>
+  );
+}
+
+
+/* A section you set up once and then stop looking at. Owner, 8 Aug 2026: "no
+   reason to see it all the time."
+
+   Closed by default, remembered per person and per section. It is a real
+   <button> with aria-expanded rather than a clickable div, so the keyboard and
+   a screen reader get the same behaviour as the mouse - the same reason the
+   red/green switch keeps a real checkbox underneath it. */
+function BrainFold({ id, title, note, children, defaultOpen = false }) {
+  const key = `tg.brain.fold.${id}`;
+  const [open, setOpen] = useState(() => {
+    try {
+      const v = localStorage.getItem(key);
+      return v === null ? defaultOpen : v === "1";
+    } catch { return defaultOpen; }
+  });
+  const flip = () => {
+    const next = !open;
+    setOpen(next);
+    try { localStorage.setItem(key, next ? "1" : "0"); } catch { /* private mode */ }
+  };
+  return (
+    <div className="msection">
+      <button className={`mtitle foldtitle${open ? " open" : ""}`} onClick={flip} aria-expanded={open}>
+        <span className="sq" />
+        <h2>{title}</h2>
+        <span className="rule" />
+        <span className="foldcaret" aria-hidden="true">{open ? "\u2013" : "+"}</span>
+      </button>
+      {open && (
+        <>
+          {note && <p className="bnote">{note}</p>}
+          {children}
+        </>
+      )}
+    </div>
+  );
+}
+
 function BrainScreen({ session, go, isExec, dictation }) {
+  /* Identical to the pet and the assistant page - same hook, same limits, same
+     three ways in. Owner, 8 Aug 2026: "we need to be able to upload files, and
+     all the same items". */
+  const bag = useChatFiles("brain");
+  const brainFileRef = useRef(null);
+  const [log, setLog] = useState([]);
+  /* The catalogue, read once. Brain matching a question to a report is the
+     difference between "here is where you could look" and "here it is". */
+  const [catalogue, setCatalogue] = useState([]);
+  const [repHits, setRepHits] = useState([]);
+  const [running, setRunning] = useState(null);
+  useEffect(() => {
+    supabase.from("report_registry")
+      .select("report_key,title,category,description,owner_note,fact_view,date_column")
+      .eq("enabled", true).limit(2000)
+      .then(({ data }) => setCatalogue(data ?? []));
+  }, []);
   const [roleSel, setRoleSel] = useState(null);
   const [saved, setSaved] = useState(false);
   const [q, setQ] = useState("");
@@ -4814,15 +4999,51 @@ function BrainScreen({ session, go, isExec, dictation }) {
       supabase.from("v_material_aging").select("lot_code", { count: "exact", head: true }).eq("aging_alert", "CAPITAL TIED UP"),
     ]).then(([a, b, c, d]) => setQuick({ p0: a.count ?? 0, exp: b.count ?? 0, cad: c.count ?? 0, tied: d.count ?? 0 }));
   }, [session.user.id]);
+  /* THE SAME BRAIN THE PET AND THE ASSISTANT USE. Owner, 8 Aug 2026: "tg brain
+     should be exactly as assistant too". One implementation, three surfaces -
+     copying the pipeline here would be a fourth thing to keep in step, and
+     keeping copies in step is what this codebase keeps getting wrong.
+
+     The finders are KEPT. A global search over every table for a tag, a strain
+     or a person is worth having and neither of the other two has it, so one
+     question now does both: the records it found, and the answer to what was
+     asked. They run together rather than in sequence - the search does not wait
+     on a model, and the model does not wait on the search. */
   const ask = async (termArg) => {
     const term = String(termArg ?? q).replace(/[%,()]/g, " ").trim();
+    if ((!term && !bag.files.length) || searching) return;
+    const sending = bag.files.map((f) => f.name);
+    if (sending.length) {
+      setLog((l) => [...l, { who: "me", text: term || "(sent files)", files: sending }]);
+      const up = await bag.upload(term);
+      const good = up.filter((u) => !u.error);
+      const bad = up.filter((u) => u.error);
+      if (good.length) setLog((l) => [...l, { who: "brain", text: `Got ${good.length} file${good.length > 1 ? "s" : ""}. Saved and searchable.`, links: good.map((u) => u.url) }]);
+      if (bad.length) setLog((l) => [...l, { who: "brain", text: `Could not take ${bad.map((b) => b.name).join(", ")}: ${bad[0].error}` }]);
+    }
     if (!term) return;
+    if (!sending.length) setLog((l) => [...l, { who: "me", text: term }]);
+    setQ("");
     setSearching(true); setResults(null);
-    const found = await Promise.all(BRAIN_FINDERS.map(async (f) => {
-      try { const { data } = await f.run(term); return { f, rows: data ?? [] }; }
-      catch { return { f, rows: [] }; }
-    }));
+    const stamp = Date.now();
+    const [found] = await Promise.all([
+      Promise.all(BRAIN_FINDERS.map(async (f) => {
+        try { const { data } = await f.run(term); return { f, rows: data ?? [] }; }
+        catch { return { f, rows: [] }; }
+      })),
+      askBudzFull(term, log, {
+        onFacts: (a, rows) => setLog((l) => [...l, { who: "brain", text: a.headline, rows, stamp, pending: true }]),
+      }).then(({ composed, via, askErr }) =>
+        setLog((l) => l.map((m) => m.stamp === stamp
+          ? (composed ? { ...m, text: composed, researched: true, via, pending: false }
+                      : { ...m, pending: false, askErr })
+          : m))
+      ).catch((e) =>
+        setLog((l) => [...l, { who: "brain", text: `Could not reach the assistant: ${String(e?.message ?? e).slice(0, 140)}` }])
+      ),
+    ]);
     setResults(found.filter((x) => x.rows.length));
+    setRepHits(brainMatchReports(term, catalogue));
     setSearching(false);
   };
   const pick = async (r) => {
@@ -4857,17 +5078,41 @@ function BrainScreen({ session, go, isExec, dictation }) {
           <div className="braincore"><img src="/tg-mark.png" alt="" /></div>
         </div>
         <h1>TG <b>Brain</b></h1>
-        <p className="bsub">Every record this company generates — Metrc, the rooms, the floor, the sheets, the money — one mind. It answers from live data only, never from guesses.</p>
+        <p className="bsub">Every record this company generates — Metrc, the rooms, the floor, the sheets, the money — one mind. Ask it anything: it answers with the same assistant the pet and the Budz page use, on the same training, and searches every table for what you named at the same time. Attach documents, images, video or a zip. It answers from live data only, never from guesses.</p>
         <div className="askwrap">
           <div className="asktabs">
             <button className="on">{I.dna} Ask / Find</button>
             <button disabled title="Loop agents arrive in M5">{I.gear} Agents <span className="mtag">M5</span></button>
           </div>
-          <div className="askbar">
-            <input value={q} placeholder="Search the whole operation — a tag, a strain, a batch, a person…"
+          <ChatFiles bag={bag} />
+          <div className={`askbar${bag.dropping ? " dropping" : ""}`} {...bag.dropProps}>
+            <input ref={brainFileRef} type="file" multiple style={{ display: "none" }}
+              onChange={(e) => { bag.add(e.target.files); e.target.value = ""; }} />
+            <button className="btn ghost" title="Attach anything - documents, zips, images, video. Drag them onto this bar, or paste."
+              onClick={() => brainFileRef.current?.click()}>📎</button>
+            <input value={q} placeholder="Ask anything, or search for a tag, a strain, a batch, a person…"
               onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") ask(); }} />
             <button className="btn" onClick={() => ask()}>{searching ? "…" : "Ask"}</button>
           </div>
+          {log.length > 0 && (
+            <div className="brainlog">
+              {log.map((m, i) => (
+                <div key={i} className={`brainmsg ${m.who}`}>
+                  <div className="bmtext">{m.text}</div>
+                  {m.files?.length > 0 && <div className="bmfiles">{m.files.join(", ")}</div>}
+                  {m.links?.length > 0 && (
+                    <div className="bmfiles">
+                      {m.links.map((u, n) => <a key={n} href={u} target="_blank" rel="noreferrer">file {n + 1}</a>)}
+                    </div>
+                  )}
+                  {m.pending && <div className="bmvia">Thinking…</div>}
+                  {m.researched && m.via && <div className="bmvia">Researched by {m.via}</div>}
+                  {/* Rule A3: absence is explained, never blank. */}
+                  {m.askErr && <div className="bmerr">{m.askErr}</div>}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
         <div className="qcards">
           {QUICK.map((c) => (
@@ -4879,6 +5124,30 @@ function BrainScreen({ session, go, isExec, dictation }) {
           ))}
         </div>
       </div>
+      {running && (
+        <div className="msection">
+          <div className="mtitle"><span className="sq" /><h2>{running.title}</h2><span className="rule" /></div>
+          <BrainReport rep={running} onClose={() => setRunning(null)} />
+        </div>
+      )}
+      {repHits.length > 0 && (
+        <div className="msection">
+          <div className="mtitle"><span className="sq" /><h2>Reports that answer this</h2><span className="rule" /></div>
+          <p className="bnote">
+            Matched from the report catalogue. Click one and Brain runs it here against live
+            data — no page to find, no filters to set up — and hands you CSV or Excel.
+          </p>
+          <div className="brainreps">
+            {repHits.map((r) => (
+              <button key={r.report_key} className={`brainrepchip${running?.report_key === r.report_key ? " on" : ""}`}
+                onClick={() => setRunning(r)} title={r.description || r.title}>
+                <span className="brct">{r.title}</span>
+                <span className="brcc">{r.category}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
       {results !== null && (
         <div className="msection">
           <div className="mtitle"><span className="sq" /><h2>Found in the operation</h2><span className="rule" /></div>
@@ -4899,19 +5168,17 @@ function BrainScreen({ session, go, isExec, dictation }) {
           ))}
         </div>
       )}
-      <div className="msection">
-        <div className="mtitle"><span className="sq" /><h2>What do you run?</h2><span className="rule" /></div>
-        <p className="bnote">Brain tailors briefings, alerts, and your Control Tower to your seat. Saved to your account as data — change it any time.</p>
+      <BrainFold id="seat" title="What do you run?"
+        note="Brain tailors briefings, alerts, and your Control Tower to your seat. Saved to your account as data — change it any time.">
         <div className="rolegrid">
           {BRAIN_ROLES.map((r) => (
             <button key={r} className={`rolechip ${roleSel === r ? "on" : ""}`} onClick={() => pick(r)}>{r}</button>
           ))}
         </div>
         {saved && roleSel && <div className="bsaved">{I.check} Tailored for <b>{roleSel}</b> — your boards and briefings will lead with what you run.</div>}
-      </div>
-      <div className="msection">
-        <div className="mtitle"><span className="sq" /><h2>Connected sources</h2><span className="rule" /></div>
-        <p className="bnote">What Brain can read. Connections are controlled by admin settings and user permissions.</p>
+      </BrainFold>
+      <BrainFold id="sources" title="Connected sources"
+        note="What Brain can read. Connections are controlled by admin settings and user permissions.">
         <div className="connrows">
           <div className="connrow"><span className="cn">Metrc (state system)</span><span className="cs on">CONNECTED</span></div>
           <div className="connrow"><span className="cn">Finished-Goods Google Sheet</span><span className="cs on">CONNECTED</span></div>
@@ -4920,18 +5187,17 @@ function BrainScreen({ session, go, isExec, dictation }) {
           <div className="connrow"><span className="cn">Monday.com</span>
             {isExec ? <button className="btn small" onClick={() => go("integrations")}>Set up</button> : <span className="cs">ADMIN CONTROLLED</span>}</div>
         </div>
-      </div>
+      </BrainFold>
       {isExec && (
-        <div className="msection">
-          <div className="mtitle"><span className="sq" /><h2>Import memory</h2><span className="rule" /></div>
-          <p className="bnote">Admin only. Paste standing context — how the company runs, preferences, priorities. Stored as data and fed to the M5 reasoning engine so Brain is personal from day one.</p>
+        <BrainFold id="memory" title="Import memory"
+          note="Admin only. Paste standing context — how the company runs, preferences, priorities. It is stored as data and travels with every question Brain, Budz and the pet answer.">
           <textarea className="memta" rows={5} value={mem} onChange={(e) => { setMem(e.target.value); setMemSaved(false); }}
             placeholder="Paste company context, preferences, standing priorities…" />
           <div style={{ marginTop: 10, display: "flex", gap: 10, alignItems: "center" }}>
             <button className="btn" onClick={saveMem}>Import memory</button>
             {memSaved && <span className="bsaved">{I.check} Stored — audited, admin-only.</span>}
           </div>
-        </div>
+        </BrainFold>
       )}
     </>
   );
