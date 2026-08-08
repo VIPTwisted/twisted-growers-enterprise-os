@@ -1,0 +1,10 @@
+{
+  "_comment": [
+    "High-water mark for hardcoded licence numbers (rule G2). This number may FALL and",
+    "may never RISE. Recorded 8 Aug 2026 so the gate is green on arrival and therefore",
+    "survives; every NEW literal fails the build.",
+    "To reduce it: read the licence from company_licenses, or ask f_is_ours(licence)."
+  ],
+  "max_allowed": 57,
+  "recorded": "2026-08-08"
+}

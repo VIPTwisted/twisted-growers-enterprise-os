@@ -59,6 +59,11 @@ const PROVIDERS = {
          most questions here are lookups and an answer nobody waits for beats a
          better answer nobody sees. */
       a.push("--model", model || process.env.TG_CLAUDE_MODEL || "sonnet");
+      /* The ONLY way to learn the session id - the CLI prints it in this
+         envelope and nowhere else - and the envelope carries the answer too, so
+         it costs nothing extra to read. Without it there is no id to resume and
+         every question pays a full cold start for ever. */
+      a.push("--output-format", "json");
       if (sessionId) a.push("--resume", sessionId);
       return a;
     },
@@ -371,6 +376,13 @@ const json = (res, code, body) => {
   res.end(JSON.stringify(body));
 };
 
+/* THE WARM SESSION. Owner, 8 Aug 2026: "took almost 30s ... i have max plan".
+   The model was never the problem; startup was. Each job spawned a fresh
+   process, reconnected MCP and rediscovered its tools before reading a word of
+   the question. Keyed by model, because resuming a session started under one
+   model with another is not something to rely on. */
+const warmSession = new Map();
+
 function runClaude(prompt, sessionId, provider = "claude", model = null) {
   return new Promise((resolve) => {
     /* NO TOKEN CEILING HERE, DELIBERATELY. Owner, 8 Aug 2026: "There should be no
@@ -382,7 +394,12 @@ function runClaude(prompt, sessionId, provider = "claude", model = null) {
     const p = PROVIDERS[provider] ?? PROVIDERS.claude;
     // The prompt goes in on stdin. Passing it as a command-line argument mangles
     // long text and newlines on Windows.
-    const args = p.args(sessionId, model);
+    /* An explicit sessionId (the http path) wins; otherwise reuse the warm one
+       for this model. */
+    const key = `${provider}:${model || "default"}`;
+    const useSession = sessionId || warmSession.get(key) || null;
+    const args = p.args(useSession, model);
+    const startedAt = Date.now();
     const child = spawn(p.bin, args, {
       cwd: PROJECT,
       shell: true,
@@ -402,7 +419,11 @@ function runClaude(prompt, sessionId, provider = "claude", model = null) {
     child.on("close", () => {
       clearTimeout(timer);
       const text = out.trim();
+      const took = Math.round((Date.now() - startedAt) / 1000);
       if (!text) {
+        /* A session that produced nothing is not one to resume - a bad id would
+           break every question after it while looking like a dead bridge. */
+        warmSession.delete(key);
         const e = err.trim();
         if (/not logged in|\/login/i.test(e))
           return resolve({
@@ -413,11 +434,29 @@ function runClaude(prompt, sessionId, provider = "claude", model = null) {
           });
         return resolve({ ok: false, reply: "No answer came back. " + e.slice(0, 400) });
       }
-      resolve({ ok: true, reply: text });
+      /* The JSON envelope, when we asked for one. Plain text is still accepted:
+         an older CLI, or a flag it does not know, must degrade to slow rather
+         than to broken. */
+      let reply = text;
+      try {
+        const env = JSON.parse(text);
+        if (env && typeof env === "object") {
+          if (env.session_id) warmSession.set(key, env.session_id);
+          const r = env.result ?? env.text ?? env.reply;
+          if (typeof r === "string" && r.trim()) reply = r.trim();
+          if (env.is_error) {
+            warmSession.delete(key);
+            return resolve({ ok: false, reply: String(reply).slice(0, 4000) });
+          }
+        }
+      } catch { /* not JSON: use it as it came, and stay cold next time */ }
+      console.log(`[claude] ${took}s  model=${model || "default"}  ${useSession ? "resumed" : "cold start"}`);
+      resolve({ ok: true, reply });
     });
-    child.on("error", (e) =>
-      resolve({ ok: false, reply: "Could not start Claude Code: " + String(e).slice(0, 300) })
-    );
+    child.on("error", (e) => {
+      warmSession.delete(key);
+      resolve({ ok: false, reply: "Could not start Claude Code: " + String(e).slice(0, 300) });
+    });
   });
 }
 
