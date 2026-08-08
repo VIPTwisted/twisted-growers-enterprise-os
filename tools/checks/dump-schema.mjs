@@ -218,6 +218,14 @@ try {
             join pg_namespace n on n.oid=c.relnamespace where n.nspname='public') policies`))[0];
   counts.jobs = jobs;
 
+  /* Record what was captured, machine-readably, so schema-baseline-fresh.mjs can compare this
+     file against the live database instead of only checking its age. A baseline that merely
+     LOOKS recent is not recoverability - on 8 Aug 2026 the age check passed at 22h old while
+     production had moved 244 -> 260 tables and 539 -> 567 policies underneath it. */
+  out.splice(3, 0,
+    `-- BASELINE COUNTS: tables=${counts.tables} views=${counts.views} ` +
+    `matviews=${counts.matviews} policies=${counts.policies}`);
+
   const ts = new Date().toISOString().replace(/[-:T]/g, "").slice(0, 14);
   const dir = join(ROOT, "supabase", "migrations");
   mkdirSync(dir, { recursive: true });
