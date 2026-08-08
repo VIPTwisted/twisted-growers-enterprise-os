@@ -101,6 +101,25 @@ const isOurs = (origin) =>
   ALLOWED.includes(origin) ||
   /^https:\/\/[a-z0-9-]+--twisted-growers-enterprise-os\.netlify\.app$/.test(origin || "");
 
+/* THE SCHEMA MAP. Owner: "make it fucking fast".
+
+   A real database question measured 30 seconds cold and 23 warm, while a
+   question needing no tools answered in 6. The gap is not startup and it is not
+   the model - it is DISCOVERY. Asked how many packages are active, it listed
+   the tables, described metrc_packages, and only then counted: three round
+   trips from this desktop to the database, each one a full model turn, before
+   any work on the actual question.
+
+   4KB of column names removes all of that. Loaded from a file rather than
+   pasted into this string so it can be regenerated from the live database
+   without editing code - and if the file is missing the bridge still answers,
+   just slower, because a speed optimisation must never become a reason nothing
+   works. */
+let SCHEMA_MAP = "";
+try {
+  SCHEMA_MAP = readFileSync(join(HERE, "schema-map.txt"), "utf8");
+} catch { /* no map: discovery still works, it is only slower */ }
+
 const SYSTEM_BRIEF = `You are the assistant inside the Twisted Growers Enterprise OS, answering a question typed by the owner or an executive while they work.
 
 Twisted Growers is a Massachusetts cannabis company: cultivation licence MC281714, manufacturing licence MP281909.
@@ -639,7 +658,7 @@ async function pollJobs() {
        before the job was written. Owner, 8 Aug 2026: "we get to select what
        model we use". Without honouring it here the picker would set a value
        nobody reads, which is worse than having no picker. */
-    const out = await runClaude(SYSTEM_BRIEF + ctx + NL2 + "QUESTION FROM THE OWNER: " + job.question,
+    const out = await runClaude(SYSTEM_BRIEF + NL2 + SCHEMA_MAP + ctx + NL2 + "QUESTION FROM THE OWNER: " + job.question,
                                 null, job.provider || "claude",
                                 job.model || job.context?.model || null, slot);
     const seconds = Math.round((Date.now() - started) / 1000);

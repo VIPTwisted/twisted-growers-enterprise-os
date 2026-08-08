@@ -1,0 +1,37 @@
+=========================================================================
+THE TABLES YOU ALREADY HAVE. Generated from the live database 8 Aug 2026.
+=========================================================================
+DO NOT list tables, and DO NOT describe a table, before you query. You already
+have the columns below. Every discovery round trip is a network call from this
+desktop to the database and back plus a full model turn, and a question that
+should take eight seconds takes thirty because of them.
+
+THIS IS A HINT, NOT A CONTRACT. It is generated and it can go stale. If a query
+fails because a column is not there, THEN look it up - and say in your answer
+that the map was wrong, so it gets regenerated. Never assume a column exists
+because it is listed here if the database has just told you otherwise.
+
+Anything not listed here still needs discovering. This is the set the platform
+actually reaches for, taken from report_registry's own fact views plus the core
+Metrc mirrors - not a guess at what might be useful.
+
+document_search (13): id, doc_type, package_tag, manifest_number, license, item_name, strain, shipper, customer, doc_date, download_url, storage_path, search_text
+harvests (12): id, room_id, harvest_date, metrc_harvest_batch, plants, wet_weight_g, status, dry_complete_on, cure_complete_on, verified_by, note, license_id
+metrc_documents (15): id, doc_type, metrc_id, license, package_tag, manifest_number, storage_path, file_hash, byte_size, source_url, fetched_at, fetch_error, created_at, download_url, url_expires_at
+metrc_harvests (11): id, license, metrc_id, name, harvest_start, wet_weight, waste_weight, package_count, raw, synced_at, source_state
+metrc_packages (13): id, license, tag, item_name, quantity, uom, location, packaged_on, lab_testing_state, finished, raw, synced_at, source_state
+metrc_rpt_package_transfers (24): manifest_number, package_tag, destination_licence, destination_facility, source_harvest, source_package, item, category, strain, shipped_qty, shipped_uom, received_qty, gross_weight, shipper_wholesale_price, receiver_wholesale_price, status, received_on, licence, source_row, import_id, imported_at, as_of_date, shipped_uom_source, shipped_lb
+metrc_rpt_wholesale (27): manifest_number, item, invoice_number, origin_licence, origin_facility, destination_licence, destination_facility, item_category, amount, shipped, received, voided, created_on, received_on, licence, source_row, import_id, imported_at, as_of_date, receiver_amount, shipped_qty, shipped_uom, shipped_weight, shipped_weight_uom, received_qty, received_weight, shipped_lb
+v_agent_agreement (11): subject, agents, claims, positions, lowest, highest, pct_apart, live_now, verdicts, agreement, what_is_wrong
+v_certificate_gap (17): package_tag, item_name, license, lab_testing_state, source_state, pounds, packaged_on, days_held, location, platform_license, inbound_manifest, received_from, lab_result_rows, coa_document_id, bucket, what_to_do, what_is_wrong
+v_countable_inventory (12): package_tag, item_name, license, unit_of_measure, units, how_much, source_state, location, item_defined_by, is_weight_based, what_is_wrong, what_to_do
+v_inventory_report (42): package_tag, item_name, strain, category, stream, room, sublocation, licence, status, lab_state, on_hold, finished, is_weighed, unit_of_measure, pounds, units, quantity_shown, weight_basis, pounds_wet, pounds_dry, pounds_dry_equivalent, packaged_on, days_held, age_band, past_age_limit, item_defined_by, item_defined_by_name, custody_origin_licences, ownership, certificate_client, certificate_licence, from_harvest, made_from_n_packages, is_primary_production, arrived_on_manifest, received_from, has_certificate, certificate_basis, manifests_held, document_status, value_at_our_cost, cost_basis
+v_manifest_custody (15): manifest_number, date_created, direction, shipped_by, origin_license, delivered_to, destination_license, destination_kind, carried_by, transporter_license, is_lab_run, departure, arrival, packages, shipper_disagrees_with_metrc
+v_never_tested_proof (26): metrc_tag, metrc_licence, item, category, metrc_quantity, metrc_room, room_type, sublocation, metrc_lab_state, metrc_status, on_hold, finished, metrc_packaged_on, metrc_last_modified, days_in_facility, from_harvest, made_from_n_packages, made_from_packages, production_batch, arrived_on_manifest, became_packages, lab_results, manifest_lines, own_certificate, inherited_cert_depth, proof
+v_trap_scan (6): object_name, trap, severity, what_is_wrong, what_to_do, kind
+
+COMMON ANSWERS, so you do not have to work them out:
+- Active packages: metrc_packages where source_state = 'active'.
+- What shipped / left / went out: v_shipped_full. NEVER metrc_rpt_package_transfers alone.
+- A document for a tag or manifest: document_search, ilike on search_text.
+- Whose material it is: v_inventory_report.ownership, or f_material_origin(tag).
