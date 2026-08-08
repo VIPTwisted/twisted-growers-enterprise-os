@@ -461,11 +461,40 @@ function runClaude(prompt, sessionId, provider = "claude", model = null, slot = 
     const useSession = sessionId || sessionFor(key) || null;
     const args = p.args(useSession, model);
     const startedAt = Date.now();
-    const child = spawn(p.bin, args, {
+    /* NO shell: true. It ran the .cmd through whatever cmd.exe the PATH
+       happened to resolve to - and a process started by Task Scheduler is handed
+       a stripped environment where that resolution FAILS. The moment the
+       watchdog started the bridge instead of a terminal, every question came
+       back in 0 seconds with "The system cannot find the path specified": the
+       bridge was healthy, reporting in, claiming jobs, and could not launch
+       Claude at all.
+
+       cmd.exe is now named absolutely, from ComSpec with a hard fallback, so
+       the launch does not depend on an environment we do not control. This also
+       clears the DEP0190 warning about unescaped arguments under shell: true. */
+    const COMSPEC = process.env.ComSpec || "C:\\Windows\\System32\\cmd.exe";
+    /* cmd.exe's own quoting rule, and it is genuinely strange: with /s, the
+       WHOLE command must be wrapped in one more pair of quotes on top of the
+       quotes around the path. Without windowsVerbatimArguments Node escapes the
+       string again on the way past and cmd receives \\"C:\\...\\claude.cmd\\",
+       which it reports as "not recognized as an internal or external command" -
+       an error that reads like a missing file and is really a quoting bug.
+       Built by hand here because that is the only way to control it exactly. */
+    const cmdline = `""${p.bin}" ${args.map((a) => (/[\s"]/.test(a) ? `"${a}"` : a)).join(" ")}"`;
+    const child = spawn(COMSPEC, ["/d", "/s", "/c", cmdline], {
       cwd: PROJECT,
-      shell: true,
       windowsHide: true,
-      env: { ...process.env, CI: "1" },
+      windowsVerbatimArguments: true,
+      /* PATH is rebuilt too: npm's shims live in the user profile, and a task
+         environment may not carry it. */
+      env: {
+        ...process.env,
+        CI: "1",
+        ComSpec: COMSPEC,
+        PATH: [path.join(os.homedir(), "AppData", "Roaming", "npm"),
+               "C:\\Windows\\System32", "C:\\Windows",
+               process.env.PATH || ""].filter(Boolean).join(";"),
+      },
     });
     child.stdin.write(prompt);
     child.stdin.end();

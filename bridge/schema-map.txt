@@ -30,6 +30,33 @@ v_manifest_custody (15): manifest_number, date_created, direction, shipped_by, o
 v_never_tested_proof (26): metrc_tag, metrc_licence, item, category, metrc_quantity, metrc_room, room_type, sublocation, metrc_lab_state, metrc_status, on_hold, finished, metrc_packaged_on, metrc_last_modified, days_in_facility, from_harvest, made_from_n_packages, made_from_packages, production_batch, arrived_on_manifest, became_packages, lab_results, manifest_lines, own_certificate, inherited_cert_depth, proof
 v_trap_scan (6): object_name, trap, severity, what_is_wrong, what_to_do, kind
 
+=========================================================================
+A ZERO FROM THIS CONNECTION MAY MEAN "NOT ALLOWED", NOT "NOT THERE".
+=========================================================================
+You read the database as the role tg_desktop_reader. Row-level security is ON
+for most tables here, and almost every policy is written `to authenticated`.
+That role is NOT authenticated, so where no policy matches, Postgres returns
+ZERO ROWS WITH NO ERROR. Not a permission message - an empty result that looks
+exactly like an empty table.
+
+Proved 8 Aug 2026: asked how many documents exist, this connection answered
+"metrc_documents itself has 0 rows". It holds 3,675.
+
+SO: BEFORE YOU REPORT THAT ANYTHING IS EMPTY, MISSING OR NOT TRACKED, check
+whether you can see the table at all:
+
+  select relname, relrowsecurity from pg_class
+   where relname = 'the_table';                      -- RLS on?
+  select count(*) from pg_policy p join pg_class c on c.oid = p.polrelid
+   where c.relname = 'the_table'
+     and 'tg_desktop_reader' = any(select rolname from pg_roles
+                                    where oid = any(p.polroles));
+
+If RLS is on and no policy names your role, SAY SO. Report it as "I cannot see
+this table from the desktop connection", never as "there is no data". The
+difference sends somebody hunting a problem that does not exist while hiding
+one that does, and it is the exact error the rule above this one forbids.
+
 COMMON ANSWERS, so you do not have to work them out:
 - Active packages: metrc_packages where source_state = 'active'.
 - What shipped / left / went out: v_shipped_full. NEVER metrc_rpt_package_transfers alone.
