@@ -8288,11 +8288,16 @@ function RpDashboardDateRange({ viewKey, session, source, onRange }) {
   useEffect(() => { if (onRange) onRange({ from, to }); }, [from, to, onRange]);
 
   const ignoresRange = Boolean(source);
+  /* COMPACT, AND IT SITS IN THE HEADER ROW — owner, 8 Aug 2026: "I want date and
+     date range selector to be COMPACT and at the TOP of page in this area", beside
+     Recompute / Print / Tasks / Alerts. It previously rendered as a full-width strip
+     BELOW the header, which is not the same place. No other theme or template change. */
   return (
     <div
       className="filterbar"
-      style={{ display: "flex", alignItems: "center", flexWrap: "wrap",
-               gap: 6, marginBottom: 6, padding: "4px 8px", fontSize: "0.78rem" }}
+      style={{ display: "inline-flex", alignItems: "center", flexWrap: "nowrap",
+               gap: 4, margin: 0, padding: "2px 6px", fontSize: "0.72rem",
+               whiteSpace: "nowrap" }}
     >
       <DateRangeSelect label="Dates" from={from} to={to} onFrom={setFrom} onTo={setTo} />
       <span className="note" style={{ fontSize: "0.72rem", opacity: 0.7 }}>
@@ -8391,14 +8396,15 @@ function DeptDashboard({ viewKey, go, nav, deep, session }) {
           </div>
         </div>
         <div className="dashacts">
+          {/* The date range belongs HERE, in the header row, compact — owner ruling
+              8 Aug 2026. It used to render as a full-width strip below the header. */}
+          <RpDashboardDateRange viewKey={viewKey} session={session} source="mv_department_dashboard" />
           <button className="btn" onClick={refreshNow} disabled={busy}>{busy ? "Refreshing…" : "↻ Recompute now"}</button>
           <button className="btn" onClick={() => window.print()}>🖨 Print</button>
           <button className="btn" onClick={() => go("dashboard_tasks")}>Tasks</button>
           <button className="btn" onClick={() => go("inventory_alerts")}>Alerts</button>
         </div>
       </div>
-
-      <RpDashboardDateRange viewKey={viewKey} session={session} source="mv_department_dashboard" />
 
       <WhatChanged dept={dept} go={go} />
       {(dept === "Command" || dept === "Cultivation" || dept === "Inventory") && (
