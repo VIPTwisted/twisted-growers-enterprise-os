@@ -104,6 +104,25 @@ jobs:
       - name: Schema baseline is fresh
         run: node tools/checks/schema-baseline-fresh.mjs
 
+      # ---- The guards must still CATCH, not merely run --------------------------------
+      # all-checks-wired proves a guard runs; it says itself it does not check whether
+      # the guard is any good. On 8 Aug 2026 the SQL hook and the grep below carried the
+      # same false positive — the hook locked a function, the grep held this workflow red
+      # continuously — and neither had a single test. This runs fixtures through both and
+      # fails if they disagree, because fixing one copy would not have fixed the other.
+      - name: Guard fixtures (guards still catch what they claim)
+        run: node tools/checks/guard-fixtures.mjs
+
+      # ---- Rule E6 / security: a credential must never reach a file -------------------
+      # 23 permission entries carrying live admin keys, JWTs and signed URLs accumulated
+      # in a OneDrive-synced config over several days with nothing watching.
+      - name: Secret scan (working tree, not just commits)
+        run: node tools/checks/secret-scan.mjs
+
+      # ---- Every rule is enforced by something, or is counted as hope -----------------
+      - name: Rule ledger (unenforced rules are counted, not forgotten)
+        run: node tools/checks/rule-ledger.mjs
+
       # ---- The guard that guards the guards -------------------------------------------
       # Four checks were written on 7 Aug and never wired, so they enforced
       # nothing while looking like enforcement. This fails if any check in
@@ -127,7 +146,18 @@ jobs:
             fail=1
           fi
           # Rule E6 — 36 views once leaked package tags and dollar figures.
-          if grep -rniE 'grant[^;]*[[:space:]]to[[:space:]][^;]*\banon\b' \
+          # TIGHTENED 8 Aug 2026. This read 'grant[^;]*[[:space:]]to[[:space:]][^;]*anon',
+          # which matched the WORDS grant/to/anon anywhere on a line — including English
+          # prose. It hit three comments that DESCRIBE the problem:
+          #   fortifications.sql:69          "EXECUTE was granted to PUBLIC ... so anon"
+          #   baseline_live_schema.sql:5565  "Postgres grants EXECUTE to PUBLIC ... the anon"
+          #   baseline_live_schema.sql:5572  same
+          # None is a GRANT statement. This step therefore exited 1 on every run, so the
+          # Gates workflow was red continuously and stopped meaning anything — the same
+          # false-positive class that locked tg_nightly_platform_check() via the PreToolUse
+          # hook. Requiring a privilege keyword after `grant` separates statement from prose:
+          # verified 5/5 real GRANT shapes still caught, 0 of 3 prose lines caught.
+          if grep -rniE 'grant[[:space:]]+(all|select|insert|update|delete|truncate|references|trigger|usage|execute|create|connect|temporary|temp)\b[^;]*[[:space:]]to[[:space:]][^;]*\banon\b' \
                --include='*.sql' . ; then
             echo "::error::RULE E6 — 'grant ... to anon' found. Grant to authenticated instead."
             fail=1

@@ -1341,6 +1341,17 @@ async function askMeteredApi(question, history) {
       body: JSON.stringify({ messages: hist }),
     });
     const out = await rr.json().catch(() => null);
+    /* A RACER MUST ONLY WIN WITH A REAL ANSWER. This returned out.reply
+       unconditionally, and budz-chat puts its FAILURES in that same field - "No
+       artificial intelligence key has been set yet" is a reply. So the moment
+       the race was introduced, a path with no key beat the desktop bridge in
+       milliseconds and the owner watched a working answer get replaced by an
+       excuse. The race did not cause the missing key; it promoted it over a
+       bridge that was answering correctly.
+
+       ok:false, needs_key and an http error all mean "I did not answer", and
+       none of them may beat a slower path that did. */
+    if (!rr.ok || out?.ok === false || out?.needs_key) return null;
     return out?.reply ?? null;
   } catch {
     return null;
@@ -2315,6 +2326,9 @@ const PET_SIZES = [
 export function AssistantAdmin() {
   const [cfg, setCfg] = useState(null);
   const [role, setRole] = useState(null);
+  /* Whether a key EXISTS, never the key itself. The value never leaves the
+     database - this asks a question and gets a boolean. */
+  const [keySet, setKeySet] = useState(true);
   const [roles, setRoles] = useState([]);
   const [msg, setMsg] = useState("");
   const [busy, setBusy] = useState(false);
@@ -2331,6 +2345,10 @@ export function AssistantAdmin() {
       if (!live) return;
       setRole(me?.role ?? null);
       setCfg(s ?? null);
+      try {
+        const { data: k } = await supabase.rpc("f_ai_key_present");
+        if (live) setKeySet(!!k);
+      } catch { /* if the check itself fails, do not cry wolf */ }
       /* Every role that exists in app_users, PLUS every role already switched on -
          some allowed roles are QuickBooks-style names nobody currently holds, and
          listing only the roles in use would quietly drop them on the next save. */
@@ -2374,6 +2392,23 @@ export function AssistantAdmin() {
         <RedGreen on={!!cfg.bridge_enabled} busy={busy} title="Answer through the desktop bridge"
           onChange={() => write({ bridge_enabled: !cfg.bridge_enabled })} />
       </div>
+      {/* THE FAST PATH IS OFF AND NOTHING SAID SO. Owner, 8 Aug 2026: "ai still
+          an issue", "speed is critical". app_secrets.ANTHROPIC_API_KEY is empty,
+          so every question falls through to the desktop bridge - free, and 39 to
+          250 seconds. The switch below read ON the whole time, which is the same
+          failure as a check that cannot fail: a setting that says enabled while
+          the thing it enables cannot run. */}
+      {cfg.paid_model_enabled && !keySet && (
+        <div className="msg err" style={{ marginBottom: 10 }}>
+          <b>No API key is set, so the fast path cannot answer.</b>
+          <div style={{ marginTop: 4 }}>
+            Every question waits on the desktop bridge instead — free, but 39 to 250 seconds.
+            Paste an Anthropic key under Settings, Keys and Connections and answers arrive in
+            about ten to twenty seconds, with the bridge still racing it for the ones it can
+            win. Nobody but an owner can set this, and it is not something to paste into a chat.
+          </div>
+        </div>
+      )}
       <div className="asetrow">
         <div>
           <div className="asetlab">Fall back to the metered API</div>
