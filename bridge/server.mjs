@@ -414,6 +414,32 @@ const warmSession = new Map();
    computing - the wait is the model, so a handful of parallel questions costs
    almost nothing locally and turns a queue of three into one answer's wait
    instead of three. */
+/* A SESSION IS RETIRED BEFORE IT ROTS. Resuming accumulates every question
+   and every tool result the session has ever seen, so it gets slower with each
+   one and eventually refuses outright - mid-shift, with no warning. That is the
+   shape of a system that is quick on Monday and unusable by Thursday.
+
+   25 questions or 30 minutes, whichever comes first. The next question then
+   pays ONE cold start instead of everybody paying a tax that grows all day. */
+const SESSION_MAX_USES = Number(process.env.TG_SESSION_MAX_USES || 25);
+const SESSION_MAX_AGE_MS = Number(process.env.TG_SESSION_MAX_AGE_MIN || 30) * 60 * 1000;
+const sessionAge = new Map();
+
+function sessionFor(key) {
+  const id = warmSession.get(key);
+  if (!id) return null;
+  const a = sessionAge.get(key);
+  if (!a) return id;
+  if (a.uses >= SESSION_MAX_USES || Date.now() - a.born > SESSION_MAX_AGE_MS) {
+    console.log(`[session] retiring ${key} after ${a.uses} uses, ${Math.round((Date.now() - a.born) / 60000)}m`);
+    warmSession.delete(key);
+    sessionAge.delete(key);
+    return null;
+  }
+  return id;
+}
+
+let stopping = false;
 const MAX_CONCURRENT = Number(process.env.TG_BRIDGE_CONCURRENCY || 3);
 const freeSlots = Array.from({ length: MAX_CONCURRENT }, (_, i) => i);
 let inFlight = 0;
@@ -432,7 +458,7 @@ function runClaude(prompt, sessionId, provider = "claude", model = null, slot = 
     /* An explicit sessionId (the http path) wins; otherwise reuse the warm one
        for this model. */
     const key = `${provider}:${model || "default"}:slot${slot}`;
-    const useSession = sessionId || warmSession.get(key) || null;
+    const useSession = sessionId || sessionFor(key) || null;
     const args = p.args(useSession, model);
     const startedAt = Date.now();
     const child = spawn(p.bin, args, {
@@ -459,6 +485,7 @@ function runClaude(prompt, sessionId, provider = "claude", model = null, slot = 
         /* A session that produced nothing is not one to resume - a bad id would
            break every question after it while looking like a dead bridge. */
         warmSession.delete(key);
+        sessionAge.delete(key);
         const e = err.trim();
         if (/not logged in|\/login/i.test(e))
           return resolve({
@@ -476,7 +503,13 @@ function runClaude(prompt, sessionId, provider = "claude", model = null, slot = 
       try {
         const env = JSON.parse(text);
         if (env && typeof env === "object") {
-          if (env.session_id) warmSession.set(key, env.session_id);
+          if (env.session_id) {
+            const fresh = warmSession.get(key) !== env.session_id;
+            warmSession.set(key, env.session_id);
+            const a = fresh ? { born: Date.now(), uses: 0 } : (sessionAge.get(key) ?? { born: Date.now(), uses: 0 });
+            a.uses += 1;
+            sessionAge.set(key, a);
+          }
           const r = env.result ?? env.text ?? env.reply;
           if (typeof r === "string" && r.trim()) reply = r.trim();
           if (env.is_error) {
@@ -490,6 +523,7 @@ function runClaude(prompt, sessionId, provider = "claude", model = null, slot = 
     });
     child.on("error", (e) => {
       warmSession.delete(key);
+      sessionAge.delete(key);
       resolve({ ok: false, reply: "Could not start Claude Code: " + String(e).slice(0, 300) });
     });
   });
@@ -517,6 +551,29 @@ const server = http.createServer(async (req, res) => {
 
   if (req.url === "/health") {
     return json(res, 200, { ok: true, service: "tg-claude-bridge", project: PROJECT, port: PORT });
+  }
+
+  /* GRACEFUL STOP, because Windows cannot ask for one.
+
+     Stop-Process is TerminateProcess: the process is destroyed outright and Node
+     never sees SIGTERM, so the SIGTERM handler is dead code on this platform.
+     Proved by killing the bridge and finding no [shutdown] line in the log at
+     all. The restart script asks over HTTP instead and forces the kill only if
+     this does not answer.
+
+     ITS OWN ROUTE. The first version of this sat INSIDE the /ask branch, which
+     already required req.url === "/ask", so /shutdown could never match it and
+     returned "Not found" - a handler that reads correctly and is unreachable.
+     Caught by calling it rather than by reading it, which is the only way that
+     class of mistake ever surfaces.
+
+     Replies BEFORE draining, so the caller is not left holding a socket open for
+     the drain it just asked for. */
+  if (req.method === "POST" && req.url === "/shutdown") {
+    if ((req.headers["x-tg-token"] || "") !== TOKEN) return json(res, 401, { ok: false, reply: "Bad bridge token." });
+    json(res, 200, { ok: true, inFlight, message: "Draining " + inFlight + " job(s), then exiting." });
+    shutdown("asked over http", 0);
+    return;
   }
 
   if (req.method === "POST" && req.url === "/ask") {
@@ -630,7 +687,7 @@ async function pollJobs() {
   /* No `working` boolean any more. It was a mutex over the entire platform:
      one question at a time, everybody else waiting on a machine that was
      otherwise idle. */
-  if (inFlight >= MAX_CONCURRENT) return;
+  if (stopping || inFlight >= MAX_CONCURRENT) return;
   const slot = freeSlots.pop();
   if (slot === undefined) return;
   inFlight++;
@@ -700,4 +757,48 @@ setInterval(heartbeat, 30000);
    full interval for nothing - 750ms of dead time on average, on every question,
    before any work began. The claim is a single indexed lookup; four a second is
    nothing, and it comes straight off the number the person is watching. */
-setInterval(pollJobs, 250);
+const pollTimer = setInterval(pollJobs, 250);
+
+/* ─ SHUTTING DOWN, AND CRASHING, WITHOUT STRANDING WORK ────────────────────
+   A restart is the most common event in this system's life and it was the
+   least handled: every one of today's six killed the process mid-answer and
+   left that job sitting 'running' until the lease expired ten minutes later.
+   The person waited ten minutes for a question that died instantly.
+
+   So: stop claiming new work, let what is in flight finish, then go. Bounded,
+   because a shutdown that waits for ever is a machine that will not reboot -
+   and anything still running when the clock runs out is covered by the lease,
+   which is what the lease is for.
+
+   `stopping` is checked by pollJobs, so nothing new is claimed the moment this
+   begins. Without it a draining bridge would keep taking jobs and never
+   finish. */
+async function shutdown(why, code) {
+  if (stopping) return;
+  stopping = true;
+  clearInterval(pollTimer);
+  console.log(`[shutdown] ${why}. ${inFlight} job(s) in flight; finishing them.`);
+  const until = Date.now() + 45000;
+  while (inFlight > 0 && Date.now() < until) await new Promise((r) => setTimeout(r, 250));
+  if (inFlight > 0) {
+    console.log(`[shutdown] ${inFlight} still running; the lease will return them within ten minutes.`);
+  }
+  console.log("[shutdown] done.");
+  process.exit(code);
+}
+
+process.on("SIGTERM", () => shutdown("SIGTERM", 0));
+process.on("SIGINT", () => shutdown("SIGINT", 0));
+
+/* NOT SWALLOWED, DELIBERATELY. After an uncaught exception the process is in an
+   unknown state and any answer it goes on to produce is suspect. Log it, give
+   back the work, and let the scheduled task start a clean one. Crash safely -
+   never crash silently, and never pretend to be healthy. */
+process.on("uncaughtException", (e) => {
+  console.error("[fatal] uncaught exception:", e && e.stack ? e.stack : e);
+  shutdown("uncaught exception", 1);
+});
+process.on("unhandledRejection", (e) => {
+  console.error("[fatal] unhandled rejection:", e && e.stack ? e.stack : e);
+  shutdown("unhandled rejection", 1);
+});

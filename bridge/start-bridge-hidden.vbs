@@ -28,7 +28,24 @@
 ' So: stop any bridge that is running, THEN roll the log, and never let the
 ' rolling of a log file stop a bridge from starting.
 Option Explicit
-Dim sh, fso, here, logFile, prevLog, wmi, procs, p, cmdLine
+Dim sh, fso, here, logFile, prevLog, wmi, procs, p, cmdLine, httpReq
+
+' The same token the bridge authenticates with, read from the file beside it.
+' Returns empty on any failure - a missing token means the polite request is
+' simply refused and the kill below still happens.
+Function ReadToken(folder)
+  Dim f, tf
+  ReadToken = ""
+  On Error Resume Next
+  Set f = CreateObject("Scripting.FileSystemObject")
+  If f.FileExists(folder & "\token.txt") Then
+    Set tf = f.OpenTextFile(folder & "\token.txt", 1)
+    ReadToken = Trim(tf.ReadAll)
+    tf.Close
+  End If
+  Err.Clear
+  On Error GoTo 0
+End Function
 
 Set sh  = CreateObject("WScript.Shell")
 Set fso = CreateObject("Scripting.FileSystemObject")
@@ -36,6 +53,26 @@ here = fso.GetParentFolderName(WScript.ScriptFullName)
 sh.CurrentDirectory = here
 
 ' ---- 1. Stop any bridge already running --------------------------------------
+' ASK FIRST, KILL SECOND. Stop-Process on Windows is TerminateProcess: the
+' process is destroyed outright and Node never sees SIGTERM, so a job being
+' answered at that moment is orphaned and the person waits the full ten-minute
+' lease for a question that died instantly. Proved 8 Aug 2026 - killing the
+' bridge produced no [shutdown] line in the log at all, because the handler
+' never ran.
+'
+' So the bridge is asked over its own HTTP port to drain and exit. If it answers,
+' in-flight work finishes properly. If it does not answer within a few seconds -
+' hung, wedged, or already dead - it is killed, because a restart that can be
+' refused is not a restart.
+On Error Resume Next
+Set httpReq = CreateObject("MSXML2.ServerXMLHTTP.6.0")
+httpReq.setTimeouts 2000, 2000, 2000, 50000
+httpReq.open "POST", "http://127.0.0.1:8765/shutdown", False
+httpReq.setRequestHeader "x-tg-token", ReadToken(here)
+httpReq.send ""
+Err.Clear
+On Error GoTo 0
+
 ' Matched on the command line rather than the image name: killing every node.exe
 ' on the machine would take out anything else the owner is running, which is not
 ' this script's business.
