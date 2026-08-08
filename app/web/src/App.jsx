@@ -7730,7 +7730,7 @@ function Settings({ session, prefs }) {
           <div className="panel" style={{ maxWidth: "none" }}>
             <div className="ptitle"><span className="pchip" style={{ background: "#f5c542", color: "#3a2b00" }}>{I.users}</span> {session.user.email}</div>
             <div className="note">Role management (owner-assigned), per-employee links, and security options arrive with the People milestone.</div>
-            <button className="btn ghost" onClick={() => supabase.auth.signOut()} style={{ marginTop: 12 }}>Sign out</button>
+            <button className="btn ghost" onClick={() => signOutEverywhere()} style={{ marginTop: 12 }}>Sign out</button>
           </div>
         </div>
       </div>
@@ -8879,10 +8879,24 @@ function ForcePasswordChange({ email, onDone }) {
         <button className="btn primary" disabled={busy} onClick={save}>
           {busy ? "Saving…" : "Save and continue"}
         </button>
-        <button className="pwout" onClick={() => supabase.auth.signOut()}>Sign out instead</button>
+        <button className="pwout" onClick={() => signOutEverywhere()}>Sign out instead</button>
       </div>
     </div>
   );
+}
+
+/* SIGNING OUT ENDS THE ASSISTANT'S SESSION GRANTS TOO. Owner, 8 Aug 2026: a
+   camera approval "remains full time" for the session with "no shutoff" - which
+   only means anything if the session actually ENDS somewhere. This is that
+   somewhere, and until now nothing called f_ai_end_session at all: the grant was
+   written to last a session and nothing was ever going to close it.
+
+   The revoke is tried FIRST and its failure is swallowed. Sign-out must happen
+   whatever else breaks - a person trying to leave a shared machine is not made
+   to wait on a permissions table. */
+async function signOutEverywhere() {
+  try { await supabase.rpc("f_ai_end_session"); } catch { /* never block sign-out */ }
+  await supabase.auth.signOut();
 }
 
 export default function App() {
@@ -9143,6 +9157,15 @@ export default function App() {
                   <div><div className="uname">Signed in</div><div className="umail">{email}</div>
                     <button className="uphoto" onClick={() => fileRef.current?.click()}>Upload photo</button></div>
                 </div>
+                {/* SIGN OUT LIVES HERE. Owner, 8 Aug 2026: "i do not see log out
+                    button add above the dark and light". It existed - as the last
+                    item under about thirty-five others, past the fold, which is the
+                    same as not existing. Moved rather than added: two buttons that
+                    sign you out are two controls meaning one thing. */}
+                <div className="usep" />
+                <button className="uitem uout" onClick={() => { setUserMenu(false); signOutEverywhere(); }}>
+                  {I.out} Sign out
+                </button>
                 <div className="usep" />
                 <div className="ulabel">Theme</div>
                 <div className="uthemes">
@@ -9183,8 +9206,6 @@ export default function App() {
                 <div className="usep" />
                 {isExec && <button className="uitem" onClick={() => { setUserMenu(false); setView("menu_manager"); }}>{I.burger} Menu Manager</button>}
                 {isExec && <button className="uitem dim" disabled title="Soft-delete Trash with restore window is in the Admin Console build">{I.out} Trash <span className="mtag">SOON</span></button>}
-                <div className="usep" />
-                <button className="uitem uout" onClick={() => supabase.auth.signOut()}>{I.out} Sign out</button>
               </div>
             )}
           </div>
