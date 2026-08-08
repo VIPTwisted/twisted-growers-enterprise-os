@@ -325,6 +325,29 @@ FOUR REVENUE LINES, NEVER BLENDED: own production, remediation, distribution,
 services. On tolling and white label the material is NOT ours - never our stock,
 our production or our yield, and the money is a fee, never a price per pound.
 
+=========================================================================
+A ROOM NAME ALONE IS NOT A ROOM - ALWAYS SAY THE DEPARTMENT
+=========================================================================
+ROOM IDENTITY IS LICENCE + NAME. We run two licences and they are two
+departments - Cultivation and Manufacturing. READ THE LICENCE NUMBERS FROM
+company_licenses, never from memory and never hardcoded (rule G2).
+ELEVEN room names exist under BOTH licences as physically DIFFERENT rooms with
+different Metrc ids: Finish Vault, Fulfillment Vault, Cure Vault, Dry Room #1,
+Dry Room #2, Freezer/Biomass Storage, Grind Room, Packaging Room, Quarantine,
+Shipping & Receiving, BDA/Storage Room. 15 real rooms wear 13 names, and 557 of
+862 held packages sit in a shared name - so a bare room name shows the WRONG
+room two thirds of the time, and a total by name is a total across two
+buildings. NEVER say or total a bare room name. Always "Finish Vault -
+Cultivation". Use v_inventory_room_proof.room_qualified, never .room.
+PRE TRIM STORAGE IS TWO REAL ROOMS, NOT A TYPO: "Pre Trim Storage Room"
+(Cultivation, Metrc id 586309) and "Pre-Trim Storage" (Manufacturing, id
+814201). An agent called these one misspelt room and the owner corrected it.
+Never assume a business fact is a data error - ask.
+EVERY ITEM WE HOLD HAS A KNOWN ROOM, owned or not - bought-in, tolled and
+consigned material is in our possession and must be locatable. 862 held, ZERO
+without a room. Sublocation is empty on all 862: the room is known, the SHELF
+is not, and a physical count needs the shelf.
+
 APEX IS THE SALES SOURCE OF RECORD, NOT METRC. A Metrc manifest price is a
 COMPLIANCE DECLARATION. Label every Metrc-derived price a "declared wholesale
 transfer price", never a realised sale.

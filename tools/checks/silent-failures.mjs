@@ -104,7 +104,15 @@ for (const target of SCAN) {
 }
 
 /* --------------------------------------------------------------- baseline --- */
-const key = (f) => `${f.file}:${f.text}`;
+/* Migration dumps are TIMESTAMPED, so every regeneration produces a new filename and the
+   same unfixed failure would look brand new. That would make the baseline useless within a
+   day - and worse, it would train people to re-bless without reading, which is how a
+   ratchet becomes a rubber stamp. The timestamp is collapsed so the key follows the
+   FAILURE, not the file that happens to carry it. Proven the same day: a second dump was
+   generated at 19:25 still carrying "NOT CAPTURED: permission denied for schema cron". */
+const stableName = (p) =>
+  p.replace(/(supabase\/migrations\/)\d{14}_/, "$1<timestamp>_");
+const key = (f) => `${stableName(f.file)}:${f.text}`;
 let baseline = { acknowledged: {} };
 if (existsSync(BASELINE)) {
   try { baseline = JSON.parse(readFileSync(BASELINE, "utf8")); } catch { /* rebuilt below */ }

@@ -228,4 +228,36 @@ FOUR REVENUE LINES, NEVER BLENDED: own production, remediation, distribution,
 services. On tolling and white label the material is NOT ours - it must never
 count as our stock, our production or our yield, and the money is a fee, never a
 price per pound.
+
+=========================================================================
+A ROOM NAME ALONE IS NOT A ROOM - ALWAYS SAY THE DEPARTMENT
+=========================================================================
+Owner-set 8 Aug 2026. ROOM IDENTITY IS LICENCE + NAME. We run two licences and
+they are two departments - Cultivation and Manufacturing. READ THE LICENCE
+NUMBERS FROM company_licenses, never from memory and never hardcoded (rule G2).
+
+ELEVEN room names exist under BOTH licences, as physically DIFFERENT rooms with
+different Metrc location ids: Finish Vault, Fulfillment Vault, Cure Vault, Dry
+Room #1, Dry Room #2, Freezer/Biomass Storage, Grind Room, Packaging Room,
+Quarantine, Shipping & Receiving, BDA/Storage Room.
+
+Measured 8 Aug 2026: 15 real rooms wear 13 names, and 557 of 862 held packages
+- 65% - sit in a room whose name is shared. "Finish Vault" holds 308 packages
+across two separate vaults in two separate buildings.
+
+SO: NEVER say or total a bare room name. Always "Finish Vault - Cultivation".
+Use v_inventory_room_proof.room_qualified, never .room. A total grouped by name
+alone is a total across two facilities, and it will look perfectly correct.
+
+PRE TRIM STORAGE IS TWO REAL ROOMS, NOT A TYPO: "Pre Trim Storage Room"
+(Cultivation, id 586309) and "Pre-Trim Storage" (Manufacturing, id 814201). An
+agent flagged these as one misspelt room on 8 Aug and the owner corrected it.
+Never assume a business fact is a data error - ask.
+
+EVERY ITEM WE HOLD HAS A KNOWN ROOM, owned or not: bought-in, tolled and
+consigned material is in our possession and must be locatable. Massachusetts
+law requires Metrc to carry the current room for every tagged package. Verified
+8 Aug 2026: 862 held, ZERO without a room. Sublocation is empty on all 862 - the
+room is known, the SHELF is not, and a physical count needs the shelf. Say so
+rather than implying it.
 ```

@@ -84,6 +84,15 @@ const MUST_CARRY = [
   "METRC IS READ ONLY. YOU NEVER WRITE TO IT",
   "NOTHING ELSE ON ANYONE'S PHONE",
   "THE PHONE IS STRICT",
+  /* Rule J7, owner-directed 8 Aug 2026: "need to train all ai". A room name alone is not
+     a room - ELEVEN names exist under both licences as physically different rooms, and
+     557 of 862 held packages sit in one, so a bare name is wrong two thirds of the time.
+     Named here because a rule is only trained to the extent this list enforces it: the
+     seats training sat in the canonical file for hours while one runtime carried none of
+     it, and the gate read green throughout. */
+  "A ROOM NAME ALONE IS NOT A ROOM",
+  "ELEVEN room names exist under BOTH licences",
+  "PRE TRIM STORAGE IS TWO REAL ROOMS",
 ];
 
 let failed = 0;

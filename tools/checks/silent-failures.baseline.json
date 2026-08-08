@@ -1,7 +1,7 @@
 {
   "_what_this_is": "Silent failures that were already present on 8 Aug 2026 and are knowingly carried, each with a reason and an owner. A NEW one fails the build. Removing an entry is free and always welcome. An entry with a vague reason is a bug in this file: the point is that somebody looked.",
   "acknowledged": {
-    "supabase/migrations/20260808185323_baseline_live_schema.sql:-- NOT CAPTURED: permission denied for schema cron": {
+    "supabase/migrations/<timestamp>_baseline_live_schema.sql:-- NOT CAPTURED: permission denied for schema cron": {
       "reason": "The schema dump cannot read the cron schema, so NO scheduled jobs are captured in it. The dump is therefore incomplete in a way that matters: 34 cron jobs run this platform and a restore from this file alone would bring back a database that does nothing on a schedule. The dumping role lacks permission; re-running as a role that can read the cron schema fixes it. Recorded honestly by the dump itself since it was written, and read by nobody until this check existed.",
       "area": "the schema dump — an incomplete dump silently understates the database",
       "acknowledged_on": "2026-08-08",
