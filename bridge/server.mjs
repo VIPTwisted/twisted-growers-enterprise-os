@@ -719,6 +719,7 @@ async function pollJobs() {
   if (stopping || inFlight >= MAX_CONCURRENT) return;
   const slot = freeSlots.pop();
   if (slot === undefined) return;
+  let claimedSomething = false;
   inFlight++;
   let job = null;
   const started = Date.now();
@@ -727,6 +728,10 @@ async function pollJobs() {
     recovered();
     if (!claim.job) return;
     job = claim.job;
+    claimedSomething = true;
+    /* Somebody is here. Full speed, and stay there - the next question in a
+       conversation is usually seconds away. */
+    pollEvery = POLL_FAST;
     console.log(`[job ${job.id}] claimed: ${String(job.question).slice(0, 70)}`);
 
     const NL2 = String.fromCharCode(10, 10);
@@ -768,11 +773,14 @@ async function pollJobs() {
   } finally {
     inFlight--;
     freeSlots.push(slot);
+    /* Nothing waiting: ease off rather than asking again immediately. An empty
+       queue is evidence the next question is not imminent. */
+    if (!claimedSomething && inFlight === 0) pollEvery = Math.min(pollEvery * 2, POLL_MAX);
     /* LOOK AGAIN IMMEDIATELY. Waiting for the next tick meant a backlog was
        worked through at one job per poll interval of doing nothing, rather than
        as fast as it can answer. Only when there was actually work - an empty
        claim does not spin. */
-    if (job) setImmediate(pollJobs);
+    if (job) { pollEvery = POLL_FAST; setImmediate(pollJobs); }
   }
 }
 
@@ -786,7 +794,42 @@ setInterval(heartbeat, 30000);
    full interval for nothing - 750ms of dead time on average, on every question,
    before any work began. The claim is a single indexed lookup; four a second is
    nothing, and it comes straight off the number the person is watching. */
-const pollTimer = setInterval(pollJobs, 250);
+/* ADAPTIVE, because a fixed interval is wrong in both directions.
+
+   1500ms wasted up to a second and a half before a question was even seen, so I
+   cut it to a flat 250ms this afternoon and created a different problem: four
+   calls a second, roughly 345,000 a day, to answer about ten questions.
+
+   Agent A found it while diagnosing an unrelated sync timeout - "every real
+   event was buried under bridge traffic". They measured ~1.5s and 57,600 calls
+   a day; it was worse, because that was the interval BEFORE I touched it. I
+   optimised one number and paid for it in a shared resource I never looked at.
+
+   A flat SLOW interval just hands the delay back to the person waiting, which is
+   the thing today was spent removing. So the rate follows the work:
+
+     busy   250ms   - full speed exactly when somebody is waiting
+     empty  doubles - 250, 500, 1s, 2s, 4s, capped at 6s
+     claim  resets  - instantly, and stays fast through a conversation, because
+                      questions arrive in bursts: a person asks, reads, asks again
+
+   Idle traffic falls about 24x. The cost is that the FIRST question after a
+   quiet spell can wait up to six seconds longer, once, and every follow-up is at
+   full speed. That matches how this is actually used. */
+const POLL_FAST = 250;
+const POLL_MAX = 6000;
+let pollEvery = POLL_FAST;
+let pollTimer = null;
+
+function scheduleNextPoll() {
+  clearTimeout(pollTimer);
+  pollTimer = setTimeout(async () => {
+    if (stopping) return;
+    try { await pollJobs(); } catch (e) { fault("poll loop", e); }
+    scheduleNextPoll();
+  }, pollEvery);
+}
+scheduleNextPoll();
 
 /* ─ SHUTTING DOWN, AND CRASHING, WITHOUT STRANDING WORK ────────────────────
    A restart is the most common event in this system's life and it was the
@@ -805,7 +848,7 @@ const pollTimer = setInterval(pollJobs, 250);
 async function shutdown(why, code) {
   if (stopping) return;
   stopping = true;
-  clearInterval(pollTimer);
+  clearTimeout(pollTimer);
   console.log(`[shutdown] ${why}. ${inFlight} job(s) in flight; finishing them.`);
   const until = Date.now() + 45000;
   while (inFlight > 0 && Date.now() < until) await new Promise((r) => setTimeout(r, 250));
