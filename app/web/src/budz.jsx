@@ -1213,6 +1213,95 @@ export function Thinking({ since, what = "Reading the records" }) {
   );
 }
 
+/* VOICE, SHARED BY ALL THREE SURFACES. Owner, 8 Aug 2026: "also add voice to
+   pet and brain and assistant too".
+
+   Speak a question, hear the answer. The reason is the floor: hands are gloved,
+   and typing is the wrong interface for most of the people who need this most.
+
+   One hook for the pet, the assistant page and Brain - three separate
+   microphones would behave differently inside a month, which is the same
+   argument as one chat attachment and one red/green switch.
+
+   IT NEVER LISTENS ON ITS OWN. Press to talk, and it stops the moment you stop.
+   Browser speech recognition ships audio to the vendor, and an open microphone
+   in a licensed facility is not something to enable quietly. ai_write_policy
+   already holds the microphone as off until a person turns it on; this button
+   IS that person turning it on, once, for one sentence.
+
+   Speaking back is remembered per person and defaults OFF, because an assistant
+   that starts talking in a shared office is an assistant people switch off. */
+export function useVoice({ onHeard } = {}) {
+  const [listening, setListening] = useState(false);
+  const [speakBack, setSpeakBack] = useState(() => {
+    try { return localStorage.getItem("tg.voice.speak") === "1"; } catch { return false; }
+  });
+  const recRef = useRef(null);
+  const SR = typeof window !== "undefined"
+    ? (window.SpeechRecognition || window.webkitSpeechRecognition)
+    : null;
+  const canHear = !!SR;
+  const canSpeak = typeof window !== "undefined" && !!window.speechSynthesis;
+
+  const listen = () => {
+    if (!SR) return;
+    if (listening) { try { recRef.current?.stop(); } catch { /* already stopped */ } return; }
+    const r = new SR();
+    r.lang = "en-US";
+    r.interimResults = false;
+    r.maxAlternatives = 1;
+    r.onresult = (ev) => {
+      const said = ev.results?.[0]?.[0]?.transcript?.trim();
+      if (said) onHeard?.(said);
+    };
+    /* Both fire, and both must clear the flag, or the button stays lit and the
+       next press is read as "stop" on a recogniser that is already dead. */
+    r.onend = () => setListening(false);
+    r.onerror = () => setListening(false);
+    recRef.current = r;
+    setListening(true);
+    try { r.start(); } catch { setListening(false); }
+  };
+
+  const say = (text) => {
+    if (!speakBack || !canSpeak || !text) return;
+    try {
+      window.speechSynthesis.cancel();   // never let two answers talk over each other
+      const u = new SpeechSynthesisUtterance(String(text).slice(0, 1200));
+      u.rate = 1.02;
+      window.speechSynthesis.speak(u);
+    } catch { /* a voice that fails must never break an answer */ }
+  };
+
+  const toggleSpeak = () => {
+    const next = !speakBack;
+    setSpeakBack(next);
+    try { localStorage.setItem("tg.voice.speak", next ? "1" : "0"); } catch { /* private mode */ }
+    if (!next && canSpeak) window.speechSynthesis.cancel();
+  };
+
+  return { listen, listening, say, speakBack, toggleSpeak, canHear, canSpeak };
+}
+
+/* The two controls, so all three surfaces show the same thing in the same place. */
+export function VoiceButtons({ voice }) {
+  if (!voice.canHear && !voice.canSpeak) return null;
+  return (
+    <>
+      {voice.canHear && (
+        <button className={`btn ghost micbtn${voice.listening ? " on" : ""}`}
+          title={voice.listening ? "Listening — press to stop" : "Press and speak your question"}
+          onClick={voice.listen}>{voice.listening ? "\u25CF" : "\uD83C\uDFA4"}</button>
+      )}
+      {voice.canSpeak && (
+        <button className={`btn ghost micbtn${voice.speakBack ? " on" : ""}`}
+          title={voice.speakBack ? "Answers are read aloud — press to silence" : "Read answers aloud"}
+          onClick={voice.toggleSpeak}>{voice.speakBack ? "\uD83D\uDD0A" : "\uD83D\uDD07"}</button>
+      )}
+    </>
+  );
+}
+
 export function ChatFiles({ bag }) {
   if (!bag.files.length && !bag.warn) return null;
   const size = (n) => (n == null ? "" : n > 1048576 ? `${(n / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`);
@@ -1228,6 +1317,34 @@ export function ChatFiles({ bag }) {
       {bag.warn && <span className="chatfwarn">{bag.warn}</span>}
     </div>
   );
+}
+
+/* The metered API call, on its own so it can be STARTED EARLY and raced against
+   the desktop bridge rather than only tried after the bridge gives up. Returns
+   the reply text, or null - it never throws, because a racer that throws would
+   take the whole answer down with it. */
+async function askMeteredApi(question, history) {
+  try {
+    const hist = [...(history ?? []), { who: "me", text: question }]
+      .filter((m) => m.text)
+      .slice(-8)
+      .map((m) => ({ role: m.who === "me" ? "user" : "assistant", content: m.text }));
+    if (hist[hist.length - 1]?.role !== "user") hist.push({ role: "user", content: question });
+    const { data: sess } = await supabase.auth.getSession();
+    const rr = await fetch(`${FUNCTIONS_URL}/budz-chat`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        apikey: ANON_KEY,
+        Authorization: `Bearer ${sess?.session?.access_token ?? ANON_KEY}`,
+      },
+      body: JSON.stringify({ messages: hist }),
+    });
+    const out = await rr.json().catch(() => null);
+    return out?.reply ?? null;
+  } catch {
+    return null;
+  }
 }
 
 /* THE ONE WAY A QUESTION GETS ANSWERED. Owner, 8 August 2026: "make sure
@@ -1315,16 +1432,49 @@ export async function askBudzFull(question, history = [], { onFacts } = {}) {
              old version sat for 210 seconds and then failed silently. If the
              desktop is asleep this gives up and SAYS SO, and the answer is still
              written to the row if it arrives later. */
+          /* RACED, not queued. Owner, 8 Aug 2026: "ai is too fucking slow".
+
+             This used to run to completion - up to 150 seconds - before the
+             metered API was even considered, so the free path's worst case was
+             every question's worst case. The bridge now gets an 8 second head
+             start and then the API runs alongside it. Answer quickly and it
+             costs nothing; take longer and the API overtakes. Whichever lands
+             first is the answer, and the loser is abandoned rather than waited
+             on. Polling is 600ms rather than 1200ms, which alone takes half a
+             second off every answer. */
+          let apiRace = null;
+          const startApiRace = () => {
+            if (apiRace || !cfg.paid_model_enabled) return;
+            apiRace = askMeteredApi(question, log).catch(() => null);
+          };
           const deadline = Date.now() + 150000;
+          /* Owner, 8 Aug 2026: "speed is critical". Two seconds, not eight.
+             The bridge has never answered faster than 11 seconds, so in practice
+             this races almost every question - which is the point. A free answer
+             nobody waits for beats a free answer nobody sees. */
+          const raceAt = Date.now() + 2000;
           let done = null;
+          let apiWon = null;
           while (Date.now() < deadline) {
-            await new Promise((r) => setTimeout(r, 1200));
+            await new Promise((r) => setTimeout(r, 600));
+            if (Date.now() > raceAt) startApiRace();
+            if (apiRace) {
+              /* Peek without blocking: Promise.race against an already-resolved
+                 promise returns immediately, so a pending API call cannot itself
+                 become the thing we are waiting for. */
+              const peek = await Promise.race([apiRace, Promise.resolve("__pending__")]);
+              if (peek && peek !== "__pending__") { apiWon = peek; break; }
+            }
             const { data: row } = await supabase
               .from("ai_bridge_jobs")
               .select("status, answer, error, seconds")
               .eq("id", created.id)
               .maybeSingle();
             if (row && (row.status === "done" || row.status === "error")) { done = row; break; }
+          }
+          if (apiWon) {
+            composed = apiWon;
+            via = "Claude (API, the desktop was slower)";
           }
 
           if (done?.status === "done" && done.answer) {
@@ -1782,6 +1932,7 @@ export function BudzPet({ go, onClose }) {
   const [q, setQ] = useState("");
   const [busy, setBusy] = useState(false);
   const bag = useChatFiles("pet");
+  const voice = useVoice({ onHeard: (said) => { setQ(said); ask(said); } });
   const drag = useRef(null);
   const grip = useRef(null);
   const fileRef = useRef(null);
@@ -1981,6 +2132,7 @@ export function BudzPet({ go, onClose }) {
           <div className={`petinput${bag.dropping ? " dropping" : ""}`} {...bag.dropProps}>
             <input ref={fileRef} type="file" multiple style={{ display: "none" }}
               onChange={(e) => { bag.add(e.target.files); e.target.value = ""; }} />
+            <VoiceButtons voice={voice} />
             <button className="petbtn" title="Attach anything - documents, zips, images, video. Drag them onto this window, or paste." onClick={() => fileRef.current?.click()}>{"\uD83D\uDCCE"}</button>
             <input
               className="inp"
@@ -2417,6 +2569,7 @@ export function BudzScreen({ go }) {
      difference, and it exists so assistant_uploads can PROVE they stayed the
      same rather than us assuming it. */
   const bag = useChatFiles("assistant");
+  const voice = useVoice({ onHeard: (said) => { setQ(said); ask(said); } });
   const askFileRef = useRef(null);
   const [qfind, setQfind] = useState("");
   const [dept, setDept] = useState(() => {
@@ -2587,6 +2740,7 @@ export function BudzScreen({ go }) {
           <div className={`budzask${bag.dropping ? " dropping" : ""}`} {...bag.dropProps}>
             <input ref={askFileRef} type="file" multiple style={{ display: "none" }}
               onChange={(e) => { bag.add(e.target.files); e.target.value = ""; }} />
+            <VoiceButtons voice={voice} />
             <button className="btn ghost clipbtn" title="Attach anything - documents, zips, images, video. Drag them onto this box, or paste."
               onClick={() => askFileRef.current?.click()}>📎</button>
             <input

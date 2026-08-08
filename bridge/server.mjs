@@ -39,7 +39,14 @@ const PROVIDERS = {
     label: "Claude Code (desktop subscription)",
     args: (sessionId) => {
       const a = ["-p", "--permission-mode", "acceptEdits",
-                 "--allowedTools", "mcp__twisted-growers,Read,Grep,Glob"];
+                 /* WebSearch and WebFetch are here because the owner asked Budz
+                    for the weather on 8 Aug 2026 and got told it was outside what
+                    he could answer. That was not the model's limit - it was this
+                    list. He is told the assistant can answer anything, so fencing
+                    off the internet made that a false promise. He still cannot
+                    WRITE anywhere: reading the web is not the same permission as
+                    changing a system, and the write policy is unchanged. */
+                 "--allowedTools", "mcp__twisted-growers,Read,Grep,Glob,WebSearch,WebFetch"];
       if (sessionId) a.push("--resume", sessionId);
       return a;
     },

@@ -436,7 +436,18 @@ Deno.serve(async (req) => {
     const r = await fetch('https://api.anthropic.com/v1/messages', {
       method:'POST',
       headers:{ 'x-api-key':key, 'anthropic-version':'2023-06-01', 'content-type':'application/json' },
+      /* WEB SEARCH ON THIS PATH TOO. Owner, 8 Aug 2026: "add web tools to all ai
+         site wide assistant, brain, pet all places relevant". The desktop bridge
+         got WebSearch and WebFetch, but this function answers whenever the bridge
+         is off, busy or slower - and without this it would be the one path that
+         still says a question is outside what it can answer. The assistant page,
+         Brain and the pet all come through here, so fixing it here fixes all
+         three rather than three times.
+
+         It reads the web. It still writes nothing: reading is not the same
+         permission as changing a system, and the write policy is untouched. */
       body: JSON.stringify({ model, max_tokens:8000,
+        tools:[{ type:'web_search_20250305', name:'web_search', max_uses:5 }],
         system:[{ type:'text', text:SYSTEM, cache_control:{ type:'ephemeral' } }], messages: hist }),
     });
     if (!r.ok) { const t = await r.text(); return j({ ok:false, reply:'The model call failed: ' + t.slice(0,300) }); }

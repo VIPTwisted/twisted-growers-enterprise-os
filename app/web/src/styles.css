@@ -1799,3 +1799,11 @@ button.teamcard:hover { border-color: var(--neon-line); }
   box-shadow: 0 0 16px rgba(0, 255, 140, 0.28); }
 .agentspanel { border: 1px solid var(--line); border-radius: 14px;
   background: var(--panel); padding: 16px; text-align: left; }
+
+
+/* Voice. Same shape as the paperclip so the row reads as one set of controls
+   rather than three unrelated buttons. */
+.micbtn { font-size: 17px; line-height: 1; color: var(--muted); padding: 8px 11px; }
+.micbtn:hover { color: var(--accent); border-color: var(--neon-line); }
+.micbtn.on { color: var(--accent); border-color: var(--accent);
+  box-shadow: 0 0 14px rgba(0, 255, 140, 0.30); }

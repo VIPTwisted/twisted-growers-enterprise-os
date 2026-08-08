@@ -2,7 +2,8 @@ import React, { useEffect, useState, useCallback, useRef, useMemo } from "react"
 import jsQR from "jsqr";
 import { supabase, FUNCTIONS_URL } from "./lib/supabase.js";
 import { BudzScreen, CeoDashboard, AssistantSettings, BudzPet, useBudzPet, RedGreen,
-         askBudzFull, useChatFiles, ChatFiles, Thinking } from "./budz.jsx";
+         askBudzFull, useChatFiles, ChatFiles, Thinking,
+         useVoice, VoiceButtons } from "./budz.jsx";
 
 // Laws: live numbers (2) · no fake data (3) · nothing hardwired (4) — navigation itself is DB rows.
 
@@ -5043,6 +5044,7 @@ function BrainScreen({ session, go, isExec, dictation }) {
      three ways in. Owner, 8 Aug 2026: "we need to be able to upload files, and
      all the same items". */
   const bag = useChatFiles("brain");
+  const voice = useVoice({ onHeard: (said) => { setQ(said); ask(said); } });
   const brainFileRef = useRef(null);
   const [log, setLog] = useState([]);
   /* The catalogue, read once. Brain matching a question to a report is the
@@ -5113,7 +5115,7 @@ function BrainScreen({ session, go, isExec, dictation }) {
       })),
       askBudzFull(term, log, {
         onFacts: (a, rows) => setLog((l) => [...l, { who: "brain", text: a.headline, rows, stamp, pending: true }]),
-      }).then(({ composed, via, askErr }) =>
+      }).then(({ composed, via, askErr }) => (voice.say(composed), true) &&
         setLog((l) => l.map((m) => m.stamp === stamp
           ? (composed ? { ...m, text: composed, researched: true, via, pending: false }
                       : { ...m, pending: false, askErr })
@@ -5205,6 +5207,7 @@ function BrainScreen({ session, go, isExec, dictation }) {
             {/* Owner, 8 Aug 2026: "cant see this make it bold". A ghost button
                 renders a grey glyph on a near-black bar, which is close to
                 invisible. It is the accent colour and larger now. */}
+            <VoiceButtons voice={voice} />
             <button className="btn ghost clipbtn" title="Attach anything - documents, zips, images, video. Drag them onto this bar, or paste."
               onClick={() => brainFileRef.current?.click()}>📎</button>
             <input value={q} placeholder="Ask anything, or search for a tag, a strain, a batch, a person…"

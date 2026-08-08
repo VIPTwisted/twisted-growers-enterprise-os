@@ -82,6 +82,53 @@ on prompts.
 | [sources/](sources/) | Digests of ingested reading — one dated file per batch, with provenance. Already in: the agent-tooling landscape, the full docs read, the full handoff read, the codebase map (App.jsx line-by-line, bridge, tools, CI), and the Metrc manual digest ([2026-08-07-metrc-manual-digest.md](sources/2026-08-07-metrc-manual-digest.md) — both PART PDFs read complete and page-cited; proves they duplicate the v7.1 guide, and settles the wet-basis harvest ledger, the custody-vs-ownership transfer types, and the reason-code asymmetry). |
 | [inbox/](inbox/) | Drop zone for raw material awaiting ingestion. See its README. |
 
+#### How every agent is meant to operate
+*Reconciled into this map 8 August 2026 — 24 brain files existed and none of them
+were listed here, so the index described less than half the brain it indexes.*
+
+| File | What it holds |
+|---|---|
+| [AGENT_BRIEFING.md](AGENT_BRIEFING.md) | **The one the SessionStart hook injects into every agent, in full.** Self-contained: Rule Zero, the data traps, the fix protocol. Never re-summarise it anywhere — a hand-written copy went stale within two hours on 7 Aug. |
+| [AGENT_DATA_RULES.md](AGENT_DATA_RULES.md) | **Canonical text** of the data rules, pasted into the four runtimes that cannot read a file at run time (desktop bridge, local model path, Send-to-Claude brief, budz-chat function). Change it here first. |
+| [AGENT_CAPABILITY_CONTRACT.md](AGENT_CAPABILITY_CONTRACT.md) | The contract every agent meets, so TG Brain, Budz and the build crew all behave the same way. |
+| [AGENT_ROSTER.md](AGENT_ROSTER.md) | The org chart for every agent — one place to manage them, one role that cross-references and reviews. |
+| [CHARTER.md](CHARTER.md) | Agent D's charter — Brains, Loops & Agents. Follows the same lane discipline as `docs/AGENT_WORK_DIVISION_AND_WATCHDOG.md`. |
+
+#### Enforcement, traps and recovery — read before you trust anything
+| File | What it holds |
+|---|---|
+| [RULE_LEDGER.md](RULE_LEDGER.md) | Every hard rule in CLAUDE.md mapped to the machinery that proves it still holds — **and which rules are merely hope.** |
+| [DATA_TRAPS_REGISTER.md](DATA_TRAPS_REGISTER.md) | Every way this platform has been lied to by its own data, and which traps are actually guarded. |
+| [HARDCODED_REGISTER.md](HARDCODED_REGISTER.md) | Every hardcoded value found. Rule G1 says there should be none; this is the list of violations. |
+| [RUNBOOK_RECOVERY.md](RUNBOOK_RECOVERY.md) | What to do when it breaks. **First test: broken, or legitimately EMPTY?** 43 of 236 pages are empty by design. |
+
+#### Plans, boards and open questions of fact
+| File | What it holds |
+|---|---|
+| [PROJECT_PLAN.md](PROJECT_PLAN.md) | Five phases with exit criteria. **Phase 0 blocks the rest** — the platform has been getting Phase 3 analysis without a Phase 0. |
+| [CRITICAL_BOARD.md](CRITICAL_BOARD.md) | The must-do-today list, ranked by consequence, computed live rather than typed. |
+| [IDEAS.md](IDEAS.md) | What the AI brains should think about first. Figures marked DERIVED are calculation, **not measurement** — treat accordingly. |
+| [CAPACITY_TRUTH.md](CAPACITY_TRUTH.md) | Measured room turnaround, held as evidence: turnaround is the team's contractual responsibility and the owner disputes what he was told. |
+| [MATERIAL_MODEL_RESOLUTION.md](MATERIAL_MODEL_RESOLUTION.md) | How inbound material resolves — `bought_as` unset on 30 suppliers, no destination tracking, empty purchase tables, tolling that owns nothing. |
+
+#### Specifications — designed, not yet built
+| File | What it specifies |
+|---|---|
+| [SENTINEL_SPEC.md](SENTINEL_SPEC.md) | The watcher that cannot go quiet. Commissioned after the Metrc sync was dead **7 h 16 min while every dashboard reported success.** |
+| [OS_WATCHDOG_SPEC.md](OS_WATCHDOG_SPEC.md) | Oversight that lives *inside* the OS, because agents A–D are external build crew on a desktop. |
+| [SHADOW_LOG_SPEC.md](SHADOW_LOG_SPEC.md) | The evidence engine behind AI_BRAINS_2027: the AI commits to a decision **before** the human does, sealed, then both are scored against what happened. |
+| [AI_BRAINS_2027.md](AI_BRAINS_2027.md) | The 2027 goal — hands stay human, brains become AI. |
+| [STRAIN_GRADING_SPEC.md](STRAIN_GRADING_SPEC.md) | Grading strains and yields so harvests can be planned for greater yield. |
+| [BUDZ_DEEP_CAPABILITY_SPEC.md](BUDZ_DEEP_CAPABILITY_SPEC.md) | Giving Budz real agentic capability through the bridge. |
+| [AI_COLLABORATION_SPEC.md](AI_COLLABORATION_SPEC.md) | Collaborating with agents inside the OS, including "write a report for the meeting". |
+| [AI_SETUP_SELF_SERVE.md](AI_SETUP_SELF_SERVE.md) | Self-serve AI setup, admin-gated. Max three people, each pays their own way, company cost $0. |
+
+#### Open work orders — a finding without an owner dies
+| File | What it asks for |
+|---|---|
+| [WORKORDER_COA_LINK.md](WORKORDER_COA_LINK.md) | 965 packages gain a certificate with **zero** Metrc calls — the backfill already ran; the link is what is missing. |
+| [WORKORDER_AGENT_A_SYNC.md](WORKORDER_AGENT_A_SYNC.md) | Metrc sync diagnosis for Agent A, from `metrc_sync_runs`. Read-only; re-measure before acting. |
+
 ### The active half — the database's own knowledge organs
 The brain's markdown is the passive half. These live tables are the half that
 runs on its own, on 25 cron jobs. Query them; never let a document substitute

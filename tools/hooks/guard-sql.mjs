@@ -77,7 +77,18 @@ function check(payload) {
       );
     }
 
-    if (/\bgrant\b[^;]*\bto\b[^;]*\banon\b/.test(sql)) {
+    /* TIGHTENED 8 Aug 2026 — owner-approved after a false positive that locked a function.
+     *
+     * This previously read /\bgrant\b[^;]*\bto\b[^;]*\banon\b/, which matched the WORDS
+     * "grant ... to ... anon" anywhere in any string — including English prose. The finding
+     * text inside tg_nightly_platform_check() reads "...holds the grant. Then run
+     * supabase/checks/anon_exposure.sql to confirm zero" followed by "anon relations", so
+     * every attempt to edit that function was blocked, permanently, with no GRANT in sight.
+     *
+     * The fix requires `grant` to be followed by an actual privilege keyword, which is true
+     * of every real GRANT statement and false of prose. It is deliberately NOT anchored to
+     * the start of a statement, so a GRANT buried inside a plpgsql body is still caught. */
+    if (/\bgrant\s+(all|select|insert|update|delete|truncate|references|trigger|usage|execute|create|connect|temporary|temp)\b[^;]*\bto\b[^;]*\banon\b/.test(sql)) {
       block(
         "RULE E6: never `grant ... to anon`",
         "a GRANT to the anon role",

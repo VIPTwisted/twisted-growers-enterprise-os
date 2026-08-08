@@ -14,6 +14,53 @@ outranks every cash figure."*
 
 ---
 
+## ✅ TO DO — TODAY, 8 AUGUST 2026 (owner-set)
+
+Set by Vinny on 8 Aug 2026 during the session-connection work. These are **his
+rulings**, not an agent's ranking — they sit above the computed board below.
+
+| # | To do today | Why it is here | State |
+|---|---|---|---|
+| **T1** | **Settle the moisture band (defect D1).** | It sits underneath every conversion, yield, inventory and valuation figure, and blocks 6,796 lb of Metrc correction work. **The arithmetic is impossible as it stands:** 18,476.7 lb wet in, less 14,319.4 lb evaporated at the 75–80% band, leaves **4,157.1 lb** dry available — but **5,199.1 lb was actually packaged.** That is **1,042 lb that cannot exist.** Either the band is too aggressive, wet weights are under-recorded at the takedown scale, or packaged weights include material from elsewhere. | **Owner deferred 8 Aug — on the list, not started.** No agent may guess the band. Fix: weigh 2–3 harvests end to end, then set the true band on Settings → Business Rules. |
+| **T2** | **Parse the 11 certificates missing their client licence.** | `coa_extract` holds **983** certificates and **11 have `client_license` null**. That field is the *only independent* answer to "is this ours?" — rule C0 says ownership stops at the COA, and an internal field cannot disconfirm another internal field. 972 of 983 are fine; these 11 are blind spots. | **Open — to do today.** The PDFs are already on disk in `metrc_documents.storage_path`. Open them and read `Client Info`. |
+
+### Deferred by the owner on 8 Aug 2026 — decisions, not oversights
+Recorded so no future session re-raises them as new findings (rule H1: ignoring
+is a decision, not a deletion).
+
+- **47 unanswered owner questions** (was 44 on 7 Aug) — *"leave this alone for later."*
+- **Owner accounts still on build-phase passwords** — *"leave alone for now."*
+  Still true, still flagged in `HANDOFF.md` §6, and still matters before real
+  staff onboarding.
+
+### Closed on 8 Aug 2026
+- **Credentials in a cloud-synced config.** 23 permission entries with live keys
+  baked in — 10 edge-function admin keys, 5 Supabase JWTs, 4 Netlify proxy
+  tokens, 4 signed storage URLs — were sitting in
+  `Desktop\Twisted Growers\.claude\settings.local.json`, which syncs to OneDrive.
+  Removed; file verified clean. **No key was rotated** at the owner's direction,
+  so every credential remains valid — it is simply no longer stored there.
+- **The nightly self-check miscounted cron in both directions.** See
+  [LESSONS.md](LESSONS.md). Fix written but **BLOCKED** — see below.
+- **`brain/INDEX.md` described less than half the brain.** 24 files existed and
+  none were listed. All 24 now indexed.
+- **Sessions opened on the Desktop stub started with no rules and no guards.**
+  The stub now injects the full rule set by hook and carries the agents, skills
+  and SQL guards by junction. Verified 8/8.
+
+### ⛔ BLOCKED, needs an owner ruling
+**The SQL guard cannot be edited because the SQL guard blocks the edit.**
+`tools/hooks/guard-sql.mjs` matches `grant … to … anon` across *any* string in a
+tool call, including English prose. The finding text inside
+`tg_nightly_platform_check()` contains *"…holds the grant. Then run
+… to confirm zero"* followed by *"anon relations"* — no `GRANT` statement
+anywhere, but the pattern matches. **Any future edit to that function is
+blocked, permanently.** The guard's own message says to tell the owner rather
+than work around it, so nothing was worked around. Ruling needed: tighten the
+pattern to real SQL statements, or reword the finding text.
+
+---
+
 ## 1 · LICENCE RISK — outranks every dollar below
 
 **$163,130 of product cannot legally be sold. None of it was ever submitted
