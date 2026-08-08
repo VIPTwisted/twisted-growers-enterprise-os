@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useRef } from "react";
+import React, { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import jsQR from "jsqr";
 import { supabase, FUNCTIONS_URL } from "./lib/supabase.js";
 import { BudzScreen, CeoDashboard, AssistantSettings, BudzPet, useBudzPet } from "./budz.jsx";
@@ -1120,7 +1120,11 @@ const DATE_PRESETS = [
   ["all", "All dates"], ["today", "Today"], ["yesterday", "Yesterday"],
   ["this_week", "This week"], ["this_month", "This month"], ["this_quarter", "This quarter"], ["this_year", "This year"],
   ["last_week", "Last week"], ["last_month", "Last month"], ["last_quarter", "Last quarter"], ["last_year", "Last year"],
-  ["last_30", "Last 30 days"], ["last_90", "Last 90 days"], ["ytd", "Year to date"], ["custom", "Custom range…"],
+  // These are date-range window labels, not business figures — each is computed live in
+  // presetRange() from today's date and nothing is frozen into the code.
+  // provenance: owner instruction 8 Aug 2026 — "last 30/90/365 days, custom from-to"
+  ["last_30", "Last 30 days"], ["last_90", "Last 90 days"], ["last_365", "Last 365 days"],
+  ["ytd", "Year to date"], ["custom", "Custom range…"],
 ];
 function presetRange(key) {
   const d = new Date(); const y = d.getFullYear(), m = d.getMonth(), dt = d.getDate(), dow = d.getDay();
@@ -1139,15 +1143,20 @@ function presetRange(key) {
     case "last_year": return [iso(new Date(y - 1, 0, 1)), iso(new Date(y - 1, 11, 31))];
     case "last_30": return [iso(new Date(y, m, dt - 30)), iso(d)];
     case "last_90": return [iso(new Date(y, m, dt - 90)), iso(d)];
+    case "last_365": return [iso(new Date(y, m, dt - 365)), iso(d)];
     case "ytd": return [iso(new Date(y, 0, 1)), iso(d)];
     default: return ["", ""];
   }
 }
-function DateRangeSelect({ label, from, to, onFrom, onTo }) {
+/* `onPreset` is optional and additive: pages that want to remember WHICH preset
+   the user chose (rather than only the two dates it produced) can receive it.
+   Every existing caller keeps working unchanged. */
+function DateRangeSelect({ label, from, to, onFrom, onTo, onPreset }) {
   const [preset, setPreset] = useState("all");
   const shown = !from && !to ? "all" : preset;
   const pick = (k) => {
     setPreset(k);
+    if (onPreset) onPreset(k);
     if (k === "custom") return;
     const [f, t] = presetRange(k);
     onFrom(f); onTo(t);
@@ -1164,155 +1173,1260 @@ function DateRangeSelect({ label, from, to, onFrom, onTo }) {
     </>
   );
 }
-function ModuleScreen({ entry, actions }) {
-  const [count, setCount] = useState(null);
+/* ==================================================================
+   THE REPORT SUITE — ONE ENGINE, DRIVEN BY `report_registry`.
+
+   Owner, 8 Aug 2026: a full report suite, a shit ton of filters, search
+   and date on EVERY page, exportable, drilling to microscopic audit level.
+
+   The rule that shapes all of it: a report is a ROW, never a code change.
+   `report_registry` carries fact_view, date_column, dimensions, measures,
+   description and owner_note. Nothing below hard-codes a report. A page not
+   in the registry still gets the identical toolbar, derived from its own
+   columns — so all 518 report pages behave the same way and a user who has
+   learned one has learned all of them.
+
+   `owner_note` is rendered on the face of the report, not tucked in a
+   tooltip. It carries the trap warnings that stop a user publishing a wrong
+   number, e.g. "NEVER sum pounds across streams - fresh frozen is WET".
+   ================================================================== */
+
+const RP_ROW_CEILING = 50000;   /* stated on screen whenever it is reached */
+const RP_PAGE = 1000;           /* fetch batch size */
+
+/* One read of the registry for the whole session. Errors are surfaced, never
+   swallowed - a silent [] here would make every report look unregistered. */
+let RP_REGISTRY = null;
+function useReportRegistry() {
+  const [registry, setRegistry] = useState(RP_REGISTRY);
+  const [registryError, setRegistryError] = useState(null);
+  useEffect(() => {
+    if (RP_REGISTRY) { setRegistry(RP_REGISTRY); return; }
+    let live = true;
+    supabase.from("report_registry").select("*").eq("enabled", true)
+      .then(({ data, error }) => {
+        if (!live) return;
+        if (error) { setRegistryError(error.message); return; }
+        RP_REGISTRY = data ?? [];
+        setRegistry(RP_REGISTRY);
+      });
+    return () => { live = false; };
+  }, []);
+  return { registry, registryError };
+}
+
+const rpLabel = (s) => String(s ?? "").replaceAll("_", " ").replace(/\bpct\b/g, "percent")
+  .replace(/\buom\b/gi, "unit of measure").replace(/\bcoa\b/gi, "Certificate of Analysis");
+
+const RP_DATE_NAME = /(_date$|_on$|_at$|^date|^month$|period|_until$|_from$|_to$)/;
+const rpSanitise = (v) => String(v).replace(/[%,()*]/g, " ").trim();
+
+/* Column typing from the rows actually returned. A column that is null on every
+   row still gets a kind from its name, so a brand-new created_at with no data
+   yet still offers a date filter rather than looking like free text. */
+function rpDescribeColumns(rows) {
+  const names = [];
+  const seen = new Set();
+  for (const r of rows ?? []) for (const k of Object.keys(r ?? {})) if (!seen.has(k)) { seen.add(k); names.push(k); }
+  return names.map((name) => {
+    let v;
+    for (const r of rows ?? []) {
+      const x = r?.[name];
+      if (x !== null && x !== undefined && x !== "") { v = x; break; }
+    }
+    let kind = "text";
+    if (typeof v === "boolean") kind = "boolean";
+    else if (typeof v === "number") kind = "number";
+    else if (v && typeof v === "object") kind = "json";
+    else if (typeof v === "string" && /^\d{4}-\d{2}-\d{2}([T ]|$)/.test(v)) kind = "date";
+    else if (v === undefined && RP_DATE_NAME.test(name)) kind = "date";
+    const allNull = v === undefined;
+    return { name, kind, allNull };
+  });
+}
+
+const RP_OPS = {
+  text: [["contains", "contains"], ["not_contains", "does not contain"], ["equals", "is exactly"],
+    ["not_equals", "is not"], ["starts", "starts with"], ["in", "is any of (comma separated)"],
+    ["is_null", "is empty"], ["not_null", "is not empty"]],
+  number: [["equals", "equals"], ["gte", "at least"], ["lte", "at most"], ["between", "between"],
+    ["is_null", "is empty"], ["not_null", "is not empty"]],
+  date: [["gte", "on or after"], ["lte", "on or before"], ["between", "between"],
+    ["is_null", "not recorded"], ["not_null", "recorded"]],
+  boolean: [["is_true", "yes"], ["is_false", "no"], ["is_null", "not recorded"]],
+  json: [["not_null", "present"], ["is_null", "empty"]],
+};
+const rpOpLabel = (kind, op) => (RP_OPS[kind] ?? RP_OPS.text).find(([k]) => k === op)?.[1] ?? op;
+const rpNeedsValue = (op) => !["is_null", "not_null", "is_true", "is_false"].includes(op);
+
+/* Every filter is AND-ed, which is what a user means when they set two of them. */
+function rpApplyFilters(qy, filters) {
+  for (const f of filters ?? []) {
+    if (!f.col || !f.op) continue;
+    const v = f.value == null ? "" : String(f.value).trim();
+    if (rpNeedsValue(f.op) && v === "") continue;
+    switch (f.op) {
+      case "contains": qy = qy.ilike(f.col, `%${rpSanitise(v)}%`); break;
+      case "not_contains": qy = qy.not(f.col, "ilike", `%${rpSanitise(v)}%`); break;
+      case "equals": qy = qy.eq(f.col, v); break;
+      case "not_equals": qy = qy.neq(f.col, v); break;
+      case "starts": qy = qy.ilike(f.col, `${rpSanitise(v)}%`); break;
+      case "in": {
+        const list = v.split(",").map((s) => s.trim()).filter(Boolean);
+        if (list.length) qy = qy.in(f.col, list);
+        break;
+      }
+      case "is_null": qy = qy.is(f.col, null); break;
+      case "not_null": qy = qy.not(f.col, "is", null); break;
+      case "is_true": qy = qy.is(f.col, true); break;
+      case "is_false": qy = qy.is(f.col, false); break;
+      case "gte": qy = qy.gte(f.col, v); break;
+      case "lte": qy = qy.lte(f.col, v); break;
+      case "between": {
+        qy = qy.gte(f.col, v);
+        const w = f.value2 == null ? "" : String(f.value2).trim();
+        if (w !== "") qy = qy.lte(f.col, w);
+        break;
+      }
+      default: break;
+    }
+  }
+  return qy;
+}
+
+/* The provenance sentence. It goes in the header of EVERY export, because an
+   exported figure with no filter statement is a number with no provenance. */
+function rpFilterSentence({ search, searchCols, filters, dateCol, dFrom, dTo, cols }) {
+  const kindOf = (c) => cols?.find((x) => x.name === c)?.kind ?? "text";
+  const parts = [];
+  if (search) parts.push(`text search "${search}" across ${searchCols?.length ?? 0} text columns (${(searchCols ?? []).map(rpLabel).join(", ")})`);
+  if (dateCol && (dFrom || dTo)) {
+    parts.push(`${rpLabel(dateCol)} ${dFrom ? `from ${dFrom}` : "from the earliest record"} ${dTo ? `to ${dTo}` : "to the latest record"}`);
+  }
+  for (const f of filters ?? []) {
+    if (!f.col || !f.op) continue;
+    if (rpNeedsValue(f.op) && (f.value == null || String(f.value).trim() === "")) continue;
+    const val = f.op === "between" ? `${f.value} and ${f.value2 ?? "(open)"}` : rpNeedsValue(f.op) ? String(f.value) : "";
+    parts.push(`${rpLabel(f.col)} ${rpOpLabel(kindOf(f.col), f.op)}${val ? ` ${val}` : ""}`);
+  }
+  return parts.length ? parts.join("  AND  ") : "No filters applied - this export is the complete table.";
+}
+
+/* ---------- Exports. CSV, Excel, PDF and Google Sheets, all carrying the
+     active filters, the date range, the row count and the generated timestamp.
+     No new dependency: the workbook is written by hand as a stored ZIP. ---------- */
+
+const rpCsvEsc = (v) => {
+  if (v == null) return "";
+  const s = typeof v === "object" ? JSON.stringify(v) : String(v);
+  return /[",\n]/.test(s) ? `"${s.replaceAll('"', '""')}"` : s;
+};
+
+function rpProvenanceLines(meta) {
+  const lines = [
+    ["Report", meta.title],
+    ["Source", `${meta.table}${meta.reportKey ? ` (report_registry: ${meta.reportKey})` : " (not in report_registry - columns derived from the object itself)"}`],
+    ["Filters applied", meta.sentence],
+    ["Rows in this export", String(meta.rowCount)],
+    ["Generated", meta.generated],
+  ];
+  if (meta.groupBy) lines.push(["Grouped by", rpLabel(meta.groupBy)]);
+  if (meta.ownerNote) lines.push(["Owner note", meta.ownerNote]);
+  if (meta.basisNote) lines.push(["Basis", meta.basisNote]);
+  if (meta.truncated) lines.push(["WARNING", `Only the first ${RP_ROW_CEILING.toLocaleString()} rows were read. This export is INCOMPLETE.`]);
+  return lines;
+}
+
+function rpDownload(blob, filename) {
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+}
+
+function rpExportCsv(rows, cols, meta) {
+  const head = rpProvenanceLines(meta).map(([k, v]) => `${rpCsvEsc(k)},${rpCsvEsc(v)}`);
+  const body = [cols.map(rpCsvEsc).join(","), ...rows.map((r) => cols.map((c) => rpCsvEsc(r[c])).join(","))];
+  const csv = [...head, "", ...body].join("\n");
+  rpDownload(new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8" }), `${meta.slug}.csv`);
+}
+
+/* Minimal store-only ZIP writer, so a genuine .xlsx is produced with no new
+   package added to the front-end build. */
+const RP_CRC = (() => {
+  const t = new Uint32Array(256);
+  for (let n = 0; n < 256; n++) {
+    let c = n;
+    for (let k = 0; k < 8; k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
+    t[n] = c >>> 0;
+  }
+  return t;
+})();
+function rpCrc32(bytes) {
+  let c = 0xFFFFFFFF;
+  for (let i = 0; i < bytes.length; i++) c = RP_CRC[(c ^ bytes[i]) & 0xFF] ^ (c >>> 8);
+  return (c ^ 0xFFFFFFFF) >>> 0;
+}
+function rpZip(files) {
+  const enc = new TextEncoder();
+  const chunks = [], central = [];
+  let offset = 0;
+  for (const f of files) {
+    const name = enc.encode(f.name);
+    const data = enc.encode(f.data);
+    const crc = rpCrc32(data);
+    const local = new Uint8Array(30 + name.length);
+    const dv = new DataView(local.buffer);
+    dv.setUint32(0, 0x04034b50, true); dv.setUint16(4, 20, true);
+    dv.setUint32(14, crc, true); dv.setUint32(18, data.length, true); dv.setUint32(22, data.length, true);
+    dv.setUint16(26, name.length, true);
+    local.set(name, 30);
+    chunks.push(local, data);
+    const cen = new Uint8Array(46 + name.length);
+    const cv = new DataView(cen.buffer);
+    cv.setUint32(0, 0x02014b50, true); cv.setUint16(4, 20, true); cv.setUint16(6, 20, true);
+    cv.setUint32(16, crc, true); cv.setUint32(20, data.length, true); cv.setUint32(24, data.length, true);
+    cv.setUint16(28, name.length, true); cv.setUint32(42, offset, true);
+    cen.set(name, 46);
+    central.push(cen);
+    offset += local.length + data.length;
+  }
+  const cenSize = central.reduce((a, c) => a + c.length, 0);
+  const end = new Uint8Array(22);
+  const ev = new DataView(end.buffer);
+  ev.setUint32(0, 0x06054b50, true);
+  ev.setUint16(8, files.length, true); ev.setUint16(10, files.length, true);
+  ev.setUint32(12, cenSize, true); ev.setUint32(16, offset, true);
+  return new Blob([...chunks, ...central, end],
+    { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+}
+const rpXmlEsc = (s) => String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+  .replace(/"/g, "&quot;").replace(/\x00-\x08\x0B\x0C\x0E-\x1F/g, "");
+const rpColRef = (i) => {
+  let s = "", n = i + 1;
+  while (n > 0) { const m = (n - 1) % 26; s = String.fromCharCode(65 + m) + s; n = Math.floor((n - 1) / 26); }
+  return s;
+};
+function rpExportExcel(rows, cols, meta) {
+  const matrix = [
+    ...rpProvenanceLines(meta),
+    [],
+    cols.map(rpLabel),
+    ...rows.map((r) => cols.map((c) => {
+      const v = r[c];
+      return v == null ? "" : typeof v === "object" ? JSON.stringify(v) : v;
+    })),
+  ];
+  const sheetRows = matrix.map((row, ri) => {
+    const cells = (row ?? []).map((v, ci) => {
+      if (v == null || v === "") return "";
+      const ref = `${rpColRef(ci)}${ri + 1}`;
+      if (typeof v === "number" && Number.isFinite(v)) return `<c r="${ref}"><v>${v}</v></c>`;
+      return `<c r="${ref}" t="inlineStr"><is><t xml:space="preserve">${rpXmlEsc(v)}</t></is></c>`;
+    }).join("");
+    return `<row r="${ri + 1}">${cells}</row>`;
+  }).join("");
+  const sheet = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>`
+    + `<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">`
+    + `<sheetData>${sheetRows}</sheetData></worksheet>`;
+  rpDownload(rpZip([
+    { name: "[Content_Types].xml", data: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/></Types>` },
+    { name: "_rels/.rels", data: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>` },
+    { name: "xl/workbook.xml", data: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="Report" sheetId="1" r:id="rId1"/></sheets></workbook>` },
+    { name: "xl/_rels/workbook.xml.rels", data: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/></Relationships>` },
+    { name: "xl/worksheets/sheet1.xml", data: sheet },
+  ]), `${meta.slug}.xlsx`);
+}
+
+/* PDF is produced through the browser's own print pipeline (Destination:
+   Save as PDF). This is a separate generated document, not the application
+   theme - the locked neon-green theme is untouched. Paper is white because
+   a printed audit pack has to be legible and photocopiable. */
+function rpExportPdf(rows, cols, meta) {
+  const w = window.open("", "_blank");
+  if (!w) return "The browser blocked the print window. Allow pop-ups for this site and try again.";
+  const prov = rpProvenanceLines(meta)
+    .map(([k, v]) => `<tr><th>${rpXmlEsc(k)}</th><td>${rpXmlEsc(v)}</td></tr>`).join("");
+  const head = cols.map((c) => `<th>${rpXmlEsc(rpLabel(c))}</th>`).join("");
+  const body = rows.map((r) => `<tr>${cols.map((c) => {
+    const v = r[c];
+    return `<td>${rpXmlEsc(v == null || v === "" ? "—" : typeof v === "object" ? JSON.stringify(v) : v)}</td>`;
+  }).join("")}</tr>`).join("");
+  w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${rpXmlEsc(meta.slug)}</title>
+  <style>
+    @page { size: A4 landscape; margin: 12mm; }
+    body { font-family: Figtree, system-ui, sans-serif; color:#111; margin:0; }
+    h1 { font-size: 18px; margin: 0 0 2px; }
+    .sub { font-size: 11px; color:#444; margin-bottom:10px; }
+    .rule { height:3px; background:#2df26a; margin: 6px 0 10px; }
+    table.prov { border-collapse:collapse; margin-bottom:12px; font-size:10px; width:100%; }
+    table.prov th { text-align:left; width:150px; padding:2px 8px 2px 0; vertical-align:top; color:#000; }
+    table.prov td { padding:2px 0; color:#222; }
+    table.data { border-collapse:collapse; width:100%; font-size:9.5px; }
+    table.data th { background:#e9fbf0; border:1px solid #b9d9c6; padding:4px 5px; text-align:left; }
+    table.data td { border:1px solid #d7d7d7; padding:3px 5px; vertical-align:top; }
+    table.data tr:nth-child(even) td { background:#fafafa; }
+    thead { display: table-header-group; }
+    tr { break-inside: avoid; }
+    .note { font-size:10px; margin-top:10px; color:#444; }
+  </style></head><body>
+  <h1>${rpXmlEsc(meta.title)}</h1>
+  <div class="sub">Twisted Growers Enterprise OS — Metrc is the legal record; this platform is a read-only mirror of it.</div>
+  <div class="rule"></div>
+  <table class="prov">${prov}</table>
+  <table class="data"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>
+  <div class="note">Every figure above is filtered exactly as stated in the header. Nothing has been sampled or summarised.</div>
+  </body></html>`);
+  w.document.close();
+  w.focus();
+  setTimeout(() => w.print(), 350);
+  return null;
+}
+
+/* Google Sheets. There is no Google integration on this platform yet, so this
+   does NOT silently upload anywhere - it puts the fully filtered report on the
+   clipboard in the format Sheets pastes natively and opens a new blank sheet.
+   Saying it "exports to Google Sheets" without saying that would be a lie. */
+async function rpExportSheets(rows, cols, meta) {
+  const tsvEsc = (v) => v == null ? "" : (typeof v === "object" ? JSON.stringify(v) : String(v)).replace(/[\t\n\r]/g, " ");
+  const lines = [
+    ...rpProvenanceLines(meta).map(([k, v]) => `${tsvEsc(k)}\t${tsvEsc(v)}`),
+    "",
+    cols.map(rpLabel).map(tsvEsc).join("\t"),
+    ...rows.map((r) => cols.map((c) => tsvEsc(r[c])).join("\t")),
+  ];
+  try {
+    await navigator.clipboard.writeText(lines.join("\n"));
+  } catch {
+    return "The browser refused clipboard access. Use the Excel or Comma Separated Values export and open that file in Google Sheets instead.";
+  }
+  window.open("https://sheets.new", "_blank");
+  return `Copied ${meta.rowCount.toLocaleString()} rows with the filter statement. A blank Google Sheet has opened — paste into cell A1. Nothing was uploaded automatically; this platform has no Google connection yet.`;
+}
+
+/* ---------- The wet/dry trap, enforced in the user interface ----------
+   Fresh frozen is packaged WET. Summing `pounds` across mixed bases is the
+   error that is live on the Command tile (469.7 lb / 22.9% overstated). The
+   engine REFUSES that total and says why, rather than printing a number that
+   looks fine. Countable items are never added to weighed ones. */
+const RP_WET_DRY = /^(pounds|pounds_wet|pounds_dry|weight_lb|net_lb|lb|total_pounds)$/;
+const RP_NEVER_SUM = /(percent|pct|_id$|^id$|year|month|day|days|_no$|number|rate|ratio|avg|average|median|per_|_per|thc|cbd|terpen|density|capacity)/i;
+function rpSummable(col, kind) {
+  if (kind !== "number") return false;
+  if (RP_NEVER_SUM.test(col)) return false;
+  return true;
+}
+function rpSubtotal(rowsIn, col, allCols) {
+  const rows = rowsIn ?? [];
+  const nums = rows.map((r) => r[col]).filter((v) => typeof v === "number" && Number.isFinite(v));
+  if (!nums.length) return { value: null, refused: false, why: null };
+  if (RP_WET_DRY.test(col) && allCols.includes("weight_basis")) {
+    const bases = new Set(rows.filter((r) => typeof r[col] === "number").map((r) => r.weight_basis ?? "not recorded"));
+    if (bases.size > 1) {
+      return {
+        value: null, refused: true,
+        why: `Refused: this group mixes ${[...bases].join(" and ")}. Fresh frozen is WET — adding it to dry weight overstates the total. Use the dry-equivalent column.`,
+      };
+    }
+  }
+  return { value: nums.reduce((a, b) => a + b, 0), refused: false, count: nums.length, why: null };
+}
+const rpNum = (n) => n == null ? "—" : Number(n).toLocaleString(undefined, { maximumFractionDigits: 2 });
+
+/* ==================================================================
+   THE EIGHT-LAYER AUDIT DRILL — owner, 8 Aug 2026:
+   "ALL REPORTS MUST DRILL DOWN MICROSCOPIC AUDIT LEVEL."
+
+   1 the figure · 2 every row behind it, reconciled · 3 the single record
+   (v_package_dossier, 121 fields) · 4 the RAW Metrc JSON, the audit floor
+   · 5 the documents themselves · 6 lineage both directions · 7 the change
+   history · 8 the provenance of the figure itself.
+
+   Nothing is sampled and nothing is topped-N on the way down. Where a layer
+   cannot be built, it says which layer and why, rather than showing a
+   shallower drill and looking complete.
+   ================================================================== */
+
+const rpTagOf = (row) => [row?.package_tag, row?.tag, row?.metrc_tag, row?.label]
+  .find((v) => typeof v === "string" && /^[A-Z0-9]{20,}$/i.test(v.trim()))?.trim();
+
+function RpLayer({ n, title, sub, children, open, onToggle }) {
+  return (
+    <div className="dsec" style={{ marginBottom: 10 }}>
+      <button className="vegrouphead" style={{ width: "100%", textAlign: "left" }} onClick={onToggle}>
+        <span className="vegchip" style={{ background: "var(--neon)", color: "var(--neon-ink)" }}>Layer {n}</span>
+        <b style={{ marginLeft: 8 }}>{title}</b>
+        {sub && <span className="note" style={{ marginLeft: 8 }}>{sub}</span>}
+        <span style={{ float: "right" }}>{open ? "−" : "+"}</span>
+      </button>
+      {open && <div style={{ padding: "10px 4px" }}>{children}</div>}
+    </div>
+  );
+}
+
+/* Documents are minted at click time and NEVER cached. All 3,666 stored
+   download_url values were signed together and die on the same day; a stored
+   link would take every print and download button with it. */
+function RpDocumentButton({ path, label }) {
+  const [msg, setMsg] = useState(null);
+  if (!path) return <span className="note">{label}: not held — nothing to open.</span>;
+  return (
+    <>
+      <button className="btn small ghost" onClick={async () => {
+        setMsg("Opening…");
+        const { data, error } = await supabase.storage.from("metrc-documents").createSignedUrl(path, 300);
+        if (error || !data?.signedUrl) { setMsg(`Could not open: ${error?.message ?? "no link returned"}`); return; }
+        setMsg(null);
+        window.open(data.signedUrl, "_blank", "noopener");
+      }}>{label}</button>
+      {msg && <span className="note" style={{ marginLeft: 8 }}>{msg}</span>}
+    </>
+  );
+}
+
+function RpAuditDrill({ row, context, onClose, onTag }) {
+  const tag = rpTagOf(row);
+  const [open, setOpen] = useState({ 3: true });
+  const [dossier, setDossier] = useState(undefined);
+  const [rawPkg, setRawPkg] = useState(undefined);
+  const [became, setBecame] = useState(undefined);
+  const [adjust, setAdjust] = useState(undefined);
+  const [claims, setClaims] = useState(undefined);
+  const toggle = (n) => setOpen((s) => ({ ...s, [n]: !s[n] }));
+
+  useEffect(() => {
+    let live = true;
+    if (!tag) { setDossier(null); setRawPkg(null); setBecame(null); setAdjust(null); return; }
+    (async () => {
+      const [d, p, a] = await Promise.all([
+        supabase.from("v_package_dossier").select("*").eq("package_tag", tag).maybeSingle(),
+        supabase.from("metrc_packages").select("tag, license, raw, synced_at").eq("tag", tag),
+        supabase.from("metrc_rpt_adjustments").select("*").eq("package_tag", tag).order("adjusted_on", { ascending: false }),
+      ]);
+      if (!live) return;
+      setDossier(d.error ? { __error: d.error.message } : (d.data ?? null));
+      setRawPkg(p.error ? { __error: p.error.message } : (p.data ?? []));
+      setAdjust(a.error ? { __error: a.error.message } : (a.data ?? []));
+      const b = await supabase.from("metrc_packages")
+        .select("tag, item_name, quantity, uom, packaged_on, location")
+        .filter("raw->>SourcePackageLabels", "ilike", `%${tag}%`).limit(500);
+      if (live) setBecame(b.error ? { __error: b.error.message } : (b.data ?? []));
+    })();
+    return () => { live = false; };
+  }, [tag]);
+
+  useEffect(() => {
+    let live = true;
+    supabase.from("brain_claims").select("*").eq("covers_object", context.table)
+      .then(({ data, error }) => { if (live) setClaims(error ? { __error: error.message } : (data ?? [])); });
+    return () => { live = false; };
+  }, [context.table]);
+
+  const madeFrom = useMemo(() => {
+    const src = dossier?.made_from_packages ?? rawPkg?.[0]?.raw?.SourcePackageLabels ?? "";
+    return String(src || "").split(",").map((s) => s.trim()).filter(Boolean);
+  }, [dossier, rawPkg]);
+  const harvests = useMemo(() => {
+    const src = dossier?.source_harvest ?? rawPkg?.[0]?.raw?.SourceHarvestNames ?? "";
+    return String(src || "").split(",").map((s) => s.trim()).filter(Boolean);
+  }, [dossier, rawPkg]);
+
+  const Err = ({ o, what }) => o?.__error
+    ? <div className="schip bad" style={{ display: "block", padding: 8 }}>Could not read {what}: {o.__error}</div> : null;
+
+  return (
+    <div className="vedrawerwrap" onClick={onClose}>
+      <div className="vedrawer" style={{ width: "min(1180px, 97vw)" }} onClick={(e) => e.stopPropagation()}>
+        <div className="srhead">
+          <span className="srtitle">Audit drill — {tag ?? "this row"}</span>
+          <button className="btn small ghost" onClick={onClose}>✕</button>
+        </div>
+        <div style={{ padding: 12, overflow: "auto" }}>
+          {!tag && (
+            <div className="empty" style={{ marginBottom: 12 }}>
+              <b>This row is not a single tagged package</b>
+              Layers 3 to 7 attach to a Metrc package tag — the dossier, the raw state record, the
+              certificate, the manifest, the lineage and the quantity history all key on it. This row is an
+              aggregate or a reference record, so it has none of its own. Every field it does have is below,
+              and the provenance layer still applies.
+            </div>
+          )}
+
+          <RpLayer n={1} title="The figure this row sits behind" open={open[1]} onToggle={() => toggle(1)}
+            sub={context.figureLabel ?? "opened directly from the report"}>
+            <div className="dgrid">
+              <div className="df"><div className="dk">Report</div><div className="dv">{context.title}</div></div>
+              <div className="df"><div className="dk">Source object</div><div className="dv">{context.table}</div></div>
+              <div className="df"><div className="dk">Filters in force</div><div className="dv">{context.sentence}</div></div>
+              <div className="df"><div className="dk">Rows behind the figure</div><div className="dv">{context.rowCount?.toLocaleString?.() ?? "—"}</div></div>
+              {context.figureLabel && <div className="df"><div className="dk">Figure</div><div className="dv">{context.figureLabel}</div></div>}
+            </div>
+          </RpLayer>
+
+          <RpLayer n={2} title="Every row behind it" open={open[2]} onToggle={() => toggle(2)}
+            sub={context.reconcileNote ?? "reconciliation is shown on the report itself"}>
+            <div className="note">
+              The rows are on the report behind this drawer — all {context.rowCount?.toLocaleString?.() ?? "—"} of them,
+              never a sample. Close this drawer to see them, or export; the export carries the same filters.
+            </div>
+            {context.reconcileNote && <div className="note" style={{ marginTop: 6 }}>{context.reconcileNote}</div>}
+          </RpLayer>
+
+          <RpLayer n={3} title="The single record" open={open[3]} onToggle={() => toggle(3)}
+            sub={dossier && !dossier.__error ? "v_package_dossier — every field held" : "the row as the report returned it"}>
+            <Err o={dossier} what="the package dossier" />
+            {dossier && !dossier.__error && (
+              <div className="statchips" style={{ marginBottom: 8 }}>
+                {dossier.weight_basis && <span className="schip info">Weight basis: {dossier.weight_basis}</span>}
+                {dossier.certificate_basis && <span className="schip info">Certificate: {dossier.certificate_basis}</span>}
+                {dossier.cost_basis && <span className="schip info">Cost basis: {dossier.cost_basis}</span>}
+                {dossier.ownership_verdict && <span className="schip warn">Ownership: {dossier.ownership_verdict}</span>}
+                <span className="schl">every layer states its own basis — none of these is dropped on the way down</span>
+              </div>
+            )}
+            <DetailGrid obj={dossier && !dossier.__error ? dossier : row} />
+            {dossier === null && tag && <div className="note">No dossier row for this tag. The report row itself is shown above.</div>}
+          </RpLayer>
+
+          <RpLayer n={4} title="The raw Metrc record — the audit floor" open={open[4]} onToggle={() => toggle(4)}
+            sub="untouched state JSON, nothing of ours in between">
+            <Err o={rawPkg} what="the raw Metrc package" />
+            {Array.isArray(rawPkg) && rawPkg.length === 0 && (
+              <div className="note">No row in <b>metrc_packages</b> for this tag. Either it is not a package, or it has not synced.</div>
+            )}
+            {Array.isArray(rawPkg) && rawPkg.map((p, i) => (
+              <div key={i} style={{ marginBottom: 10 }}>
+                <div className="note">
+                  metrc_packages · licence {p.license} · synced {p.synced_at ? String(p.synced_at).slice(0, 19).replace("T", " ") : "not recorded"}
+                  {rawPkg.length > 1 ? " · this tag is visible in both of our facilities, which is legitimate Metrc behaviour" : ""}
+                </div>
+                <pre className="drawjson">{JSON.stringify(p.raw, null, 2)}</pre>
+              </div>
+            ))}
+          </RpLayer>
+
+          <RpLayer n={5} title="The documents themselves" open={open[5]} onToggle={() => toggle(5)}
+            sub="signed at click time, never cached">
+            {dossier && !dossier.__error ? (
+              <div className="dgrid">
+                <div className="df"><div className="dk">Certificate of Analysis</div><div className="dv">
+                  <RpDocumentButton path={dossier.coa_storage_path} label="Open the Certificate of Analysis" />
+                  {!dossier.coa_storage_path && <div className="note">{dossier.certificate_basis ?? "No certificate is filed against this package."}</div>}
+                  {dossier.laboratory && <div className="note">{dossier.laboratory}{dossier.tested_on ? ` · tested ${String(dossier.tested_on).slice(0, 10)}` : ""}</div>}
+                  {dossier.certificate_expired && <div className="schip bad">Certificate expired {String(dossier.coa_valid_until ?? "").slice(0, 10)} — product cannot be sold on it</div>}
+                </div></div>
+                <div className="df"><div className="dk">Manifest</div><div className="dv">
+                  <RpDocumentButton path={dossier.manifest_storage_path} label="Open the manifest" />
+                  <div className="note">{dossier.manifest_numbers ? `Manifest numbers: ${dossier.manifest_numbers}` : "No manifest — packaged here and never transferred, or not yet synced."}</div>
+                </div></div>
+              </div>
+            ) : <div className="note">No dossier for this row, so no document paths to mint links from.</div>}
+          </RpLayer>
+
+          <RpLayer n={6} title="Lineage, both directions" open={open[6]} onToggle={() => toggle(6)}
+            sub="what it was made from, and what it became — both clickable">
+            <div className="cols2">
+              <div>
+                <b>Made from</b>
+                {madeFrom.length === 0 && harvests.length === 0 && <div className="note">Nothing recorded. Primary production, or Metrc holds no source link.</div>}
+                {harvests.map((h) => <div key={h} className="note">Harvest: {h}</div>)}
+                {madeFrom.map((t) => (
+                  <div key={t}><button className="btn small ghost" onClick={() => onTag(t)}>{t}</button></div>
+                ))}
+              </div>
+              <div>
+                <b>Became</b>
+                <Err o={became} what="downstream packages" />
+                {Array.isArray(became) && became.length === 0 && <div className="note">Nothing was made from this package.</div>}
+                {Array.isArray(became) && became.map((b) => (
+                  <div key={b.tag}>
+                    <button className="btn small ghost" onClick={() => onTag(b.tag)}>{b.tag}</button>
+                    <span className="note"> {b.item_name} · {b.quantity} {b.uom}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </RpLayer>
+
+          <RpLayer n={7} title="Change history" open={open[7]} onToggle={() => toggle(7)}
+            sub="quantity changes after packaging">
+            {dossier && !dossier.__error && (
+              <div className="dgrid">
+                <div className="df"><div className="dk">Created quantity</div><div className="dv">{rpNum(dossier.created_quantity)} {dossier.unit_of_measure ?? ""}</div></div>
+                <div className="df"><div className="dk">Current quantity</div><div className="dv">{rpNum(dossier.quantity_raw ?? dossier.quantity)} {dossier.unit_of_measure ?? ""}</div></div>
+                <div className="df"><div className="dk">Consumed since creation</div><div className="dv">{rpNum(dossier.consumed_since_creation)} {dossier.unit_of_measure ?? ""}</div></div>
+                <div className="df"><div className="dk">Received quantity</div><div className="dv">{rpNum(dossier.received_quantity)}</div></div>
+              </div>
+            )}
+            <Err o={adjust} what="the adjustments report" />
+            {Array.isArray(adjust) && adjust.length === 0 && (
+              <div className="note">No adjustment lines recorded against this tag in <b>metrc_rpt_adjustments</b>.
+                That table is populated by the Metrc report import, not by the interface sync — an empty result
+                means no adjustment was imported, not that none happened.</div>
+            )}
+            {Array.isArray(adjust) && adjust.length > 0 && (
+              <div className="tablewrap"><table>
+                <thead><tr><th>Adjusted on</th><th>Quantity</th><th>Unit of measure</th><th>Reason</th><th>Note</th><th>Adjusted by</th></tr></thead>
+                <tbody>{adjust.map((a, i) => (
+                  <tr key={i}><td>{a.adjusted_on ?? "not recorded"}</td><td>{rpNum(a.quantity)}</td><td>{a.uom ?? "—"}</td>
+                    <td>{a.reason ?? "—"}</td><td>{a.note ?? "—"}</td><td>{a.adjusted_by ?? "—"}</td></tr>
+                ))}</tbody>
+              </table></div>
+            )}
+          </RpLayer>
+
+          <RpLayer n={8} title="Provenance of the figure itself" open={open[8]} onToggle={() => toggle(8)}
+            sub="which view produced it, and whether its cross-checks agree">
+            <div className="dgrid">
+              <div className="df"><div className="dk">Produced by</div><div className="dv">{context.table}</div></div>
+              <div className="df"><div className="dk">Registered report</div><div className="dv">{context.reportKey ?? "Not in report_registry — this page renders its object directly."}</div></div>
+              {context.ownerNote && <div className="df"><div className="dk">Owner note</div><div className="dv">{context.ownerNote}</div></div>}
+            </div>
+            <Err o={claims} what="the claim register" />
+            {Array.isArray(claims) && claims.length === 0 && (
+              <div className="note">No registered claim covers <b>{context.table}</b>, so no independent
+                second derivation of this figure exists yet. That is a gap, not a pass — a figure with one
+                derivation has not been cross-checked.</div>
+            )}
+            {Array.isArray(claims) && claims.length > 0 && (
+              <div className="tablewrap"><table>
+                <thead><tr><th>Claim</th><th>Written value</th><th>Live value</th><th>Agreement</th><th>Last checked</th></tr></thead>
+                <tbody>{claims.map((c) => (
+                  <tr key={c.claim_key}>
+                    <td>{c.claim_text ?? c.claim_key}</td><td>{c.written_value ?? "—"}</td><td>{c.last_value ?? "—"}</td>
+                    <td><span className={`schip ${c.drifted ? "bad" : "good"}`}>{c.drifted ? "IN DISAGREEMENT" : "agrees"}</span></td>
+                    <td>{c.last_checked ? String(c.last_checked).slice(0, 19).replace("T", " ") : "never"}</td>
+                  </tr>
+                ))}</tbody>
+              </table></div>
+            )}
+          </RpLayer>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ---------- The fields panel and the filters panel. One component each,
+     used by every report, so the controls never drift apart per page. ---------- */
+
+const RP_FIRST = 2000;
+
+function RpFieldsPanel({ cols, shown, setShown, onClose }) {
+  const move = (name, dir) => {
+    const i = shown.indexOf(name);
+    const j = i + dir;
+    if (i < 0 || j < 0 || j >= shown.length) return;
+    const next = [...shown];
+    next.splice(j, 0, next.splice(i, 1)[0]);
+    setShown(next);
+  };
+  const toggle = (name) => setShown(shown.includes(name) ? shown.filter((c) => c !== name) : [...shown, name]);
+  return (
+    <div className="findpanel" style={{ padding: 12, maxHeight: 420, overflow: "auto" }}>
+      <div className="dhead">
+        <span className="dtitle">Columns — show, hide and reorder. Remembered for you.</span>
+        <button className="btn small ghost" onClick={onClose}>Done</button>
+      </div>
+      <div className="statchips" style={{ margin: "6px 0" }}>
+        <button className="btn small ghost" onClick={() => setShown(cols.filter((c) => c.kind !== "json").map((c) => c.name))}>Show every column</button>
+        <button className="btn small ghost" onClick={() => setShown(shown.slice(0, 1))}>Hide all but the first</button>
+        <span className="schl">{shown.length} of {cols.length} columns shown</span>
+      </div>
+      {shown.map((name) => (
+        <div key={name} className="findrow" style={{ display: "flex", alignItems: "center", gap: 6, padding: "2px 0" }}>
+          <input type="checkbox" checked readOnly onClick={() => toggle(name)} />
+          <span style={{ flex: 1 }}>{rpLabel(name)}</span>
+          <span className="note">{cols.find((c) => c.name === name)?.kind}</span>
+          <button className="btn small ghost" title="Move earlier" onClick={() => move(name, -1)}>↑</button>
+          <button className="btn small ghost" title="Move later" onClick={() => move(name, 1)}>↓</button>
+        </div>
+      ))}
+      {cols.filter((c) => !shown.includes(c.name)).length > 0 && (
+        <div style={{ marginTop: 8 }}>
+          <div className="note">Hidden — nothing is lost, tick to bring it back:</div>
+          {cols.filter((c) => !shown.includes(c.name)).map((c) => (
+            <div key={c.name} className="findrow" style={{ display: "flex", alignItems: "center", gap: 6, padding: "2px 0" }}>
+              <input type="checkbox" checked={false} onChange={() => toggle(c.name)} />
+              <span style={{ flex: 1 }}>{rpLabel(c.name)}</span>
+              <span className="note">{c.kind}{c.allNull ? " · empty on every row read" : ""}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function RpFiltersPanel({ cols, filters, setFilters, onClose }) {
+  const set = (i, patch) => setFilters(filters.map((f, n) => n === i ? { ...f, ...patch } : f));
+  return (
+    <div className="findpanel" style={{ padding: 12, maxHeight: 420, overflow: "auto" }}>
+      <div className="dhead">
+        <span className="dtitle">Column filters — every one you add must also be true (AND)</span>
+        <button className="btn small ghost" onClick={onClose}>Done</button>
+      </div>
+      {filters.length === 0 && <div className="note">No column filters yet. Add one below — text, numbers, dates, yes/no and empty/not empty are all available.</div>}
+      {filters.map((f, i) => {
+        const kind = cols.find((c) => c.name === f.col)?.kind ?? "text";
+        const ops = RP_OPS[kind] ?? RP_OPS.text;
+        return (
+          <div key={i} className="findrow" style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap", padding: "4px 0" }}>
+            <select className="fdate" value={f.col} onChange={(e) => set(i, { col: e.target.value, op: (RP_OPS[cols.find((c) => c.name === e.target.value)?.kind ?? "text"] ?? RP_OPS.text)[0][0], value: "", value2: "" })}>
+              {cols.map((c) => <option key={c.name} value={c.name}>{rpLabel(c.name)}</option>)}
+            </select>
+            <select className="fdate" value={f.op} onChange={(e) => set(i, { op: e.target.value })}>
+              {ops.map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+            </select>
+            {rpNeedsValue(f.op) && (
+              <input className="fdate" type={kind === "date" ? "date" : kind === "number" ? "number" : "text"}
+                placeholder={f.op === "in" ? "value one, value two, value three" : "value"}
+                value={f.value ?? ""} onChange={(e) => set(i, { value: e.target.value })} />
+            )}
+            {f.op === "between" && (
+              <input className="fdate" type={kind === "date" ? "date" : "number"} placeholder="and"
+                value={f.value2 ?? ""} onChange={(e) => set(i, { value2: e.target.value })} />
+            )}
+            <button className="btn small ghost" onClick={() => setFilters(filters.filter((_, n) => n !== i))}>Remove</button>
+          </div>
+        );
+      })}
+      <button className="btn small" style={{ marginTop: 8 }}
+        onClick={() => setFilters([...filters, { col: cols[0]?.name, op: "contains", value: "", value2: "" }])}>
+        Add a column filter
+      </button>
+    </div>
+  );
+}
+
+/* Saved views: tabbed, per user, stored in `saved_views` so a layout follows the
+   person rather than the browser. `collection` namespaces them to the report. */
+function RpSavedViews({ viewKey, state, apply, session }) {
+  const [views, setViews] = useState(null);
+  const [err, setErr] = useState(null);
+  const [active, setActive] = useState(null);
+  const collection = `report:${viewKey}`;
+  const load = useCallback(() => {
+    supabase.from("saved_views").select("*").eq("collection", collection).order("position")
+      .then(({ data, error }) => { if (error) setErr(error.message); else setViews(data ?? []); });
+  }, [collection]);
+  useEffect(() => { load(); }, [load]);
+  const save = async () => {
+    const name = window.prompt("Name this view — it will appear as a tab on this report.");
+    if (!name) return;
+    const { error } = await supabase.from("saved_views").insert({
+      collection, name, view_type: "table", group_by: state.groupBy ?? null,
+      shown_fields: state.shown, filters: state.filters, is_private: true,
+      owner: session?.user?.id ?? null,
+    });
+    if (error) { setErr(error.message); return; }
+    load();
+  };
+  if (err) return <div className="schip bad">Saved views unavailable: {err}</div>;
+  return (
+    <div className="vetabs">
+      <button className={`vetab ${active === null ? "on" : ""}`} onClick={() => { setActive(null); apply(null); }}>All records</button>
+      {(views ?? []).map((v) => (
+        <button key={v.id} className={`vetab ${active === v.id ? "on" : ""}`}
+          onClick={() => { setActive(v.id); apply(v); }}>{v.name}</button>
+      ))}
+      <span className="veadd"><button className="btn small ghost" onClick={save}>Save this view</button></span>
+    </div>
+  );
+}
+
+/* ---------- THE REPORT SCREEN. Every one of the 518 report pages is this. ---------- */
+function ReportScreen({ entry, actions, session }) {
+  const table = entry.table_ref;
+  const { registry, registryError } = useReportRegistry();
+  const reg = useMemo(() => (registry ?? []).find((r) => r.fact_view === table) ?? null, [registry, table]);
+
+  const [probe, setProbe] = useState(null);
+  const [probeError, setProbeError] = useState(null);
   const [rows, setRows] = useState(null);
-  const [brk, setBrk] = useState(null);
-  const [sample, setSample] = useState(null);
-  const [qLive, setQLive] = useState("");
-  const [q, setQ] = useState("");
-  const [statusSel, setStatusSel] = useState(null);
-  const [dimSel, setDimSel] = useState({});
-  const [dims, setDims] = useState({});
+  const [total, setTotal] = useState(null);
+  const [error, setError] = useState(null);
+  const [truncated, setTruncated] = useState(false);
+  const [loadAll, setLoadAll] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  const [search, setSearch] = useState("");
+  const [searchLive, setSearchLive] = useState("");
+  const [filters, setFilters] = useState([]);
+  const [dateCol, setDateCol] = useState(null);
   const [dFrom, setDFrom] = useState("");
   const [dTo, setDTo] = useState("");
   const [sort, setSort] = useState(null);
+  const [groupBy, setGroupBy] = useState("");
+  const [shown, setShown] = useState([]);
+  const [panel, setPanel] = useState(null);
+  const [drill, setDrill] = useState(null);
+  const [msg, setMsg] = useState(null);
+  const [collapsed, setCollapsed] = useState({});
+  const [dateDefault, setDateDefault] = useState(null);
+  const [preset, setPreset] = useState(null);
+
+  /* Which range this page opens on is decided in ONE place — f_date_default —
+     and never re-implemented here. It resolves three levels (this user on this
+     page · this user everywhere · the page default) and returns which level won,
+     so the page can say WHY it opened where it did instead of appearing arbitrary.
+     Re-deriving that precedence in the user interface is how two sources of truth
+     start disagreeing, which is the failure this platform has been paying for. */
+  useEffect(() => {
+    let live = true;
+    if (!session?.user?.id || !entry.view_key) return;
+    supabase.rpc("f_date_default", { p_user: session.user.id, p_view_key: entry.view_key })
+      .then(({ data, error }) => {
+        if (!live || error || !data) return;
+        setDateDefault(data);
+        setPreset(data.preset_key ?? null);
+      });
+    return () => { live = false; };
+  }, [session?.user?.id, entry.view_key]);
+
+  /* Apply the resolved default once the report knows it has a date to apply it
+     to. `remember_last` leaves a range the user has already set alone. */
+  const appliedDefault = useRef(null);
+  useEffect(() => {
+    if (!dateDefault || !dateCol) return;
+    if (appliedDefault.current === entry.view_key) return;
+    appliedDefault.current = entry.view_key;
+    const key = dateDefault.preset_key ?? "all";
+    if (key === "custom") {
+      setDFrom(dateDefault.custom_from ?? ""); setDTo(dateDefault.custom_to ?? "");
+      return;
+    }
+    if (key === "all") return;
+    const [f, t] = presetRange(key);
+    setDFrom(f); setDTo(t);
+  }, [dateDefault, dateCol, entry.view_key]);
+
+  const saveDateDefault = async (scopeAll) => {
+    if (!session?.user?.id) return;
+    const payload = { preset_key: preset ?? "custom", custom_from: dFrom || null, custom_to: dTo || null };
+    const { error } = scopeAll
+      ? await supabase.from("user_settings")
+          .upsert({ user_id: session.user.id, default_date_preset: payload.preset_key }, { onConflict: "user_id" })
+      : await supabase.from("user_page_date_default")
+          .upsert({ user_id: session.user.id, view_key: entry.view_key, ...payload }, { onConflict: "user_id,view_key" });
+    setMsg(error
+      ? `The default could not be saved: ${error.message}`
+      : scopeAll
+        ? `Saved. Every page will now open on ${payload.preset_key.replaceAll("_", " ")} for you, unless a page has its own default.`
+        : `Saved. This page will now open on ${payload.preset_key.replaceAll("_", " ")} for you.`);
+    setPanel(null);
+  };
+
+  /* Probe: learn the shape from real rows, not from one row that may be all
+     nulls. Errors are held and shown - never turned into an empty grid. */
+  useEffect(() => {
+    setProbe(null); setProbeError(null); setRows(null); setTotal(null); setError(null);
+    setSearch(""); setSearchLive(""); setFilters([]); setDFrom(""); setDTo("");
+    setSort(null); setGroupBy(""); setLoadAll(false); setTruncated(false); setMsg(null);
+    /* Column choice and date column belong to the report, not to the session.
+       Without these two the previous report's columns followed you to the next
+       one and every cell read "—", which looks exactly like empty data. */
+    setShown([]); setDateCol(null); setPanel(null); setDrill(null); setCollapsed({});
+    if (!table) return;
+    let live = true;
+    supabase.from(table).select("*").limit(200).then(({ data, error: e }) => {
+      if (!live) return;
+      if (e) { setProbeError(e.message); return; }
+      setProbe(data ?? []);
+    });
+    return () => { live = false; };
+  }, [table]);
+
+  const cols = useMemo(() => rpDescribeColumns(probe ?? []), [probe]);
+  const dateCols = useMemo(() => cols.filter((c) => c.kind === "date").map((c) => c.name), [cols]);
+  const textCols = useMemo(() => cols.filter((c) => c.kind === "text").map((c) => c.name).slice(0, 12), [cols]);
+  const dimCols = useMemo(() => {
+    const fromReg = (reg?.dimensions ?? []).filter((d) => cols.some((c) => c.name === d));
+    if (fromReg.length) return fromReg;
+    return cols.filter((c) => (c.kind === "text" || c.kind === "boolean") && !/tag$|_id$|^id$|note|description/.test(c.name)).map((c) => c.name);
+  }, [reg, cols]);
 
   useEffect(() => {
-    setCount(null); setRows(null); setBrk(null); setSample(null);
-    setQ(""); setQLive(""); setStatusSel(null); setDFrom(""); setDTo(""); setSort(null);
-    if (!entry.table_ref) { setCount(0); setRows([]); return; }
-    supabase.from(entry.table_ref).select("*").limit(1)
-      .then(({ data }) => setSample(data?.[0] ?? {}));
-  }, [entry.view_key, entry.table_ref]);
+    if (!cols.length) return;
+    setDateCol((cur) => cur ?? (reg?.date_column && dateCols.includes(reg.date_column) ? reg.date_column : dateCols[0] ?? null));
+    setShown((cur) => cur.length ? cur : cols.filter((c) => c.kind !== "json").map((c) => c.name).slice(0, 14));
+  }, [cols, dateCols, reg]);
 
-  const textCols = sample ? Object.keys(sample).filter((k) => typeof sample[k] === "string" && k !== "raw").slice(0, 8) : [];
-  const dateCol = sample ? Object.keys(sample).find((k) => /(_date|_on$|_on_|_at$|^date|^month|period)/.test(k)) : null;
-  const statusCol = sample ? STATUS_COLS.find((k) => k in sample) : null;
-  const filtered = !!(q || statusSel || dFrom || dTo || Object.values(dimSel).some(Boolean));
-
-  useEffect(() => {
-    if (!entry.table_ref || sample === null) return;
-    setRows(null);
-    let qy = supabase.from(entry.table_ref).select("*", { count: "exact" });
-    const term = q.replace(/[%,()]/g, " ").trim();
+  const buildQuery = useCallback((sel, withCount) => {
+    let qy = supabase.from(table).select(sel, withCount ? { count: "exact" } : undefined);
+    const term = rpSanitise(search);
     if (term && textCols.length) qy = qy.or(textCols.map((c) => `${c}.ilike.%${term}%`).join(","));
-    if (statusSel && statusCol) qy = qy.eq(statusCol, statusSel);
+    qy = rpApplyFilters(qy, filters);
     if (dateCol && dFrom) qy = qy.gte(dateCol, dFrom);
     if (dateCol && dTo) qy = qy.lte(dateCol, dTo);
-    if (sort) qy = qy.order(sort.col, { ascending: sort.asc });
-    qy.limit(100).then(({ data, count: c }) => { setRows(data ?? []); setCount(c ?? 0); });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [entry.table_ref, sample, q, statusSel, dFrom, dTo, sort]);
+    /* nullsFirst false: rows created before a date was tracked read NULL and
+       must sort LAST, never first, and never look like a real empty date. */
+    if (sort) qy = qy.order(sort.col, { ascending: sort.asc, nullsFirst: false });
+    return qy;
+  }, [table, search, textCols, filters, dateCol, dFrom, dTo, sort]);
+
+  const fetchRows = useCallback(async (all) => {
+    const out = [];
+    let from = 0, tot = null, hitCeiling = false;
+    for (;;) {
+      const size = all ? RP_PAGE : RP_FIRST;
+      const { data, error: e, count } = await buildQuery("*", from === 0).range(from, from + size - 1);
+      if (e) return { error: e.message };
+      if (from === 0) tot = count ?? null;
+      out.push(...(data ?? []));
+      if (!all) break;
+      if (!data || data.length < size) break;
+      from += size;
+      if (out.length >= RP_ROW_CEILING) { hitCeiling = true; break; }
+    }
+    return { rows: out, total: tot, truncated: hitCeiling };
+  }, [buildQuery]);
 
   useEffect(() => {
-    if (!entry.table_ref || !sample || !statusCol) return;
-    supabase.from(entry.table_ref).select(statusCol).limit(1000).then(({ data }) => {
-      if (!data?.length) return;
-      const m = {};
-      data.forEach((r) => { const v = r[statusCol] ?? "—"; m[v] = (m[v] || 0) + 1; });
-      setBrk({ col: statusCol, parts: Object.entries(m).sort((a, b) => b[1] - a[1]).slice(0, 6) });
+    if (!table || probe === null) return;
+    let live = true;
+    setBusy(true); setError(null);
+    fetchRows(loadAll || !!groupBy).then((r) => {
+      if (!live) return;
+      setBusy(false);
+      if (r.error) { setError(r.error); setRows(null); return; }
+      setRows(r.rows); setTruncated(r.truncated);
+      if (r.total != null) setTotal(r.total);
     });
-     
-  }, [entry.table_ref, sample, statusCol]);
+    return () => { live = false; };
+  }, [table, probe, fetchRows, loadAll, groupBy]);
 
-  const cols = rows?.length
-    ? Object.keys(rows[0]).filter((k) =>
-        k !== "raw" && k !== "id" && !k.endsWith("_id") && typeof rows[0][k] !== "object").slice(0, 9)
-    : [];
+  const dirty = !!(search || dFrom || dTo || filters.length);
+  const sentence = rpFilterSentence({ search, searchCols: textCols, filters, dateCol, dFrom, dTo, cols });
+  const title = reg?.title ?? entry.label;
+  const ownerNote = reg?.owner_note ?? null;
+  const allNames = cols.map((c) => c.name);
+  const basisNote = allNames.includes("weight_basis")
+    ? "This report carries weight_basis on every row. Pounds are only added within a single basis; a mixed group is refused, never silently summed."
+    : null;
+
+  const groups = useMemo(() => {
+    if (!groupBy || !rows) return null;
+    const m = new Map();
+    for (const r of rows) {
+      const k = r[groupBy] == null || r[groupBy] === "" ? "(not recorded)" : String(r[groupBy]);
+      if (!m.has(k)) m.set(k, []);
+      m.get(k).push(r);
+    }
+    return [...m.entries()].sort((a, b) => b[1].length - a[1].length);
+  }, [groupBy, rows]);
+
+  const measureCols = useMemo(
+    () => shown.filter((n) => rpSummable(n, cols.find((c) => c.name === n)?.kind)),
+    [shown, cols]);
+
+  const exportMeta = (rowCount, extra = {}) => ({
+    title, table, reportKey: reg?.report_key ?? null, sentence, rowCount,
+    generated: new Date().toString(), ownerNote, basisNote, groupBy: groupBy || null,
+    truncated, slug: `${(reg?.report_key ?? entry.view_key)}-${new Date().toISOString().slice(0, 10)}`,
+    ...extra,
+  });
+
+  const withFullRows = async (fn) => {
+    setMsg("Reading every row that matches these filters…");
+    const r = rows && (loadAll || !!groupBy || (total != null && rows.length >= total))
+      ? { rows, truncated } : await fetchRows(true);
+    if (r.error) { setMsg(`Export failed — the query errored: ${r.error}`); return; }
+    setMsg(null);
+    fn(r.rows, r.truncated);
+  };
+
+  /* An application screen is not a report. It has no data object by design, so
+     it must not be given a report toolbar - that would be a control that cannot
+     work, which is worse than no control. */
+  if (!table) {
+    return (
+      <>
+        <div className="pagehead">
+          <div><h1>{entry.label}</h1><div className="sub">{entry.description}</div></div>
+          {actions}
+        </div>
+        <div className="empty">
+          <div className="eicon">{iconByName(entry.icon)}</div>
+          <b>This page has no data object registered against it</b>
+          {entry.label} is registered in the menu but no table or view is named in <b>table_ref</b>, so there is
+          nothing to filter, search, sort or export. That is a registration gap, not a failure of this page.
+          {entry.milestone ? ` Data is expected in ${entry.milestone}.` : ""}
+        </div>
+      </>
+    );
+  }
+
+  const shownCols = shown.filter((n) => allNames.includes(n));
+  const hiddenCount = cols.length - shownCols.length;
+
+  const Reconcile = ({ list }) => {
+    if (!measureCols.length) return null;
+    return (
+      <div className="statchips" style={{ margin: "4px 0 8px" }}>
+        {measureCols.map((mc) => {
+          const s = rpSubtotal(list, mc, allNames);
+          return s.refused
+            ? <span key={mc} className="schip bad" title={s.why}>{rpLabel(mc)}: total refused — {s.why}</span>
+            : <span key={mc} className="schip good">{rpLabel(mc)}: <b>{rpNum(s.value)}</b> across {s.count?.toLocaleString()} rows</span>;
+        })}
+        <span className="schl">totals are the sum of the rows shown — nothing sampled</span>
+      </div>
+    );
+  };
 
   return (
     <>
+      {drill && (
+        <RpAuditDrill row={drill} onClose={() => setDrill(null)} onTag={(t) => setDrill({ package_tag: t })}
+          context={{
+            title, table, reportKey: reg?.report_key ?? null, sentence, ownerNote,
+            rowCount: total ?? rows?.length ?? 0,
+            reconcileNote: rows ? `${rows.length.toLocaleString()} rows are loaded on the report of ${total?.toLocaleString() ?? "an unknown"} matching these filters.` : null,
+          }} />
+      )}
       <div className="pagehead">
         <div>
-          <h1>{entry.label}</h1>
-          <div className="sub">{entry.description}</div>
+          <h1>{title}</h1>
+          <div className="sub">{reg?.description ?? entry.description}</div>
         </div>
         {entry.milestone && <span className="pill gold">data loads {entry.milestone}</span>}
         {actions}
       </div>
+
+      {/* The owner note is on the face of the report. It is not decoration —
+          it is what stops a user publishing a wrong number. */}
+      {ownerNote && (
+        <div className="statchips" style={{ margin: "0 0 10px" }}>
+          <span className="schip hot" style={{ whiteSpace: "normal", lineHeight: 1.4 }}>
+            <b>Read before you use this report — </b>{ownerNote}
+          </span>
+        </div>
+      )}
+      {registryError && <div className="schip bad">The report registry could not be read: {registryError}. Columns below are derived from the object itself.</div>}
+
       <div className="modhead">
         <div className="mchip">{iconByName(entry.icon)}</div>
         <div>
-          <div className="mt">{entry.label}</div>
-          <div className="md">Live table: {entry.table_ref ?? "—"} · click any row for the complete raw record</div>
+          <div className="mt">{title}</div>
+          <div className="md">
+            Live {reg ? "registered report" : "object"}: {table}
+            {reg ? ` · report_registry key ${reg.report_key}` : " · not in report_registry, so its filters are derived from its own columns"}
+            {" · click any row for the full audit drill"}
+          </div>
         </div>
         <div className="mcount">
-          <div className="n">{count === null ? "…" : count.toLocaleString()}</div>
-          <div className="l">records</div>
+          <div className="n">{total === null ? (busy ? "…" : "—") : total.toLocaleString()}</div>
+          <div className="l">{dirty ? "records match" : "records"}</div>
         </div>
       </div>
-      {entry.table_ref && sample !== null && (
-        <div className="filterbar">
-          <input className="fsearch" placeholder="Search anything — name, batch, tag…" value={qLive}
-            onChange={(e) => setQLive(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Enter") setQ(qLive); }} />
-          <button className="btn small" onClick={() => setQ(qLive)}>Find</button>
-          {dateCol && (
-            <DateRangeSelect label={dateCol.replaceAll("_", " ")} from={dFrom} to={dTo} onFrom={setDFrom} onTo={setDTo} />
-          )}
-          {(filtered || sort) && (
-            <button className="btn small ghost" onClick={() => { setQ(""); setQLive(""); setStatusSel(null); setDFrom(""); setDTo(""); setSort(null); }}>Clear</button>
-          )}
-          <span style={{ flex: 1 }} />
-          <button className="btn small ghost" onClick={async () => {
-            let qy = supabase.from(entry.table_ref).select("*");
-            const term = q.replace(/[%,()]/g, " ").trim();
-            if (term && textCols.length) qy = qy.or(textCols.map((c) => `${c}.ilike.%${term}%`).join(","));
-            if (statusSel && statusCol) qy = qy.eq(statusCol, statusSel);
-            if (dateCol && dFrom) qy = qy.gte(dateCol, dFrom);
-            if (dateCol && dTo) qy = qy.lte(dateCol, dTo);
-            if (sort) qy = qy.order(sort.col, { ascending: sort.asc });
-            const { data } = await qy.limit(1000);
-            const rowsX = data ?? [];
-            if (!rowsX.length) return;
-            const keys = Object.keys(rowsX[0]).filter((k) => k !== "raw" && typeof rowsX[0][k] !== "object");
-            const esc = (v) => v == null ? "" : /[",\n]/.test(String(v)) ? '"' + String(v).replaceAll('"', '""') + '"' : String(v);
-            const csv = [keys.join(","), ...rowsX.map((r) => keys.map((k) => esc(r[k])).join(","))].join("\n");
-            const a = document.createElement("a");
-            a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
-            a.download = `${entry.view_key}-${new Date().toISOString().slice(0, 10)}.csv`;
-            a.click();
-            URL.revokeObjectURL(a.href);
-          }}>Export CSV</button>
-          <button className="btn small ghost" onClick={() => window.print()}>Print</button>
-        </div>
-      )}
-      {brk && (
-        <div className="statchips">
-          {brk.parts.map(([v, n]) => (
-            <button key={v} className={`schip ${chipTone(v)} ${statusSel === v ? "sel" : ""}`}
-              onClick={() => setStatusSel(statusSel === v ? null : v)} title="Click to filter">
-              <b>{n.toLocaleString()}</b> {String(v).replaceAll("_", " ")}
+
+      <RpSavedViews viewKey={entry.view_key} session={session}
+        state={{ shown, filters: { search, dateCol, dFrom, dTo, columnFilters: filters }, groupBy }}
+        apply={(v) => {
+          if (!v) { setSearch(""); setSearchLive(""); setFilters([]); setDFrom(""); setDTo(""); setGroupBy(""); return; }
+          const f = v.filters ?? {};
+          setSearch(f.search ?? ""); setSearchLive(f.search ?? "");
+          setDateCol(f.dateCol ?? dateCol); setDFrom(f.dFrom ?? ""); setDTo(f.dTo ?? "");
+          setFilters(Array.isArray(f.columnFilters) ? f.columnFilters : []);
+          setGroupBy(v.group_by ?? "");
+          if (Array.isArray(v.shown_fields) && v.shown_fields.length) setShown(v.shown_fields);
+        }} />
+
+      {/* THE ONE TOOLBAR. Same order, same wording, same position, every report. */}
+      <div className="filterbar">
+        <input className="fsearch" placeholder="Search every text column on this report…" value={searchLive}
+          onChange={(e) => setSearchLive(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") setSearch(searchLive); }} />
+        <button className="btn small" onClick={() => setSearch(searchLive)}>Find</button>
+
+        {/* Owner ruling 8 Aug 2026: OMIT the control where a date is meaningless.
+            A dead control on a hundred pages teaches people to ignore controls.
+            But "omit" must never hide a defect, so the two cases are read from
+            `nav_registry.date_policy` rather than inferred from a missing column:
+            not_applicable = omit in silence · auto/missing with no date = a DEFECT
+            in the view, stated plainly here and never dressed up as a feature. */}
+        {dateCols.length > 0 ? (
+          <>
+            <select className="fdate" value={dateCol ?? ""} onChange={(e) => setDateCol(e.target.value)}
+              title="Which date this range applies to">
+              {dateCols.map((c) => <option key={c} value={c}>{rpLabel(c)}</option>)}
+            </select>
+            <DateRangeSelect label="range" from={dFrom} to={dTo} onFrom={setDFrom} onTo={setDTo} onPreset={setPreset} />
+            <button className="btn small ghost" title="Save the range now showing as your default"
+              onClick={() => setPanel(panel === "datedefault" ? null : "datedefault")}>
+              Default{dateDefault?.source ? ` · ${dateDefault.source}` : ""}
             </button>
-          ))}
-          <span className="schl">live breakdown by {brk.col.replaceAll("_", " ")} — click to filter</span>
+          </>
+        ) : entry.date_policy === "not_applicable" ? null : (
+          <span className="schip bad" style={{ whiteSpace: "normal" }}
+            title="Fix the view, do not omit the control.">
+            <b>Defect — no date range possible. </b>
+            {table} returns no date column, but its source carries one. The control is not shown because it
+            could not work; the fix belongs in the view, not on this page.
+          </span>
+        )}
+
+        <button className={`btn small ${filters.length ? "" : "ghost"}`} onClick={() => setPanel(panel === "filters" ? null : "filters")}>
+          Filters{filters.length ? ` (${filters.length})` : ""}
+        </button>
+        <select className="fdate" value={groupBy} onChange={(e) => setGroupBy(e.target.value)} title="Group the rows and subtotal each group">
+          <option value="">No grouping</option>
+          {dimCols.map((d) => <option key={d} value={d}>Group by {rpLabel(d)}</option>)}
+        </select>
+        <button className="btn small ghost" onClick={() => setPanel(panel === "fields" ? null : "fields")}>
+          Columns ({shownCols.length}/{cols.length})
+        </button>
+        {(dirty || sort || groupBy) && (
+          <button className="btn small ghost" onClick={() => {
+            setSearch(""); setSearchLive(""); setFilters([]); setDFrom(""); setDTo(""); setSort(null); setGroupBy("");
+          }}>Clear</button>
+        )}
+        <span style={{ flex: 1 }} />
+        <button className="btn small ghost" title="Comma Separated Values, carrying these filters"
+          onClick={() => withFullRows((r) => rpExportCsv(r, shownCols, exportMeta(r.length)))}>Comma Separated Values</button>
+        <button className="btn small ghost" title="Microsoft Excel workbook, carrying these filters"
+          onClick={() => withFullRows((r) => rpExportExcel(r, shownCols, exportMeta(r.length)))}>Excel</button>
+        <button className="btn small ghost" title="Opens the print dialogue — choose Save as PDF"
+          onClick={() => withFullRows((r) => { const e2 = rpExportPdf(r, shownCols, exportMeta(r.length)); if (e2) setMsg(e2); })}>PDF</button>
+        <button className="btn small ghost" title="Copies the filtered report and opens a blank Google Sheet to paste into. Nothing is uploaded automatically."
+          onClick={() => withFullRows(async (r) => setMsg(await rpExportSheets(r, shownCols, exportMeta(r.length))))}>Google Sheets</button>
+      </div>
+
+      {msg && <div className="statchips"><span className="schip info" style={{ whiteSpace: "normal" }}>{msg}</span></div>}
+      {panel === "datedefault" && (
+        <div className="findpanel" style={{ padding: 12 }}>
+          <div className="dhead">
+            <span className="dtitle">Your default date range</span>
+            <button className="btn small ghost" onClick={() => setPanel(null)}>Close</button>
+          </div>
+          <div className="note" style={{ marginBottom: 8 }}>
+            This report opened on <b>{(dateDefault?.preset_key ?? "all").replaceAll("_", " ")}</b>, chosen by
+            “<b>{dateDefault?.source ?? "page default"}</b>”. Reopening behaviour is
+            “<b>{(dateDefault?.scope ?? "remember_last").replaceAll("_", " ")}</b>”, which you change in Settings.
+            The range showing now is <b>{preset ? preset.replaceAll("_", " ") : "custom"}</b>
+            {dFrom || dTo ? ` (${dFrom || "earliest"} to ${dTo || "latest"})` : ""}.
+          </div>
+          <button className="btn small" onClick={() => saveDateDefault(false)}>Make this my default for this page</button>
+          {" "}
+          <button className="btn small ghost" onClick={() => saveDateDefault(true)}>Make this my default everywhere</button>
+          <div className="note" style={{ marginTop: 8 }}>
+            A page default beats an everywhere default, and both beat the page’s own. Nobody else is affected —
+            these are yours alone.
+          </div>
         </div>
       )}
-      {rows === null ? (
-        <div className="empty"><div className="eicon">{I.gauge}</div>Loading…</div>
-      ) : rows.length === 0 ? (
+      {panel === "fields" && <RpFieldsPanel cols={cols} shown={shownCols} setShown={setShown} onClose={() => setPanel(null)} />}
+      {panel === "filters" && <RpFiltersPanel cols={cols} filters={filters} setFilters={setFilters} onClose={() => setPanel(null)} />}
+
+      {dirty && (
+        <div className="statchips">
+          <span className="schip info" style={{ whiteSpace: "normal" }}><b>Filters in force: </b>{sentence}</span>
+        </div>
+      )}
+      {hiddenCount > 0 && (
+        <div className="note" style={{ margin: "4px 0" }}>
+          {hiddenCount} further column{hiddenCount === 1 ? " is" : "s are"} held on this object and not shown — open Columns to add {hiddenCount === 1 ? "it" : "them"}. Nothing has been dropped.
+        </div>
+      )}
+
+      {/* A failed query must never look like an empty table. */}
+      {probeError && (
         <div className="empty">
-          <div className="eicon">{iconByName(entry.icon)}</div>
-          <b>{filtered ? "No records match these filters" : "No records connected yet"}</b>
-          {filtered ? "Adjust the search, dates, or status chips — or hit Clear."
-            : entry.milestone ? `The structure is live and waiting — real data loads in ${entry.milestone}. No samples will ever appear here.` : "Records appear here the moment they exist."}
+          <div className="eicon">{I.shield}</div>
+          <b>This report could not be opened</b>
+          <div>The database refused the read on <b>{table}</b>: {probeError}</div>
+          <div className="note" style={{ marginTop: 8 }}>
+            This is a permission or definition problem on the object, not a filter you have set. Nothing is being hidden from you — there is simply no answer to show.
+          </div>
         </div>
-      ) : (
-        <div className="tablewrap">
-          <table>
-            <thead><tr>{cols.map((c) => (
-              <th key={c} style={{ cursor: "pointer" }} title="Sort"
-                onClick={() => setSort((s) => s?.col === c ? { col: c, asc: !s.asc } : { col: c, asc: true })}>
-                {c.replaceAll("_", " ")}{sort?.col === c ? (sort.asc ? " ↑" : " ↓") : ""}
-              </th>
-            ))}</tr></thead>
-            <tbody>{rows.map((r, i) => <RawRow key={r.id ?? i} row={r} cols={cols} />)}</tbody>
-          </table>
+      )}
+      {error && !probeError && (
+        <div className="empty">
+          <div className="eicon">{I.shield}</div>
+          <b>The query failed</b>
+          <div>{error}</div>
+          <div className="note" style={{ marginTop: 8 }}>The filters you set produced a query the database rejected. Press Clear and add them back one at a time.</div>
         </div>
+      )}
+
+      {!probeError && !error && (
+        rows === null ? <div className="empty"><div className="eicon">{I.gauge}</div>Reading {table}…</div>
+        : rows.length === 0 ? (
+          <div className="empty">
+            <div className="eicon">{iconByName(entry.icon)}</div>
+            <b>{dirty ? "No rows match these filters" : "No records on this object yet"}</b>
+            {dirty
+              ? <>The query succeeded and returned nothing. Filters in force: {sentence}. Adjust them or press Clear.</>
+              : <>The object <b>{table}</b> is readable and returned zero rows. Records appear here the moment they exist — no sample data will ever be shown.</>}
+          </div>
+        ) : (
+          <>
+            {truncated && (
+              <div className="statchips"><span className="schip bad" style={{ whiteSpace: "normal" }}>
+                Only the first {RP_ROW_CEILING.toLocaleString()} rows were read. Totals and exports below are INCOMPLETE — narrow the filters or the date range.
+              </span></div>
+            )}
+            {!loadAll && !groupBy && total != null && total > rows.length && (
+              <div className="statchips">
+                <span className="schip warn" style={{ whiteSpace: "normal" }}>
+                  Showing the first {rows.length.toLocaleString()} of {total.toLocaleString()} matching rows. Nothing has been filtered out.
+                </span>
+                <button className="btn small" onClick={() => setLoadAll(true)}>Load all {total.toLocaleString()} rows</button>
+              </div>
+            )}
+            <Reconcile list={rows} />
+
+            {groups ? groups.map(([key, list]) => (
+              <div key={key} style={{ marginBottom: 12 }}>
+                <button className="vegrouphead" style={{ width: "100%", textAlign: "left" }}
+                  onClick={() => setCollapsed((s) => ({ ...s, [key]: !s[key] }))}>
+                  <span className="vegchip" style={{ background: "var(--neon)", color: "var(--neon-ink)" }}>{rpLabel(groupBy)}: {key}</span>
+                  <b style={{ marginLeft: 8 }}>{list.length.toLocaleString()} rows</b>
+                  <span style={{ float: "right" }}>{collapsed[key] ? "+" : "−"}</span>
+                </button>
+                <Reconcile list={list} />
+                {!collapsed[key] && (
+                  <div className="tablewrap"><table>
+                    <thead><tr>{shownCols.map((c) => (
+                      <th key={c} style={{ cursor: "pointer" }} title="Sort on this column"
+                        onClick={() => setSort((s) => s?.col === c ? { col: c, asc: !s.asc } : { col: c, asc: true })}>
+                        {rpLabel(c)}{sort?.col === c ? (sort.asc ? " ↑" : " ↓") : ""}
+                      </th>
+                    ))}</tr></thead>
+                    <tbody>{list.map((r, i) => (
+                      <tr key={i} style={{ cursor: "pointer" }} onClick={() => setDrill(r)} title="Open the full audit drill">
+                        {shownCols.map((c) => <td key={c}>{cellView(c, r[c])}</td>)}
+                      </tr>
+                    ))}</tbody>
+                  </table></div>
+                )}
+              </div>
+            )) : (
+              <div className="tablewrap"><table>
+                <thead><tr>{shownCols.map((c) => (
+                  <th key={c} style={{ cursor: "pointer" }} title="Sort on this column"
+                    onClick={() => setSort((s) => s?.col === c ? { col: c, asc: !s.asc } : { col: c, asc: true })}>
+                    {rpLabel(c)}{sort?.col === c ? (sort.asc ? " ↑" : " ↓") : ""}
+                  </th>
+                ))}</tr></thead>
+                <tbody>{rows.map((r, i) => (
+                  <tr key={i} style={{ cursor: "pointer" }} onClick={() => setDrill(r)} title="Open the full audit drill">
+                    {shownCols.map((c) => <td key={c}>{cellView(c, r[c])}</td>)}
+                  </tr>
+                ))}</tbody>
+              </table></div>
+            )}
+          </>
+        )
       )}
     </>
   );
+}
+
+function ModuleScreen({ entry, actions, session }) {
+  return <ReportScreen entry={entry} actions={actions} session={session} />;
 }
 
 /* ---------- Metrc: the entire seed-to-sale platform, synced and drillable ---------- */
@@ -7117,7 +8231,68 @@ function Section({ title, count, children, defaultOpen = true }) {
 
 
 
-function DeptDashboard({ viewKey, go, nav, deep }) {
+/* ---------- The dashboard date range ----------
+   Owner, 8 Aug 2026: "Right now dashboards are pulling all data. That is not
+   functional or the way dashboards are meant to function."
+
+   He is right, and the honest position is worse than a missing feature: a tile
+   reading a three-year total LOOKS like a current position. So the control goes
+   on, in the same place and with the same 27 presets as every report, and the
+   default is resolved by the same f_date_default so a person who works in weeks
+   sees weeks everywhere.
+
+   BUT: `mv_department_dashboard` is one pre-aggregated row per department and
+   key figure — department, ord, kpi, value, unit, tone, context, drill,
+   computed_at. There is NO date on the fact, and the matview takes no range.
+   The same is true of `v_control_tower` (metric, value) and `v_ceo_dashboard`
+   (line, headline, detail, sort). A range therefore CANNOT be applied to these
+   figures from the browser — there is nothing to apply it to.
+
+   Rather than fit a control that silently does nothing, every affected tile
+   says so on its face. The fix belongs in the view: it needs to accept a range,
+   or carry the date the underlying facts already hold. */
+function RpDashboardDateRange({ viewKey, session, source, onRange }) {
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
+  const [def, setDef] = useState(null);
+  useEffect(() => {
+    let live = true;
+    if (!session?.user?.id || !viewKey) return;
+    supabase.rpc("f_date_default", { p_user: session.user.id, p_view_key: viewKey })
+      .then(({ data, error }) => {
+        if (!live || error || !data) return;
+        setDef(data);
+        const k = data.preset_key ?? "all";
+        if (k === "custom") { setFrom(data.custom_from ?? ""); setTo(data.custom_to ?? ""); return; }
+        if (k === "all") return;
+        const [f, t] = presetRange(k);
+        setFrom(f); setTo(t);
+      });
+    return () => { live = false; };
+  }, [session?.user?.id, viewKey]);
+  useEffect(() => { if (onRange) onRange({ from, to }); }, [from, to, onRange]);
+  return (
+    <>
+      <div className="filterbar" style={{ marginBottom: 8 }}>
+        <DateRangeSelect label="Date range" from={from} to={to} onFrom={setFrom} onTo={setTo} />
+        <span className="note">
+          opened on {(def?.preset_key ?? "all").replaceAll("_", " ")} — {def?.source ?? "page default"}
+        </span>
+      </div>
+      <div className="statchips" style={{ marginBottom: 8 }}>
+        <span className="schip bad" style={{ whiteSpace: "normal" }}>
+          <b>These key figures do not yet honour the date range. </b>
+          They are read from <b>{source}</b>, which holds one pre-computed row per figure with no date on it
+          and accepts no range — so every number below is computed over <b>all data, all time</b>, not the
+          range selected above. A figure covering three years reads like a current position and is not one.
+          The fix is in the view, not on this page: it must carry the date its own facts already hold.
+        </span>
+      </div>
+    </>
+  );
+}
+
+function DeptDashboard({ viewKey, go, nav, deep, session }) {
   const [openTile, setOpenTile] = useState(null);
   const dept = DEPT_BY_VIEW[viewKey] ?? "Command";
   const [rows, setRows] = useState(null);
@@ -7198,6 +8373,8 @@ function DeptDashboard({ viewKey, go, nav, deep }) {
         </div>
       </div>
 
+      <RpDashboardDateRange viewKey={viewKey} session={session} source="mv_department_dashboard" />
+
       <WhatChanged dept={dept} go={go} />
       {(dept === "Command" || dept === "Cultivation" || dept === "Inventory") && (
         <>
@@ -7227,6 +8404,8 @@ function DeptDashboard({ viewKey, go, nav, deep }) {
                     </span>
                   )}
                   {r.context && <span className="ddctx">{r.context}</span>}
+                  {/* Owner rule: a tile that cannot honour the range says so ON THE TILE. */}
+                  <span className="ddctx">All data, all time — this figure does not yet honour the date range above.</span>
                   {/* Both read the SAME verdict, so they can never disagree again. */}
                   <Spark series={tr?.series} direction={tg?.direction} />
                   {dl && (
@@ -7829,7 +9008,7 @@ export default function App() {
     valuation_rates: <ValuationRates session={session} />,
     intelligence_briefing: <IntelligenceBriefing go={setView} />,
     budz: <BudzScreen go={setView} />,
-    ...Object.fromEntries(Object.keys(DEPT_BY_VIEW).map((k) => [k, <DeptDashboard viewKey={k} go={setView} nav={nav} deep={deep} />])),
+    ...Object.fromEntries(Object.keys(DEPT_BY_VIEW).map((k) => [k, <DeptDashboard viewKey={k} go={setView} nav={nav} deep={deep} session={session} />])),
     assistant_settings: <AssistantSettings />,
     inventory_locator: <InventoryLocator go={setView} />,
     menu_manager: isExec
@@ -7843,7 +9022,7 @@ export default function App() {
      here; the Control Tower is one click away rather than a silent substitute. */
   const unknownView = !special[view] && !current && view !== "tower";
   const body = special[view] ?? (current
-    ? <ModuleScreen entry={current} actions={current.sync_enabled ? <SyncCenter session={session} /> : undefined} />
+    ? <ModuleScreen entry={current} session={session} actions={current.sync_enabled ? <SyncCenter session={session} /> : undefined} />
     : unknownView
       ? (
         <div className="empty">

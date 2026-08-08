@@ -8,6 +8,34 @@ Format: **date — what happened → what it cost → the rule now.**
 
 ---
 
+**2026-08-07 — A DEPLOY SILENTLY KILLED THE METRC SYNC FOR 5½ HOURS AND EVERY
+DASHBOARD REPORTED SUCCESS.** `metrc-sync` was redeployed as v15 at 11:31 UTC
+with `verify_jwt: true`. Its scheduler, `tg_metrc_fire`, sent only an
+`x-admin-key` header — **no `Authorization`** — so the Supabase gateway
+rejected every dispatch with `401 UNAUTHORIZED_NO_AUTH_HEADER` **before the
+function's own auth check was ever reached.** `metrc_scan_schedule.last_result`
+kept reading *"dispatched (scheduled)"* throughout.
+
+**The knowledge was already in the codebase.** The sibling function
+`tg_call_function` does it correctly and carries a comment saying exactly why:
+*"the gateway checks a bearer token before the function's own admin key is ever
+seen."* Two functions, one door, one lock — and the scheduler used the
+unlocked door.
+
+**Detection took a human asking.** Zero of six health functions read
+`metrc_scan_log`, so a dispatch that produced **no run row** was invisible to
+everything. **Every guard in this platform watches for a bad row; none watches
+for a missing one.**
+
+→ **Rules:** every scheduled Edge Function call carries
+`Authorization: Bearer <anon>` from `integration_secrets` — copy
+`tg_call_function`, never hand-roll headers. **A redeploy that changes
+`verify_jwt` is a breaking change to every caller.** And **absence must be
+monitored, not just failure** — see [SENTINEL_SPEC.md](SENTINEL_SPEC.md).
+
+*Fixed and verified 7 Aug 19:38 UTC by Agent D: gateway 401 → 200, 13 sync
+runs, 0 errors, 73 packages + 6 transfers + 10 items pulled.*
+
 **2026-08-07 — THE FALSE-GREEN PATTERN: this platform reports success unless
 failure is TOTAL. Three separate instances found in one day.**
 1. `App.jsx` — **129 read sites** use `k.data ?? []`, so a failed query is

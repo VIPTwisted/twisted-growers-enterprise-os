@@ -111,6 +111,38 @@ and MMM Transport (2.9 lb).
 some genuine sales? And does anything else in the record represent storage
 booked as revenue? *Source: owner + verified round-trip evidence, this date.*
 
+**2026-08-07 — APEX IS THE SALES SOURCE OF RECORD, NOT METRC.** Owner: *"We
+will pull reports from Apex for sales, not Metrc — that will be the source for
+what units were sold for."* **Access not yet obtained.**
+
+**What this reframes, and it is a lot:**
+- **A Metrc manifest price is a COMPLIANCE DECLARATION, not a commercial
+  record.** It states what was declared on the transfer. The invoice, the
+  discount, the terms and the true unit price live in Apex.
+- **Every price figure Agent D produced on 7 Aug came from Metrc manifests.**
+  The $807.50/lb bulk flower, the $1,430/lb packaged, the per-strain and
+  per-customer tables — **all of it must be labelled "declared wholesale
+  transfer price", never "realised sale".** The "selling below cost"
+  conclusion inherits that caveat and must not be quoted as revenue truth.
+- **It also explains the price anomalies rather than leaving them as
+  mysteries.** ~319 lines at **$0.01**, two 2026 manifests priced **flat per
+  package regardless of weight** ($1,000 and $500 each), the same product at
+  $668/lb and $2,593/lb eleven weeks apart, and **$901,430 of Eagle Eyes
+  storage carrying prices at all** — these are consistent with the Metrc price
+  field being treated as a low-stakes compliance entry **because the real
+  number lives in Apex.** Not sloppiness; a different system of record.
+- **The correct model is two sources, reconciled:** Metrc = what moved and
+  what was declared. Apex = what was sold and for how much. **Disagreement
+  between them is a finding**, exactly like every other two-way check here —
+  and it may be the most valuable check in the business once access exists.
+
+**Until access:** Metrc declared price is the best available and must carry
+that label on every figure. **A prior go-live decision already deferred this**
+— *"we will not sync Apex or shipping until the site is live; Metrc must be
+done first."*
+
+*Source: owner, this date.*
+
 **2026-08-07 — COST BASIS RULED: $1,100/lb, working figure until the annual
 P&L.** Owner: *"Let's use the 1100 for now and we will adjust later with
 actual P&L."*
@@ -278,3 +310,327 @@ rules, reference standard vip-ceo-platform.netlify.app.*
 
 **2026-08-05 — Theme locked: neon green.** No colour change without explicit
 approval. *Source: owner, CLAUDE.md I1.*
+
+**2026-08-07 — Failed material: three fixes to the disposition guard.** The
+owner ruled "anything purchased as failed is remediated then processed or sold
+— as is ours", and all 10 failed packages were recorded: 8 bought-in / 93.4 lb
+`bought_for_remediation`, 2 ours / 57.0 lb `remediate_in_house`. Three defects
+were found in the machinery built to hold that ruling and all three are fixed:
+
+1. **`not_yet_decided` silenced the flag.** `v_item_flags_all` and `v_real_loss`
+   clear a package on ANY non-superseded disposition row. `not_yet_decided` was
+   a permitted value, so recording "we have not decided" would have made the
+   open decision vanish. **Removed from the CHECK constraint** — that state is
+   the ABSENCE of a row, which both views already read correctly. Structural,
+   so any view built later inherits it. *0 rows and 0 code references at the
+   time, so nothing was lost.*
+2. **`v_issue_failed_testing` was unit-blind and not disposition-aware.** It
+   divided `quantity / 453.592` whatever the unit, and never joined the
+   disposition table, so a ruled package would have been flagged for ever. Now
+   uses `f_to_pounds`/`f_is_weight` and leaves the view when a ruling is
+   recorded. All 10 rows are grams, so **no number moved today** — it was a
+   trap for the first failed package recorded in lb or as a countable item.
+3. **A disposition that promises work is not the work.** `remediate_in_house`,
+   `sell_for_remediation` and `destroy` are commitments; only
+   `bought_for_remediation` is a classification (it says the material always was
+   discounted feedstock). Added `completed_at` + `completed_evidence` (evidence
+   mandatory) and **`v_remediation_owed`**, which holds a promised-but-undone
+   disposition until it is carried out. **The 2 own packages sit there now,
+   0 days owed, Metrc still reading `TestFailed`.** Empty is the good state.
+
+Also corrected: `v_issue_failed_testing` valued OTHER people's failed material
+at OUR cultivation cost per pound. Bought-in material was bought at a discount
+and `material_purchases` is empty, so what was paid exists nowhere.
+`value_at_cost` is now null for third-party material with `cost_basis` saying
+why. *Source: Agent D, verified against the live database.*
+
+**2026-08-07 — The certificate is the cultivator of record. 983 COAs parsed.**
+Owner ruling: *"You check ours first. You caught a match — but then you confirm
+with the COA, since there is doubt."* The COA calls it **`Client Info`** (also
+`CULTIVATOR INFO`, `MANUFACTURER INFO`, `Client`, or a name above `License #:`,
+depending on lab).
+
+**What it settled.** Package `1A40A030000E5B2000009058`, 56.84 lb, ruled "ours,
+remediate in house". `coa/2267739.pdf` — Green Analytics report `GGDB-00016` —
+named the client **Greater Goods, LLC, License MB282344**. Batch
+(`Bruce Banner F1 Harvest`), source package (`…011815000000021`) and the Total
+Yeast and Mold failure all matched exactly. **The only discrepancy on the
+document was ownership, and it was ours.**
+
+**Root cause.** `ItemFromFacilityLicenseNumber` names whoever defined the ITEM,
+not who owned the MATERIAL. A repack under a new item name flips it to us.
+**191 active packages / 420.6 lb** read as ours and trace outside. Same cause as
+the C6d consigned-material breach. Fixed with `f_material_origin(tag)` and
+`v_material_ownership_conflict`.
+
+**The parse.** All 983 stored certificates downloaded and read — 246 MB, zero
+errors. **972 now carry `client_license`**; 11 carry no client licence at all
+and are reported UNPROVEN, never as agreement. Five lab layouts handled. The
+anchor: **a Massachusetts LAB licence is always `IL######`**, so any
+MC/MP/MB/MR/MT/RMD licence in the header belongs to the client.
+`coa_extract` gained `client_name`, `client_license`, `client_address`,
+`lab_report_id`, `metrc_batch_id`, `metrc_sample_id`, `metrc_source_id`,
+`manifest_on_coa`.
+
+**Result — `v_ownership_vs_certificate`:** AGREES 943 pkgs / 992.0 lb ·
+**CONFLICT 15 pkgs** (1 active, 7.42 lb) · UNPROVEN 11 · NO CERTIFICATE 2,605.
+
+**Known limit of the method, stated plainly.** The COA client is **whoever
+submitted the sample**. That equals the cultivator when the cultivator submitted
+it — as with the Greater Goods packages, tested on their own tags and shipped to
+us afterwards. It does NOT when we re-tested bought-in material: 13 of the 15
+conflicts read "platform says them, certificate says Twisted Growers", which is
+consistent with us paying for the retest. **Those 13 are not proof we grew it.**
+The two going the other way (`…004941` → Trifecta Farms, `…005049` → Greater
+Goods) are the ones that contradict our own claim.
+
+**Also corrected:** `coa_extract.document_id` holds the **Metrc document number**
+(`2510662`), not the `metrc_documents.id` uuid. An earlier read of "not parsed"
+on 983 rows was a join failure, not a parse gap.
+*Source: Agent D, verified against the live database and the certificates.*
+
+**2026-08-07 — Testing: seven laboratories, 983 certificates, 29 sample packages.**
+Owner: *"it's a hell of a lot more than 29 samples and we have multiple testing
+companies."* Correct on both counts.
+
+| laboratory | licence | certificates |
+|---|---|---|
+| GVA Labs, Holyoke | IL281359 | **709** |
+| Analytics Labs, Holyoke | IL281280 | 89 |
+| Safetiva Labs, Westfield | IL281354 | 71 |
+| Kaycha Labs, Natick | — | 55 |
+| Green Analytics MA, Framingham | IL281277 | 46 |
+| MCR Labs, Framingham | — | 6 |
+| ProVerde Labs | IL281355 | 2 |
+
+**Weight sent out for testing is NOT accounted for anywhere.** 755 certificates
+state a sample weight: **6,804 g = 15.00 lb**, mean 9 g, commonest 12 g.
+Extrapolated across all 983 tests, **≈19.5 lb** has physically left inventory
+into laboratories. The platform holds **29 sample packages totalling 0.57 lb**.
+**The lab-sample packages are not syncing** — that is the defect, not the mass.
+
+**Testing batch cap is 15 lb (dry).** Visible in the data as a hard cluster at
+exactly 15.0 lb. The 71 packages exceeding it are all **Fresh Frozen — wet
+weight** (max 100.4 lb wet ≈ 22 lb dry). Batch-splitting does NOT break the
+inherited-certificate logic: of 2,088 packages with a resolved certificate,
+**2,076 sit on an ancestor holding exactly one**, 12 sit on ancestors with 2–5
+batch certificates **all from the same client** (ownership safe, potency
+ambiguous), and **zero** inherit from an ancestor with certificates from
+different clients.
+
+> **REJECTED FIGURE — do not repeat it.** A created-minus-remaining-minus-children
+> sweep returned **12,117 lb "unaccounted", 52.8% of created weight.** It is NOT
+> loss and was never reported as such. It is dominated by (a) weight that left on
+> outbound manifests and (b) fresh-frozen **wet** parents producing **dry**
+> children. Wrong basis on both counts. Any real shrinkage figure must subtract
+> transfers out and convert wet to dry first.
+*Source: Agent D, from the 983 certificates and the live database.*
+
+**2026-08-07 — Manifests attached to items. 0 → 2,642 documents.**
+Owner: *"How can this be? This must be fixed — 2,690 manifest documents has
+package_tag = null."*
+
+**Why it happened.** `metrc_documents.package_tag` is ONE column and a manifest
+covers MANY packages — 19,256 lines across 2,643 manifests. Last night's work
+attached the COAs (969 packages) and the inbound manifests (via
+`ReceivedFromManifestNumber`), but a **sold** package carries nothing pointing at
+its outbound manifest, so the outbound half could never be filled. Backfilling
+the column would have repeated the one-to-one-on-many-to-many error that already
+capped COA coverage at 34%.
+
+**The link already existed and nothing used it.** `metrc_rpt_package_transfers`:
+**19,256 rows, 2,643 manifests, 15,496 packages, every tag a full 24 characters.**
+
+**Fix — `v_document_package_link`**, derived not stored, so it cannot go stale:
+COA direct · COA inherited through lineage · **manifest → every package that
+travelled on it** · inbound manifest from the package record. Plus
+**`v_item_documents`**, the per-item document position.
+
+| | links | packages | documents |
+|---|---|---|---|
+| COA direct | 983 | 969 | 983 |
+| COA inherited | 1,123 | 1,119 | 416 |
+| **Manifest — on manifest** | **19,248** | **15,488** | **2,642** |
+| Manifest — inbound | 1,027 | 1,027 | 211 |
+
+**Where our packages stand:** COMPLETE (COA + manifest) **869** · COA only 1,219
+(8 of them shipped) · MANIFEST only 419 · NEITHER 1,067 (569 of which were
+tested). **An item that was tested or sold and is not COMPLETE must not go to a
+customer** — both documents go out before the order ships.
+
+**STILL OPEN — the outbound blind spot.** All 2,550 outgoing transfer records
+have a null recipient; Metrc returns it on `/transfers/v2/{id}/deliveries` and
+the sync only pulled the header. So we now know WHICH packages were on a
+manifest, but not WHO received it. 2,683 manifest PDFs on disk print it.
+*Source: Agent D, verified against the live database.*
+
+**2026-08-07 — Documents: no expiry. Records are kept and sendable years later.**
+Owner ruling. **`f_item_documents(tag)` is THE accessor**, callable from any page,
+any line item: the certificate (direct or inherited, with the cultivator of
+record) and every manifest the item travelled on, deduplicated, ready to print,
+download or email.
+
+**TWO EXPIRIES — one was junk, one is law. Never confuse them again.**
+
+1. **Signed-URL expiry — REMOVED.** Nobody chose it; Supabase signed URLs carry a
+   TTL by default and whoever generated ours took the default. It is a property of
+   a temporary ACCESS KEY, not of a document. **All 3,666 were signed together and
+   all expire 5–6 September 2026** — one day on which every print and download
+   button in the platform would have died at once, with years of kept records
+   stranded behind stale tokens. **Caught before it fired.** The function now
+   returns `storage_path` and **never a URL**; the page mints one at click time
+   with `createSignedUrl(storage_path, ttl)`. Works identically in 2030.
+2. **Lab result validity — KEPT, because it is real.** A Massachusetts certificate
+   is valid one year. Metrc carries it as `ExpirationDateTime`; **99,260 of
+   101,608** lab rows have one, spanning 2024-09-14 → 2027-08-06. Exposed as
+   `coa_valid_until` / `coa_expired`. **736 packages are past it, but only 2 are
+   still active** — product cannot be sold on an expired certificate, so this must
+   be visible to whoever is shipping.
+
+**The platform serves documents. It does not send them** — shipping and receiving
+email them. `document_sends` stays **empty by decision**; do not build a send flow
+against it without a new ruling. The table now carries that comment.
+
+**Also fixed:** the same manifest reached a package by two routes (its manifest
+line and the package's inbound record) and appeared twice. Deduplicated by
+`manifest_number` — the user sees it once.
+
+**2026-08-07 — All 191 ownership conflicts judged against the certificate.**
+The owner's method — check ours, find doubt, confirm with the COA — applied to
+every conflict rather than the one that started it. **`v_ownership_verdict`.**
+
+| verdict | packages | lb |
+|---|---|---|
+| **CONFIRMED NOT OURS** — the laboratory names another licensee | **52** | **146.0** |
+| INCONCLUSIVE — certificate names us, lineage says outside | 115 | 252.1 |
+| UNPROVEN — no certificate anywhere in the lineage | 22 | 22.5 |
+| NAME ONLY — certificate names a client but prints no licence | 2 | — |
+
+**The 146.0 lb, by certified owner:**
+
+| certified owner | licence | pkgs | lb | platform calls it |
+|---|---|---|---|---|
+| Greater Goods, LLC | MB282344 | 6 | **65.0** | MP281909 |
+| Holyoke Wilds, LLC | MC283571 | 3 | **45.0** | MC281714 |
+| Solar Therapeutics | MC281592 | 4 | 30.3 | MC281714, MP281909 |
+| Jushi MA, Inc | MP281524 | 4 | 4.5 | MP281909 |
+| Solar Therapeutics | MP281464 | 1 | 1.2 | MP281909 |
+| Theory Wellness | RMD305-P | 21 | countable | MP281909 |
+| *(name not printed)* | MP281588 | 13 | countable | MP281909 |
+
+**Every one is an inherited certificate — depth 1 to 4.** None would have been
+found by matching on the package's own tag. This is the payoff from resolving
+certificates through lineage.
+
+> **INCONCLUSIVE IS NOT AGREEMENT.** The certificate client is whoever SUBMITTED
+> the sample. That equals the cultivator when the cultivator submitted it — as
+> with the Greater Goods packages, tested on their own tags before they ever
+> reached us. It does NOT when we re-tested material we had bought. **115
+> packages / 252.1 lb name us on the certificate while the lineage says the
+> material came from outside — exactly what paying for a retest looks like. It
+> is not proof we grew it and must never be reported as such.**
+*Source: Agent D, verified against the live database and 980 parsed certificates.*
+
+**2026-08-07 (later) — Certificate coverage +199, and a silent pick I made and undid.**
+
+**The fifth link source.** "182 packages need a pure download" was WRONG — all 127
+documents behind them were already on disk. They were unreachable because
+`metrc_documents.package_tag` holds ONE tag and a certificate covers SEVERAL.
+**`metrc_lab_results` pairs `package_tag` with `document_file_id` per result row**
+— the laboratory's own statement of which certificate belongs to which package,
+many-to-many by nature. Added to `v_certificate_resolved`:
+
+| | before | after |
+|---|---|---|
+| Certificate coverage | 2,088 | **2,287** |
+| Certificate gap | 977 | **779** |
+| Gap still active | 22 | **7** |
+
+**Zero API calls, for the third time today.** Every certificate "gap" so far has
+been a LINK problem, never a missing document.
+
+> **THE MISTAKE, RECORDED BECAUSE IT MOVED A HEADLINE FIGURE.**
+> `v_certificate_resolved` picks the certificate by `row_number() over (order by
+> depth)` — the shallowest. Attaching nearer certificates moved **33 packages**
+> from CONFIRMED NOT OURS to INCONCLUSIVE and the reported figure went
+> **52 pkgs / 146.0 lb → 19 pkgs / 128.5 lb + 1,494 units** with nobody deciding
+> it should. **Depth is a tie-break, not a reasoning**, and here it prefers the
+> WEAKER evidence: a near certificate says who tested THIS package — often us, on
+> material we bought — while a deep one sits closer to who grew it.
+>
+> **`v_certificate_disagreement` now surfaces it instead of hiding it: 577
+> packages carry certificates naming different clients, 164 of them ours-versus-
+> outside — 136 where ours is nearer, 28 where the outside one is.** Those need a
+> person to read both. Never average, never let the ordering decide.
+
+**Current ownership verdict:** CONFIRMED NOT OURS 19 pkgs / 128.5 lb + 1,494
+units · INCONCLUSIVE 149 / 269.6 lb + 12,510 units · UNPROVEN 21 / 22.5 lb ·
+NAME ONLY 2 / 1,890 units.
+
+**2026-08-08 — HARD RULE: proof required for "never tested".** Owner: *"All items
+you show as untested, no COA or manifest — I need to see what Metrc inventory and
+seed-to-sale shows for each tag. That means it's in the facility and Metrc tracks
+exactly what room it is in, per law."*
+
+**`v_never_tested_proof`** shows, per tag, Metrc's own record: room, room type,
+sublocation, state, quantity, on-hold, packaged date, last modified, source
+harvest, source packages, production batch, what it became — plus the four-source
+reconciliation. **Nothing in it is inferred by the platform.**
+
+**Result: 111 packages PROVEN, 0 failures, 0 without a room, 5 rooms.**
+Hydrocarbon ~60 (crude, badder, distillate, isolate) · Solventless ~16 (bubble
+hash, rosin) · Production Room 9 (gummies) · Fulfillment Vault 27 (**24 are
+SEEDS** — `NotRequired` because seeds are not lab tested, and that is the entire
+2,400-unit NotRequired figure) · Biomass Prep 2. **None in a finished-goods
+sales location.** 87 of 111 carry a seed-to-sale chain; the 24 without are the
+seeds, which ARE the origin.
+
+**What the owner overturned along the way.** The "324 packages with no custody
+record" figure was wrong to present as one gap. 129 of them never left the
+facility — work in progress — exactly as he predicted from the trade: *"the only
+way this is possible is if it never left the facility."* The remaining 195 were
+tested, and testing needs a manifest — his rule again. Traced: **228 outgoing
+lab-run manifests exist in Metrc carrying 1,402 sample packages; we hold 29.**
+The parent legitimately never moves — the SAMPLE ships. **An import gap, not a
+compliance gap.**
+
+**Also corrected: a regression of mine.** Adding the lab-results path to
+`v_certificate_resolved` raised coverage 2,088 → 2,287 but broke the document
+link, because `v_document_package_link` still joined on
+`metrc_documents.package_tag`. **1,135 certificates resolved with no PDF
+attached**, and `v_item_documents` COMPLETE fell 869 → 372 looking like real
+deterioration. Fixed by following the lab pairing in the link view too. Same
+one-to-one-on-many-to-many fault, third location.
+
+**2026-08-08 — OWNER RULING: MMM Transport DELIVERS. Its revenue is real.**
+
+Asked: *does MMM Transport deliver your product to dispensaries, or store it?*
+Answer: **delivers.**
+
+**This overturns a rule the brain had been applying.** Trap 8 read *"a
+transporter (MT) licence destination is never a sale."* Applied literally it
+would have removed **$86,468 of genuine revenue**.
+
+| | Eagle Eyes MT281320 | MMM Transport MT281556 |
+|---|---|---|
+| ruling | **STORAGE — not a sale** | **DELIVERS — a real sale** |
+| moved | bulk material | **branded finished goods** |
+| returned | **119 tags · $378,741 declared** | 7 of 50, all inside 3 days |
+| period | Aug 2024 – Feb 2025 | Oct 2025 – **27 Jul 2026, live** |
+| verdict | **remove $1,113,053** | **keep $86,468** |
+
+**THE DISCRIMINATOR IS THE RETURN LEG, NOT THE LICENCE PREFIX.** Storage sends
+material back; delivery does not, because a buyer received it. **42 of the 43
+MMM packages with no return are `Twisted |` branded consumer product** — bulk
+biomass comes home, finished goods do not. The 7 that did return came back
+within three days, which is a failed drop, not storage.
+
+**Corrected revenue adjustment: −$1,113,053** (Eagle Eyes), not the $1,199,521
+full MT total and not the $901,430 previously recorded — that older figure was
+Eagle Eyes only, Buds only, priced ≥ $1, and missed MMM entirely.
+
+**STILL OPEN, and it follows directly from the ruling.** If MMM delivers, the
+43 packages reached actual buyers — and **the platform does not know who.** The
+manifest names the transporter as destination, not the final recipient.
+$78,333 of delivered product with no identified customer. `document_sends` and
+Apex would settle it; neither is available.

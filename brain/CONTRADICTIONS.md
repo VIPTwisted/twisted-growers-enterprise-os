@@ -258,3 +258,33 @@ and 20 within one doc set; pages 262 vs 278; open questions 30 vs 44).
 Per HANDOFF's own instruction these are never arbitrated — always re-measure
 live. The only durable fix on record: generate HANDOFF.md from
 `platform_state`.*
+
+---
+
+## OPEN — EXPIRING DOCUMENT LINKS STILL LIVE IN 8 VIEWS (raised 7 Aug 2026)
+**Owner ruling: "I do not want expiry at all on our OS."** My layer is clean —
+`f_item_documents`, `v_document_package_link` and `v_item_documents` carry
+`storage_path` only, verified no URL and no token. **Eight views still serve a
+pre-signed URL that dies 5–6 September 2026:**
+
+| view | column |
+|---|---|
+| `v_document_library` | `open_download_print`, `url_expires_at` |
+| `v_document_links` | `coa_url`, `manifest_url` |
+| `v_product_identity` | `manifest_url`, `coa_url` |
+| `v_customer_manifests` | `manifest_download`, `certificate_of_analysis_links` |
+| `v_coa_register` | `coa_link` |
+| `v_sales_history` | `manifest_link` |
+| `v_metrc_transfer_ledger` | `manifest_link` |
+| `v_issue_unconfirmed_manifests` | `manifest_link` |
+
+**These are the front-end lane, not mine — flagged, not quietly rewritten.**
+
+**THE PERMANENT FIX, and it costs nothing in privacy.** Serve documents through
+an edge function — `/functions/v1/document/coa/2267739.pdf`. The URL is
+**permanent, tokenless and never expires**, the function checks the caller's
+session and streams the file from the private bucket. Every one of the 8 views
+then stores a path, not a countdown. **This is not a trade-off between permanence
+and privacy — it gives both.** The alternative, making the bucket public, gives
+permanent URLs but means anyone holding a link can read our COAs and manifests,
+including who we ship to. **Not done without an explicit owner decision.**
