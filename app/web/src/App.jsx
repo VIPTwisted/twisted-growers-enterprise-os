@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback, useRef, useMemo } from "react"
 import jsQR from "jsqr";
 import { supabase, FUNCTIONS_URL } from "./lib/supabase.js";
 import { BudzScreen, CeoDashboard, AssistantSettings, BudzPet, useBudzPet, RedGreen,
-         askBudzFull, useChatFiles, ChatFiles } from "./budz.jsx";
+         askBudzFull, useChatFiles, ChatFiles, Thinking } from "./budz.jsx";
 
 // Laws: live numbers (2) · no fake data (3) · nothing hardwired (4) — navigation itself is DB rows.
 
@@ -4972,6 +4972,10 @@ function BrainScreen({ session, go, isExec, dictation }) {
   /* The catalogue, read once. Brain matching a question to a report is the
      difference between "here is where you could look" and "here it is". */
   const [catalogue, setCatalogue] = useState([]);
+  /* Owner, 8 Aug 2026: the Agents tab "is not working or user cant toggle to".
+     It was a disabled M5 placeholder. The data it was waiting for already
+     exists - agent_claims and v_agent_agreement - so the tab shows it. */
+  const [tab, setTab] = useState("ask");
   const [repHits, setRepHits] = useState([]);
   const [running, setRunning] = useState(null);
   useEffect(() => {
@@ -5081,9 +5085,30 @@ function BrainScreen({ session, go, isExec, dictation }) {
         <p className="bsub">Every record this company generates — Metrc, the rooms, the floor, the sheets, the money — one mind. Ask it anything: it answers with the same assistant the pet and the Budz page use, on the same training, and searches every table for what you named at the same time. Attach documents, images, video or a zip. It answers from live data only, never from guesses.</p>
         <div className="askwrap">
           <div className="asktabs">
-            <button className="on">{I.dna} Ask / Find</button>
-            <button disabled title="Loop agents arrive in M5">{I.gear} Agents <span className="mtag">M5</span></button>
+            <button className={tab === "ask" ? "on" : ""} onClick={() => setTab("ask")}>
+              {I.dna} Ask / Find
+            </button>
+            <button className={tab === "agents" ? "on" : ""} onClick={() => setTab("agents")}
+              title="Every agent's claim about this company, and where two of them disagree">
+              {I.gear} Agents
+            </button>
           </div>
+          {tab === "agents" && (
+            <div className="agentspanel">
+              <p className="bnote" style={{ margin: "0 0 10px" }}>
+                Every agent working on this company records what it CLAIMS to be true, with the
+                query behind it. Where two agents disagree, the disagreement is the finding — it
+                is never averaged away, and it is never hidden because it is awkward.
+              </p>
+              <BrainReport
+                rep={{ report_key: "agent_agreement", title: "Do the agents agree",
+                       category: "Audit", fact_view: "v_agent_agreement", date_column: null,
+                       owner_note: "Disagreement between two agents is a finding in its own right. Read the rows where they differ first." }}
+                onClose={() => setTab("ask")} />
+            </div>
+          )}
+          {tab === "ask" && (
+          <>
           <ChatFiles bag={bag} />
           <div className={`askbar${bag.dropping ? " dropping" : ""}`} {...bag.dropProps}>
             <input ref={brainFileRef} type="file" multiple style={{ display: "none" }}
@@ -5105,13 +5130,15 @@ function BrainScreen({ session, go, isExec, dictation }) {
                       {m.links.map((u, n) => <a key={n} href={u} target="_blank" rel="noreferrer">file {n + 1}</a>)}
                     </div>
                   )}
-                  {m.pending && <div className="bmvia">Thinking…</div>}
+                  {m.pending && <Thinking since={m.stamp} />}
                   {m.researched && m.via && <div className="bmvia">Researched by {m.via}</div>}
                   {/* Rule A3: absence is explained, never blank. */}
                   {m.askErr && <div className="bmerr">{m.askErr}</div>}
                 </div>
               ))}
             </div>
+          )}
+          </>
           )}
         </div>
         <div className="qcards">
@@ -5168,7 +5195,11 @@ function BrainScreen({ session, go, isExec, dictation }) {
           ))}
         </div>
       )}
-      <BrainFold id="seat" title="What do you run?"
+      {/* OPEN BY DEFAULT. Owner, 8 Aug 2026: "this should always show by
+          default each sign in unless user hides". Which seat you run changes
+          every briefing on the platform, so it is worth seeing; the other two
+          are wiring you set once. Hiding it is still remembered. */}
+      <BrainFold id="seat" defaultOpen title="What do you run?"
         note="Brain tailors briefings, alerts, and your Control Tower to your seat. Saved to your account as data — change it any time.">
         <div className="rolegrid">
           {BRAIN_ROLES.map((r) => (

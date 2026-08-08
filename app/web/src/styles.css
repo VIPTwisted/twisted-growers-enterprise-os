@@ -1758,3 +1758,31 @@ button.teamcard:hover { border-color: var(--neon-line); }
   border:1px solid var(--line);border-radius:6px;color:var(--muted);font-size:14px}
 .mtitle.foldtitle:hover .foldcaret{border-color:var(--accent);color:var(--accent)}
 .mtitle.foldtitle.open .foldcaret{color:var(--accent);border-color:var(--accent)}
+
+
+/* FOUR ACROSS, TWO DOWN. Owner, 8 Aug 2026: "there should be row of 4 accross
+   two down even across the page same hight as currentlly shown, add fine
+   thinnest boarder around".
+
+   auto-fit fixed the dead space but chose its own column count - six across,
+   then two orphans on a second row, which is exactly the raggedness he objected
+   to in the first place. Eight seats divide into four, so the count is stated
+   rather than computed: four equal columns, two full rows, edge to edge at any
+   width. It steps to two and then one on narrow screens, because four 190px
+   columns do not fit a phone and a fixed four would overflow. */
+.rolegrid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; width: 100%;
+  border: 1px solid var(--line); border-radius: 12px; padding: 10px; }
+@media (max-width: 900px) { .rolegrid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 520px) { .rolegrid { grid-template-columns: 1fr; } }
+
+/* The wait, made legible. */
+.thinking { display: flex; align-items: center; gap: 7px; margin-top: 6px; }
+.thinktext { font-size: 11.5px; color: var(--muted); }
+.thinksecs { font-size: 11.5px; color: var(--accent); font-variant-numeric: tabular-nums; }
+.thinkdot { width: 5px; height: 5px; border-radius: 50%; background: var(--accent);
+  animation: thinkpulse 1.1s ease-in-out infinite; }
+.thinkdot:nth-child(2) { animation-delay: 0.18s; }
+.thinkdot:nth-child(3) { animation-delay: 0.36s; }
+@keyframes thinkpulse { 0%, 100% { opacity: 0.25; } 50% { opacity: 1; } }
+/* Someone who has asked for less motion gets the seconds and no pulse. */
+@media (prefers-reduced-motion: reduce) { .thinkdot { animation: none; opacity: 0.6; } }

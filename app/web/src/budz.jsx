@@ -1180,6 +1180,39 @@ export function useChatFiles(surface) {
 }
 
 /* What is attached, and how to take it back off. Above the input in both. */
+/* A WAIT THAT SHOWS ITS WORK. Owner, 8 Aug 2026: "ai not working".
+
+   It was working. His question came back in 39 seconds and the screenshot was
+   taken at about 20. Other questions have taken 88, 145, 208 and 250 seconds -
+   the desktop bridge is reading the live database and thinking properly, which
+   is the point of it. But the screen said THINKING and nothing else, so there is
+   no way to tell a bridge that is working hard from one that has died.
+
+   Seconds tick, and the wording changes as it goes, because a counter alone
+   still leaves you wondering what it is doing at 90 seconds. Nothing here
+   changes the answer; it changes whether a person believes an answer is
+   coming. */
+export function Thinking({ since, what = "Reading the records" }) {
+  const [secs, setSecs] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => setSecs(Math.round((Date.now() - since) / 1000)), 1000);
+    return () => clearInterval(t);
+  }, [since]);
+  const stage =
+    secs < 5   ? what
+    : secs < 20  ? "Working through the live records"
+    : secs < 60  ? "Still going - a real answer takes longer than a lookup"
+    : secs < 150 ? "This is a big question. It is still running, not stuck"
+    :              "Nearly at the limit. If it passes, it will say so rather than sit here";
+  return (
+    <div className="thinking">
+      <span className="thinkdot" /><span className="thinkdot" /><span className="thinkdot" />
+      <span className="thinktext">{stage}</span>
+      <span className="thinksecs">{secs}s</span>
+    </div>
+  );
+}
+
 export function ChatFiles({ bag }) {
   if (!bag.files.length && !bag.warn) return null;
   const size = (n) => (n == null ? "" : n > 1048576 ? `${(n / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`);
