@@ -81,7 +81,17 @@ is here with its source. **Do not infer, derive or guess any of them.**
 |---|---|
 | Tables per room | **4** |
 | Plants per table | **287.5** |
-| Operating plants per room | **1,150** |
+| Operating plants per room | **1,150** ⚠️ **CONTESTED — see below** |
+
+> ⚠️ **1,150 IS DISPUTED AND IS PROBABLY NOT A ROOM CAPACITY.** Measured 7 Aug
+> 2026: `conversion_factors` holds **F1 1,140 · F2 1,050 · F3 1,140 · F4 1,050**,
+> and actual plant counts match those, not 1,150. The 1,150 traces to
+> `Labor Calculator!B2`, headed *"Estimated total plants — Editable"* — a
+> **crew-sizing input**, not a capacity. It was copied into all four
+> `grow_rooms` rows and all 26 rows of `harvest_plan_2026`, so the plan
+> **overstates F2 and F4 by 100 plants each**. Open arbitration item #11 in
+> `brain/CONTRADICTIONS.md`. **Until the owner rules, use `conversion_factors`
+> and say which you used.**
 | Room cycle | **56 days**, all four rooms, every pull |
 | Pull cadence | **14 days** (13/14/15 with the Sunday/Monday stagger) |
 | Pulls in 2026 | **26** |
@@ -119,7 +129,7 @@ double-counting.
 
 | Rule | Value | Source |
 |---|---|---|
-| Moisture loss | 75–80% | Published drying guidance (AROYA, Preair) |
+| Moisture loss | 75–80% ⚠️ **CONTESTED** — the live platform uses **70–77%**, owner-set 6 Aug 2026 on **measured 73.5%** across the **271 harvests that actually dried**. 75–80% came from published guidance, not our own harvests. **62.5% is the known trap** — it includes 77 fresh-frozen harvests that never dried. And the band is a *residual* (wet − waste − packaged), so **the mass balance always closes and proves nothing**. Open item #1 in `brain/CONTRADICTIONS.md`. | Published drying guidance (AROYA, Preair) |
 | Dry window | 10–14 days | Published guidance (Paramount, AROYA) |
 | Fresh frozen wet:dry | 4.5 | Follows from the moisture figures |
 | Ageing threshold | 180 days | Stability research: 6–12 month shelf life, ~16% THC loss at one year |
@@ -251,6 +261,73 @@ in the total. This once overstated open harvests by 3,800 lb.
 
 ## C · Traceability and proof
 
+**C0. ⛔ OWNERSHIP STOPS AT THE COA. NOTHING GETS POSTED WHILE A DISCREPANCY
+STANDS.** *(Owner ruling, 7 August 2026. Binds every agent, inside this OS or
+outside it, human or machine.)*
+
+**Never answer "is this ours?" from `ItemFromFacilityLicenseNumber`.** That field
+names whoever defined the **item**, not who owned the **material**, and it flips
+to us on any repack under a new item name. **191 active packages / 420.6 lb read
+as ours today and trace to outside licences.** Use **`f_material_origin(tag)`**,
+which walks `SourcePackageLabels` to its roots and returns origin licences,
+inbound manifests and source harvests.
+
+**The order, every time:**
+1. **Check ours** — the licence field and `f_material_origin(tag)`.
+2. **Look for doubt** — a repack (`SourcePackageCount > 0`) · an inbound manifest
+   anywhere in the lineage · source harvests absent from `metrc_harvests` ·
+   harvest names off our convention `TG <strain> - <YYYYMMDD> <room>` · a tag
+   series other than `1A40A030000E5B1` (MC281714) or `1A40A030000E5B2` (MP281909).
+3. **On ANY doubt, OPEN THE COA. DO NOT PROCEED WITHOUT IT.** The certificate
+   from the testing laboratory is the only **independent** source for who grew or
+   made the material. An internal field cannot disconfirm another internal field
+   — **a check that cannot fail proves nothing.**
+
+**The COA calls it `Client Info`.** The name, address and `License:` under that
+heading is the cultivator, manufacturer or processor. Cross-check `METRC Batch
+ID` (the harvest) and `METRC Source ID` (the sampled package) as well.
+
+**The documents are already on disk** — `metrc_documents.storage_path`
+(`coa/<id>.pdf`, `manifest/<n>.pdf`) with a signed `download_url`. `curl` to
+fetch, `pdftotext -layout` to read. **`coa_extract` cannot answer this**: 983
+certificates parsed and not one records the client or licence. Open the PDF.
+
+**Worked example.** Package `1A40A030000E5B2000009058`, 56.84 lb, was ruled
+"ours, remediate in house" on 7 Aug 2026. `coa/2267739.pdf` (Green Analytics
+report `GGDB-00016`) named the client **Greater Goods, LLC, License MB282344**.
+Batch, source package and the Total Yeast and Mold failure all matched the
+certificate exactly. **The only discrepancy in the document was ownership, and
+it was ours.**
+
+**C0b. 🔒 PROOF REQUIRED — "NEVER TESTED" IS A CLAIM, NOT AN EXCUSE.**
+*(Owner hard rule, 8 August 2026. Binds every agent.)*
+Any item reported as untested with **no COA and no manifest** must be shown in
+**Metrc inventory, in a NAMED ROOM, with its seed-to-sale chain** — Massachusetts
+law requires Metrc to hold the current room for every tagged package, so if it
+cannot be shown there the claim fails and must not be reported.
+**ALL FOUR SOURCES MUST AGREE**, three of them outside this platform: Metrc's own
+`lab_testing_state` · **zero** rows in `metrc_lab_results` (the laboratories) ·
+**zero** lines in `metrc_rpt_package_transfers` (the state custody export) ·
+**zero** certificates filed **directly** against it. An **inherited** certificate
+is expected on untested intermediate product made from tested material; a
+**direct** one is a contradiction.
+Use **`v_never_tested_proof`** — `where proof like 'FAILS%'` must return zero rows.
+Registered as `nevertested.contradictions`, re-derived nightly.
+*Measured 8 Aug 2026: 111 packages proven, 0 failures, 0 without a room.*
+**The general form: a benign explanation is the one to evidence hardest, because
+nobody challenges it.**
+
+**C0a. PARSE FOR NEW DATA ON EVERY ACCESS.** *(Owner ruling, 7 August 2026.)*
+Every agent, every session, before it reports anything: **check what has arrived
+since it last looked and parse it.** Documents land in `metrc_documents` and sit
+unread — 983 certificates were on disk with the cultivator on every one and the
+field went unparsed until it was opened by hand. **A document downloaded and not
+parsed is worse than one not downloaded: it looks like coverage.**
+Run: `select count(*) from coa_extract where client_license is null` ·
+`select count(*) from metrc_documents where storage_path is not null and
+fetched_at > now() - interval '2 days'` · the sync-run and backlog counts.
+**Say what you found, including "nothing new".**
+
 **C1. Every tile, total and headline is a CLAIM and must open to the individual
 items behind it.** No summarising, no sampling, no top-N. `v_stock_proof` is the
 evidence view. **A tile without a drill-down is not finished and must not ship.**
@@ -262,6 +339,35 @@ behind it must add to 1,943.6 lb.
 manifest.** Missing ones state why. When data later arrives it must back-fill
 every past record automatically.
 
+**C3a. EVERY ITEM ROW IN EVERY DRILL-DOWN CARRIES ITS CERTIFICATE AND ITS
+MANIFEST — sitewide, every time.** *Owner-set 7 August 2026, binding.* Not a
+link to a document page. **The certificate and the manifest, openable from the
+row itself**, wherever an item appears: stock, quality, sales, finance,
+compliance, reports, search results, tiles, dashboards. **An item row without
+both is not finished and must not ship** (C1).
+
+**Where absent, the row states WHICH reason** (A3) — never a blank, never a
+dash:
+- *"Never submitted for testing"* — no certificate exists to link.
+- *"Out for testing since {date}"* — result not returned yet.
+- *"Certificate not yet fetched from Metrc"* — it exists; our copy is missing.
+- *"No manifest — packaged here, never transferred."*
+
+**The mechanism is already built and must be reused, not rebuilt:**
+`f_package_documents(tag)` returns certificate and manifest with the document
+id, a signed link, size, laboratory and test date. Documents live in the
+**private** `metrc-documents` bucket with SHA-256 and byte size recorded;
+signed links last 30 days and are refreshed daily by cron — because a raw
+Metrc URL hits a sign-in wall and is not a working link.
+
+**Coverage as at 7 Aug 2026 — the gap is documents, not plumbing:**
+- **Manifests: 2,683 of 2,690 carry a file (99.7%).** Strong. Seven have a
+  `fetch_error` and must say so.
+- **Certificates: 969 of 2,858 tested packages (34%).** **1,889 tested packages
+  have no certificate on file.** The document backfill has not finished
+  walking the book. Until it does, most rows must show *"not yet fetched"* —
+  which is honest, and is not the same as "no certificate exists".
+
 **C4. Location always carries its dates** — entered, how long there, when it
 left, where it went.
 
@@ -269,8 +375,93 @@ left, where it went.
 laboratory.** Use `f_test_status()`: **OUT FOR TESTING**, **NO TESTING PLANNED
 YET**, **PASSED**, **FAILED** — sitewide, driven by Metrc state.
 
-**C6. Failed material always splits ours versus third party** on the face of the
-tile, with the supplier named. No drill required.
+**C6. Ours versus third party splits on the face of the tile — for failed
+material AND for revenue.** With the supplier named. No drill required.
+*Extended 7 August 2026 at the owner's direction.*
+
+**C6a. Third-party failed material is an INPUT, not a problem.** It is bought
+at a discount deliberately, then either remediated and processed in-house, or
+sold on to another licensee who remediates it — Twisted Growers acts as a
+wholesaler for others too. **Never present it as a quality failure or a loss.**
+The measure that matters for it is **remediation yield**: sellable product out
+per pound bought in.
+
+**C6b. Our own failed material needs a recorded DISPOSITION, and there are
+three:** remediate in-house · sell on for remediation · destroy. Flag it until
+a disposition is recorded (H1). **A failed test is not a loss — an undecided
+package is.** Any finding that says "remediate or destroy" is incomplete and
+steers people away from a legitimate revenue path.
+
+**C6c. There are THREE revenue lines and they are never blended.** Extended
+again 7 August 2026: Twisted Growers is a cultivator, a manufacturer **and a
+wholesale distributor** — it takes on other licensees' product to sell.
+
+| Line | What it is | Cost basis |
+|---|---|---|
+| **Own production** | Grown and packaged by us | The owner-set cost per pound ($1,100 for 2025) |
+| **Remediation** | Failed material bought at a discount, fixed, sold | What was paid, plus remediation cost |
+| **Distribution** | Other licensees' product taken on to sell | What was paid, or the commission split |
+
+**Never blend them into one price per pound, and never measure any of them
+against another's cost basis.** First split measured 7 Aug 2026: own production
+**$950/lb** against bought-in **$289/lb**. Blending understated own production
+and manufactured a false "selling below cost" conclusion.
+
+**C6d. SERVICES are a fourth line, and on services WE DO NOT OWN THE
+MATERIAL.** Added 7 August 2026: Twisted Growers also offers **white label**
+manufacturing and **trim tolling**. On a tolling job the customer's material
+arrives, is processed, and leaves — **ownership never transfers.**
+
+- **Tolled and consigned material must NEVER count as our stock, our
+  production, or our yield.** It is someone else's property in our custody.
+- **The revenue is a FEE for a service, never a price per pound of product.**
+  It must never appear in any $/lb figure.
+- **The register already exists and is populated:** `third_party_material` —
+  **16 rows, 65.7 lb of other companies' BHO and distillate in the Fulfillment
+  Vault** (Hudson Botanicals, UC, Solar Therapeutics, Jushi), every row marked
+  *"CONFIRMED 7/31 VT"* — physically counted. **Nothing reads it.** No view,
+  no tile, no reconciliation against the Metrc mirror.
+- **Inbound material has TWO independent dimensions. Do not collapse them.**
+  *Corrected 7 Aug 2026 — Agent D first wrote a single five-value list here and
+  the database check constraint correctly rejected it. The existing design was
+  right.*
+
+  **1 · CONDITION at purchase — `suppliers.bought_as`.** Fixed vocabulary,
+  already constrained in the database: `sound material` · `failed for
+  remediation` · `biomass for extraction` · `our own licence` (mis-tagged in
+  Metrc — correct at source per D2) · `not yet set`. **Currently "not yet set"
+  on 30 of 32 suppliers.**
+
+  **2 · DESTINATION — decided LATER, changeable, and per lot, not per
+  supplier.** The owner, 7 Aug: material bought as an input *"can be sold if
+  too much for us to use, or stored to be used later."* So the same purchase
+  may end up **consumed in manufacture · sold on as-is · held for later**, and
+  which one it becomes is a business decision after arrival. **A supplier-level
+  field cannot carry it.** It belongs on the lot or package, and it must be
+  allowed to change with the reason recorded (H1).
+
+  **3 · TOLLING AND CONSIGNMENT ARE NEITHER.** They are not purchases at all —
+  nothing was bought and nothing is owned. They need their own flag, never a
+  `bought_as` value.
+
+- **⚠ Purchased inputs are modelled in the cost calculator but their real
+  price is not recorded.** The vape rate is built from "base oil, terpenes,
+  hardware, packaging, fill labour, packaging labour and compliance testing"
+  — **but what was actually paid for that base oil exists nowhere**, because
+  `material_purchases` is empty. Every manufactured cost per unit therefore
+  rests on an **assumed** input price, not an actual one (A2).
+- ⚠ **The custody register uses truncated Metrc tags** (e.g. `1479`, `4722`)
+  rather than full 24-character tags, so it **cannot be reliably joined to
+  `metrc_packages`.** Two truncated-tag collisions are already on record. Any
+  reconciliation must resolve full tags first.
+
+**⚠ Two of the three cannot be costed at all today.** `material_purchases` and
+`third_party_purchases` are **both empty**, so what was paid for bought-in
+material exists nowhere. **Margin on remediation and on distribution is
+uncomputable until purchases are recorded** — and any figure claiming otherwise
+is invented (A1). Nine suppliers already appear on stock: Canna Provisions,
+Holyoke Wilds, Jushi MA, ACS, berkley botanicals, Gibby's Garden, LC Square,
+Nature Medicines, Solar Therapeutics.
 
 ## D · Metrc
 
@@ -353,3 +544,21 @@ tasks — never a list of links.
 **I3. Plain English beside the professional language.** Vinny is not an engineer.
 
 **I4. Reports live in the Reports dropdown**, not as side-menu items.
+
+---
+
+## THE BRAIN — the knowledge index (added 7 August 2026, owner-requested)
+
+`brain/INDEX.md` maps every piece of knowledge in this project and how it
+connects. This file stays the single source of truth for **rules**;
+`HANDOFF.md` for **state**; the brain indexes both and holds what they don't:
+decisions, lessons, domain pages, ingested sources.
+
+- **Session start:** after this file and `HANDOFF.md`, read `brain/INDEX.md`.
+- **Session end:** write back — settled decisions to `brain/DECISIONS.md`,
+  expensive mistakes to `brain/LESSONS.md`, business knowledge to
+  `brain/domains/`, digested reading to `brain/sources/`. New project files
+  get a line in the index map.
+
+A session that learned something and didn't write it back has wasted the
+owner's money twice.
