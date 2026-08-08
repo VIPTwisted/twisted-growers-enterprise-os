@@ -11,7 +11,7 @@
     "check:theme": "node tools/checks/theme-lock.mjs",
     "check:boundaries": "node tools/checks/error-boundaries.mjs",
     "check:routing": "node tools/checks/routing.mjs",
-    "check": "npm run check:intact && npm run check:baseline && npm run check:theme && npm run check:parse && npm run check:numbers && npm run check:boundaries && npm run check:routing && npm run check:trend && npm run check:bridge && npm run check:rules && npm run check:guards && npm run check:secrets && npm run check:ledger && npm run check:aggregate && npm run check:licences && npm run check:language && npm run check:fabricated && npm run check:tiles && npm run check:wired && npm run check:lint",
+    "check": "npm run check:intact && npm run check:baseline && npm run check:theme && npm run check:parse && npm run check:numbers && npm run check:boundaries && npm run check:routing && npm run check:trend && npm run check:bridge && npm run check:rules && npm run check:guards && npm run check:secrets && npm run check:ledger && npm run check:aggregate && npm run check:licences && npm run check:language && npm run check:fabricated && npm run check:tiles && npm run check:literal-licences && npm run check:no-fabricated-data && npm run check:tile-drills && npm run check:ui-language && npm run check:wired && npm run check:lint",
     "check:guards": "node tools/checks/guard-fixtures.mjs",
     "check:secrets": "node tools/checks/secret-scan.mjs",
     "check:ledger": "node tools/checks/rule-ledger.mjs",
@@ -26,7 +26,11 @@
     "check:rules": "node tools/checks/rules-in-sync.mjs",
     "check:intact": "node tools/checks/source-intact.mjs",
     "check:wired": "node tools/checks/all-checks-wired.mjs",
-    "check:lint": "node tools/checks/eslint-ratchet.mjs"
+    "check:lint": "node tools/checks/eslint-ratchet.mjs",
+    "check:literal-licences": "node tools/checks/literal-licences.mjs",
+    "check:no-fabricated-data": "node tools/checks/no-fabricated-data.mjs",
+    "check:tile-drills": "node tools/checks/tile-drills.mjs",
+    "check:ui-language": "node tools/checks/ui-language.mjs"
   },
   "devDependencies": {
     "eslint": "^9.13.0",

@@ -132,6 +132,33 @@ jobs:
       - name: Aggregate views are summed, not counted
         run: node tools/checks/aggregate-count.mjs
 
+      # ---- Rule G2 / G1: a licence is a database row, never a literal -----------------
+      # Two licences today, MC281714 and MP281909. A renewal, a transfer or a third site
+      # makes every literal silently wrong — and "is this ours?" is the hinge of the
+      # whole ownership chain under rule C0. A ratchet: the count may fall, never rise.
+      - name: No new hardcoded licence numbers
+        run: node tools/checks/literal-licences.mjs
+
+      # ---- Rule F4 / I3: the owner is not an engineer ---------------------------------
+      # "Unit of measure", not "UOM". This rule breaks nothing visibly — it just makes
+      # the product unusable by the person it was built for, one label at a time, and
+      # nobody ever files a bug for a label.
+      - name: No abbreviations in user-facing text
+        run: node tools/checks/ui-language.mjs
+
+      # ---- Rule A1 and the dashboard standard: NEVER a fabricated line ----------------
+      # The only failure mode here that looks BETTER than the truth. A seeded array reads
+      # as history; a demo sparkline reads as a healthy trend. A fabricated 130 g/plant
+      # figure was once presented as fact.
+      - name: Nothing invented reaches the screen
+        run: node tools/checks/no-fabricated-data.mjs
+
+      # ---- Rule C1: a tile is a CLAIM and must open to the items behind it ------------
+      # The owner's most repeated rule — stated three times in CLAUDE.md — and until
+      # 8 Aug 2026 nothing checked it once.
+      - name: Every tile opens to its records
+        run: node tools/checks/tile-drills.mjs
+
       # ---- The guard that guards the guards -------------------------------------------
       # Four checks were written on 7 Aug and never wired, so they enforced
       # nothing while looking like enforcement. This fails if any check in
@@ -139,6 +166,17 @@ jobs:
       # cannot be silently left out. Exemptions live in the check, with reasons.
       - name: All guards are wired into CI
         run: node tools/checks/rules-in-sync.mjs
+
+      # Wired 8 Aug 2026 - written by a sibling agent and caught unwired by
+      # all-checks-wired, which is exactly the failure that check exists for.
+      - name: literal-licences
+        run: node tools/checks/literal-licences.mjs
+      - name: no-fabricated-data
+        run: node tools/checks/no-fabricated-data.mjs
+      - name: tile-drills
+        run: node tools/checks/tile-drills.mjs
+      - name: ui-language
+        run: node tools/checks/ui-language.mjs
       - run: node tools/checks/all-checks-wired.mjs
 
       # ---- Rule E1 / E6 / H2: dangerous SQL must not reach a migration ---------------
