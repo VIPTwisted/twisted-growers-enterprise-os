@@ -639,11 +639,33 @@ matters.
 - **Ours, bought-in, tolled and consigned all count.** Custody is the test, not
   ownership. Other licensees' material sitting in our Fulfillment Vault is in our
   possession and must be locatable (see C6d and `third_party_material`).
-- **A room name is only useful if it is the SAME name every time.** Measured 8 Aug
-  2026: `Pre-Trim Storage` holds 36 packages / 384.1 lb and `Pre Trim Storage Room`
-  holds 29 packages / 190.3 lb. If those are one room, **574 lb is split across a
-  spelling** and any question about that room returns a wrong answer from either name.
-  **Room names need a controlled vocabulary, not free text.**
+- **🔴 A ROOM IS NEVER SHOWN WITHOUT ITS DEPARTMENT. SITEWIDE, NO EXCEPTIONS.**
+  Owner, 8 August 2026: *"mark this so user always sees"* — *"yes, two different
+  departments."*
+
+  **Room identity is LICENCE + NAME. The name alone is not a room.**
+
+  | Room | Department | Licence | Metrc id |
+  |---|---|---|---|
+  | `Pre Trim Storage Room` | Cultivation | MC281714 | 586309 |
+  | `Pre-Trim Storage` | Manufacturing | MP281909 | 814201 |
+
+  Those are **two real rooms in two facilities**, not one misspelt one. An earlier
+  version of the room check called them a spelling collision; the owner corrected it.
+  That was rule **A5** broken — never assume business practice, ask.
+
+  **And the correction found something far worse: ELEVEN names exist in BOTH
+  departments** — Finish Vault, Fulfillment Vault, Cure Vault, Dry Room #1, Dry Room #2,
+  Freezer/Biomass Storage, Grind Room, Packaging Room, Quarantine, Shipping & Receiving,
+  BDA/Storage Room. Each pair is two physically different rooms wearing one name.
+
+  **Measured 8 Aug 2026: 557 of 862 held packages — 65% — sit in a room whose name is
+  shared. There are 15 real rooms wearing 13 names.** A bare room name shows the wrong
+  room two thirds of the time, and a total by name is a total across two buildings.
+
+  **So: always display `room_qualified` ("Finish Vault — Cultivation"), never `room`.**
+  Every tile, drill-down, report, export, alert and assistant reply. The department is
+  read from `company_licenses` (G2), never written as a literal.
 - **A room is not a sublocation.** Sublocation is empty on all 862 held packages. That
   is permitted, but it must be *stated* as unknown rather than implied (A3) — "Finish
   Vault" is not the same as "shelf 3 of the Finish Vault", and a physical count needs
