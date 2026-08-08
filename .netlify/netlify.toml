@@ -7,13 +7,14 @@ plugins = []
 [functions."*"]
 
 [build]
-publish = "C:\\Users\\demar\\Documents\\Claude_Twisted Growers\\dist"
+publish = "C:\\Users\\demar\\Documents\\Claude_Twisted Growers\\app\\web\\dist"
 publishOrigin = "config"
 commandOrigin = "config"
 command = "npm install --no-audit --no-fund && cd ../.. && npm install --no-audit --no-fund && npm run check && cd app/web && npm run build"
 base = "C:\\Users\\demar\\Documents\\Claude_Twisted Growers\\app\\web"
 
 [build.environment]
+NODE_VERSION = "22"
 SECRETS_SCAN_OMIT_KEYS = "VITE_SUPABASE_ANON_KEY,VITE_SUPABASE_URL"
 
 [build.processing]

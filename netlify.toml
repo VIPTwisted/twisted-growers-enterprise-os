@@ -10,7 +10,16 @@
   # Order matters. app/web installs first because parse-check needs its esbuild; then the repo
   # root installs eslint and the checks; then the checks run; only then do we build. A doomed
   # bundle is never produced.
-  command = "npm install --no-audit --no-fund && cd ../.. && npm install --no-audit --no-fund && npm run check && cd app/web && npm run build"
+  #
+  # --include=dev IS LOad-BEARING. Netlify sets NODE_ENV=production for a
+  # production build, and npm then SKIPS devDependencies. esbuild, eslint and
+  # vite all live there, so parse-check cannot find esbuild, the ratchet cannot
+  # find eslint, and the build has no bundler - every push since the repo was
+  # reconnected died here with "non-zero exit code: 2" and no other clue.
+  # Reproduced exactly by installing a clean clone with NODE_ENV=production.
+  # Stated in the command rather than left to an env var, because the command is
+  # the thing that has to be right and an env var is one more place to look.
+  command = "npm install --include=dev --no-audit --no-fund && cd ../.. && npm install --include=dev --no-audit --no-fund && npm run check && cd app/web && npm run build"
   publish = "dist"
 
 [build.environment]
