@@ -18,7 +18,41 @@ import { fileURLToPath } from "node:url";
 
 const PORT = Number(process.env.TG_BRIDGE_PORT || 8765);
 const PROJECT = process.env.TG_PROJECT || "C:\\Users\\demar\\Documents\\Claude_Twisted Growers";
+/* TWO PROVIDERS, BOTH FREE AT THE POINT OF USE. Owner, 8 Aug 2026: "Admins use the
+ * bridge, free unlimited from desktop. This is free, can toggle between Claude, GPT."
+ *
+ * Both run through the operator's OWN desktop subscription, so there is no per-token
+ * API bill and no max_tokens ceiling of ours to set — the limit is whatever their
+ * plan allows. That is the whole reason the bridge exists: the paid budz-chat edge
+ * function is the FALLBACK for people without a desktop, never the default for an
+ * admin who has one.
+ *
+ * A provider is selectable per job. Claude Code is the default because it is signed
+ * in and has the project MCP tools; the GPT binary is whatever CLI the operator has
+ * installed and is only used when asked for. */
 const CLAUDE = process.env.TG_CLAUDE_BIN || path.join(os.homedir(), "AppData", "Roaming", "npm", "claude.cmd");
+const GPT_BIN = process.env.TG_GPT_BIN || path.join(os.homedir(), "AppData", "Roaming", "npm", "codex.cmd");
+
+const PROVIDERS = {
+  claude: {
+    bin: CLAUDE,
+    label: "Claude Code (desktop subscription)",
+    args: (sessionId) => {
+      const a = ["-p", "--permission-mode", "acceptEdits",
+                 "--allowedTools", "mcp__twisted-growers,Read,Grep,Glob"];
+      if (sessionId) a.push("--resume", sessionId);
+      return a;
+    },
+  },
+  gpt: {
+    bin: GPT_BIN,
+    label: "GPT via desktop CLI",
+    /* No --resume: the OS re-sends the history in the prompt, so a provider that
+       cannot resume still answers a follow-up correctly rather than silently
+       losing the thread. */
+    args: () => ["exec", "--full-auto"],
+  },
+};
 
 // Shared secret so only the OS can drive it. Read from a file next to this script.
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -169,13 +203,19 @@ const json = (res, code, body) => {
   res.end(JSON.stringify(body));
 };
 
-function runClaude(prompt, sessionId) {
+function runClaude(prompt, sessionId, provider = "claude") {
   return new Promise((resolve) => {
+    /* NO TOKEN CEILING HERE, DELIBERATELY. Owner, 8 Aug 2026: "There should be no
+       limits for admins with Claude or GPT — we use our plan." This runs the
+       operator's own signed-in desktop CLI, so the only limit is their subscription.
+       Never add a max-tokens or truncation cap on this path; that would impose a
+       smaller limit than the plan the owner is paying for. Capping belongs only on
+       the paid API fallback, where every token is billed per call. */
+    const p = PROVIDERS[provider] ?? PROVIDERS.claude;
     // The prompt goes in on stdin. Passing it as a command-line argument mangles
     // long text and newlines on Windows.
-    const args = ["-p", "--permission-mode", "acceptEdits", "--allowedTools", "mcp__twisted-growers,Read,Grep,Glob"];
-    if (sessionId) args.push("--resume", sessionId);
-    const child = spawn(CLAUDE, args, {
+    const args = p.args(sessionId);
+    const child = spawn(p.bin, args, {
       cwd: PROJECT,
       shell: true,
       windowsHide: true,
@@ -253,7 +293,7 @@ const server = http.createServer(async (req, res) => {
       const ctx = parsed.context ? "\n\nRECORDS ALREADY PULLED BY THE PLATFORM:\n" + String(parsed.context).slice(0, 20000) : "";
       const prompt = SYSTEM_BRIEF + ctx + "\n\nQUESTION FROM THE OWNER: " + q;
       const started = Date.now();
-      const r = await runClaude(prompt, parsed.sessionId);
+      const r = await runClaude(prompt, parsed.sessionId, parsed.provider || "claude");
       json(res, 200, { ...r, seconds: Math.round((Date.now() - started) / 1000) });
     });
     return;
@@ -360,9 +400,10 @@ async function pollJobs() {
     const NL2 = String.fromCharCode(10, 10);
     const ctx = job.context
       ? NL2 + "RECORDS ALREADY PULLED BY THE PLATFORM:" + String.fromCharCode(10) +
-        JSON.stringify(job.context).slice(0, 20000)
+        JSON.stringify(job.context).slice(0, 400000) /* the desktop plan is the limit, not us */
       : "";
-    const out = await runClaude(SYSTEM_BRIEF + ctx + NL2 + "QUESTION FROM THE OWNER: " + job.question);
+    const out = await runClaude(SYSTEM_BRIEF + ctx + NL2 + "QUESTION FROM THE OWNER: " + job.question,
+                                null, job.provider || "claude");
     const seconds = Math.round((Date.now() - started) / 1000);
 
     await queue("answer", { id: job.id, ok: out.ok, answer: out.reply, seconds });

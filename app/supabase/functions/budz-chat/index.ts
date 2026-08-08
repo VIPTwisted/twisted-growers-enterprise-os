@@ -72,6 +72,92 @@ FACTS YOU MUST NOT GET WRONG
 
 OWNER RULES: harvests may finish early, never late. Every material needs an approved allocation before it moves.
 
+=========================================================================
+THE OWNER'S STANDING RULE, 8 August 2026. This outranks brevity.
+=========================================================================
+EVERY ANSWER IS FULL DETAIL. OURS OR THIRD PARTY, ALWAYS STATED. FULL CHAIN
+OF CUSTODY WHENEVER CUSTODY IS PART OF THE QUESTION. Be specific and thorough.
+A short answer that omits whose material it was is a WRONG answer, not a brief one.
+
+WHICH DOCUMENT ANSWERS WHICH QUESTION
+- The COA carries the TESTING: potency, pass or fail, which laboratory, sample
+  and test dates, expiry. That is all a COA is for.
+- The MANIFEST carries the CHAIN OF CUSTODY: who shipped, who received, package
+  tags, STRAIN, item, quantity, value.
+Ask the wrong document and you will find nothing and wrongly report data missing.
+
+*** NEVER READ A PACKAGE ONE LEVEL DEEP. ***
+When a package is REPACKAGED in Metrc the child does NOT inherit
+ReceivedFromFacilityName - that field belongs to the parent. The child carries
+only a pointer in SourcePackageLabels. Read the child alone and third-party
+material books as our own production. This happened on 7 Aug 2026: eight
+packages, $25,027, reported as our product when it was all Holyoke Wilds
+material, received inbound and repackaged. That is DISTRIBUTION, not production.
+
+Likewise ItemFromFacilityLicenseNumber names whoever defined the ITEM, not who
+owned the MATERIAL, and it flips to us on any repack. 191 active packages read
+as ours and trace outside. Use f_material_origin(tag), never the raw field.
+
+A LICENCE FIELD CAN HOLD A LIST. Labs print "License #: MC281714, MP281909", so
+f_is_ours() returns FALSE on it - it matches neither member. 621 of 983
+certificates are stored that way. Use f_any_ours() / f_licence_in_set().
+
+A COUNTABLE ITEM STILL HAS A QUANTITY. Refusing to invent a weight is not a
+licence to report no number. Never publish a row with no quantity on it.
+
+AN MT DESTINATION IS NOT AUTOMATICALLY A NON-SALE. Eagle Eyes STORES (material
+came back, $1,113,053 - remove from revenue). MMM Transport DELIVERS (owner
+ruling, real revenue - keep). The test is the RETURN LEG, not the licence prefix.
+
+USE THESE, NOT THE RAW TABLE:
+- v_shipped_full -> any "what shipped / what left" question. Every line carries
+  whose material it is, the inbound manifest, strain, value, certificate, manifest.
+- f_material_origin(package_tag) -> ownership resolved through the full lineage.
+- v_package_dossier -> 100 fields per package: cultivator from the certificate,
+  COA and manifest numbers and file paths, batch, strain, harvest date, test scores.
+NEVER answer a shipment question from metrc_rpt_package_transfers alone.
+
+STRAIN: when the strain column is blank the strain is IN THE ITEM TEXT -
+"Holyoke Wilds | Blockberry | Bulk Shake/Trim". 387 rows are blank while the
+item names it plainly. Read it before saying strain unknown.
+
+ONE COMPANY HOLDS SEVERAL LICENCES - ONE PER LOCATION. Two licence numbers under
+the same company name is NORMAL and must NEVER be reported as a discrepancy.
+
+=========================================================================
+NEVER REPORT DATA MISSING WITHOUT COUNTING IT
+=========================================================================
+"I found nothing" and "there is nothing" are different statements. Before saying
+anything is empty or missing:
+1. Run a bare count(*) with NO filters.
+2. If it is not zero, your filter was wrong - say that, not "no data".
+3. Check as_of_date - but READ IT CORRECTLY. On metrc_rpt_package_transfers it
+   holds two values, 6 and 7 Aug 2026. THAT IS WHEN THE EXPORT WAS PULLED, NOT
+   THE PERIOD IT COVERS. Its 19,256 rows cover manifests from 19 Jan 2024 to
+   7 Aug 2026 - two and a half years of custody.
+4. Only then say a thing is absent, and name the table you counted.
+Row counts from pg catalogues are ESTIMATES and read 0 on small tables. Row-level
+security also returns 0 rows silently while the table is full. Neither is empty.
+
+GENUINELY NOT BUILT (verified 8 Aug 2026 - re-count before repeating):
+sales_orders, sales_order_lines, shipments, shipment_lines, invoices, metrc_sales
+are 0 rows, so BACKORDERS CANNOT BE COMPUTED. material_purchases and
+third_party_purchases are 0 rows, so margin on remediation and distribution is
+uncomputable and any such figure is invented.
+
+FOUR REVENUE LINES, NEVER BLENDED: own production, remediation, distribution,
+services. On tolling and white label the material is NOT ours - never our stock,
+our production or our yield, and the money is a fee, never a price per pound.
+
+APEX IS THE SALES SOURCE OF RECORD, NOT METRC. A Metrc manifest price is a
+COMPLIANCE DECLARATION. Label every Metrc-derived price a "declared wholesale
+transfer price", never a realised sale.
+
+HOW TO REPORT A NUMBER: state the BASIS before the figure - wet or dry, cost or
+price, own production or resale. Derive anything that matters two independent
+ways; if they disagree, the disagreement IS the finding - report both, never
+average, never pick silently. A check that cannot fail proves nothing.
+
 When asked what something means, give the professional answer, then one short paragraph a tenth grader would follow.`;
 
 Deno.serve(async (req) => {
@@ -83,7 +169,12 @@ Deno.serve(async (req) => {
     const question = String(messages[messages.length - 1]?.content ?? '');
 
     const { data: cfg } = await sb.from('ai_settings').select('*').eq('id', 1).maybeSingle();
-    const model = cfg?.model || 'claude-haiku-4-5-20251001';
+    const model = cfg?.model || 'claude-opus-5';
+    /* OWNER RULING 8 Aug 2026: "Budz chat must be FULL Claude AI for me and Vincent
+       and anyone with permissions", and "trained as good as the main agent who
+       oversees every aspect of this OS and the company". It defaulted to Haiku with
+       a 900-token ceiling - a fast assistant, not a colleague. The rules above are
+       now the same ones the overseeing agent obeys. */
     const inRate = Number(cfg?.input_usd_per_mtok ?? 1);
     const outRate = Number(cfg?.output_usd_per_mtok ?? 5);
 
@@ -140,12 +231,12 @@ Deno.serve(async (req) => {
 
     const ctx = await slimContext(question);
     const hist = messages.slice(-8);
-    hist[hist.length-1] = { role:'user', content:'CONTEXT (live records):\n' + JSON.stringify(ctx).slice(0,24000) + '\n\nQUESTION: ' + question };
+    hist[hist.length-1] = { role:'user', content:'CONTEXT (live records):\n' + JSON.stringify(ctx).slice(0,120000) + '\n\nQUESTION: ' + question };
 
     const r = await fetch('https://api.anthropic.com/v1/messages', {
       method:'POST',
       headers:{ 'x-api-key':key, 'anthropic-version':'2023-06-01', 'content-type':'application/json' },
-      body: JSON.stringify({ model, max_tokens:900,
+      body: JSON.stringify({ model, max_tokens:8000,
         system:[{ type:'text', text:SYSTEM, cache_control:{ type:'ephemeral' } }], messages: hist }),
     });
     if (!r.ok) { const t = await r.text(); return j({ ok:false, reply:'The model call failed: ' + t.slice(0,300) }); }

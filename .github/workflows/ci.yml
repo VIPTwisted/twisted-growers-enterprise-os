@@ -103,7 +103,8 @@ jobs:
       # tools/checks is missing from this file, so a guard written tomorrow
       # cannot be silently left out. Exemptions live in the check, with reasons.
       - name: All guards are wired into CI
-        run: node tools/checks/all-checks-wired.mjs
+        run: node tools/checks/rules-in-sync.mjs
+      - run: node tools/checks/all-checks-wired.mjs
 
       # ---- Rule E1 / E6 / H2: dangerous SQL must not reach a migration ---------------
       # The PreToolUse hook blocks an agent from issuing these interactively. This catches

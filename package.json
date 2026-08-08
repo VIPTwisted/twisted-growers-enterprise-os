@@ -11,10 +11,11 @@
     "check:theme": "node tools/checks/theme-lock.mjs",
     "check:boundaries": "node tools/checks/error-boundaries.mjs",
     "check:routing": "node tools/checks/routing.mjs",
-    "check": "npm run check:baseline && npm run check:theme && npm run check:parse && npm run check:numbers && npm run check:boundaries && npm run check:routing && npm run check:trend && npm run check:bridge && npm run check:wired && npm run check:lint",
+    "check": "npm run check:baseline && npm run check:theme && npm run check:parse && npm run check:numbers && npm run check:boundaries && npm run check:routing && npm run check:trend && npm run check:bridge && npm run check:rules && npm run check:wired && npm run check:lint",
     "check:baseline": "node tools/checks/schema-baseline-fresh.mjs",
     "check:trend": "node tools/checks/trend-sentiment.mjs",
     "check:bridge": "node tools/checks/bridge-direct.mjs",
+    "check:rules": "node tools/checks/rules-in-sync.mjs",
     "check:wired": "node tools/checks/all-checks-wired.mjs",
     "check:lint": "node tools/checks/eslint-ratchet.mjs"
   },
