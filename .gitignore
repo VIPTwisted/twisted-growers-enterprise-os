@@ -11,3 +11,10 @@ node_modules/
 workbook_extract/
 __pycache__/
 *.pyc
+
+# Netlify CLI state — build artefact, never source (added 8 Aug 2026)
+app/web/.netlify/
+# Python bytecode from tools/
+**/__pycache__/
+# Downloaded PDF cache for the document parsers — regenerable from storage
+tools/documents/.cache/
