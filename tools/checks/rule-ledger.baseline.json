@@ -1,0 +1,29 @@
+{
+  "_comment": [
+    "High-water mark for enforced rules. Derived by rule-ledger.mjs, never hand-edited",
+    "upward. The count may RISE (commit the new baseline with the guard that raised it)",
+    "but may never FALL: a rule that loses its enforcement is a rule that quietly went",
+    "back to being hope, and that is the failure this ratchet exists to catch."
+  ],
+  "enforced_count": 17,
+  "enforced": [
+    "A1",
+    "A2",
+    "A3",
+    "A4",
+    "A5",
+    "B1",
+    "B4",
+    "C1",
+    "C2",
+    "D2",
+    "E1",
+    "E6",
+    "F2",
+    "G1",
+    "G4",
+    "H2",
+    "I1"
+  ],
+  "recorded": "2026-08-08"
+}

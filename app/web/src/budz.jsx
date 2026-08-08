@@ -2329,6 +2329,7 @@ export function AssistantAdmin() {
   /* Whether a key EXISTS, never the key itself. The value never leaves the
      database - this asks a question and gets a boolean. */
   const [keySet, setKeySet] = useState(true);
+  const [keyDraft, setKeyDraft] = useState("");
   const [roles, setRoles] = useState([]);
   const [msg, setMsg] = useState("");
   const [busy, setBusy] = useState(false);
@@ -2403,12 +2404,59 @@ export function AssistantAdmin() {
           <b>No API key is set, so the fast path cannot answer.</b>
           <div style={{ marginTop: 4 }}>
             Every question waits on the desktop bridge instead — free, but 39 to 250 seconds.
-            Paste an Anthropic key under Settings, Keys and Connections and answers arrive in
-            about ten to twenty seconds, with the bridge still racing it for the ones it can
-            win. Nobody but an owner can set this, and it is not something to paste into a chat.
+            Set a key below and answers arrive in about ten to twenty seconds, with the bridge
+            still racing for the ones it can win.
           </div>
         </div>
       )}
+      {/* ONE TIME, FOR THE WHOLE COMPANY. Owner, 8 Aug 2026: "should be one time
+          setup", "not everytime user logs in or resets".
+
+          It always was one row for the whole platform - the assistant page, Brain
+          and the pet all read the same one, nothing is per user and signing out
+          does not clear it. What did not exist was any way to SET it: the warning
+          above used to say "paste a key under Settings, Keys and Connections",
+          and no such page was ever built. Pointing somebody at a screen that does
+          not exist is the same failure as promising an assistant can answer
+          anything while its web tools are switched off.
+
+          The field is type=password and autoComplete=off so a shared screen does
+          not display it and a browser does not offer to remember it. It is
+          write-only: the value is never read back to any screen, because no
+          screen needs it - f_ai_key_present answers the only question one has. */}
+      <div className="asetrow" style={{ alignItems: "flex-start" }}>
+        <div style={{ flex: 1 }}>
+          <div className="asetlab">Company AI key {keySet ? "— set" : "— not set"}</div>
+          <div className="asetwhy">
+            Set once, by an owner, for the entire platform. Every assistant everywhere uses it
+            from the next question. It is never shown again and signing out does not clear it.
+          </div>
+        </div>
+        <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+          <input className="inp" type="password" autoComplete="off" style={{ maxWidth: 230 }}
+            placeholder={keySet ? "Replace the key…" : "Paste the key…"}
+            value={keyDraft} onChange={(e) => setKeyDraft(e.target.value)} />
+          <button className="btn primary" disabled={busy || !keyDraft.trim()}
+            onClick={async () => {
+              setBusy(true);
+              const { data, error } = await supabase.rpc("f_set_ai_key", { p_key: keyDraft });
+              setMsg(error ? error.message : (data?.message ?? "Saved."));
+              if (!error && data?.ok) { setKeyDraft(""); setKeySet(true); }
+              setBusy(false);
+            }}>Save</button>
+          {keySet && (
+            <button className="btn" disabled={busy}
+              onClick={async () => {
+                if (!window.confirm("Remove the company key? Questions fall back to the desktop bridge, which is free and slower.")) return;
+                setBusy(true);
+                const { data } = await supabase.rpc("f_clear_ai_key");
+                setMsg(data?.message ?? "Removed.");
+                setKeySet(false);
+                setBusy(false);
+              }}>Remove</button>
+          )}
+        </div>
+      </div>
       <div className="asetrow">
         <div>
           <div className="asetlab">Fall back to the metered API</div>

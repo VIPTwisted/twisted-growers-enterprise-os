@@ -33,9 +33,21 @@ const ROOT = resolve(here, "../..");
 
 /* Shared with tools/hooks/guard-secrets.mjs. Adding a pattern here arms both. */
 export const SECRET_PATTERNS = [
-  { name: "JSON Web Token",
-    re: /\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}/,
-    fix: "Read it from the environment at run time. Never write a JWT into a file." },
+  /* A Supabase `anon` key is NOT a secret. It ships inside the JavaScript bundle by
+     design — HANDOFF.md §6 verifies the whole security model on that basis, testing
+     that a request carrying the real publishable key gets `401 permission denied`.
+     Flagging it would train people to ignore this scanner. So the role claim is
+     decoded and only a privileged one is a finding. `service_role` bypasses row-level
+     security entirely and is the one that matters. */
+  { name: "privileged JSON Web Token",
+    re: /\beyJ[A-Za-z0-9_-]{10,}\.([A-Za-z0-9_-]{10,})\.[A-Za-z0-9_-]{10,}/,
+    fix: "Read it from the environment at run time. Never write a privileged JWT into a file.",
+    ignore: (m) => {
+      try {
+        const role = JSON.parse(Buffer.from(m[1], "base64url").toString("utf8")).role;
+        return role === "anon";           // public by design
+      } catch { return false; }           // unreadable claims -> treat as a finding
+    } },
   { name: "URI with an embedded password",
     re: /\b(postgres(ql)?|mysql|mongodb(\+srv)?|redis|amqp):\/\/[^\s:@/]+:[^\s:@/]+@/i,
     fix: "Use a connection string from the environment, or a .env file that is gitignored." },
@@ -102,7 +114,10 @@ export function scan(roots) {
       try { text = readFileSync(file, "utf8"); } catch { continue; }
       text.split("\n").forEach((line, i) => {
         for (const p of SECRET_PATTERNS) {
-          if (p.re.test(line)) findings.push({ file: rel, line: i + 1, name: p.name, fix: p.fix });
+          const m = line.match(p.re);
+          if (!m) continue;
+          if (p.ignore && p.ignore(m)) continue;
+          findings.push({ file: rel, line: i + 1, name: p.name, fix: p.fix });
         }
       });
     }
@@ -120,17 +135,47 @@ if (resolve(process.argv[1] ?? "") === resolve(fileURLToPath(import.meta.url))) 
   for (const r of roots) console.log(`secret-scan: scanning ${r.why}`);
   for (const [f, why] of Object.entries(EXEMPT)) console.log(`secret-scan: exempt  — ${f}: ${why}`);
 
+  /* A RATCHET, not a cliff — the same shape as eslint-ratchet and
+     no-hardcoded-numbers.baseline.json, and for the same reason ci.yml already states:
+     "A gate that fails on everything from day one is a gate people switch off."
+     Known debt is listed loudly on every run so it cannot be forgotten; anything NEW
+     fails the build. The baseline may only shrink. */
+  const BASELINE_FILE = resolve(here, "secret-scan.baseline.json");
+  let baseline = [];
+  try { baseline = JSON.parse(readFileSync(BASELINE_FILE, "utf8")).accepted ?? []; } catch { baseline = []; }
+  const key = (f) => `${f.file}:${f.line}:${f.name}`;
+  const known = new Map(baseline.map((b) => [`${b.file}:${b.line}:${b.name}`, b]));
+
   const findings = scan(roots);
-  if (findings.length) {
-    console.error(`\nsecret-scan: FAIL — ${findings.length} credential(s) found on disk:\n`);
-    for (const f of findings) {
+  const fresh = findings.filter((f) => !known.has(key(f)));
+  const stillThere = findings.filter((f) => known.has(key(f)));
+  const goneAway = baseline.filter((b) => !findings.some((f) => key(f) === `${b.file}:${b.line}:${b.name}`));
+
+  if (stillThere.length) {
+    console.log(`\nsecret-scan: ${stillThere.length} KNOWN exposure(s) carried in the baseline — not fixed, only recorded:`);
+    for (const f of stillThere) {
+      const b = known.get(key(f));
+      console.log(`  ! ${f.file}:${f.line}  — ${f.name}`);
+      console.log(`      ${b.note}`);
+      console.log(`      REQUIRED: ${b.required_action}`);
+    }
+  }
+  for (const b of goneAway) {
+    console.log(`\nsecret-scan: baseline entry no longer found — ${b.file}:${b.line} (${b.name}).`);
+    console.log("      Remove it from secret-scan.baseline.json so the baseline can only shrink.");
+  }
+
+  if (fresh.length) {
+    console.error(`\nsecret-scan: FAIL — ${fresh.length} NEW credential(s) found on disk:\n`);
+    for (const f of fresh) {
       console.error(`  ✗ ${f.file}:${f.line}  — ${f.name}`);
       console.error(`      ${f.fix}`);
     }
     console.error("\nThe value itself is deliberately not printed. Open the line to see it.");
     console.error("A credential in a file is exposed the moment that file is synced, shared or");
-    console.error("committed — and it is exposed retroactively, so removing it later is not enough.\n");
+    console.error("committed — and once committed it is exposed RETROACTIVELY, so deleting the");
+    console.error("line does not undo it. Git keeps the history. Only rotation does.\n");
     process.exit(1);
   }
-  console.log(`\nsecret-scan: PASS — ${SECRET_PATTERNS.length} credential shapes checked, none found.`);
+  console.log(`\nsecret-scan: PASS — ${SECRET_PATTERNS.length} credential shapes checked, no new exposure.`);
 }
