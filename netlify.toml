@@ -21,6 +21,10 @@
   # that breaks is never the thing you changed.
   NODE_VERSION = "22"
 
+
+
+
+
   # Supabase URL + publishable (anon) key are public-by-design client values.
   SECRETS_SCAN_OMIT_KEYS = "VITE_SUPABASE_ANON_KEY,VITE_SUPABASE_URL"
 

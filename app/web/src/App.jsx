@@ -5162,6 +5162,10 @@ function BrainScreen({ session, go, isExec, dictation }) {
             it does not take up so much of the lengh of apge at top" - five lines
             of explanation above the thing you came to use is five lines of the
             answer pushed off the screen. */}
+        {/* Two sentences. Owner, 8 Aug 2026: "strech this into to sentences so
+            it does not take up so much of the lengh of apge at top" - five lines
+            of explanation above the thing you came to use is five lines of the
+            answer pushed off the screen. */}
         <p className="bsub">Every record this company generates — Metrc, the rooms, the floor, the sheets, the money — one mind, answering from live data only and never from guesses. Ask it anything, look up any document, or attach your own.</p>
         <div className="askwrap">
           <div className="asktabs">
