@@ -607,16 +607,23 @@ button.pulse:hover, button.stat:hover { background: var(--row-hover); }
    absorb the width - so eight chips stay eight equal chips edge to edge at any
    window size, instead of eight chips and a gap. */
 .rolegrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px; width: 100%; }
-/* Owner, 8 Aug 2026: "do not make them big fat buttons." Filling the row is
-   about WIDTH - the height should not grow with it. 15px of vertical padding on
-   a chip that is now twice as wide reads as a slab, so it comes down to 9 and a
-   fixed line-height keeps every chip the same height whether its label wraps to
-   two lines or not. One rule, not two: I had left the glow in a second .rolechip
-   block, which is the same duplication being cleaned up everywhere else today. */
+/* THICKNESS UNCHANGED. Owner, 8 Aug 2026: "keep the thickness of buttons same
+   as we have we may want to add some addtional ones later." I had cut the
+   padding to 9px reading "do not make them big fat buttons" as a height
+   complaint. It was a WIDTH complaint - a chip stretched across half a screen
+   looks fat however tall it is - and auto-fit had already fixed that. Padding is
+   back at 15px, so a row added later sits at exactly the height of the rows
+   above it.
+
+   What is new here and stays: flex centring with a min-height, so a label that
+   wraps to two lines ("Compliance / Quality Assurance") is the same height as
+   one that does not. That is the symmetry complaint, and it is what made the
+   original grid look ragged. One rule, not two - the glow had been left in a
+   second .rolechip block. */
 .rolechip {
-  display: flex; align-items: center; justify-content: center; min-height: 42px;
+  display: flex; align-items: center; justify-content: center; min-height: 54px;
   background: var(--surface); border: 1px solid var(--line); border-radius: 8px;
-  padding: 9px 12px; font-size: 13px; font-weight: 700; line-height: 1.25; color: var(--ink);
+  padding: 15px 12px; font-size: 13.5px; font-weight: 700; line-height: 1.3; color: var(--ink);
   cursor: pointer; font-family: inherit; text-align: center;
   box-shadow: 0 0 10px rgba(0, 255, 140, 0.07);
   transition: border-color 0.13s, transform 0.13s, box-shadow 0.13s;
