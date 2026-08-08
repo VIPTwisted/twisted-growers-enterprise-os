@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback, useRef, useMemo } from "react";
+import Roster from "./roster.jsx";
 import jsQR from "jsqr";
 import { supabase, FUNCTIONS_URL } from "./lib/supabase.js";
 import { BudzScreen, CeoDashboard, AssistantSettings, BudzPet, useBudzPet, RedGreen,
@@ -1096,13 +1097,23 @@ const STATUS_COLS = ["status", "state", "source_state", "approval", "release", "
    green = good and sellable · blue = money in or moving · gold = free goods */
 const chipTone = (v) => {
   const s = String(v).toLowerCase();
+  /* Owner, 8 Aug 2026: anyone onboarding, unlicensed, or holding a licence
+     that needs attention stays RED until they are fully onboarded. An agent
+     whose registration has lapsed cannot legally be on the floor, so amber
+     understates it — this is a stop, not a watch. */
+  if (/(not licensed|unlicensed|no licence|no license|licence lapsed|license lapsed|lapsed|onboarding|not onboarded|awaiting licence|awaiting license|licence required|license required|needs attention|no badge)/.test(s)) return "bad";
   if (/(destroy|waste|wasted|missing|lost|unaccounted|shrink|theft|stolen|discrepan|shortage|fail|recall|investigat|violation|critical|denied|reject|void|blocked|expired|do not sell)/.test(s)) return "bad";
   if (/(hold|onhold|on hold|overdue|late|elevated|at risk|unconfirmed|not confirmed|aging|remediat|quarant|no_show|called_out)/.test(s)) return "hot";
   if (/(pend|submit|await|testing|review|watch|due|in progress|in_progress|drying|curing|planned|scheduled|open|requested|propagation)/.test(s)) return "warn";
   if (/(sold|shipped|in transit|intransit|delivered|received|closed|invoiced|paid|leaving)/.test(s)) return "info";
   if (/(free|freebie|sample|promo|donation|comp)/.test(s)) return "gold";
+  /* Owner, 8 Aug 2026: "inactive should be grey". It was rendering green
+     because "inactive" CONTAINS "active" — the good test below matched it
+     first and the neutral test was unreachable. Every inactive row in every
+     table on the platform has been showing green since this was written.
+     Neutral must be tested BEFORE good, not after. */
+  if (/(inactive|retired|harvested|archived|not submitted|notsubmitted|left|terminated|departed)/.test(s)) return "neutral";
   if (/(active|in stock|sellable|passed|testpassed|retestpassed|released|complete|done|finished|approved|reconciled|ok|clear|connected|full custody|on plan|worked|rts|growing|flowering|vegetative)/.test(s)) return "good";
-  if (/(inactive|retired|harvested|archived|not submitted|notsubmitted)/.test(s)) return "neutral";
   return "info";
 };
 /* Sitewide color code inside every table: red = issue, green = good, amber = watch, blue = neutral info */
@@ -7847,6 +7858,11 @@ function Integrations({ session }) {
   const [msg, setMsg] = useState(null);
   const [busy, setBusy] = useState(false);
   const [runs, setRuns] = useState(null);
+  const [forceReport, setForceReport] = useState(null);
+  const role = useRole(session);
+  /* Same roles that may write configuration elsewhere in this file. Forcing a sync is a
+     configuration action, not a read. */
+  const canForce = ["owner", "executive", "planner", "dept_head"].includes(role);
   const authHeaders = useCallback(() => ({
     "Content-Type": "application/json",
     Authorization: `Bearer ${session.access_token}`,
@@ -7889,6 +7905,39 @@ function Integrations({ session }) {
     loadRuns();
     setBusy(false);
   }
+  /* FORCE ALL SYNCS — owner-requested 8 Aug 2026: "I am admin I must be able to force all
+     syncs." The Sync Center in the top bar could already do this; Integrations could not,
+     and Integrations is where an admin goes when a sync is the problem.
+
+     It reuses SYNC_SOURCES rather than listing the sources again, so a source added there
+     appears here automatically and the two can never disagree.
+
+     It reports EVERY source individually, including the ones that fail (rule A3 - absence
+     and failure are explained, never blank). A "synced" message covering a source that
+     errored is the silent-failure shape this platform keeps finding. */
+  async function forceAllSyncs() {
+    const live = SYNC_SOURCES.filter((s) => s.live);
+    const notLive = SYNC_SOURCES.filter((s) => !s.live);
+    setBusy(true);
+    setForceReport(null);
+    setMsg({ kind: "ok", text: `Forcing ${live.length} connected source${live.length === 1 ? "" : "s"}. Metrc pulls its full catalogue politely and can take several minutes — results appear per source as each finishes.` });
+    const items = [];
+    for (const src of live) {
+      try {
+        const r = await fetch(`${FUNCTIONS_URL}/${src.fn}`, { method: "POST", headers: authHeaders() });
+        items.push(parseSyncResponse(src, await r.json()));
+      } catch (e) {
+        items.push({ label: src.label, ok: false, total: 0, details: [], skipped: [], errors: [String(e).slice(0, 200)] });
+      }
+      setForceReport({ when: new Date().toLocaleTimeString(), items: [...items], notLive });
+    }
+    const failed = items.filter((i) => !i.ok);
+    setMsg(failed.length
+      ? { kind: "err", text: `${items.length - failed.length} of ${items.length} sources synced. FAILED: ${failed.map((f) => f.label).join(", ")}. Each failure and its reason is listed below — nothing has been hidden.` }
+      : { kind: "ok", text: `All ${items.length} connected sources synced. ${notLive.length} source${notLive.length === 1 ? " is" : "s are"} not connected yet and could not be forced — listed below with what each still needs.` });
+    loadRuns();
+    setBusy(false);
+  }
   const isSet = (name) => status?.some((s) => s.name === name);
   const setPill = (name) => isSet(name) && <span className="pill ok" style={{ marginLeft: 8 }}>set ✓</span>;
   return (
@@ -7917,7 +7966,50 @@ function Integrations({ session }) {
             <input value={form.CLICKUP_TOKEN} onChange={(e) => setForm({ ...form, CLICKUP_TOKEN: e.target.value })} placeholder={isSet("CLICKUP_TOKEN") ? "•••••• stored — paste to replace" : "ClickUp → avatar → Settings → Apps → API Token (starts pk_)"} />
             <button className="btn" disabled={busy}>Store securely</button>
             <button type="button" className="btn ghost" style={{ marginLeft: 10 }} disabled={busy} onClick={runSync}>Run Metrc sync now</button>
+            {canForce && (
+              <button type="button" className="btn" style={{ marginLeft: 10 }} disabled={busy} onClick={forceAllSyncs}
+                title="Runs every connected source now, without waiting for its schedule.">
+                {busy ? "Forcing every source…" : "Force all syncs now"}
+              </button>
+            )}
+            {role !== null && !canForce && (
+              <div className="msg" style={{ marginTop: 10 }}>
+                Forcing a sync changes configuration, so it is limited to owner, executive, planner and department head. Your role is <b>{role}</b>. Ask one of them, or ask an administrator to change your role.
+              </div>
+            )}
             {msg && <div className={`msg ${msg.kind}`}>{msg.text}</div>}
+            {forceReport && (
+              <div className="msection" style={{ marginTop: 16 }}>
+                <div className="mtitle"><span className="sq" /><h2>Forced sync — every source, {forceReport.when}</h2><span className="rule" /></div>
+                <div className="tablewrap" style={{ marginTop: 0 }}>
+                  <table>
+                    <thead><tr><th>Source</th><th>Result</th><th>Records</th><th>What happened</th></tr></thead>
+                    <tbody>
+                      {forceReport.items.map((it, i) => (
+                        <tr key={i}>
+                          <td>{it.label}</td>
+                          <td><span className={`pill ${it.ok ? "ok" : "bad"}`}>{it.ok ? "synced" : "FAILED"}</span></td>
+                          <td>{it.total}</td>
+                          <td style={{ whiteSpace: "pre-wrap" }}>
+                            {it.errors.length > 0 && <div><b>Failed because:</b> {it.errors.join(" · ")}</div>}
+                            {it.skipped.length > 0 && <div><b>Skipped:</b> {it.skipped.join(" · ")}</div>}
+                            {it.errors.length === 0 && it.skipped.length === 0 && (it.details.join(" · ") || "Completed with nothing new to bring in.")}
+                          </td>
+                        </tr>
+                      ))}
+                      {forceReport.notLive.map((s, i) => (
+                        <tr key={`n${i}`}>
+                          <td>{s.label}</td>
+                          <td><span className="pill">not connected</span></td>
+                          <td>—</td>
+                          <td>Could not be forced because it is not connected yet. {s.desc}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
           </form>
         </div>
         <div>
@@ -8170,108 +8262,14 @@ function Help() {
   );
 }
 
-/* ---------- People (custom module) ---------- */
+/* ---------- People (custom module) ----------
+   Owner, 8 Aug 2026: "DO NOT EVER USE ONE TEMPLATE FOR EVERY PAGE."
+   The generic table below was replaced by a purpose-built roster in
+   roster.jsx — it leads with who cannot legally be on the floor, groups
+   by team, and treats a lapsed agent registration as a stop rather than
+   a row in a grid. Primitives are shared; the layout is not. */
 function People() {
-  const [rows, setRows] = useState(null);
-  const [lookups, setLookups] = useState(null);
-  const [q, setQ] = useState("");
-  const [statusSel, setStatusSel] = useState(null);
-  const [deptSel, setDeptSel] = useState("");
-  const [sort, setSort] = useState({ col: "full_name", dir: 1 });
-  useEffect(() => {
-    Promise.all([
-      supabase.from("employees").select("*").order("full_name"),
-      supabase.from("roles_catalog").select("id, name"),
-      supabase.from("departments").select("id, name"),
-    ]).then(([e, r, d]) => {
-      setLookups({
-        roles: Object.fromEntries((r.data ?? []).map((x) => [x.id, x.name])),
-        depts: Object.fromEntries((d.data ?? []).map((x) => [x.id, x.name])),
-      });
-      setRows(e.data ?? []);
-    });
-  }, []);
-  const roleOf = (id) => lookups?.roles[id] ?? "—";
-  const deptOf = (id) => lookups?.depts[id] ?? "—";
-  const cols = ["employee_code", "full_name", "position", "departments", "status"];
-  const enriched = (rows ?? []).map((r) => ({
-    employee_code: r.employee_code,
-    full_name: r.full_name,
-    position: roleOf(r.primary_role_id),
-    departments: [deptOf(r.primary_department_id), r.secondary_department_id ? deptOf(r.secondary_department_id) : null].filter((x) => x && x !== "—").join(" + ") || "—",
-    status: r.status,
-    ...r,
-  }));
-  const statuses = [...new Set(enriched.map((r) => r.status ?? "—"))];
-  const deptNames = [...new Set(enriched.flatMap((r) => r.departments.split(" + ")).filter((x) => x !== "—"))].sort();
-  const filtered = enriched
-    .filter((r) =>
-      (!q || `${r.employee_code} ${r.full_name} ${r.position} ${r.departments}`.toLowerCase().includes(q.toLowerCase())) &&
-      (!statusSel || (r.status ?? "—") === statusSel) &&
-      (!deptSel || r.departments.includes(deptSel)))
-    .sort((a, b) => sort.dir * String(a[sort.col] ?? "").localeCompare(String(b[sort.col] ?? "")));
-  const clickSort = (col) => setSort((s) => (s.col === col ? { col, dir: -s.dir } : { col, dir: 1 }));
-  const arrow = (col) => (sort.col === col ? (sort.dir === 1 ? " ▲" : " ▼") : "");
-  const exportCSV = () => {
-    const head = ["Code", "Name", "Position", "Departments", "Status"];
-    const lines = [head.join(","), ...filtered.map((r) =>
-      cols.map((c) => `"${String(r[c] ?? "").replaceAll('"', '""')}"`).join(","))];
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(new Blob([lines.join("\n")], { type: "text/csv" }));
-    a.download = "employees.csv"; a.click();
-  };
-  return (
-    <>
-      <div className="pagehead">
-        <div>
-          <h1>Employees</h1>
-          <div className="sub">Roster with real positions and departments, per-employee effective-dated rates behind every row. Click a person for the complete record — full in-app editing is the next build.</div>
-        </div>
-      </div>
-      {rows === null ? <div className="empty"><div className="eicon">{I.users}</div>Loading…</div> : rows.length === 0 ? (
-        <div className="empty"><div className="eicon">{I.users}</div><b>No employees connected yet</b>The real roster loads from the v5 planner — no sample people will ever appear here.</div>
-      ) : (
-        <>
-          <div className="filterbar">
-            <input className="fsearch" placeholder="Search name, code, position, department…" value={q} onChange={(e) => setQ(e.target.value)} />
-            <span className="flab">Department</span>
-            <select className="fdate" value={deptSel} onChange={(e) => setDeptSel(e.target.value)}>
-              <option value="">All</option>
-              {deptNames.map((d) => <option key={d} value={d}>{d}</option>)}
-            </select>
-            {(q || statusSel || deptSel) && (
-              <button className="btn small ghost" onClick={() => { setQ(""); setStatusSel(null); setDeptSel(""); }}>Clear</button>
-            )}
-            <span style={{ flex: 1 }} />
-            <span className="note">{filtered.length} of {enriched.length}</span>
-            <button className="btn small ghost" onClick={exportCSV}>Export CSV</button>
-            <button className="btn small ghost" onClick={() => window.print()}>Print</button>
-          </div>
-          <div className="statchips">
-            {statuses.map((s) => (
-              <button key={s} className={`schip ${s === "active" ? "good" : "warn"} ${statusSel === s ? "sel" : ""}`}
-                onClick={() => setStatusSel(statusSel === s ? null : s)}>
-                <b>{enriched.filter((r) => (r.status ?? "—") === s).length}</b> {s}
-              </button>
-            ))}
-            <span className="schl">Live breakdown by status — click to filter</span>
-          </div>
-          <div className="tablewrap">
-            <table>
-              <thead><tr>
-                <th style={{ cursor: "pointer" }} onClick={() => clickSort("employee_code")}>Code{arrow("employee_code")}</th>
-                <th style={{ cursor: "pointer" }} onClick={() => clickSort("full_name")}>Name{arrow("full_name")}</th>
-                <th style={{ cursor: "pointer" }} onClick={() => clickSort("position")}>Position{arrow("position")}</th>
-                <th style={{ cursor: "pointer" }} onClick={() => clickSort("departments")}>Departments{arrow("departments")}</th>
-                <th style={{ cursor: "pointer" }} onClick={() => clickSort("status")}>Status{arrow("status")}</th>
-              </tr></thead>
-              <tbody>{filtered.map((r) => <RawRow key={r.id} row={r} cols={cols} />)}</tbody>
-            </table>
-          </div>
-        </>
-      )}
-    </>
-  );
+  return <Roster />;
 }
 
 /* ---------- Rail widget ---------- */
