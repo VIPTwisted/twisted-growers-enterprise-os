@@ -73,6 +73,11 @@ const MUST_CARRY = [
   "THAT IS WHEN THE EXPORT WAS PULLED, NOT THE PERIOD IT COVERS",
   "The COA carries the TESTING",
   "The MANIFEST carries the CHAIN OF CUSTODY",
+  /* Added 8 Aug 2026 with the seats training. Without these two lines the gate
+     read green while a runtime carried no seats section at all - the training
+     is only enforced to the extent it is named here. */
+  "YOU HOLD EVERY SEAT IN THIS COMPANY",
+  "THAT LIST IS A SNAPSHOT, NOT THE LIMIT",
 ];
 
 let failed = 0;
