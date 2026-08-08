@@ -41,6 +41,13 @@ jobs:
         working-directory: app/web
         run: npm install --no-audit --no-fund
 
+      # ---- FIRST, because everything below it assumes the files still exist ----------
+      # budz.jsx went to zero bytes on 8 Aug 2026 and every other gate read green:
+      # they all look for something WRONG inside a file, and an empty file contains
+      # nothing wrong. This one asks whether the file is still there.
+      - name: Source intact
+        run: node tools/checks/source-intact.mjs
+
       # ---- Rule 9 / I1: THE THEME IS LOCKED -------------------------------------------
       - name: Theme lock
         run: node tools/checks/theme-lock.mjs

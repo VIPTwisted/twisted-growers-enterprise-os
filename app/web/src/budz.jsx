@@ -1197,6 +1197,200 @@ export function ChatFiles({ bag }) {
   );
 }
 
+/* THE ONE WAY A QUESTION GETS ANSWERED. Owner, 8 August 2026: "make sure
+   assistant and pet are fully trained... they have full ai can ask it
+   anything as they would claude in chat full claude."
+
+   THE PET DID NOT HAVE THIS. It called budzAnswer() and stopped. budzAnswer
+   is a hand-written lookup over about forty views - exact, instant, and only
+   able to answer questions somebody wrote a branch for. Anything outside that
+   set got "nothing to show for that" from the pet while the SAME question on
+   the assistant page reached Claude and was answered. The pet was sold as a
+   shortcut to the assistant and was quietly a lesser thing.
+
+   Three stages, in this order and for this reason:
+     1. THE DESKTOP BRIDGE - full Claude on an admin's own subscription. No
+        per-question bill, no cap, and it can read the repository as it answers.
+     2. THE LOCAL MODEL - free and private, and weaker. Last resort, off by
+        default.
+     3. budz-chat, the metered API - correct and it costs money per question,
+        so it is last and an admin can switch it off entirely.
+
+   The database answer is handed back through onFacts BEFORE any model is
+   called, so both surfaces show what is known immediately and fill in the
+   composed answer when it lands. Nobody waits on a model to see a number that
+   was already sitting in a view. */
+export async function askBudzFull(question, history = [], { onFacts } = {}) {
+  const a = await budzAnswer(question);
+  const facts = a.rows ?? [];
+  const cfg = await getAiCfg();
+  let composed = null;
+  let via = null;
+  /* Why it could not answer, if it could not. Rule A3: absence is explained,
+     never blank. A bare catch here once hid a total outage. */
+  let askErr = null;
+  const log = history;
+  onFacts?.(a, facts);
+
+      /* ── 1. The desktop bridge ────────────────────────────────────────────
+         WHY THIS GOES THROUGH THE DATABASE AND NOT STRAIGHT TO 127.0.0.1.
+
+         It used to fetch http://127.0.0.1:8765/ask directly. That was correct
+         reasoning and it is now wrong in practice: Chrome 151 treats a public
+         https page reaching a local address as a USER PERMISSION -
+         `local-network-access`, alongside camera and microphone - and on the
+         owner's machine it reads DENIED. Once denied Chrome does not re-prompt.
+
+         Proved in his own browser, 7 Aug 2026: a fetch with `mode:'no-cors'`,
+         which bypasses CORS entirely, still threw `TypeError: Failed to fetch`,
+         and the bridge's log showed NOTHING arrived. The request never left the
+         browser. No header, allow-list or CORS change on the bridge side could
+         have fixed that, and a browser setting is not something this platform
+         can depend on - a Chrome update can revoke it again tomorrow.
+
+         So the direction is reversed. The question goes into ai_bridge_jobs,
+         which a signed-in owner is already permitted to write, and the bridge on
+         the desktop comes and gets it. NOTHING LOCAL IS CALLED, so no browser
+         has a vote.
+
+         The old objection to this design was that it needed a database
+         credential and used the PUBLISHABLE key that ships in every visitor's
+         browser - so closing the anonymous hole killed it. That objection does
+         not apply here: this runs as a SIGNED-IN user with a real session, under
+         the existing `abj_own` policy, and the bridge writes back through an
+         edge function authenticated with the token it already has. Neither side
+         touches anonymous access. Measured end to end at 11 seconds. */
+      if (cfg.bridge_enabled !== false) {
+        try {
+          const { data: u } = await supabase.auth.getUser();
+          const uid = u?.user?.id;
+          if (!uid) throw new Error("not signed in");
+
+          const { data: created, error: insErr } = await supabase
+            .from("ai_bridge_jobs")
+            .insert({
+              asked_by: uid,
+              question,
+              context: { summary: a.headline, records: facts.slice(0, 40) },
+              status: "pending",
+            })
+            .select("id")
+            .single();
+          if (insErr) throw insErr;
+
+          /* Poll our own row. Deliberately bounded: an unbounded wait is how the
+             old version sat for 210 seconds and then failed silently. If the
+             desktop is asleep this gives up and SAYS SO, and the answer is still
+             written to the row if it arrives later. */
+          const deadline = Date.now() + 150000;
+          let done = null;
+          while (Date.now() < deadline) {
+            await new Promise((r) => setTimeout(r, 1200));
+            const { data: row } = await supabase
+              .from("ai_bridge_jobs")
+              .select("status, answer, error, seconds")
+              .eq("id", created.id)
+              .maybeSingle();
+            if (row && (row.status === "done" || row.status === "error")) { done = row; break; }
+          }
+
+          if (done?.status === "done" && done.answer) {
+            composed = done.answer;
+            via = "Claude on your desktop";
+          } else if (done?.status === "error") {
+            askErr = String(done.error ?? "The desktop answered with an error.").slice(0, 250);
+          } else {
+            askErr = "Your desktop did not pick the question up. The bridge is not running on "
+              + "that computer, or it has stopped. The question is saved and will be answered "
+              + "if it starts.";
+          }
+        } catch (e) {
+          askErr = "Could not reach the desktop: " + String(e?.message ?? e).slice(0, 180);
+        }
+      }
+      if (!composed && cfg.local_model_enabled && cfg.local_model_url) {
+        try {
+          const hist = [...log, { who: "me", text: question }]
+            .filter((m) => m.text && !m.rows)
+            .slice(-6)
+            .map((m) => ({ role: m.who === "me" ? "user" : "assistant", content: m.text }));
+          const r = await fetch(cfg.local_model_url + "/api/chat", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              model: cfg.local_model_name || "qwen2.5:14b",
+              stream: false,
+              options: { temperature: 0.2, num_ctx: 16384 },
+              messages: [
+                { role: "system", content: LOCAL_SYSTEM },
+                ...hist.slice(0, -1),
+                {
+                  role: "user",
+                  content: [
+                    "LIVE RECORDS FROM THE DATABASE:",
+                    JSON.stringify({ summary: a.headline, records: facts.slice(0, 60) }).slice(0, 26000),
+                    "",
+                    "QUESTION: " + question,
+                    "",
+                    "Answer from these records only. Be specific: name harvests, rooms, strains, dates and numbers. If the records do not contain the answer, say exactly that.",
+                  ].join(String.fromCharCode(10)),
+                },
+              ],
+            }),
+          });
+          if (r.ok) {
+            const jj = await r.json();
+            const txt = jj?.message?.content?.trim();
+            if (txt) { composed = txt; via = "the local model"; }
+          }
+        } catch {}
+      }
+      if (!composed && cfg.paid_model_enabled) {
+        try {
+          const hist2 = [...log, { who: "me", text: question }]
+            .filter((m) => m.text && !m.rows)
+            .slice(-8)
+            .map((m) => ({ role: m.who === "me" ? "user" : "assistant", content: m.text }));
+          if (hist2[hist2.length - 1]?.role !== "user") hist2.push({ role: "user", content: question });
+          /* This used to build the URL from import.meta.env.VITE_SUPABASE_URL.
+             app/web has no .env and nothing in vite.config defines it, so
+             locally it was the string "undefined". On the deployed build it was
+             worse: Netlify DOES hold that variable, Vite inlined it, and the
+             host's secret scanner then rewrote it to asterisks in the served
+             file — the shipped bundle literally read
+                 fetch("****************e.co/functions/v1/budz-chat")
+             Either way the request never left the browser, which is why
+             ai_usage_log had zero rows and Budz had never answered anything.
+
+             FUNCTIONS_URL and ANON_KEY are plain constants in lib/supabase.js.
+             They are proven to survive the build: the same URL appears twice,
+             unmasked, in the deployed bundle. */
+          const { data: sess } = await supabase.auth.getSession();
+          const rr = await fetch(`${FUNCTIONS_URL}/budz-chat`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: "Bearer " + (sess?.session?.access_token ?? ANON_KEY),
+              apikey: ANON_KEY,
+            },
+            body: JSON.stringify({ messages: hist2 }),
+          });
+          const out = await rr.json().catch(() => null);
+          if (out?.reply) { composed = out.reply; via = "Claude (API)"; }
+          else if (!rr.ok) {
+            /* Rule A3: absence is explained, never blank. A bare catch here is
+               what hid a total outage for as long as this has existed. */
+            askErr = out?.error
+              ? `The assistant service answered but could not help: ${String(out.error).slice(0, 160)}`
+              : `The assistant service returned ${rr.status}${rr.statusText ? " " + rr.statusText : ""}.`;
+          }
+        } catch (e) {
+          askErr = `Could not reach the assistant service: ${String(e?.message ?? e).slice(0, 160)}`;
+        }
+      }
+  return { headline: a.headline, facts, composed, via, askErr };
+}
+
 export function useAssistantProfile() {
   const [p, setP] = useState(readProfileCache);
   useEffect(() => {
@@ -1655,8 +1849,24 @@ export function BudzPet({ go, onClose }) {
     }
     if (question) {
       try {
-        const a = await budzAnswer(question);
-        setLog((l) => [...l, { who: "budz", text: a.headline, rows: a.rows }]);
+        /* IDENTICAL to the assistant page - same function, same three stages.
+           Owner, 8 Aug 2026: "Pet and assistant on OS have same rules." The pet
+           used to stop at the database lookup, so anything nobody had written a
+           branch for came back empty here and was answered there. */
+        const stamp = Date.now();
+        const { composed, via, askErr } = await askBudzFull(question, log, {
+          onFacts: (a, rows) =>
+            setLog((l) => [...l, { who: "budz", text: a.headline, rows, stamp, pending: true }]),
+        });
+        setLog((l) =>
+          l.map((m) =>
+            m.stamp === stamp
+              ? composed
+                ? { ...m, text: composed, researched: true, via, pending: false }
+                : { ...m, pending: false, askErr }
+              : m
+          )
+        );
       } catch (e) {
         setLog((l) => [...l, { who: "budz", text: "Could not pull that: " + String(e).slice(0, 120) }]);
       }
@@ -2203,174 +2413,11 @@ export function BudzScreen({ go }) {
     }
     if (!question) { setBusy(false); return; }
     try {
-      const a = await budzAnswer(question);
-      const facts = a.rows ?? [];
-      const cfg = await getAiCfg();
-      let composed = null;
-      let via = null;
-      /* Why the assistant could not answer, if it could not. Rule A3:
-         absence must be explained. A bare catch hid a total outage. */
-      let askErr = null;
-      // Show what the database knows immediately - never make them wait for the model.
       const stamp = Date.now();
-      setLog((l) => [...l, { who: "budz", text: a.headline, rows: facts, stamp, pending: true }]);
-
-      /* ── 1. The desktop bridge ────────────────────────────────────────────
-         WHY THIS GOES THROUGH THE DATABASE AND NOT STRAIGHT TO 127.0.0.1.
-
-         It used to fetch http://127.0.0.1:8765/ask directly. That was correct
-         reasoning and it is now wrong in practice: Chrome 151 treats a public
-         https page reaching a local address as a USER PERMISSION -
-         `local-network-access`, alongside camera and microphone - and on the
-         owner's machine it reads DENIED. Once denied Chrome does not re-prompt.
-
-         Proved in his own browser, 7 Aug 2026: a fetch with `mode:'no-cors'`,
-         which bypasses CORS entirely, still threw `TypeError: Failed to fetch`,
-         and the bridge's log showed NOTHING arrived. The request never left the
-         browser. No header, allow-list or CORS change on the bridge side could
-         have fixed that, and a browser setting is not something this platform
-         can depend on - a Chrome update can revoke it again tomorrow.
-
-         So the direction is reversed. The question goes into ai_bridge_jobs,
-         which a signed-in owner is already permitted to write, and the bridge on
-         the desktop comes and gets it. NOTHING LOCAL IS CALLED, so no browser
-         has a vote.
-
-         The old objection to this design was that it needed a database
-         credential and used the PUBLISHABLE key that ships in every visitor's
-         browser - so closing the anonymous hole killed it. That objection does
-         not apply here: this runs as a SIGNED-IN user with a real session, under
-         the existing `abj_own` policy, and the bridge writes back through an
-         edge function authenticated with the token it already has. Neither side
-         touches anonymous access. Measured end to end at 11 seconds. */
-      if (cfg.bridge_enabled !== false) {
-        try {
-          const { data: u } = await supabase.auth.getUser();
-          const uid = u?.user?.id;
-          if (!uid) throw new Error("not signed in");
-
-          const { data: created, error: insErr } = await supabase
-            .from("ai_bridge_jobs")
-            .insert({
-              asked_by: uid,
-              question,
-              context: { summary: a.headline, records: facts.slice(0, 40) },
-              status: "pending",
-            })
-            .select("id")
-            .single();
-          if (insErr) throw insErr;
-
-          /* Poll our own row. Deliberately bounded: an unbounded wait is how the
-             old version sat for 210 seconds and then failed silently. If the
-             desktop is asleep this gives up and SAYS SO, and the answer is still
-             written to the row if it arrives later. */
-          const deadline = Date.now() + 150000;
-          let done = null;
-          while (Date.now() < deadline) {
-            await new Promise((r) => setTimeout(r, 1200));
-            const { data: row } = await supabase
-              .from("ai_bridge_jobs")
-              .select("status, answer, error, seconds")
-              .eq("id", created.id)
-              .maybeSingle();
-            if (row && (row.status === "done" || row.status === "error")) { done = row; break; }
-          }
-
-          if (done?.status === "done" && done.answer) {
-            composed = done.answer;
-            via = "Claude on your desktop";
-          } else if (done?.status === "error") {
-            askErr = String(done.error ?? "The desktop answered with an error.").slice(0, 250);
-          } else {
-            askErr = "Your desktop did not pick the question up. The bridge is not running on "
-              + "that computer, or it has stopped. The question is saved and will be answered "
-              + "if it starts.";
-          }
-        } catch (e) {
-          askErr = "Could not reach the desktop: " + String(e?.message ?? e).slice(0, 180);
-        }
-      }
-      if (!composed && cfg.local_model_enabled && cfg.local_model_url) {
-        try {
-          const hist = [...log, { who: "me", text: question }]
-            .filter((m) => m.text && !m.rows)
-            .slice(-6)
-            .map((m) => ({ role: m.who === "me" ? "user" : "assistant", content: m.text }));
-          const r = await fetch(cfg.local_model_url + "/api/chat", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              model: cfg.local_model_name || "qwen2.5:14b",
-              stream: false,
-              options: { temperature: 0.2, num_ctx: 16384 },
-              messages: [
-                { role: "system", content: LOCAL_SYSTEM },
-                ...hist.slice(0, -1),
-                {
-                  role: "user",
-                  content: [
-                    "LIVE RECORDS FROM THE DATABASE:",
-                    JSON.stringify({ summary: a.headline, records: facts.slice(0, 60) }).slice(0, 26000),
-                    "",
-                    "QUESTION: " + question,
-                    "",
-                    "Answer from these records only. Be specific: name harvests, rooms, strains, dates and numbers. If the records do not contain the answer, say exactly that.",
-                  ].join(String.fromCharCode(10)),
-                },
-              ],
-            }),
-          });
-          if (r.ok) {
-            const jj = await r.json();
-            const txt = jj?.message?.content?.trim();
-            if (txt) { composed = txt; via = "the local model"; }
-          }
-        } catch {}
-      }
-      if (!composed && cfg.paid_model_enabled) {
-        try {
-          const hist2 = [...log, { who: "me", text: question }]
-            .filter((m) => m.text && !m.rows)
-            .slice(-8)
-            .map((m) => ({ role: m.who === "me" ? "user" : "assistant", content: m.text }));
-          if (hist2[hist2.length - 1]?.role !== "user") hist2.push({ role: "user", content: question });
-          /* This used to build the URL from import.meta.env.VITE_SUPABASE_URL.
-             app/web has no .env and nothing in vite.config defines it, so
-             locally it was the string "undefined". On the deployed build it was
-             worse: Netlify DOES hold that variable, Vite inlined it, and the
-             host's secret scanner then rewrote it to asterisks in the served
-             file — the shipped bundle literally read
-                 fetch("****************e.co/functions/v1/budz-chat")
-             Either way the request never left the browser, which is why
-             ai_usage_log had zero rows and Budz had never answered anything.
-
-             FUNCTIONS_URL and ANON_KEY are plain constants in lib/supabase.js.
-             They are proven to survive the build: the same URL appears twice,
-             unmasked, in the deployed bundle. */
-          const { data: sess } = await supabase.auth.getSession();
-          const rr = await fetch(`${FUNCTIONS_URL}/budz-chat`, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: "Bearer " + (sess?.session?.access_token ?? ANON_KEY),
-              apikey: ANON_KEY,
-            },
-            body: JSON.stringify({ messages: hist2 }),
-          });
-          const out = await rr.json().catch(() => null);
-          if (out?.reply) { composed = out.reply; via = "Claude (API)"; }
-          else if (!rr.ok) {
-            /* Rule A3: absence is explained, never blank. A bare catch here is
-               what hid a total outage for as long as this has existed. */
-            askErr = out?.error
-              ? `The assistant service answered but could not help: ${String(out.error).slice(0, 160)}`
-              : `The assistant service returned ${rr.status}${rr.statusText ? " " + rr.statusText : ""}.`;
-          }
-        } catch (e) {
-          askErr = `Could not reach the assistant service: ${String(e?.message ?? e).slice(0, 160)}`;
-        }
-      }
+      const { facts, composed, via, askErr } = await askBudzFull(question, log, {
+        onFacts: (a, rows) =>
+          setLog((l) => [...l, { who: "budz", text: a.headline, rows, stamp, pending: true }]),
+      });
       setLog((l) =>
         l.map((m) =>
           m.stamp === stamp
