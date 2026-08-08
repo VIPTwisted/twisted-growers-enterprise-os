@@ -6,6 +6,79 @@ above it; never delete. If a figure or rule gets argued twice, it belongs here.
 
 ---
 
+**2026-08-08 — MOISTURE LOSS IS MEASURED NIGHTLY, NEVER A HARDCODED BAND.**
+Owner, asked whether the band should be a fixed number: *"it should always be
+accurate not a hardwired number i believe… i could add goal if suggested."*
+
+**Ruled: two figures, not one.**
+- **Actual** — computed from Metrc's own Moisture Loss column, recomputed nightly,
+  across **only the harvests that actually dried.** Never typed by a human.
+- **Goal** — an owner-set target row on Settings → Business Rules, changeable
+  without a deploy (rule G1).
+- **Both shown together on the tile**, flagging when actual drifts from goal.
+
+**This dissolves contradiction #1 rather than settling it.** CLAUDE.md's 75–80%
+(published guidance) and the live 70–77% (owner-set 6 Aug on a measured 73.5%)
+stop competing as facts: one becomes *what we measured*, the other *what we aim
+for*. **The known trap stays guarded** — the 77 fresh-frozen harvests never dried
+and must be excluded, or the figure collapses to the false 62.5% (see
+[DATA_TRAPS_REGISTER.md](DATA_TRAPS_REGISTER.md)).
+
+**2026-08-08 — COST PER POUND IS $1,100, PROVISIONAL, AWAITING QUICKBOOKS.**
+Owner: *"for now we use 1100 until i upload actual P&L from QB should be noted
+that it is waiting for these reports to be uploaded."*
+
+**Every figure derived from it must say so on its face** (rule A2 — provenance;
+rule A3 — absence explained). Not "$1,100/lb" but "$1,100/lb — provisional,
+pending the QuickBooks profit-and-loss upload." **Settles contradiction #13**
+($591.39 locked vs $1,100 accountant-verified): $1,100 is the working figure, and
+$591.39 — derived as $285,000 × 6 ÷ 2,891.5 lb — is superseded until real
+accounts arrive.
+
+**2026-08-08 — PHANTOM WEIGHT MUST BE TRACEABLE IN METRC. IF IT IS NOT, THAT IS
+URGENT.** Owner: *"Cant be phantom weight its all documented in Metrc seed to
+sale if not that is urgent to find it in Metrc may need additional reports."*
+
+So the 6,796 lb is **not** accepted as evaporation-not-recorded. It is either
+findable in the seed-to-sale record or it is a genuine gap in our copy of that
+record, and the second is a compliance matter, not a reporting one. **The next
+step is a Metrc report we do not yet import**, not a calculation. Supersedes the
+framing in HANDOFF §3 that treats it as settled moisture loss.
+
+**2026-08-08 — OWNER'S EXPECTED YIELD: 380 lb DRIED FLOWER PER PULL.**
+Recorded as **the owner's stated target**, and deliberately **NOT** added to the
+locked facts, because it cannot be verified today and the arithmetic disagrees
+with what is on file.
+
+**Measured 8 Aug 2026, and why it could not be confirmed:**
+- 380 lb across ~1,140 plants implies **151 g per plant.** The locked target is
+  **70.6 g/plant** and the previously measured actual **82.3 g/plant**.
+- Dried material on file runs **46–113 g/plant** (Cure Vault, Fulfillment Vault,
+  Pre Trim Storage). Nothing genuinely dried reaches 151.
+- **Freezer/Biomass Storage shows 277–417 g/plant — that is FRESH FROZEN,
+  packaged WET.** Rule B3: wet and dry are never mixed. Averaging across storage
+  locations is meaningless, and is the shape of the error that once produced a
+  finding wrong by a factor of six.
+
+**⛔ THE BLOCKER, and it is the same blocker as phantom weight:**
+1. **`mv_harvest_yields.planned_pull` is NULL on every packaged harvest.** Nothing
+   links a harvest to any of the 26 planned pulls, so the platform cannot answer
+   *"what did pull 9 actually yield?"* at all.
+2. **A Metrc harvest averages 132 plants, not 1,140.** One pull is 8–10 harvest
+   records and nothing groups them.
+3. **`mv_harvest_yields.room` is a STORAGE room** — Cure Vault, Fulfillment
+   Vault, Freezer/Biomass — **not Flower Room 1–4.** Any grouping by it mixes
+   pulls and mixes wet with dry.
+
+**Until harvests are linked to pulls, 380 lb is unfalsifiable — and rule C0b
+says a claim that cannot fail proves nothing.** No agent may treat it as a
+target to measure against, and none may declare it wrong either.
+
+*Source: owner, this date, in session. Verification by direct measurement of
+mv_harvest_yields and mv_harvest_pkg_rollup the same hour.*
+
+---
+
 **2026-08-07 — RULE C6 EXTENDED in CLAUDE.md, at the owner's direction.**
 First amendment to the hard rules made this session, and the only edit Agent D
 has made to the rules file. C6 was *"failed material always splits ours versus

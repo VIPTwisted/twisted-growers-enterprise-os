@@ -24,6 +24,45 @@ rulings**, not an agent's ranking — they sit above the computed board below.
 | **T1** | **Settle the moisture band (defect D1).** | It sits underneath every conversion, yield, inventory and valuation figure, and blocks 6,796 lb of Metrc correction work. **The arithmetic is impossible as it stands:** 18,476.7 lb wet in, less 14,319.4 lb evaporated at the 75–80% band, leaves **4,157.1 lb** dry available — but **5,199.1 lb was actually packaged.** That is **1,042 lb that cannot exist.** Either the band is too aggressive, wet weights are under-recorded at the takedown scale, or packaged weights include material from elsewhere. | **Owner deferred 8 Aug — on the list, not started.** No agent may guess the band. Fix: weigh 2–3 harvests end to end, then set the true band on Settings → Business Rules. |
 | **T2** | **Parse the 11 certificates missing their client licence.** | `coa_extract` holds **983** certificates and **11 have `client_license` null**. That field is the *only independent* answer to "is this ours?" — rule C0 says ownership stops at the COA, and an internal field cannot disconfirm another internal field. 972 of 983 are fine; these 11 are blind spots. | **Open — to do today.** The PDFs are already on disk in `metrc_documents.storage_path`. Open them and read `Client Info`. |
 
+### T3 · LINK HARVESTS TO PULLS — the single gap blocking two owner questions
+
+**Raised 8 Aug 2026. This is the highest-leverage unbuilt thing on the board**,
+because it is not one question's blocker — it is the same blocker under two of
+them, and neither can move until it is closed.
+
+**What is missing.** Metrc records harvests. The business runs on **pulls**. The
+platform has never connected the two:
+
+| Fact | Measured 8 Aug 2026 |
+|---|---|
+| `mv_harvest_yields.planned_pull` | **NULL on every packaged harvest** |
+| Average plants per Metrc harvest | **132** — a pull is ~1,140, so 8–10 records |
+| `mv_harvest_yields.room` | A **storage** room (Cure Vault, Freezer/Biomass), **not** Flower Room 1–4 |
+
+**What it unblocks, both of which the owner asked for directly:**
+
+1. **"Expected 380 lb dried per pull."** Cannot be measured, cannot be
+   contradicted. Dried material on file runs 46–113 g/plant; 380 lb implies 151.
+   Whether that gap is real, or fresh frozen leaking into the comparison, or
+   under-recording, is unanswerable while pulls do not exist as a grouping.
+2. **Phantom weight — 6,796 lb.** The owner: *"Cant be phantom weight its all
+   documented in Metrc seed to sale."* Tracing it means following material from a
+   pull through its harvests to its packages. Without the link there is nothing to
+   follow.
+
+**⚠ And it must respect rule B3 while doing it.** Freezer/Biomass Storage shows
+**277–417 g/plant** because that material is **fresh frozen, packaged wet.** Any
+yield-per-pull figure that averages across storage locations mixes water with
+flower — the same class of error as the grams-per-plant against
+grams-per-square-foot comparison that was wrong by a factor of six.
+
+**Likely shape of the fix:** harvest name already encodes room and date by
+convention (`TG <strain> - <YYYYMMDD> <room>`), and `harvest_plan_2026` holds the
+26 pulls with their dates. Matching on room plus a takedown window is the obvious
+route — **but D7 is a live hazard**: harvest names are inconsistent in Metrc
+(`f3`, `F3`, and the malformed `7f3`, `aF3`), so those will misfile and must be
+reported rather than silently dropped (rule A3).
+
 ### Deferred by the owner on 8 Aug 2026 — decisions, not oversights
 Recorded so no future session re-raises them as new findings (rule H1: ignoring
 is a decision, not a deletion).

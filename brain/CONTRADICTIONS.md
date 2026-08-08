@@ -8,14 +8,33 @@ line-by-line read of every doc.*
 
 ---
 
-## 1 · Moisture loss: the locked fact and the live config disagree
+## ~~1 · Moisture loss: the locked fact and the live config disagree~~ — **DISSOLVED BY OWNER RULING, 8 Aug 2026**
+
+**Neither side wins, because the owner rejected the premise.** Asked which fixed
+number to use, he answered that there should not be one: *"it should always be
+accurate not a hardwired number i believe… i could add goal if suggested."*
+
+**The ruling — two figures, never one:**
+- **Actual** — computed nightly from Metrc's own Moisture Loss column, across
+  **only the harvests that actually dried.** Never typed.
+- **Goal** — an owner-set row on Settings → Business Rules (rule G1).
+- Both on the tile together, flagging when actual drifts from goal.
+
+So 75–80% (published guidance) and 70–77% (owner-set 6 Aug on a measured 73.5%)
+stop competing as facts: one is *what we measured*, the other *what we aim for*.
+**The trap survives the ruling and must stay guarded** — the 77 fresh-frozen
+harvests never dried, and including them collapses the figure to the false 62.5%.
+
+*Recorded in [DECISIONS.md](DECISIONS.md), 8 Aug 2026. CLAUDE.md's locked-facts
+table still carries 75–80% and now needs its first owner-approved amendment to
+describe the mechanism rather than a band.*
+
+## 1b · The original disagreement, retained for the record
 - CLAUDE.md LOCKED FACTS: **75–80%**, source "published drying guidance".
 - Live platform: owner-set band **70–77%** on 6 Aug (recorded in
   `issue_decisions` under `moisture_band`), centred on the **measured 73.5%**
   weighted across the 271 harvests that actually dried (from Metrc's own
   Moisture Loss column).
-**Settles:** which figure every valuation uses, and whether CLAUDE.md's
-locked-facts table gets its first owner-approved amendment.
 
 ## 2 · Defect D1 (moisture / mass ledger): open or closed?
 - HANDOFF.md: **OPEN** — "nothing may be adjusted in Metrc until settled."
@@ -169,7 +188,25 @@ to $1,100 and resale to what was actually paid — once that is recorded.**
 *This is Challenger attack #1 — wrong basis — landing on Agent D's own work for
 the second time today.*
 
-## 13 · Cost per pound: $591.39 locked vs $1,100 accountant-verified for 2025
+## ~~13 · Cost per pound: $591.39 locked vs $1,100 accountant-verified for 2025~~ — **SETTLED BY OWNER, 8 Aug 2026**
+
+**$1,100/lb is the working figure. $591.39 is superseded.** Owner: *"for now we
+use 1100 until i upload actual P&L from QB should be noted that it is waiting for
+these reports to be uploaded."*
+
+**It is PROVISIONAL and every figure derived from it must say so on its face**
+(rule A2 provenance, rule A3 absence explained). Not "$1,100/lb" but
+**"$1,100/lb — provisional, pending the QuickBooks profit-and-loss upload."**
+A cost figure that is awaiting its source and does not say so is exactly the
+silent staleness that made HANDOFF wrong about security on 7 Aug.
+
+$591.39 was derived as $285,000 × 6 months ÷ 2,891.5 saleable lb — an internal
+calculation from an unitemised overhead lump (defect D8), not accounts.
+
+*Recorded in [DECISIONS.md](DECISIONS.md), 8 Aug 2026. Closes when the QuickBooks
+P&L is uploaded — which is also the fix for D8.*
+
+## 13b · The original disagreement, retained for the record
 **The owner clarified 7 Aug 2026:** $1,100/lb is the **actual 2025 full cost
 per pound, determined by the accountants after year end**, and is used as the
 working cost factor in meetings until the next annual close. It is not a
