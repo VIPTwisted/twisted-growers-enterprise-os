@@ -1,0 +1,19 @@
+{
+  "_what_this_is": "Silent failures that were already present on 8 Aug 2026 and are knowingly carried, each with a reason and an owner. A NEW one fails the build. Removing an entry is free and always welcome. An entry with a vague reason is a bug in this file: the point is that somebody looked.",
+  "acknowledged": {
+    "supabase/migrations/20260808185323_baseline_live_schema.sql:-- NOT CAPTURED: permission denied for schema cron": {
+      "reason": "The schema dump cannot read the cron schema, so NO scheduled jobs are captured in it. The dump is therefore incomplete in a way that matters: 34 cron jobs run this platform and a restore from this file alone would bring back a database that does nothing on a schedule. The dumping role lacks permission; re-running as a role that can read the cron schema fixes it. Recorded honestly by the dump itself since it was written, and read by nobody until this check existed.",
+      "area": "the schema dump — an incomplete dump silently understates the database",
+      "acknowledged_on": "2026-08-08",
+      "action": "Re-run tools/checks/dump-schema.mjs as a role that can read the cron schema, or record the schedules by hand. Until then, treat the dump as recoverable-but-inert.",
+      "severity": "elevated — affects disaster recovery, not day-to-day"
+    },
+    "docs/handoff/DATA_INTEGRITY_2026-08-06.md:All **983 certificates** have now been read. 3 failed to parse.": {
+      "reason": "Three certificates of analysis could not be parsed. The sentence sits inside a paragraph reporting success, which is exactly how a small failure disappears - 983 read, and the 3 that did not are a subordinate clause. Rule C0 makes the COA the ONLY independent answer to 'is this ours?', so three unparsed certificates are three packages whose ownership cannot be confirmed from an independent source.",
+      "area": "the handoff pack — the document a new agent trusts on day one",
+      "acknowledged_on": "2026-08-08",
+      "action": "Identify the 3 and open them by hand. They are on disk in metrc_documents.storage_path. Relates to the 11 rows in coa_extract with a null client_license (board item T2).",
+      "severity": "elevated — ownership provenance, rule C0"
+    }
+  }
+}

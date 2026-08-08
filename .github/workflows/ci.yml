@@ -132,6 +132,15 @@ jobs:
       - name: Aggregate views are summed, not counted
         run: node tools/checks/aggregate-count.mjs
 
+      # ---- Rule A3, where A3 does not reach ------------------------------------------
+      # A3 makes a tool explain its own gaps. It does not make anyone LOOK. Our schema
+      # dump has been shipping with "NOT CAPTURED: permission denied for schema cron"
+      # written in it — honest, obedient to A3, and read by nobody, so the dump silently
+      # contains no scheduled jobs at all. A failure that is recorded and never raised is
+      # still a silent failure. Ratchets against a baseline of the known ones.
+      - name: Silent failures (recorded, never raised)
+        run: node tools/checks/silent-failures.mjs
+
       # ---- Rule G2 / G1: a licence is a database row, never a literal -----------------
       # Two licences today, MC281714 and MP281909. A renewal, a transfer or a third site
       # makes every literal silently wrong — and "is this ours?" is the hinge of the
