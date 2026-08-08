@@ -24,7 +24,41 @@ rulings**, not an agent's ranking — they sit above the computed board below.
 | **T1** | **Settle the moisture band (defect D1).** | It sits underneath every conversion, yield, inventory and valuation figure, and blocks 6,796 lb of Metrc correction work. **The arithmetic is impossible as it stands:** 18,476.7 lb wet in, less 14,319.4 lb evaporated at the 75–80% band, leaves **4,157.1 lb** dry available — but **5,199.1 lb was actually packaged.** That is **1,042 lb that cannot exist.** Either the band is too aggressive, wet weights are under-recorded at the takedown scale, or packaged weights include material from elsewhere. | **Owner deferred 8 Aug — on the list, not started.** No agent may guess the band. Fix: weigh 2–3 harvests end to end, then set the true band on Settings → Business Rules. |
 | **T2** | **Parse the 11 certificates missing their client licence.** | `coa_extract` holds **983** certificates and **11 have `client_license` null**. That field is the *only independent* answer to "is this ours?" — rule C0 says ownership stops at the COA, and an internal field cannot disconfirm another internal field. 972 of 983 are fine; these 11 are blind spots. | **Open — to do today.** The PDFs are already on disk in `metrc_documents.storage_path`. Open them and read `Client Info`. |
 
-### T3 · LINK HARVESTS TO PULLS — the single gap blocking two owner questions
+### T3 · LINK HARVESTS TO PULLS — ✅ BUILT 8 Aug 2026. One owner decision still open.
+
+**`v_harvest_pull_link`** — every Metrc harvest attached to its planned pull.
+**`v_pull_yield`** — what each of the 26 pulls actually produced.
+
+**Joined on DATE, never on room.** All 95 of the 2026 harvests fall within
+7 days of a planned pull, and pulls are 14 days apart, so the window partitions
+the year with no overlap. Room-matching was tried and **fails**: only **16 of 95**
+harvests sit in the room the plan expected, and matching on room produced offsets
+of 14, 21 and 22 days — exact multiples of the cadence, i.e. landing on the wrong
+cycle entirely. The room is now reported and its drift flagged, never joined on.
+
+**Both tunables are owner-editable rows (G1), not literals:**
+`pull_link_window_days` = 7 · `pull_target_dried_lb` = 380.
+
+**THE CORRECTION THAT CHANGES EVERY YIELD FIGURE.** Yield now reads Metrc's
+**`CreatedQuantity`**, not `Quantity`. `Quantity` is what REMAINS today, so
+`mv_harvest_pkg_rollup` reports a sold-through harvest as a near-total failure:
+`TG Apple Fritter - 20260127 F4` shows **bud_lb 0.00** against **14 packages
+holding 121.8 lb when created**. Across 2026: **6,330 lb created vs 824 lb still
+held, 308 of 460 packages fully depleted.** Every yield built on `Quantity`
+decays toward zero as stock sells — it measures the shelf, not the plants.
+**`mv_harvest_yields` and anything reading it inherit this and are not yet fixed.**
+
+**⛔ STILL OPEN — an owner decision, and no agent may guess it (A5).**
+**1,848 of 4,218 packages (44%, 9,734 lb) draw on MORE THAN ONE harvest.** They
+are reported per pull as `multi_harvest_lb_unallocated` and **excluded from
+`dried_bud_lb`**, which is therefore a **FLOOR**. On pull 7 the floor is 253.4 lb
+with a further **1,013.5 lb** unallocated beside it. How should they split —
+evenly, by wet weight, by strain, or excluded entirely?
+
+**Found while building: pull 3 (8 Feb, F1) has NO harvests linked at all.** The
+date is long past. Either it did not happen or it was never recorded in Metrc.
+
+### T3 background — the gap as it stood before the build
 
 **Raised 8 Aug 2026. This is the highest-leverage unbuilt thing on the board**,
 because it is not one question's blocker — it is the same blocker under two of
