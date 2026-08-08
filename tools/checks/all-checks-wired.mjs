@@ -46,14 +46,45 @@ const NOT_A_GATE = {
     "Operator tool, not a gate. Reads the live database with credentials CI does not hold, and writes a schema dump. Run by hand when the schema needs rebuilding.",
 };
 
+/* THERE ARE TWO PLACES THAT RUN THESE, AND CHECKING ONLY ONE MISSED FOUR.
+ *
+ * This originally read ci.yml alone and reported PASS. Meanwhile the Netlify
+ * build — which is the gate that can actually stop a ship, because it runs on
+ * the deploy path — called `npm run check`, and that script was missing
+ * trend-sentiment, bridge-direct, all-checks-wired and the eslint ratchet. Four
+ * guards, green in Actions, absent from the thing that publishes the site.
+ *
+ * netlify.toml says it plainly: "Actions and Netlify build independently and in
+ * parallel, so a failing Action could never stop a ship." A guard in ci.yml and
+ * not in `npm run check` is advisory. Both are required.
+ */
+const RUNNERS = [
+  { file: ".github/workflows/ci.yml", what: "GitHub Actions" },
+  { file: "package.json",             what: "the Netlify build, via `npm run check`" },
+];
+
 let ci = "";
-try {
-  ci = readFileSync(resolve(root, ".github/workflows/ci.yml"), "utf8");
-} catch {
-  console.error("all-checks-wired: FAIL — .github/workflows/ci.yml is missing.");
-  console.error("      Without it nothing in tools/checks runs automatically and every");
-  console.error("      guard in this folder is decoration.\n");
-  process.exit(1);
+const sources = {};
+for (const r of RUNNERS) {
+  let text = "";
+  try {
+    text = readFileSync(resolve(root, r.file), "utf8");
+  } catch {
+    console.error(`all-checks-wired: FAIL — ${r.file} is missing.`);
+    console.error(`      Without it nothing in tools/checks runs in ${r.what}, and every`);
+    console.error("      guard in this folder is decoration.\n");
+    process.exit(1);
+  }
+  /* package.json only counts if the `check` script actually chains them — a
+     script defined and never called by `check` is exactly the gap this closes. */
+  if (r.file === "package.json") {
+    const pkg = JSON.parse(text);
+    const chain = String(pkg.scripts?.check ?? "");
+    const named = chain.match(/check:[a-z-]+/g) ?? [];
+    text = named.map((n) => pkg.scripts?.[n] ?? "").join("\n");
+  }
+  sources[r.file] = { text, what: r.what };
+  ci += "\n" + text;
 }
 
 const checks = readdirSync(here)
@@ -71,29 +102,56 @@ if (checks.length === 0) {
   process.exit(1);
 }
 
-const unwired = checks.filter((f) => !ci.includes(f));
+/* EVERY runner must run it — not either. The first version of this concatenated
+   both files and asked whether the name appeared anywhere in the result, which
+   passes a guard that is in Actions and missing from the Netlify gate. That is
+   precisely the case that existed: four guards green in Actions and absent from
+   the build that publishes the site. Present-in-either is not enforcement. */
+const missingFrom = (f) =>
+  Object.entries(sources).filter(([, v]) => !v.text.includes(f)).map(([k]) => k);
+
+const unwired = checks.filter((f) => missingFrom(f).length > 0);
 
 for (const f of checks) {
-  console.log(`all-checks-wired: ${unwired.includes(f) ? "MISSING" : "ok     "} — ${f}`);
+  const gaps = missingFrom(f);
+  console.log(
+    gaps.length
+      ? `all-checks-wired: MISSING — ${f}  (absent from ${gaps.join(" and ")})`
+      : `all-checks-wired: ok      — ${f}`
+  );
 }
 
-/* This file must be wired too, or the whole mechanism is opt-in. */
-const selfWired = ci.includes(SELF);
-console.log(`all-checks-wired: ${selfWired ? "ok     " : "MISSING"} — ${SELF} (this file)`);
+/* This file must be wired everywhere too, or the whole mechanism is opt-in. */
+const selfGaps = missingFrom(SELF);
+const selfWired = selfGaps.length === 0;
+console.log(
+  selfWired
+    ? `all-checks-wired: ok      — ${SELF} (this file)`
+    : `all-checks-wired: MISSING — ${SELF} (this file, absent from ${selfGaps.join(" and ")})`
+);
 
 if (unwired.length || !selfWired) {
   const missing = [...unwired, ...(selfWired ? [] : [SELF])];
-  console.error(`\nall-checks-wired: FAIL — ${missing.length} guard(s) exist but nothing runs them:\n`);
+  console.error(`\nall-checks-wired: FAIL — ${missing.length} guard(s) are not run everywhere:\n`);
   for (const f of missing) {
     console.error(`  ✗ ${f}`);
-    console.error(`      Written, passing by hand, enforcing nothing. Add a step to`);
-    console.error(`      .github/workflows/ci.yml:\n`);
-    console.error(`        - name: ${f.replace(/\.mjs$/, "").replace(/-/g, " ")}`);
-    console.error(`          run: node tools/checks/${f}\n`);
+    for (const gap of missingFrom(f)) {
+      console.error(`      Not run by ${sources[gap].what}. Add:`);
+      if (gap.endsWith("ci.yml")) {
+        console.error(`        - name: ${f.replace(/\.mjs$/, "").replace(/-/g, " ")}`);
+        console.error(`          run: node tools/checks/${f}`);
+      } else {
+        const slug = f.replace(/\.mjs$/, "").split("-")[0];
+        console.error(`        "check:${slug}": "node tools/checks/${f}"`);
+        console.error(`        ...and chain it into the "check" script, or it still never runs.`);
+      }
+    }
+    console.error("");
   }
   console.error("A guard that never runs is worse than no guard: the ledger grades the");
-  console.error("rule as enforced and everyone stops watching it.\n");
+  console.error("rule as enforced and everyone stops watching it. And a guard that runs only");
+  console.error("in Actions cannot stop a ship — netlify.toml is the gate on the deploy path.\n");
   process.exit(1);
 }
 
-console.log(`all-checks-wired: PASS — all ${checks.length + 1} guards are wired into CI.`);
+console.log(`all-checks-wired: PASS — all ${checks.length + 1} guards run in BOTH GitHub Actions and the Netlify build.`);

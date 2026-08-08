@@ -3,16 +3,20 @@
   "private": true,
   "version": "1.0.0",
   "type": "module",
-  "description": "Repository-level gates for the Twisted Growers Enterprise OS. Deliberately separate from app/web/package.json so the front-end build is never altered by tooling — app/web/src is Agent B's lane.",
+  "description": "Repository-level gates for the Twisted Growers Enterprise OS. Deliberately separate from app/web/package.json so the front-end build is never altered by tooling \u2014 app/web/src is Agent B's lane.",
   "scripts": {
-    "lint": "eslint app/web/src --quiet",
+    "lint": "node tools/checks/eslint-ratchet.mjs",
     "check:parse": "node tools/checks/parse-check.mjs",
     "check:numbers": "node tools/checks/no-hardcoded-numbers.mjs",
     "check:theme": "node tools/checks/theme-lock.mjs",
     "check:boundaries": "node tools/checks/error-boundaries.mjs",
     "check:routing": "node tools/checks/routing.mjs",
-    "check": "npm run check:baseline && npm run check:theme && npm run check:parse && npm run check:numbers && npm run check:boundaries && npm run check:routing && npm run lint",
-    "check:baseline": "node tools/checks/schema-baseline-fresh.mjs"
+    "check": "npm run check:baseline && npm run check:theme && npm run check:parse && npm run check:numbers && npm run check:boundaries && npm run check:routing && npm run check:trend && npm run check:bridge && npm run check:wired && npm run check:lint",
+    "check:baseline": "node tools/checks/schema-baseline-fresh.mjs",
+    "check:trend": "node tools/checks/trend-sentiment.mjs",
+    "check:bridge": "node tools/checks/bridge-direct.mjs",
+    "check:wired": "node tools/checks/all-checks-wired.mjs",
+    "check:lint": "node tools/checks/eslint-ratchet.mjs"
   },
   "devDependencies": {
     "eslint": "^9.13.0",
