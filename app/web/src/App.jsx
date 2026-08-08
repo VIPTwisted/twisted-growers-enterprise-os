@@ -8251,6 +8251,21 @@ function Section({ title, count, children, defaultOpen = true }) {
    Rather than fit a control that silently does nothing, every affected tile
    says so on its face. The fix belongs in the view: it needs to accept a range,
    or carry the date the underlying facts already hold. */
+/* THE DATE STRIP. Owner, 8 Aug 2026: "THE DATE AND DATE RANGE ON ALL PAGES
+   SHOULD BE AT THE TOP VERY CONDENSED AND SMALL SIMILAR TO QUICKBOOKS SHOULD NOT
+   TAKE UP MUCH ROOM" and "KEEP IT COMPACT AND AT THE TOP OF PAGE. DO NOT CHANGE
+   THE THEME, THE COLOR TO ANYTHING INSERT DATE ONLY".
+
+   What was here before: the same control, followed by a full-width red block of
+   six lines explaining that the figures ignore the range. The warning is TRUE and
+   still has to be said - the tiles are read from a pre-computed view with no date
+   on it, so they cover all time whatever is picked - but six lines of red above
+   the numbers is not a date selector, it is a lecture, and it pushed the actual
+   content off the first screen.
+
+   So the warning is kept, compressed to one short line, with the full explanation
+   on hover. Nothing is hidden and nothing new is coloured: only existing classes
+   are used, and the inline styles set size and spacing, never colour. */
 function RpDashboardDateRange({ viewKey, session, source, onRange }) {
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
@@ -8271,24 +8286,34 @@ function RpDashboardDateRange({ viewKey, session, source, onRange }) {
     return () => { live = false; };
   }, [session?.user?.id, viewKey]);
   useEffect(() => { if (onRange) onRange({ from, to }); }, [from, to, onRange]);
+
+  const ignoresRange = Boolean(source);
   return (
-    <>
-      <div className="filterbar" style={{ marginBottom: 8 }}>
-        <DateRangeSelect label="Date range" from={from} to={to} onFrom={setFrom} onTo={setTo} />
-        <span className="note">
-          opened on {(def?.preset_key ?? "all").replaceAll("_", " ")} — {def?.source ?? "page default"}
+    <div
+      className="filterbar"
+      style={{ display: "flex", alignItems: "center", flexWrap: "wrap",
+               gap: 6, marginBottom: 6, padding: "4px 8px", fontSize: "0.78rem" }}
+    >
+      <DateRangeSelect label="Dates" from={from} to={to} onFrom={setFrom} onTo={setTo} />
+      <span className="note" style={{ fontSize: "0.72rem", opacity: 0.7 }}>
+        {(def?.preset_key ?? "all").replaceAll("_", " ")}
+      </span>
+      {ignoresRange && (
+        /* A3: the caveat is not dropped, only made to fit. The title carries the
+           whole of what the red block used to say, so nothing is lost. */
+        <span
+          className="note"
+          style={{ fontSize: "0.72rem", marginLeft: "auto", cursor: "help" }}
+          title={"The tiles below do not honour this range. They are read from " + source +
+                 ", which holds one pre-computed row per figure with no date on it and accepts no " +
+                 "range, so every number is computed over all data, all time. A figure covering " +
+                 "three years reads like a current position and is not one. The fix belongs in the " +
+                 "view, not on this page: it must carry the date its own facts already hold."}
+        >
+          tiles cover all time ⓘ
         </span>
-      </div>
-      <div className="statchips" style={{ marginBottom: 8 }}>
-        <span className="schip bad" style={{ whiteSpace: "normal" }}>
-          <b>These key figures do not yet honour the date range. </b>
-          They are read from <b>{source}</b>, which holds one pre-computed row per figure with no date on it
-          and accepts no range — so every number below is computed over <b>all data, all time</b>, not the
-          range selected above. A figure covering three years reads like a current position and is not one.
-          The fix is in the view, not on this page: it must carry the date its own facts already hold.
-        </span>
-      </div>
-    </>
+      )}
+    </div>
   );
 }
 
