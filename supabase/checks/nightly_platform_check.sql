@@ -1,6 +1,16 @@
 -- ============================================================================
 -- NIGHTLY PLATFORM SELF-CHECK
 --
+-- ENFORCES Rules E5 and E3, in addition to the security invariants below.
+--   E5 — "functions that views depend on need `set search_path = public`". Measured
+--        every night as secdef_mutable_path; the expected value is 0 and any other
+--        value is a FAIL, because a SECURITY DEFINER function with a mutable
+--        search_path can be redirected to objects the caller controls.
+--   E3 — "matviews read base tables, never other views", so a view rebuild cannot
+--        cascade into them. Checked against pg_matviews.
+-- Named explicitly on 8 Aug 2026: rule-ledger.mjs credits a rule only when a guard
+-- names it, and both of these were enforced here while scoring as unenforced.
+--
 -- Two problems, one mechanism.
 --
 -- PROBLEM 1 — the documentation lies. HANDOFF.md stated "Anon access: 0 views readable" when

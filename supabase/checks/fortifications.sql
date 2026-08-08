@@ -1,6 +1,13 @@
 -- ============================================================================
 -- FORTIFICATIONS — the guards that prevent rather than detect
 --
+-- ENFORCES Rule H1 — "issues never clear themselves. An owner or executive records
+-- fix / leave / ignore / reset with a written reason, and 'ignore' still shows,
+-- because ignoring is a decision and not a deletion." Held here through
+-- issue_decisions, which is append-only and restricted to owner/executive.
+-- Named explicitly on 8 Aug 2026 so rule-ledger.mjs can credit enforcement that was
+-- already real: a guard claims a rule by naming it, and this one never said so.
+--
 -- THIS FILE PREVIOUSLY CONTAINED NO SQL. It described these guards while they existed only in
 -- the live database. Fixed here. The pattern recurred SIX times on 7 Aug 2026 — production code
 -- untracked, seven comment-only check files, 241 tables against 6 migrations, the training layer

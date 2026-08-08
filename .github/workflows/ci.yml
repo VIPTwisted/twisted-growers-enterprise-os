@@ -123,6 +123,15 @@ jobs:
       - name: Rule ledger (unenforced rules are counted, not forgotten)
         run: node tools/checks/rule-ledger.mjs
 
+      # ---- Rule E4 / C2: counting an aggregate view counts the wrong thing ------------
+      # HANDOFF.md §5 lists it among the five ways this project has actually broken:
+      # count(*) on v_stock_on_hand returns the number of STREAMS, not packages. No
+      # error, no blank screen — just a smaller number that reads as true. Derives the
+      # aggregate views from the committed schema dump and checks SQL and supabase-js
+      # alike, because the front end never writes SQL.
+      - name: Aggregate views are summed, not counted
+        run: node tools/checks/aggregate-count.mjs
+
       # ---- The guard that guards the guards -------------------------------------------
       # Four checks were written on 7 Aug and never wired, so they enforced
       # nothing while looking like enforcement. This fails if any check in

@@ -1,6 +1,15 @@
 #!/usr/bin/env node
 /* eslint-ratchet.mjs — ESLint as a ratchet, not a cliff.
  *
+ * ENFORCES Rule F1 — "anchor scripted edits on the function signature, never on a common
+ * line like `const [busy, setBysy]`". That rule exists because a scripted edit put React
+ * state into the WRONG COMPONENT three times, producing three blank screens. The defect
+ * it actually creates is a hook called outside the component that owns it, and
+ * `react-hooks/rules-of-hooks` is set to "error" in eslint.config.mjs precisely for that
+ * — the config's own comment says such hooks "would break the app outright".
+ * Named here on 8 Aug 2026 so rule-ledger.mjs can see enforcement that already existed:
+ * a guard claims a rule by naming it, and this one had never said so.
+ *
  * WHAT I GOT WRONG, AND WHY THIS EXISTS
  *
  * I put `npx eslint app/web/src --max-warnings 0` into ci.yml while 24 warnings
