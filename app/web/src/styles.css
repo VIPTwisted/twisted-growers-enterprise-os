@@ -1737,7 +1737,12 @@ button.teamcard:hover { border-color: var(--neon-line); }
 .brainrephead{display:flex;justify-content:space-between;align-items:flex-start;gap:14px;margin-bottom:10px}
 /* A wide report scrolls inside its own box. The page itself must never scroll
    sideways - a horizontal scrollbar on the body hides content nobody looks for. */
-.brainreptable{overflow-x:auto;margin-top:8px;border:1px solid var(--line);border-radius:10px}
+/* Owner, 8 Aug 2026: "this is missing scroll down". It scrolled sideways and
+   not down, so anything past the fold was stranded - and the sticky header was
+   pointless, because a header only sticks to something that scrolls under it.
+   A bounded height gives it both, and makes the header do its job. */
+.brainreptable{overflow-x:auto;overflow-y:auto;max-height:60vh;overscroll-behavior:contain;
+  margin-top:8px;border:1px solid var(--line);border-radius:10px}
 .brainreptable table{border-collapse:collapse;width:100%;font-size:12px}
 .brainreptable th{position:sticky;top:0;background:var(--panel);text-align:left;
   padding:7px 10px;border-bottom:1px solid var(--line);white-space:nowrap;

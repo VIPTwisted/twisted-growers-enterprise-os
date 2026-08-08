@@ -37,7 +37,7 @@ const PROVIDERS = {
   claude: {
     bin: CLAUDE,
     label: "Claude Code (desktop subscription)",
-    args: (sessionId) => {
+    args: (sessionId, model) => {
       const a = ["-p", "--permission-mode", "acceptEdits",
                  /* WebSearch and WebFetch are here because the owner asked Budz
                     for the weather on 8 Aug 2026 and got told it was outside what
@@ -47,6 +47,18 @@ const PROVIDERS = {
                     WRITE anywhere: reading the web is not the same permission as
                     changing a system, and the write policy is unchanged. */
                  "--allowedTools", "mcp__twisted-growers,Read,Grep,Glob,WebSearch,WebFetch"];
+      /* SPEED, ON THE SUBSCRIPTION WE ALREADY PAY FOR. Owner, 8 Aug 2026:
+         "we are not using TOKENS", "I told you no tokens using bridge to avoid
+         so we can use accounts" - and, in the same breath, "speed is critical".
+
+         Both are satisfiable, because the slow part was never the billing. This
+         ran on the default model, and answers took 39 to 250 seconds. A faster
+         model on the SAME subscription costs the same nothing and answers in a
+         fraction of the time. Set TG_CLAUDE_MODEL=opus on this machine when a
+         question deserves the deepest reasoning; the default is speed, because
+         most questions here are lookups and an answer nobody waits for beats a
+         better answer nobody sees. */
+      a.push("--model", model || process.env.TG_CLAUDE_MODEL || "sonnet");
       if (sessionId) a.push("--resume", sessionId);
       return a;
     },
@@ -359,7 +371,7 @@ const json = (res, code, body) => {
   res.end(JSON.stringify(body));
 };
 
-function runClaude(prompt, sessionId, provider = "claude") {
+function runClaude(prompt, sessionId, provider = "claude", model = null) {
   return new Promise((resolve) => {
     /* NO TOKEN CEILING HERE, DELIBERATELY. Owner, 8 Aug 2026: "There should be no
        limits for admins with Claude or GPT — we use our plan." This runs the
@@ -370,7 +382,7 @@ function runClaude(prompt, sessionId, provider = "claude") {
     const p = PROVIDERS[provider] ?? PROVIDERS.claude;
     // The prompt goes in on stdin. Passing it as a command-line argument mangles
     // long text and newlines on Windows.
-    const args = p.args(sessionId);
+    const args = p.args(sessionId, model);
     const child = spawn(p.bin, args, {
       cwd: PROJECT,
       shell: true,
@@ -449,7 +461,7 @@ const server = http.createServer(async (req, res) => {
       const ctx = parsed.context ? "\n\nRECORDS ALREADY PULLED BY THE PLATFORM:\n" + String(parsed.context).slice(0, 20000) : "";
       const prompt = SYSTEM_BRIEF + ctx + "\n\nQUESTION FROM THE OWNER: " + q;
       const started = Date.now();
-      const r = await runClaude(prompt, parsed.sessionId, parsed.provider || "claude");
+      const r = await runClaude(prompt, parsed.sessionId, parsed.provider || "claude", parsed.model || null);
       json(res, 200, { ...r, seconds: Math.round((Date.now() - started) / 1000) });
     });
     return;
@@ -558,8 +570,13 @@ async function pollJobs() {
       ? NL2 + "RECORDS ALREADY PULLED BY THE PLATFORM:" + String.fromCharCode(10) +
         JSON.stringify(job.context).slice(0, 400000) /* the desktop plan is the limit, not us */
       : "";
+    /* job.model is the person's own choice, resolved by f_bridge_model_for
+       before the job was written. Owner, 8 Aug 2026: "we get to select what
+       model we use". Without honouring it here the picker would set a value
+       nobody reads, which is worse than having no picker. */
     const out = await runClaude(SYSTEM_BRIEF + ctx + NL2 + "QUESTION FROM THE OWNER: " + job.question,
-                                null, job.provider || "claude");
+                                null, job.provider || "claude",
+                                job.model || job.context?.model || null);
     const seconds = Math.round((Date.now() - started) / 1000);
 
     await queue("answer", { id: job.id, ok: out.ok, answer: out.reply, seconds });

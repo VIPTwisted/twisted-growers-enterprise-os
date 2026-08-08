@@ -1,5 +1,36 @@
 # Twisted Growers Enterprise OS — Handoff Report
 
+<!-- GENERATED: tg_handoff_state_md(). Do not hand-edit between these markers. -->
+_Measured 08 Aug 2026 14:03 UTC, direct from the live database._
+
+**Security invariants hold.** Zero anon reach, zero tables without row-level security.
+
+| Measure | Value | Should be |
+|---|---:|---|
+| Base tables | 253 | — |
+| Views | 266 | — |
+| Materialized views | 9 | — |
+| Matviews unpopulated | 0 | 0 |
+| Relations readable by anon | 0 | 0 |
+| Functions executable by anon | 0 | 0 |
+| Of those, functions that WRITE | 0 | 0 |
+| Tables without row-level security | 0 | 0 |
+| SECURITY DEFINER with mutable search_path | 0 | 0 |
+| Menu entries enabled | 548 | — |
+| Menu entries pointing nowhere | 0 | 0 |
+| Scheduled jobs | 34 | — |
+| Jobs failing on their latest run | 0 | 0 |
+| Jobs that failed at least once in 24h | 1 | 0 |
+| Tiles with no owner-set target | 36 of 43 | 0 |
+| **Questions waiting on the owner** | **47** | 0 |
+| Go-live items open | 179 | 0 |
+| Staff without an account | 15 | 0 |
+
+_Every figure above is read from `platform_state`, the append-only nightly self-check._
+_Regenerate with `node tools/gen-handoff.mjs`. Never retype these by hand: the numbers_
+_move daily, and a hand-written count in this file was once the opposite of the truth._
+<!-- END GENERATED -->
+
 **Prepared 6 August 2026. Corrected 7 August 2026 after an independent verification pass.
 Read this before touching anything.**
 

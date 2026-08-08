@@ -1426,13 +1426,24 @@ export async function askBudzFull(question, history = [], { onFacts } = {}) {
           const { data: u } = await supabase.auth.getUser();
           const uid = u?.user?.id;
           if (!uid) throw new Error("not signed in");
+          const { data: bridgeModel } = await supabase.rpc("f_bridge_model_for", { p_user: uid });
 
           const { data: created, error: insErr } = await supabase
             .from("ai_bridge_jobs")
             .insert({
               asked_by: uid,
               question,
-              context: { summary: a.headline, records: facts.slice(0, 40) },
+              /* THE MODEL RIDES INSIDE context, and that is deliberate.
+
+                 bridge-queue returns only id, question and context when the
+                 desktop claims a job, so a top-level model column would be
+                 written here and never arrive - the picker would set a value
+                 nobody reads, which is worse than having no picker. context is
+                 jsonb and already comes through untouched, so the choice reaches
+                 the desktop with no edge function redeploy and nothing new to
+                 keep in step. The column is still written for the audit trail. */
+              context: { summary: a.headline, records: facts.slice(0, 40), model: bridgeModel },
+              model: bridgeModel,
               status: "pending",
             })
             .select("id")
@@ -2242,15 +2253,34 @@ export function RedGreen({ on, onChange, busy = false, title = "" }) {
    model, so what is chosen here is what actually answers. Leaving it on the
    company default writes nothing at all, so an admin changing the default later
    still moves everyone who never expressed a preference. */
-const MODELS = [
-  { id: "", provider: "", label: "Company default", why: "Whatever an admin has set for everyone." },
-  { id: "claude-opus-5",  provider: "anthropic", label: "Claude Opus 5",  why: "The most capable. Use it for anything that matters." },
-  { id: "claude-sonnet-5", provider: "anthropic", label: "Claude Sonnet 5", why: "Quick, and strong enough for most questions." },
-  { id: "claude-haiku-4-5-20251001", provider: "anthropic", label: "Claude Haiku 4.5", why: "Fastest. Short factual questions." },
-  { id: "gpt", provider: "openai", label: "GPT, through the desktop bridge", why: "Runs on your own machine against your own GPT plan." },
-];
+/* MODELS COME FROM THE DATABASE. Owner, 8 Aug 2026: "we get to select what
+   model we use", "make sure all models are available even new ones as they get
+   released".
+
+   This was a hardcoded array. Anthropic ships a model and the platform could
+   not offer it until somebody edited this file, ran twelve gates and deployed -
+   so the list was guaranteed stale, and the day it mattered was the day nobody
+   had time. A row in ai_models and it appears in every picker on the next page
+   load, with no deploy.
+
+   The company default is not a row: it is the ABSENCE of a personal choice, so
+   an admin changing the default still moves everyone who never expressed one. */
+function useModels() {
+  const [rows, setRows] = useState([]);
+  useEffect(() => {
+    supabase.from("ai_models").select("id,label,why,speed,provider")
+      .eq("enabled", true).order("sort_order")
+      .then(({ data }) => setRows(data ?? []));
+  }, []);
+  return [
+    { id: "", provider: "", label: "Company default", speed: "",
+      why: "Whatever an admin has set for everyone. Changes when they change it." },
+    ...rows,
+  ];
+}
 
 export function ModelChoice() {
+  const MODELS = useModels();
   const [row, setRow] = useState(null);
   const [msg, setMsg] = useState("");
   const [busy, setBusy] = useState(false);
@@ -2296,7 +2326,10 @@ export function ModelChoice() {
       {MODELS.map((m) => (
         <div className="asetrow" key={m.id || "default"}>
           <div>
-            <div className="asetlab">{m.label}</div>
+            <div className="asetlab">
+              {m.label}
+              {m.speed && <span className="note" style={{ marginLeft: 8 }}>{m.speed}</span>}
+            </div>
             <div className="asetwhy">{m.why}</div>
           </div>
           <RedGreen on={current === m.id} busy={busy || row === null}
@@ -2324,6 +2357,7 @@ const PET_SIZES = [
    platform could show or change it. A setting with no screen is a setting nobody
    can fix. */
 export function AssistantAdmin() {
+  const MODELS = useModels();
   const [cfg, setCfg] = useState(null);
   const [role, setRole] = useState(null);
   /* Whether a key EXISTS, never the key itself. The value never leaves the
@@ -2424,6 +2458,13 @@ export function AssistantAdmin() {
           not display it and a browser does not offer to remember it. It is
           write-only: the value is never read back to any screen, because no
           screen needs it - f_ai_key_present answers the only question one has. */}
+      {/* Only when the metered path is deliberately switched on. Owner, 8 Aug
+          2026: "we are not using TOKENS ... using bridge to avoid so we can use
+          accounts". A key box on screen invites somebody to paste a key and
+          start per-question billing to fix a slowness that has nothing to do
+          with billing. It stays out of sight until an owner turns the metered
+          path on and therefore means to pay for it. */}
+      {cfg.paid_model_enabled && (
       <div className="asetrow" style={{ alignItems: "flex-start" }}>
         <div style={{ flex: 1 }}>
           <div className="asetlab">Company AI key {keySet ? "— set" : "— not set"}</div>
@@ -2457,6 +2498,7 @@ export function AssistantAdmin() {
           )}
         </div>
       </div>
+      )}
       <div className="asetrow">
         <div>
           <div className="asetlab">Fall back to the metered API</div>
