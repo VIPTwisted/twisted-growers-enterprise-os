@@ -5,7 +5,7 @@
     "but may never FALL: a rule that loses its enforcement is a rule that quietly went",
     "back to being hope, and that is the failure this ratchet exists to catch."
   ],
-  "enforced_count": 26,
+  "enforced_count": 27,
   "enforced": [
     "A1",
     "A2",
@@ -32,6 +32,7 @@
     "H1",
     "H2",
     "I1",
+    "I2",
     "I3"
   ],
   "recorded": "2026-08-08"

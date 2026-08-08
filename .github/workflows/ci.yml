@@ -159,6 +159,14 @@ jobs:
       - name: Every tile opens to its records
         run: node tools/checks/tile-drills.mjs
 
+      # ---- Rule I2 / A3: a button that does nothing lies about the product ------------
+      # 332 buttons, 0 inert, baselined at zero — so a new dead control fails the build.
+      # A disabled button with a title is NOT a finding: that is A3 done correctly.
+      # To a non-technical owner an inert button reads as broken, or worse as "it worked
+      # and I cannot see the result".
+      - name: No dead controls
+        run: node tools/checks/dead-controls.mjs
+
       # ---- The guard that guards the guards -------------------------------------------
       # Four checks were written on 7 Aug and never wired, so they enforced
       # nothing while looking like enforcement. This fails if any check in

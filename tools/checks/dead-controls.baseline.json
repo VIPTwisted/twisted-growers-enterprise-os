@@ -1,0 +1,10 @@
+{
+  "_comment": [
+    "High-water mark for inert controls. May FALL, may never RISE. Recorded 8 Aug 2026.",
+    "A button with no handler reads to a non-technical owner as broken, not as unbuilt.",
+    "To reduce it: wire the control, or remove it until it does something."
+  ],
+  "max_allowed": 0,
+  "of_total": 332,
+  "recorded": "2026-08-08"
+}
