@@ -113,6 +113,30 @@ jobs:
       - name: Guard fixtures (guards still catch what they claim)
         run: node tools/checks/guard-fixtures.mjs
 
+      # ---- The PARSERS must still read what they claim --------------------------------
+      # guard-fixtures proves the guards catch. Nothing proved the parsers read.
+      # Both parsers turn a document into a number that reaches a state filing, and
+      # both shipped with no test in CI:
+      #   report_fixtures  - a footer row once became a $1,692,460 sale; 396 grouped
+      #                      rows were dropped; every plant was counted twice.
+      #   coa_fixtures     - the limit-of-quantitation column was read as a
+      #                      measurement, putting four potency figures 0.2% above
+      #                      Metrc. Caught by comparing against Metrc, not by any test.
+      # A suite that only runs when someone remembers is hope, not enforcement.
+      - name: Set up Python (for the parser fixtures)
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Parser dependencies
+        run: pip install --quiet openpyxl xlrd
+
+      - name: Report parser fixtures (Metrc exports still read correctly)
+        run: python tools/report_fixtures.py
+
+      - name: Certificate parser fixtures (potency still reads correctly)
+        run: python tools/coa_fixtures.py
+
       # ---- Rule E6 / security: a credential must never reach a file -------------------
       # 23 permission entries carrying live admin keys, JWTs and signed URLs accumulated
       # in a OneDrive-synced config over several days with nothing watching.
@@ -249,6 +273,10 @@ jobs:
         run: node tools/checks/accessibility.mjs
       # The owner's engineering standard. Holds the mechanical parts only -
       # a guard that has been hollowed out still prints its name and enforces nothing.
+      # A lesson written in LESSONS.md on 7 Aug shipped for two more days because
+      # nothing read it at the moment it mattered. This does.
+      - name: Prompts do not contradict the locked facts
+        run: node tools/checks/locked-facts-in-prompts.mjs
       - name: The standard is held
         run: node tools/checks/standard-held.mjs
       - run: node tools/checks/all-checks-wired.mjs

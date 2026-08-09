@@ -292,7 +292,7 @@ consigned material is in our possession and must be locatable. 862 held, ZERO
 without a room. Sublocation is empty on all 862: the room is known, the SHELF
 is not, and a physical count needs the shelf.
 
-Key facts: fresh cannabis is 75-80 percent water, so 20-25 percent wet-to-packaged conversion is NORMAL, not bad. Grams per plant is not a valid benchmark. A harvest with no finished date has not finished packaging and must not be counted in conversion. The room on a harvest is the drying room, not the grow room. Standard dry window is 10-14 days.`;
+Key facts: moisture loss here is 70-77 percent, owner-set on a measured 73.5 percent across the 271 harvests that actually dried - 75-80 percent is published guidance, not ours - so 20-25 percent wet-to-packaged conversion is NORMAL, not bad. GRAMS PER PLANT is the benchmark: target 70.6, actual 82.3. There is no square footage recorded anywhere in this business. A harvest with no finished date has not finished packaging and must not be counted in conversion. The room on a harvest is the drying room, not the grow room. Standard dry window is 10-14 days.`;
 
 const BUDZ_DEPTS = [
   {
@@ -3375,7 +3375,7 @@ export function CeoDashboard({ go }) {
       who: "Cultivation and post-harvest",
       when: c0 ? `Latest month recorded: ${c0.month}` : "—",
       plain: c0
-        ? `Correction first: an earlier version of this card compared you to 130 grams per plant. That figure was never sourced and is withdrawn — and the replacement this card then offered was wrong too. It said grams per plant is not a real benchmark and that canopy square footage is. Your own harvest calendar settles it: the column headed "Projected grams/sqft" is mislabelled and is grams per PLANT, proved from the Pull Summary, and there is no square footage recorded anywhere in this business — the figure once held in grow_rooms.sqft turned out to be a plant count in the wrong column. So the benchmark is grams per plant: your target is 70.6 and you are running 82.3 across 87 closed harvests, 17 percent ahead of plan.
+        ? `Correction first: an earlier version of this card compared you to 130 grams per plant. That figure was never sourced and is withdrawn — and the replacement this card then offered was wrong too - it dismissed the per-plant measure and pointed at canopy square footage instead. Your own harvest calendar settles it: the column headed "Projected grams/sqft" is mislabelled and is grams per PLANT, proved from the Pull Summary, and there is no square footage recorded anywhere in this business — the figure once held in grow_rooms.sqft turned out to be a plant count in the wrong column. So the benchmark is grams per plant: your target is 70.6 and you are running 82.3 across 87 closed harvests, 17 percent ahead of plan.
 
 The second correction matters more. Moisture loss here is 70 to 77 percent, set from your own measured 73.5 percent across the 271 harvests that actually dried — not the 75 to 80 percent published figure — so a wet-to-packaged conversion of 20 to 25 percent is NORMAL, not a failure. The "collapse" this card previously reported was an artifact: ${c0.still_open ?? 0} of ${c0.harvests_cut ?? 0} harvests cut in ${c0.month} are still open and have not finished packaging, so counting them dragged the month down. Measured only on harvests that actually closed, ${c0.month} reads ${c0.our_conversion_pct ?? "n/a"} percent.
 

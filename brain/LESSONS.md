@@ -8,6 +8,37 @@ Format: **date — what happened → what it cost → the rule now.**
 
 ---
 
+**2026-08-09 — A LESSON WRITTEN IN THIS FILE ON 7 AUGUST WAS STILL LIVE ON
+9 AUGUST, AND AN AGENT HARDENED IT INTO TRAINING IN BETWEEN.** The 7 Aug entry
+below records that `budz-chat`'s prompt contradicted the owner's locked facts:
+it called grams per plant "NOT a valid benchmark" and named grams per square
+foot as the real one — a measurement **this business does not possess**, because
+`grow_rooms.sqft` is null by design and the figure once held there was a plant
+count in the wrong column.
+
+Two days later it was still deployed, in **six** places: the canonical rules,
+three runtime copies, the browser assistant's own rules, and a Chief Executive
+Dashboard card telling the owner to his face that his own benchmark "is not a
+benchmark any commercial cultivator uses". That card already carried one
+correction — it had withdrawn a fabricated 130 g/plant figure — and **the
+replacement it offered was wrong too.**
+
+**Agent D made it worse while adding what it called training.** Writing the
+seats brief on 8 Aug it put *"Canopy square footage, NEVER grams per plant"*
+into the Cultivation seat and propagated that to all four runtimes. It had read
+the existing prompt and believed it. → **Rule A6 says verify against the live
+record; verifying against another prompt is not an independent source — it is
+the same failure as reading one internal field to confirm another, and a check
+that cannot fail proves nothing.**
+
+→ **Two rules. First: WRITING A LESSON DOWN IS NOT FIXING IT.** This file
+records mistakes; nothing re-reads it, and nothing failed while the
+contradiction shipped. A lesson with no guard behind it is a diary entry.
+**Second: prompts are configuration and must be governed like any other figure**
+— the 7 Aug entry said exactly that, and it is the instruction that went
+unexecuted. `rules-in-sync` now holds the four runtime copies together; the
+dashboard card was held by nothing, which is precisely why it survived longest.
+
 **2026-08-07 — A DEPLOY SILENTLY KILLED THE METRC SYNC FOR 5½ HOURS AND EVERY
 DASHBOARD REPORTED SUCCESS.** `metrc-sync` was redeployed as v15 at 11:31 UTC
 with `verify_jwt: true`. Its scheduler, `tg_metrc_fire`, sent only an
