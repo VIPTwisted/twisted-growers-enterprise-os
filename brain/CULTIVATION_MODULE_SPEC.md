@@ -113,6 +113,52 @@ status · fulfilled_at · fulfilled_note                     the close
 - **0 of 380 harvests carry an allocation.** There is no record anywhere of where
   harvested weight went or who decided. That is the blind spot being described.
 
+### 2b · THE COMPLETE WEIGHT LEDGER — three sources in, one hand-off out
+
+**Owner, 9 Aug 2026:** *"We must be able to pull all detailed history of our weight
+from harvests, and 3rd party flower and trim purchases, and given to licence 909."*
+
+Every pound must be traceable from where it entered to where it went. Three
+inbound streams, one outbound event, on **one ledger**:
+
+```
+IN   1. Our own harvests          MC281714    39,853 lb wet · 380 harvests
+     2. Third-party flower bought  inbound manifest  1,210 packages carry one
+     3. Third-party trim bought    same route
+                    │
+OUT  ───────────────┴──►  ALLOCATED TO MP281909
+```
+
+**What is traceable today**
+- **Own harvests:** complete. Wet, waste, packaged, water loss, per harvest, to tag.
+- **Bought-in material:** the **movement** is traceable — 1,210 packages carry a
+  `ReceivedFromManifestNumber`, and 2,685 manifest documents are on file. Origin is
+  resolved with `f_material_origin(tag)`, which walks `SourcePackageLabels` to the
+  root. **Never** use `ItemFromFacilityLicenseNumber` for this — it names whoever
+  defined the item, not who owned the material, and it flips to us on any repack
+  (rule C0).
+
+**⚠ What is NOT traceable, and it is the money half**
+- **`material_purchases` is EMPTY. `third_party_purchases` is EMPTY.** So **what we
+  paid** for bought-in flower and trim exists nowhere. The pounds are known; the cost
+  is not.
+- Consequently **margin on remediation and on distribution is uncomputable**, and any
+  figure claiming otherwise is invented (A1).
+- `third_party_material` holds **16 rows, 65.7 lb** of other companies' material in
+  the Fulfillment Vault, every row physically counted and marked *"CONFIRMED 7/31
+  VT"* — and **nothing reads it.** No view, no tile, no reconciliation against the
+  Metrc mirror.
+- That register uses **truncated tags** (e.g. `1479`, `4722`), not full 24-character
+  tags, so it cannot be reliably joined to `metrc_packages`. Two collisions are
+  already on record. Any reconciliation must resolve full tags first.
+- Nine suppliers already appear on stock: Canna Provisions, Holyoke Wilds, Jushi MA,
+  ACS, berkley botanicals, Gibby's Garden, LC Square, Nature Medicines, Solar
+  Therapeutics. **30 of 32 suppliers still have `bought_as` unset.**
+
+**So the ledger page must show pounds for all three streams and state plainly that
+cost is absent for two of them, and why** (A3) — rather than rendering a blank
+column that reads as zero.
+
 ---
 
 ## 3 · The harvest schedule surface
