@@ -58,11 +58,25 @@ a few weeks.
 
 ## Request template (updated recipients)
 
+> **CORRECTED 9 Aug 2026.** This template previously read "MC157557 cultivation". **MC157557
+> is not a licence.** 157557 is the owner's Metrc **user ID**, which belongs to the user key
+> and is never associated with a facility. The cultivation licence is **MC281714**.
+>
+> The owner settled this on 7 Aug 2026 with a screenshot of the Metrc facility switcher as
+> evidence, and it was recorded as contradiction §4 in `brain/CONTRADICTIONS.md` with the
+> note "that document must be corrected before the API application is submitted — a user ID
+> in a licence field would stall onboarding." It was still wrong two days later, which is the
+> meta-trap in `_charter_common.md`: **a decision recorded is not a decision implemented.**
+>
+> The two licences, from `company_licenses` and `CLAUDE.md`:
+> **MC281714 = cultivation** (tag series `1A40A030000E5B1`) ·
+> **MP281909 = manufacturing** (tag series `1A40A030000E5B2`)
+
 To **api-info@metrc.com** (and/or the Metrc Connect Integration Request form):
 
 > Subject: API integration request — Massachusetts licensee, in-house software
 >
-> We are a Massachusetts licensee (MC157557 cultivation, MP281909 product manufacturing)
+> We are a Massachusetts licensee (MC281714 cultivation, MP281909 product manufacturing)
 > building in-house operations software and request onboarding for Metrc Connect API access
 > for Massachusetts, including sandbox access and issuance of a software API key. User API
 > keys are already generated. Please send the Integration Request/agreement documents and
