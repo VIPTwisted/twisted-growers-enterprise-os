@@ -6,6 +6,50 @@ above it; never delete. If a figure or rule gets argued twice, it belongs here.
 
 ---
 
+**2026-08-09 — CORRECTION: 380 lb IS THE MONTHLY TARGET. PER PULL IT IS 180 lb.
+THE FLEET IS LARGELY ON TARGET, NOT MISSING BY HALF.**
+
+**What I got wrong.** On 8 Aug the owner said *"expected weight from every pull is
+380 lbs dried flower"*, and I wrote `pull_target_dried_lb = 380` and reported every
+2026 pull as short by 105–351 lb. **`brain/LESSONS.md` already held the resolution
+and I had not read it.**
+
+The lesson, recorded 7 Aug: the owner set *"380k monthly / 180k per pull"* without a
+unit; an agent read it as **dollars** and produced arithmetic closing to within 2%.
+It looked airtight and was a numerical coincidence. **The owner confirmed the unit is
+POUNDS** — **380 lb per month across the facility, 180 lb per room pull.**
+
+**It reconciles against the locked facts, which is the check I skipped:**
+- 1,140 plants × 70.6 g/plant target = **177.4 lb ≈ 180 lb per pull**
+- 180 lb × 2.17 pulls per month = **385 lb ≈ 380 lb per month**
+
+**Re-measured against the correct target — six of thirteen pulls are at or above it:**
+
+| Pull | Dried lb | vs 180 |
+|---|---|---|
+| 2 | 275.3 | **+95.3** |
+| 9 | 254.3 | **+74.3** |
+| 7 | 253.4 | **+73.4** |
+| 5 | 220.0 | **+40.0** |
+| 11 | 201.9 | **+21.9** |
+| 4 | 178.8 | −1.2 — at target |
+
+**And every one of those is a FLOOR**, because 44% of packages draw on more than one
+harvest and are still unallocated. The true figures are higher.
+
+**Config corrected:** `pull_target_dried_lb` = **180**, and a new
+`monthly_target_dried_lb` = **380** so the facility figure and the room figure can
+never be confused again. Both carry the reconciling arithmetic in
+`where_it_came_from`.
+
+**The lesson about the lesson.** This is the *same family* as grams-per-plant against
+grams-per-square-foot — wrong by a factor of six — and the moisture figure that was
+wrong before anyone used it. **A target quoted without its denominator is not a
+target.** Per pull, per month, per room and per plant are four different numbers, and
+"per" is the load-bearing word. The specific failure was mine: **the answer was
+already written down in the brain, and I measured instead of reading first.** The
+session-start loop exists precisely to stop that.
+
 **2026-08-09 — ALLOCATION IS AN APPROVAL WORKFLOW, AND IT IS HOW WE STOP THE BLEED.**
 Owner, this date: *"Vincent currently allocates all weight; our chief cultivator
 must submit approval for what and where they want to allocate, or Vincent can do
