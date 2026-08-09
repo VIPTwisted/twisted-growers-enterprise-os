@@ -108,15 +108,36 @@ export default function SyncItems({ session, licences = [] }) {
                 TOGETHER". Names the SYSTEM and the specific SOURCE, because on a
                 screen mixing three systems a spreadsheet tab and a state-regulator
                 endpoint otherwise look identical. */}
-            <div style={{ cursor: "pointer" }} onClick={() => setOpen((o) => ({ ...o, [key]: !isOpen }))}>
-              <div className="ptitle" style={{ fontSize: 14, marginBottom: 2 }}>
-                {isOpen ? "▾" : "▸"} {head.system_label ?? g.label}
-                <span className="pill" style={{ marginLeft: 8 }}>
-                  {g.items.length} item{g.items.length === 1 ? "" : "s"}
-                </span>
+            {/* The whole-category button lives in the HEADER, not at the bottom of
+                the list. Apex is collapsed by default because 46 rows is a lot of
+                page, and a button hidden inside a collapsed section may as well not
+                exist - which is exactly what the owner hit. */}
+            <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
+              <div style={{ cursor: "pointer", flex: 1 }} onClick={() => setOpen((o) => ({ ...o, [key]: !isOpen }))}>
+                <div className="ptitle" style={{ fontSize: 14, marginBottom: 2 }}>
+                  {isOpen ? "▾" : "▸"} {head.system_label ?? g.label}
+                  <span className="pill" style={{ marginLeft: 8 }}>
+                    {g.items.length} item{g.items.length === 1 ? "" : "s"}
+                  </span>
+                </div>
+                <div className="sub" style={{ margin: "0 0 8px 16px" }}>{head.source_name ?? g.label}</div>
               </div>
-              <div className="sub" style={{ margin: "0 0 8px 16px" }}>{head.source_name ?? g.label}</div>
+              <button className="btn small" disabled={!!running} style={{ whiteSpace: "nowrap" }}
+                title={`Runs all ${g.items.length} ${head.system_label} item(s) in one pass.`
+                  + (key === "apex" ? " Entities inside their refresh window are skipped and cost no credits." : "")}
+                onClick={() => runOne(`all:${key}`, { fn: head.fn, query_param: "none", item_key: "", extra_params: {} }, null)}>
+                {running === `all:${key}` ? "…" : `Sync all ${head.system_label}`}
+              </button>
             </div>
+            {/* Result of the whole-category run, visible even while collapsed. */}
+            {out[`all:${key}`] && (
+              <div className="spdesc" style={{ margin: "0 0 8px 16px" }}>
+                {out[`all:${key}`].pending ? "Running…"
+                  : <span style={{ color: out[`all:${key}`].ok ? "var(--ok)" : "var(--red)" }}>
+                      {out[`all:${key}`].text}{out[`all:${key}`].extra ? ` · ${out[`all:${key}`].extra}` : ""}
+                    </span>}
+              </div>
+            )}
             {isOpen && g.items.map((it) => {
               /* Metrc scopes per licence as well as per endpoint, so one row becomes
                  one button per licence when licences are known. */
@@ -173,26 +194,6 @@ export default function SyncItems({ session, licences = [] }) {
                 parameter, which every one of these already treats as "everything".
                 Apex still honours its per-entity refresh windows on a full run, so
                 this does not become a way to spend credits by accident. */}
-            {isOpen && (
-              <div className="sprow" style={{ paddingLeft: 16, borderTop: "1px dashed var(--line)" }}>
-                <div className="spmain">
-                  <div className="spname">Everything above</div>
-                  <div className="spdesc">
-                    {out[`all:${key}`]?.pending ? "Running…"
-                      : out[`all:${key}`]
-                        ? <span style={{ color: out[`all:${key}`].ok ? "var(--ok)" : "var(--red)" }}>
-                            {out[`all:${key}`].text}{out[`all:${key}`].extra ? ` · ${out[`all:${key}`].extra}` : ""}
-                          </span>
-                        : `Runs all ${g.items.length} ${head.system_label} item(s) in one pass.`
-                          + (key === "apex" ? " Entities still inside their refresh window are skipped and cost nothing." : "")}
-                  </div>
-                </div>
-                <button className="btn small" disabled={!!running}
-                  onClick={() => runOne(`all:${key}`, { fn: head.fn, query_param: "none", item_key: "", extra_params: {} }, null)}>
-                  {running === `all:${key}` ? "…" : `Full ${head.system_label}`}
-                </button>
-              </div>
-            )}
           </div>
         );
       })}
