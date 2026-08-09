@@ -101,11 +101,21 @@ export default function SyncItems({ session, licences = [] }) {
 
       {groups.map(([key, g]) => {
         const isOpen = open[key] ?? (key === "apex" ? false : true);
+        const head = g.items[0] ?? {};
         return (
-          <div key={key} style={{ marginTop: 14 }}>
-            <div className="ptitle" style={{ fontSize: 13, cursor: "pointer" }}
-              onClick={() => setOpen((o) => ({ ...o, [key]: !isOpen }))}>
-              {isOpen ? "▾" : "▸"} {g.label} — {g.items.length} item{g.items.length === 1 ? "" : "s"}
+          <div key={key} style={{ marginTop: 20, borderTop: "1px solid var(--line)", paddingTop: 12 }}>
+            {/* CATEGORY HEADER. Owner: "PUT IN CATEGORY ALL METRC TOGETHER ALL APEX
+                TOGETHER". Names the SYSTEM and the specific SOURCE, because on a
+                screen mixing three systems a spreadsheet tab and a state-regulator
+                endpoint otherwise look identical. */}
+            <div style={{ cursor: "pointer" }} onClick={() => setOpen((o) => ({ ...o, [key]: !isOpen }))}>
+              <div className="ptitle" style={{ fontSize: 14, marginBottom: 2 }}>
+                {isOpen ? "▾" : "▸"} {head.system_label ?? g.label}
+                <span className="pill" style={{ marginLeft: 8 }}>
+                  {g.items.length} item{g.items.length === 1 ? "" : "s"}
+                </span>
+              </div>
+              <div className="sub" style={{ margin: "0 0 8px 16px" }}>{head.source_name ?? g.label}</div>
             </div>
             {isOpen && g.items.map((it) => {
               /* Metrc scopes per licence as well as per endpoint, so one row becomes
@@ -115,17 +125,32 @@ export default function SyncItems({ session, licences = [] }) {
                 const k = `${it.source_key}:${it.item_key}:${lic ?? "all"}`;
                 const r = out[k];
                 return (
-                  <div className="sprow" key={k}>
+                  <div className="sprow" key={k} style={{ paddingLeft: 16 }}>
                     <div className="spmain">
+                      {/* WHAT — named, with the system it comes from, never a bare
+                          API slug like "shipping-orders". */}
                       <div className="spname">
+                        <span style={{ opacity: 0.6, fontWeight: 400 }}>{it.system_label} · </span>
                         {it.item_label}
                         {lic && <span className="pill" style={{ marginLeft: 6 }}>{lic}</span>}
-                        {it.due === true && <span className="pill" style={{ marginLeft: 6 }}>due</span>}
+                        {it.due === true && <span className="pill" style={{ marginLeft: 6 }}>due now</span>}
+                        {it.rows_stored != null && (
+                          <span className="pill" style={{ marginLeft: 6 }}>{it.rows_stored} held</span>
+                        )}
                       </div>
+                      {/* WHAT IT ACTUALLY CONTAINS, then WHERE IT LANDS. A person
+                          who wants to check the result needs the table name. */}
                       <div className="spdesc">
                         {r?.pending ? "Running…"
                           : r ? <span style={{ color: r.ok ? "var(--ok)" : "var(--red)" }}>{r.text}{r.extra ? ` · ${r.extra}` : ""}</span>
-                          : (it.note ?? "") + (it.due === false && it.due_text ? ` · ${it.due_text}` : "")}
+                          : <>
+                              {it.pulls}
+                              {it.target && <> <span style={{ opacity: 0.6 }}>→ lands in <code>{it.target}</code></span></>}
+                              {it.due === false && it.due_text && <span style={{ opacity: 0.6 }}> · {it.due_text}</span>}
+                              {it.last_status && it.last_status !== "ok" && (
+                                <span style={{ color: "var(--red)" }}> · last run: {it.last_status}</span>
+                              )}
+                            </>}
                       </div>
                     </div>
                     {it.supported ? (
@@ -143,6 +168,31 @@ export default function SyncItems({ session, licences = [] }) {
                 );
               });
             })}
+            {/* WHOLE-CATEGORY BUTTON. Owner: "A BUTTON FULL APEX, FULL METRC, ALL
+                SPREADSHEETS AT THE BOTTOM OF EACH". Calls the function with NO scope
+                parameter, which every one of these already treats as "everything".
+                Apex still honours its per-entity refresh windows on a full run, so
+                this does not become a way to spend credits by accident. */}
+            {isOpen && (
+              <div className="sprow" style={{ paddingLeft: 16, borderTop: "1px dashed var(--line)" }}>
+                <div className="spmain">
+                  <div className="spname">Everything above</div>
+                  <div className="spdesc">
+                    {out[`all:${key}`]?.pending ? "Running…"
+                      : out[`all:${key}`]
+                        ? <span style={{ color: out[`all:${key}`].ok ? "var(--ok)" : "var(--red)" }}>
+                            {out[`all:${key}`].text}{out[`all:${key}`].extra ? ` · ${out[`all:${key}`].extra}` : ""}
+                          </span>
+                        : `Runs all ${g.items.length} ${head.system_label} item(s) in one pass.`
+                          + (key === "apex" ? " Entities still inside their refresh window are skipped and cost nothing." : "")}
+                  </div>
+                </div>
+                <button className="btn small" disabled={!!running}
+                  onClick={() => runOne(`all:${key}`, { fn: head.fn, query_param: "none", item_key: "", extra_params: {} }, null)}>
+                  {running === `all:${key}` ? "…" : `Full ${head.system_label}`}
+                </button>
+              </div>
+            )}
           </div>
         );
       })}

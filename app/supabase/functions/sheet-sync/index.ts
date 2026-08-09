@@ -202,6 +202,43 @@ Deno.serve(async (req: Request) => {
        vaporizer ones, silently destroying eight product sheets. source_sheet holds
        the trimmed tab name on every row, so a single-tab run clears exactly the
        rows it is about to replace and nothing else. */
+    /* ⚠ ANTI-CLOBBER, the same rule the repo already applies to source files in
+       tools/lib/safe_edit.py (SHRINK_LIMIT = 0.70). Owner, 9 Aug 2026: "MAKE SURE
+       ALL SYNC FOLLOW RULES SIMILAR TO WHAT WE SETUP FOR METRC SO WE DONT OVERRIDE
+       SHIT."
+
+       metrc-sync never deletes - it upserts on a conflict key, so a bad pull leaves
+       existing rows alone. This function cannot do that, because the sheet is the
+       whole truth for a tab and a row removed there must disappear here. So it
+       deletes and re-inserts, and that is exactly what makes it dangerous: a tab
+       that loads but comes back EMPTY - sharing revoked, a renamed header row, a
+       crew member clearing it mid-edit - would delete real rows and insert nothing,
+       silently.
+
+       A fetch failure already throws before the delete. This covers the case that
+       does NOT throw: a valid response with nothing in it, or a collapse to a
+       fraction of what is held. Refuse, report, change nothing. ?allowShrink=1 for
+       when a real deletion is the point - a person deciding, never a schedule. */
+    const allowShrink = new URL(req.url).searchParams.get("allowShrink") === "1";
+    let held = service.from("product_inventory").select("id", { count: "exact", head: true });
+    held = wantedTab ? held.eq("source_sheet", wantedTab.trim()) : held;
+    const { count: heldCount } = await held;
+    const incoming = allRows.length;
+    if (!allowShrink && (heldCount ?? 0) > 0 && incoming < (heldCount ?? 0) * 0.30) {
+      const scope = wantedTab ? `tab "${wantedTab.trim()}"` : "the whole workbook";
+      await service.from("metrc_sync_runs").insert({
+        endpoint: wantedTab ? `google_sheet_fg:${wantedTab.trim()}` : "google_sheet_fg",
+        license: "-", started_at: started, finished_at: new Date().toISOString(),
+        status: "error", records: 0,
+        error: `REFUSED: ${incoming} incoming vs ${heldCount} held for ${scope}.`,
+      });
+      return json({ ok: false, refused: true, held: heldCount, incoming,
+        error: `REFUSED — nothing was changed. The sheet returned ${incoming} row(s) for ${scope}, `
+             + `but ${heldCount} are currently held. That is the shape of a sheet that has been cleared, `
+             + `unshared, or had its header row moved — not of a real deletion. `
+             + `Check the tab, then re-run with allowShrink=1 if the drop is genuine.` }, 200);
+    }
+
     let del1 = service.from("product_inventory").delete();
     del1 = wantedTab ? del1.eq("source_sheet", wantedTab.trim()) : del1.not("id", "is", null);
     const del1r = await del1;
