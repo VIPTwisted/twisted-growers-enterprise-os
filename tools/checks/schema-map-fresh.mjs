@@ -56,7 +56,13 @@ if (!baseline) {
 /* Lines look like:  metrc_packages (13): id, license, tag, ...
    Anything else in the file is prose and is not a claim about the schema. */
 const claims = [];
-for (const line of readFileSync(MAP, "utf8").split("\n")) {
+/* SPLIT ON /\r?\n/, NOT "\n". Splitting on "\n" alone leaves a trailing \r on
+   every line of a CRLF checkout, and `$` then never matches because \r is a
+   line terminator that `.` will not consume - so the gate reports a perfectly
+   good map as "no table lines at all". Netlify checks out LF and passed; every
+   Windows worktree failed. A gate whose verdict depends on line endings is a
+   gate that cries wolf, and one that cries wolf gets switched off. */
+for (const line of readFileSync(MAP, "utf8").split(/\r?\n/)) {
   const m = line.match(/^([a-z_][a-z0-9_]*)\s*\((\d+)\):\s*(.+)$/i);
   if (!m) continue;
   claims.push({ table: m[1], columns: m[3].split(",").map((c) => c.trim()).filter(Boolean) });
