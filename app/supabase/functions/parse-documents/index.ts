@@ -57,7 +57,25 @@ const CLIENT_LIC = /\b((?:MC|MP|MB|MR|MD)\d{6}|RMD\d{3,4}(?:-[A-Z])?)\b/;
 const ANY_LIC_S = "\\b((?:MC|MP|MB|MR|MT|MD|MX|IL)\\d{6}|RMD\\d{3,4}(?:-[A-Z])?)\\b";
 const LAB_LINE = /(laborator|accredit|lab licen|iso\/iec|independent testing)/i;
 const NOT_A_NAME = /(\.com|\.net|\.org|https?:|@|^\d+\s+\w|,\s*[A-Z]{2},?\s*\d{5}|^\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}|^(suite|ste\.?|unit|floor|po box)\b)/i;
-const OURS = ["MC281714", "MP281909"];
+/* RULE G2: licences come from company_licenses, never literals. These two were
+   hardcoded here and Agent C's literal-licences gate caught them - they are the
+   2 over baseline it could not attribute, and they are mine: I committed this
+   file today when recovering it from the live deployment.
+
+   Loaded once at cold start rather than per document: a licence changes about
+   never, and 80 documents in a batch should not each ask. If the query fails the
+   function REFUSES to run rather than falling back to a literal - a fallback is
+   how a hardcoded licence survives the rule that forbids it. */
+let OURS: string[] = [];
+async function loadOurLicences(sb: ReturnType<typeof createClient>) {
+  if (OURS.length) return OURS;
+  const { data, error } = await sb.from("company_licenses").select("license").eq("active", true);
+  if (error || !data?.length) {
+    throw new Error("Cannot read company_licenses, so ownership cannot be decided. Refusing to parse rather than guess: " + (error?.message ?? "no active licences"));
+  }
+  OURS = data.map((r: { license: string }) => r.license);
+  return OURS;
+}
 
 const cells = (l: string) => l.trim().split(/\s{2,}/).filter(Boolean);
 // The VALUE beside a label is the SECOND column, never the last: a manifest line
@@ -182,6 +200,16 @@ Deno.serve(async (req) => {
   const offset = Math.max(Number(url.searchParams.get("offset") ?? 0), 0);
 
   const sb = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+
+  /* Before anything is parsed. parseManifest decides origin from OURS, so an
+     empty list would silently mark every manifest as inbound. */
+  try {
+    await loadOurLicences(sb);
+  } catch (e) {
+    return new Response(JSON.stringify({ error: String(e instanceof Error ? e.message : e) }),
+      { status: 503, headers: { "Content-Type": "application/json" } });
+  }
+
   const report: Record<string, unknown> = { parser_version: PARSER_VERSION, offset, limit };
 
   const readPdf = async (path: string) => {
