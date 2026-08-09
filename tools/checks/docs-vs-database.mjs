@@ -3,14 +3,18 @@
  *
  * WHY THIS EXISTS — a real, dated failure that every other guard was blind to.
  *
- * On 7 Aug 2026 the owner settled, with a screenshot of the Metrc facility switcher as
- * evidence, that MC281714 is cultivation and MP281909 is manufacturing, and that 157557 is his
- * Metrc USER ID — not a licence at all. The live systems were fixed the same day:
- * integration_secrets, the licences table, the registers, memory. Cultivation data then flowed.
+ * On 7 Aug 2026 the owner settled, with a screenshot of the Metrc facility switcher as evidence,
+ * which of the two licences is cultivation and which is manufacturing, and that the six-digit
+ * number he had been shown as a third one is his Metrc USER ID — not a licence at all. It belongs
+ * to the user key and is never associated with a facility. The live systems were fixed the same
+ * day: integration_secrets, the licences table, the registers, memory. Cultivation then flowed.
  *
- * Two days later `docs/09_METRC_API_ACCESS.md` still read:
+ * Two days later `docs/09_METRC_API_ACCESS.md` still named that USER ID as the cultivation
+ * licence, in the body of an email addressed to api-info@metrc.com.
  *
- *     "We are a Massachusetts licensee (MC157557 cultivation, MP281909 product manufacturing)"
+ * (The codes themselves are deliberately NOT written here. Rule G2 applies to this file too, and
+ *  writing them would make this gate break `literal-licences` — which is exactly what happened
+ *  on its first day: ten of them, in the comments of the check built to forbid them.)
  *
  * That is the body of an email addressed to api-info@metrc.com. It would have gone to the
  * REGULATOR naming a user ID as a licence. brain/CONTRADICTIONS.md §4 had even flagged it
@@ -62,11 +66,10 @@ const EXPLAINS_ITSELF =
 
 /* OURS ONLY. company_licenses holds Twisted Growers' licences and nothing else, so a
    third-party code can never be verified against it and must not be flagged. Its first run
-   proved the point: it reported IL281359, IL281280, IL281354, IL281277, IL281355 (independent
-   TESTING LABORATORIES) and MT281320, MT281556 (other operators) as "not real". They are real;
-   they simply belong to other companies. MX is a transporter. Checking only MC and MP still
-   catches the failure this gate was built for -- MC157557 is MC-prefixed and absent from the
-   table. */
+   proved the point: it reported five IL-prefixed codes (independent TESTING LABORATORIES) and two
+   MT-prefixed codes (other operators) as "not real". They are real; they simply belong to other
+   companies. MX is a transporter. Restricting to MC and MP loses nothing, because the failure
+   this gate exists for is a user ID typed with an MC prefix -- which is still caught. */
 const OUR_LICENCE = /\bM[CP]\d{6}\b/g;
 const KINDS = ["cultivation", "manufactur", "retail", "transport", "laborator", "research"];
 
@@ -139,7 +142,7 @@ for (const f of live) {
     /* RULE 2 — ONLY when the line names exactly ONE of our licences.
      *
      * Its first run reported 8 "wrong kind" failures and every one was this bug: the correct
-     * and normal way to write it is "MC281714 cultivation, MP281909 manufacturing" — two codes
+     * and normal way to write it is "<cultivation code> cultivation, <manufacturing code> manufacturing" — two codes
      * and two kinds on one line. Taking the first kind word and applying it to every code
      * guarantees a mismatch on the second. Pairing words to codes reliably needs a real parser,
      * so the ambiguous case is SKIPPED rather than guessed. A single-licence line — where the
@@ -151,8 +154,8 @@ for (const f of live) {
     /* Pair the code with the NEAREST kind word, not the first one on the line.
      *
      * Third false positive of this gate's own making, and the subtlest: prose WRAPS. Line 74 of
-     * brain/HARDCODED_REGISTER.md reads "cultivation and MP281909 manufacturing, and a licence
-     * change would today" — the word "cultivation" belongs to MC281714 on the line ABOVE. Taking
+     * brain/HARDCODED_REGISTER.md reads "cultivation and <the manufacturing code> manufacturing, and a licence
+     * change would today" — the word "cultivation" belongs to the OTHER code on the line ABOVE. Taking
      * any kind word on the line flagged a document that was entirely correct. Nearest-word
      * pairing reads it the way a person does. */
     const lower = line.toLowerCase();
@@ -178,7 +181,7 @@ if (unknown.length) {
   unknown.forEach((x) => console.error(`    ${x}`));
   console.error("");
   console.error("A licence-shaped code that is not in company_licenses is either a typo, a user");
-  console.error("ID mistaken for a licence (this happened: MC157557 is a USER ID and reached a");
+  console.error("ID mistaken for a licence (this happened: a USER ID was typed as one and reached a");
   console.error("template addressed to api-info@metrc.com), or a licence that was never added to");
   console.error("the table. All three are worth failing a build over.");
   console.error("");
