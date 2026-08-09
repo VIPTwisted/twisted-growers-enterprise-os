@@ -261,3 +261,26 @@ only successes is a lie of omission and it is the most common kind an agent tell
 **Do not edit a file another agent has open.** **Do not work around a guard** — if a hook
 or gate blocks you it is more likely right than you are; fix what it objected to or tell
 the owner. **Never weaken an agent or a guard; enhance, improve and fortify.**
+
+### ⚠ CORRECTED 9 AUG 2026 — THE FIGURES ABOVE WERE INFLATED BY SNAPSHOT VERSIONS
+
+`metrc_rpt_transfer_manifests` is a REPORT SNAPSHOT table: the same manifest is
+re-imported as it progresses, so weights and received dates change across rows. 975
+manifest+direction groups hold more than one version and **every one of them differs in
+content — zero are byte-identical.** They are versions, not duplicates, and deduping them
+would delete transfer history.
+
+I computed the baseline across all snapshots, which counted the same manifest several
+times. Recomputed on the LATEST snapshot per (licence, manifest, direction):
+
+| | outbound | inbound |
+|---|---|---|
+| manifests (latest only) | **2,355** — not 4,072 | **1,074** |
+| non-zero weight variance | **86** — not 148 | 5 |
+| …unreceived (variance is 100%) | 37 | 5 |
+| …**genuine both-sides disagreements** | **49** — not 60 | **0** — not 1 |
+| absolute gap on those | **5.5977 lb** | **none** |
+
+**Always reduce to the latest snapshot before counting anything from this table.** The
+inbound 16.00 lb figure I reported earlier was a superseded snapshot and does not exist in
+current data.
