@@ -102,6 +102,17 @@ reported rather than silently dropped (rule A3).
 Recorded so no future session re-raises them as new findings (rule H1: ignoring
 is a decision, not a deletion).
 
+- **🔒 ALL CREDENTIAL ROTATION IS DEFERRED TO ONBOARDING. STOP RAISING IT.**
+  Owner, 9 Aug 2026: *"I am not changing pw, secrets or keys until after deployed
+  live. Put on to-do list, stop repeating that until we get into onboarding."*
+  **This is a decision, not an oversight** (H1). Covers the `tg_desktop_reader`
+  password in the three committed files, the build-phase owner passwords, and the
+  edge-function admin key. **No agent may re-raise any of these until the owner
+  opens onboarding.** Re-raising a settled deferral wastes his attention and trains
+  him to ignore the channel — the same failure as a noisy alert.
+  **Then, at onboarding:** rotate `tg_desktop_reader` (its password is in git
+  history, so deleting the lines does not help), set real owner passwords, and
+  rotate the edge-function admin key.
 - **47 unanswered owner questions** (was 44 on 7 Aug) — *"leave this alone for later."*
 - **Owner accounts still on build-phase passwords** — *"leave alone for now."*
   Still true, still flagged in `HANDOFF.md` §6, and still matters before real
