@@ -214,3 +214,102 @@ it. An **inherited** certificate is expected on untested intermediate product; a
 **direct** one is a contradiction. **A benign explanation is the one to evidence
 hardest, because nobody challenges it.**
 
+---
+
+# THE STANDARD. Owner, 9 August 2026: "always hard rule to review code and
+# ensure MIT... microsoft google standard or beat them. Nothing underpar."
+
+This is not a slogan. Every line below was earned by a specific failure on this
+platform, most of them within one week, and several of them mine. A standard
+nobody can check is a standard nobody keeps, so each one is written as something
+you can be caught not doing.
+
+## 1. A CHECK THAT CANNOT FAIL PROVES NOTHING
+
+Before you rely on a guard, BREAK SOMETHING AND WATCH IT CATCH THAT. Then put it
+back.
+
+Written because `ownership.confirmed_not_ours` counted rows of the view it was
+checking - it could only ever pass. And because a scheduled retry ran 1,440
+times a day retrying nothing, which read as green for as long as anybody looked.
+
+## 2. MEASURE. DO NOT ASSERT.
+
+"It is faster now" is not a result. "17 seconds cold, 8 warm, measured through
+the real queue" is. If you cannot measure it, say that instead of implying you
+did.
+
+Written because every speed claim made in one day - all mine - was a single
+stopwatch reading quoted as if it were the system's behaviour.
+
+## 3. A WRONG LABEL COSTS MORE THAN NO LABEL
+
+A check that calls a healthy thing broken gets ignored, and then it is not a
+check. Nobody ignores an alarm because it is quiet; they ignore it because it
+cried wolf.
+
+Written because the loop-health view had to be rewritten THREE times: a fixed
+threshold that broke on daily jobs, an "ever failed" rule that never forgave a
+recovery, and a cadence that did not understand overnight windows. Each version
+looked reasonable and would have trained somebody to stop reading it.
+
+## 4. ABSENCE AND NO-ACCESS ARE NOT THE SAME THING
+
+A null is not an absence. A zero row count may mean "not permitted". Before
+reporting that anything is empty, missing or not tracked, prove you can SEE it.
+
+Written because a null field produced an invented blind spot, two cron jobs and
+a PDF pipeline built to solve a problem that did not exist - and because the
+assistant reported a table as empty when it held 3,675 rows, in one second, with
+no hesitation at all.
+
+## 5. DATA MUST SAY WHAT IT IS
+
+A figure that does not carry its own caveat will be quoted without one, by
+somebody who was not in the conversation where the caveat was explained.
+
+Written because $1,317,836 of PURCHASES was read as revenue - the column exists
+on both directions and did not say which. And because 21 pay rates that nobody
+approved were presented with exactly the confidence of rates somebody had.
+
+## 6. WHAT RUNS IN PRODUCTION IS IN THE REPOSITORY
+
+No exceptions. If you deploy it, commit it in the same breath.
+
+Written because three edge functions ran for days with no source anywhere -
+including the one every assistant answer passes through. Two of them had been
+deployed by an agent that never committed them.
+
+## 7. DO NOT WORK AROUND A GUARD
+
+If a hook or a gate blocks you, it is more likely to be right than you are. Fix
+the thing it objected to, or tell the owner. Never route around it.
+
+Written because a DELETE against an append-only forensic table was blocked
+correctly, and because a guard that blocked a view drop held even when I thought
+I had a good reason - a view an hour old is exactly the kind of thing that feels
+safe to drop, and the habit is what costs you later.
+
+## 8. SAY WHAT YOU DID NOT DO
+
+Report the part you skipped, the case you did not cover, the number you could
+not verify. A summary that mentions only successes is a lie of omission, and it
+is the most common kind told by an agent.
+
+If another agent's work is open in a file, DO NOT EDIT IT. Two agents nearly
+deleted each other's work twice in one day, and both times it was caught by
+reading the diff before committing rather than by anything automatic.
+
+## 9. THE COMMIT MESSAGE IS THE RECORD
+
+Write why, not what. The diff already says what. Include the thing you got wrong
+on the way, because the next person will otherwise repeat it - and because a
+message that reads as though the work went perfectly is usually hiding the part
+worth knowing.
+
+## 10. FINISH, OR SAY IT IS NOT FINISHED
+
+"Done" means measured, committed, and verified in the place it actually runs. A
+change that works on your machine and has not shipped is not done, and calling
+it done is how a day's work sits invisible while somebody refreshes a page and
+wonders why nothing changed.
