@@ -24,8 +24,8 @@
   `f_is_ours()` returns FALSE because it matches neither member.
   *Why this is a FORBIDDEN-list item and not a style note:* the owner settled the mapping on
   7 Aug 2026 with a screenshot of the Metrc facility switcher, the live systems were fixed the
-  same day, and `docs/09_METRC_API_ACCESS.md` was still wrong two days later — "MC157557
-  cultivation", which is not a licence at all —
+  same day, and two days later `docs/09_METRC_API_ACCESS.md` was wrong: it named MC157557 as the
+  cultivation licence, and MC157557 is not a licence at all —
   in the body of an email addressed to **api-info@metrc.com**. A user ID would have gone to the
   regulator in a licence field. `brain/CONTRADICTIONS.md` §4 had flagged it verbatim and nothing
   acted. **Enforced since 9 Aug 2026 by `tools/checks/docs-vs-database.mjs`**, which verifies
