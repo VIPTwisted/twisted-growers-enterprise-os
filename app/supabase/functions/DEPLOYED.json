@@ -2,7 +2,7 @@
   "_what_this_is": "Every edge function actually deployed to project fxetuqjryttnypgepsru. Checked by tools/checks/edge-functions-versioned.mjs, which fails the build if any of these has no source in this repository.",
   "_why": "On 8 Aug 2026 bridge-queue, document and parse-documents were all running in production with no source here at all. The only copy of each was the deployment: nothing to review, nothing to diff, no way to rebuild them. Two of the three had been deployed and never committed.",
   "_how_to_refresh": "List the project's functions (Supabase dashboard, or the MCP list_edge_functions tool) and replace the array below. The check also fails if this file has not been touched in 30 days, because a stale list passes forever while new functions appear behind it.",
-  "_last_verified_against_project": "2026-08-08",
+  "_last_verified_against_project": "2026-08-09",
   "functions": [
     "bridge-queue",
     "budz-chat",
@@ -10,6 +10,7 @@
     "clickup-sync",
     "coa-extract",
     "document",
+    "hr-clickup-push",
     "integration-settings",
     "manifest-parse",
     "metrc-catalog-sync",
