@@ -97,7 +97,28 @@ async function apexGet(base: string, key: string, path: string, params: Record<s
 /* Pull one entity. Records a row in apex_sync_run either way, because a failure that
    leaves no trace is how a source goes quiet for seven hours while every dashboard
    stays green. */
-async function pullEntity(base: string, key: string, e: Entity, runId: string): Promise<string> {
+/* Apex REQUIRES updated_at_from on delta-capable endpoints. Their docs say "some API
+   endpoints require an updated_at_from field to be set", and I read "require" as
+   "support" - so the first run sent no cursor at all and five entities came back
+   HTTP 422 "The updated at from field is required", including shipping-orders, which
+   is the entire revenue picture. Ten entities succeeded, which made the failure look
+   like a partial success rather than a wrong assumption.
+
+   Their guidance is to call it from the date the company joined Apex. That date is in
+   the company payload we already hold - Twisted Growers joined 2023-11-30 - so the
+   seed is read from our own data rather than hard-coded. The constant below is only a
+   floor for the case where company has not been pulled yet; it predates the company's
+   existence, so it can never skip real history. */
+const APEX_EPOCH = "2020-01-01T00:00:00Z";
+
+async function firstRunCursor(): Promise<string> {
+  const { data } = await supa.from("apex_raw").select("payload")
+    .eq("entity", "company").order("fetched_at", { ascending: false }).limit(1).maybeSingle();
+  const joined = (data?.payload as Record<string, unknown> | undefined)?.created_at;
+  return typeof joined === "string" && joined ? joined : APEX_EPOCH;
+}
+
+async function pullEntity(base: string, key: string, e: Entity, runId: string, seed: string): Promise<string> {
   const started = new Date().toISOString();
   const { data: wmRow } = await supa.from("apex_watermark").select("*").eq("entity", e.entity).maybeSingle();
   const watermarkBefore: string | null = wmRow?.updated_at_from ?? null;
@@ -118,10 +139,10 @@ async function pullEntity(base: string, key: string, e: Entity, runId: string): 
     for (;;) {
       const params: Record<string, string> = { ...(e.nesting ?? {}) };
       if (e.supports_paging) { params.per_page = String(PER_PAGE); params.page = String(page); }
-      /* FIRST RUN PULLS EVERYTHING. Apex's guidance is to start from the date the
-         company joined; we have no such date, so an absent watermark means no
-         updated_at_from at all - a full pull, once, deliberately. */
-      if (e.supports_delta && watermarkBefore) params.updated_at_from = watermarkBefore;
+      /* ALWAYS SEND IT ON A DELTA ENTITY. Apex REQUIRES updated_at_from here - it is
+         not an optimisation. Omitting it returns 422, not a full pull. On a first run
+         the cursor is the date the company joined Apex, per their own guidance. */
+      if (e.supports_delta) params.updated_at_from = watermarkBefore ?? seed;
 
       const r = await apexGet(base, key, path, params);
       httpStatus = r.status;
@@ -281,6 +302,7 @@ Deno.serve(async (req: Request) => {
   const { data: entities } = await q;
 
   const runId = crypto.randomUUID();
+  const seed = await firstRunCursor();     // one read, reused by every entity
   let total = 0;
   let skipped = 0;
 
@@ -305,7 +327,7 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    const out = await pullEntity(base, key, e, runId);
+    const out = await pullEntity(base, key, e, runId, seed);
     results[e.entity] = out;
     const m = out.match(/^(\d+) /);
     if (m) total += Number(m[1]);

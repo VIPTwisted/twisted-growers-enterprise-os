@@ -5,6 +5,7 @@ import EmployeeFile from "./empfile.jsx";
 import ScheduleBuilder from "./schedbuild.jsx";
 import Timesheets from "./timesheets.jsx";
 import HrQueue from "./hrqueue.jsx";
+import Terminals from "./terminals.jsx";
 import SyncItems from "./syncitems.jsx";
 import jsQR from "jsqr";
 import { supabase, FUNCTIONS_URL } from "./lib/supabase.js";
@@ -7869,6 +7870,7 @@ function Integrations({ session }) {
   const [busy, setBusy] = useState(false);
   const [runs, setRuns] = useState(null);
   const [forceReport, setForceReport] = useState(null);
+  const [openRun, setOpenRun] = useState(null);   // which run row is expanded
   const role = useRole(session);
   /* Same roles that may write configuration elsewhere in this file. Forcing a sync is a
      configuration action, not a read. */
@@ -7883,10 +7885,22 @@ function Integrations({ session }) {
     if (j.ok) setStatus(j.secrets);
     else setMsg({ kind: "err", text: j.error ?? "Could not load settings." });
   }, [authHeaders]);
+  /* EVERY run, from EVERY integration. Owner, 9 Aug 2026: "PANEL MUST REPORT EVERY
+     SINGLE RUN ALWAYS."
+
+     This read metrc_sync_runs alone, so a successful 15-entity Apex run that landed
+     186 rows showed nothing here and the only reasonable conclusion from the screen
+     was that Apex had not synced. A run log silent about a whole integration is
+     worse than a broken sync: it teaches you to distrust the log. v_all_sync_runs
+     UNIONs the sources, so a future integration with its own run table cannot vanish
+     the same way.
+
+     Ordered by started_at rather than id - the two tables have independent id
+     sequences, so id ordering would interleave them wrongly. */
   const loadRuns = useCallback(async () => {
-    const { data } = await supabase.from("metrc_sync_runs")
-      .select("endpoint, license, status, records, started_at, error")
-      .order("id", { ascending: false }).limit(14);
+    const { data } = await supabase.from("v_all_sync_runs")
+      .select("system, endpoint, license, status, records, started_at, error")
+      .order("started_at", { ascending: false }).limit(30);
     setRuns(data ?? []);
   }, []);
   useEffect(() => { loadStatus(); loadRuns(); }, [loadStatus, loadRuns]);
@@ -8086,17 +8100,42 @@ function Integrations({ session }) {
             ) : (
               <div className="tablewrap" style={{ marginTop: 0 }}>
                 <table>
-                  <thead><tr><th>Started</th><th>License</th><th>Endpoint</th><th>Status</th><th>Records</th></tr></thead>
+                  <thead><tr><th>Started</th><th>System</th><th>License</th><th>Endpoint</th><th>Status</th><th>Records</th></tr></thead>
                   <tbody>
-                    {runs.map((r, i) => (
-                      <tr key={i} title={r.error ?? ""}>
-                        <td>{new Date(r.started_at).toLocaleTimeString()}</td>
-                        <td>{r.license}</td>
-                        <td>{r.endpoint}</td>
-                        <td><span className={`pill ${r.status === "ok" ? "ok" : r.status === "error" ? "err" : "run"}`}>{r.status}</span></td>
-                        <td>{r.records ?? ""}</td>
-                      </tr>
-                    ))}
+                    {/* DRILL DOWN. Owner: "USER MUST KNOW IF IT WAS SUCCESSFUL, WHAT
+                        SYNCED, DRILL DOWN TO SEE, SEE ERRORS, SKIPPED EVERYTHING ON
+                        DRILLDOWN." The reason was live on this screen: five Apex
+                        entities failed with a 422 whose message named the exact missing
+                        field, and the only place that text appeared was a tooltip
+                        nobody hovers. A failure you have to guess at is a failure
+                        reported badly. */}
+                    {runs.map((r, i) => {
+                      const key = `${r.system}:${r.endpoint}:${r.started_at}`;
+                      const isOpen = openRun === key;
+                      const hasDetail = !!r.error;
+                      return (
+                        <React.Fragment key={key}>
+                          <tr onClick={() => setOpenRun(isOpen ? null : key)}
+                              style={{ cursor: hasDetail ? "pointer" : "default" }}
+                              title={hasDetail ? "Click for the full message" : ""}>
+                            <td>{new Date(r.started_at).toLocaleTimeString()}</td>
+                            <td>{r.system}</td>
+                            <td>{r.license}</td>
+                            <td>{hasDetail ? (isOpen ? "▾ " : "▸ ") : ""}{r.endpoint}</td>
+                            <td><span className={`pill ${r.status === "ok" ? "ok" : r.status === "error" ? "err" : "run"}`}>{r.status}</span></td>
+                            <td>{r.records ?? ""}</td>
+                          </tr>
+                          {isOpen && hasDetail && (
+                            <tr>
+                              <td colSpan={6} style={{ background: "var(--canvas)", whiteSpace: "pre-wrap",
+                                  fontFamily: "ui-monospace, monospace", fontSize: 12, lineHeight: 1.5, padding: "10px 12px" }}>
+                                {r.error}
+                              </td>
+                            </tr>
+                          )}
+                        </React.Fragment>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -9509,6 +9548,7 @@ export default function App() {
     schedule_builder: <ScheduleBuilder go={setView} session={session} />,
     timesheets: <Timesheets go={setView} session={session} />,
     hr_review_queue: <HrQueue go={setView} session={session} />,
+    terminals: <Terminals go={setView} session={session} />,
     integrations: <Integrations session={session} />,
     settings: <Settings session={session} prefs={prefs} />,
     help: <Help />,
