@@ -31,6 +31,38 @@
   acted. **Enforced since 9 Aug 2026 by `tools/checks/docs-vs-database.mjs`**, which verifies
   every licence in every live document against `company_licenses` and fails the build.
 
+## IN FLIGHT IS NOT A FAILURE (established 9 Aug 2026 — bit three agents in one day)
+
+**A check over a process must know which rows are still IN FLIGHT, or it measures the calendar.**
+
+Three findings, three agents, one root cause, none of them looking for it:
+- *201 packages "never confirmed received"*, critical, tolerance 0 → **154 were shipped that week
+  and simply in transit.** Of 11 genuinely aged manifests, 3 received nothing and 8 were partial.
+  **77% of a critical finding was work still in the air**, and the check had been red on every
+  run since it was written.
+- *A package counted twice* → it exists under both licences mid-transfer, because the sending
+  side is never marked departed.
+- *1,369 lab samples "missing"* → shipped to a lab, absent from a mirror that syncs only ACTIVE
+  packages.
+
+**None was an error in the data. All three were states the checks had no concept of.** A
+tolerance of 0 on a metric that cannot reach 0 while anything is in flight is a check that is
+always red and therefore ignored.
+
+**How to apply.** Before writing or trusting any check that compares two ends of something —
+shipped/received, sent/acknowledged, submitted/returned, started/finished — ask *what is still
+in the middle?* `verification_checks` now carries `measures_a_process`, `in_flight_rule` and
+`settles_within`, and a CHECK CONSTRAINT refuses a process check with no declared in-flight
+rule. `settles_within` is **owner-set**: never infer it from the data, because inferring it from
+late rows makes lateness normal (rule A5). `v_checks_missing_in_flight` lists what is still
+undeclared.
+
+**And the epistemics, from the agent who caught their own error:** *"What caught it wasn't a
+guard. It was looking at the seven rows instead of trusting the count."* A count is a summary of
+rows you have not read. Open the rows.
+
+---
+
 ## Standing rules
 Theme: neon green brand (#2df26a/#5cff92), zero purple, zero grey/pastel icons (solid vivid
 tiles), bright reds (#ff4245 dark / #f5222d light), Figtree font, user-controlled glow via
