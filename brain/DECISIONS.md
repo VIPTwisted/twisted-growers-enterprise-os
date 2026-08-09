@@ -50,6 +50,51 @@ lets the Chief Cultivator raise a request and Vincent decide it. Until one reque
 exists, every allocation figure on every page is zero, and zero reads like "nothing
 to see" rather than "never recorded" (rule A3).
 
+**2026-08-09 — THE ALLOCATION APPROVER IS A PERMISSION, NEVER A NAMED PERSON.**
+Owner, same session, immediately after the ruling above: *"So right now we have
+Vincent as person who approves allocation, but we need ability to change that
+person who approves, or grant others same authority, in admin user permissions."*
+
+**Vincent is the approver TODAY. He must never be the approver IN CODE.** The
+authority to approve an allocation is a **permission granted to a role or a named
+user in admin settings**, held as a database row an administrator can change
+without a deploy (rule G1: config is rows, never code). Several people may hold it
+at once.
+
+This is rule G2 applied to a person instead of a licence: a name frozen into code
+is wrong the day someone is promoted, leaves, or goes on holiday — and an approval
+queue with an absent approver stops the business rather than logging a decision.
+
+**Design consequences, all binding:**
+- `allocation_requests.decided_by` records **who actually decided**, which may be
+  any holder of the permission — never assumed to be Vincent.
+- The interface must show **who currently holds approval authority**, because a
+  requester needs to know who they are waiting on.
+- Granting or revoking it is itself an audited change with a reason (H1), not a
+  silent settings toggle.
+- Vincent raising and approving on the Chief Cultivator's behalf must still record
+  **both** parties — requester and decider are separate columns and both are filled.
+
+**2026-08-09 — HARVEST SCHEDULE MUST SHOW PAST, CURRENT AND PLANNED, IN BOTH A
+CALENDAR AND A LIST.** Owner, same session: *"We must see full harvest schedules,
+past, current and planned, per the synced spreadsheet, in calendar and list views."*
+
+Not two pages — **one page, two views of the same data**, because a schedule read
+as a calendar answers "what is coming" and read as a list answers "what slipped".
+Both must carry past, current and planned together on one timeline; a calendar that
+only shows the future cannot show drift.
+
+**The source is the synced spreadsheet**, the 8-week harvest calendar — currently
+`harvest_schedule` (137 rows) and `harvest_plan_2026` (26 pulls). Sync from the
+workbook is not yet one-button: `SYNC_SOURCES` lists the harvest calendar as
+**not live**, loaded once from the .xlsm on 5 Aug, and says re-sync turns on when
+the workbook is shared as a Google Sheet. **So "per the synced spreadsheet" is not
+yet true and the page must say so** until that connection exists (A3).
+
+Plan against actual belongs on the same surface: 15 of 26 pulls are complete, one
+(pull 3, 8 Feb, F1) was never recorded at all, and 12 of 15 happened in a different
+room than planned.
+
 **2026-08-08 — MOISTURE LOSS IS MEASURED NIGHTLY, NEVER A HARDCODED BAND.**
 Owner, asked whether the band should be a fixed number: *"it should always be
 accurate not a hardwired number i believe… i could add goal if suggested."*
