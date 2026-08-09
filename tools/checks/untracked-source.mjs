@@ -36,8 +36,12 @@ import { fileURLToPath } from "node:url";
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 
 /* Where application source lives. Deliberately not the whole repo: generated output, docs and
-   the brain are not things the app imports. */
-const SCAN = ["app/web/src", "bridge", "app/supabase/functions"];
+   the brain are not things the app imports.
+   tools/checks and tools/hooks were added 8 Aug 2026 after this guard's own first run exposed
+   the gap: budz-questions.mjs — a working guard catching confident-but-groundless assistant
+   answers — was itself untracked. A GUARD that exists on one laptop is exactly as dangerous as
+   app code that does, and this guard could not see it because it only scanned app source. */
+const SCAN = ["app/web/src", "bridge", "app/supabase/functions", "tools/checks", "tools/hooks"];
 const SKIP = /(^|[\\/])(node_modules|dist|build|\.git|\.netlify|coverage)([\\/]|$)/;
 const SOURCE = /\.(jsx?|tsx?|mjs|cjs|css)$/;
 

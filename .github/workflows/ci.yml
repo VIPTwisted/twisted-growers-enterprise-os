@@ -183,6 +183,15 @@ jobs:
       - name: No dead controls
         run: node tools/checks/dead-controls.mjs
 
+      # ---- Every pre-built question must reach a real answer -------------------------
+      # The owner clicked "What was backordered today?" and got a confident,
+      # well-written answer that was worthless: the question matched no branch in
+      # budzAnswer, so it fell through and was improvised. 53 questions are offered
+      # as buttons; a question with no branch is a promise the platform cannot keep,
+      # and the failure is invisible because the answer still looks like an answer.
+      - name: Budz questions all route
+        run: node tools/checks/budz-questions.mjs
+
       # ---- The guard that guards the guards -------------------------------------------
       # Four checks were written on 7 Aug and never wired, so they enforced
       # nothing while looking like enforcement. This fails if any check in
@@ -222,6 +231,14 @@ jobs:
       # matters, because that is what Netlify does.
       - name: Nothing the app imports may be missing from git
         run: node tools/checks/untracked-source.mjs
+      # Written by another agent and never wired, so it enforced nothing - caught by
+      # all-checks-wired, which is the entire reason that guard exists. It was ALSO
+      # untracked, which is what pushed untracked-source.mjs to start scanning
+      # tools/checks: a guard living on one laptop is as dangerous as app code doing so.
+      # The owner clicked a pre-built question and got a confident answer with no branch
+      # behind it; this asserts every one of the 53 questions reaches a real answer.
+      - name: Budz pre-built questions reach a real answer
+        run: node tools/checks/budz-questions.mjs
       - run: node tools/checks/all-checks-wired.mjs
 
       # ---- Rule E1 / E6 / H2: dangerous SQL must not reach a migration ---------------
