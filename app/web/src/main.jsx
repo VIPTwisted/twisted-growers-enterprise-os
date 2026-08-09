@@ -3,6 +3,8 @@ import { createRoot } from "react-dom/client";
 import App, { RootBoundary } from "./App.jsx";
 import "./styles.css";
 import "./rules.css";
+/* Loaded last so it can correct the locked theme without editing it. */
+import "./patches.css";
 
 /* The section boundary inside App only helps while App itself is standing. If
    the shell throws, React unmounts everything and the user gets a white page
