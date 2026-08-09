@@ -113,7 +113,14 @@ export default function SyncItems({ session, licences = [] }) {
                 page, and a button hidden inside a collapsed section may as well not
                 exist - which is exactly what the owner hit. */}
             <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
-              <div style={{ cursor: "pointer", flex: 1 }} onClick={() => setOpen((o) => ({ ...o, [key]: !isOpen }))}>
+              {/* A button, not a div: the platform gives a button keyboard focus, Enter and
+                  Space handling and a screen-reader role for free. A div with onClick has
+                  none of those, and this one collapses a 46-row section — unreachable without
+                  a mouse. Styled flat so it looks identical to the div it replaced. */}
+              <button type="button" aria-expanded={isOpen}
+                style={{ cursor: "pointer", flex: 1, background: "none", border: 0,
+                         padding: 0, textAlign: "left", font: "inherit", color: "inherit" }}
+                onClick={() => setOpen((o) => ({ ...o, [key]: !isOpen }))}>
                 <div className="ptitle" style={{ fontSize: 14, marginBottom: 2 }}>
                   {isOpen ? "▾" : "▸"} {head.system_label ?? g.label}
                   <span className="pill" style={{ marginLeft: 8 }}>
@@ -121,7 +128,7 @@ export default function SyncItems({ session, licences = [] }) {
                   </span>
                 </div>
                 <div className="sub" style={{ margin: "0 0 8px 16px" }}>{head.source_name ?? g.label}</div>
-              </div>
+              </button>
               <button className="btn small" disabled={!!running} style={{ whiteSpace: "nowrap" }}
                 title={`Runs all ${g.items.length} ${head.system_label} item(s) in one pass.`
                   + (key === "apex" ? " Entities inside their refresh window are skipped and cost no credits." : "")}

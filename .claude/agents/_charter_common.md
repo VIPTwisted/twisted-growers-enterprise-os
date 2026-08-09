@@ -360,3 +360,45 @@ worth knowing.
 change that works on your machine and has not shipped is not done, and calling
 it done is how a day's work sits invisible while somebody refreshes a page and
 wonders why nothing changed.
+
+## 11. A DUPLICATE IS ONLY A DUPLICATE AGAINST THE RIGHT KEY
+
+**Never delete a row to "remove duplicates" without first confirming the key in
+`duplicate_key`, and never widen or change that key to make a count go to zero.**
+
+Written on 9 August 2026, when "remove the duplicates" would have destroyed real
+records twice in the same hour:
+
+- `metrc_packages` showed 7 tags appearing twice. Each appeared once under MC281714
+  and once under MP281909 — the same 84g package in transit between this company's
+  own two licences, sender `intransit`, receiver `active`. On `(license, tag)`: zero.
+- `metrc_rpt_transfer_manifests` showed 1,851 "extra" rows. All of them differed in
+  content; none was byte-identical. It is a report SNAPSHOT at ITEM level: one
+  manifest yields many rows per import, across 5 imports. Its identity is
+  `(import_id, source_row)`. Deleting on `manifest_number` would have deleted
+  transfer history.
+
+Both looked exactly like duplication. Neither was.
+
+**The procedure, every time:**
+
+1. **Look up the key in `duplicate_key`.** If the table is not registered, register it
+   WITH THE REASON before touching anything. An unregistered table is unaudited, and
+   unaudited reads as clean.
+2. **Prove the rows are identical, not merely similar.** Compare content, not the key
+   you assumed. Different content means versions, and versions are history.
+3. **Ask what makes these two rows legitimately different** — a second licence, a
+   later snapshot, a different import, an opposite direction. On this platform the
+   answer has been "both are right" every single time so far.
+4. **Report it. Do not delete it.** `no-duplicate-rows.mjs` fails the build and
+   deletes nothing, on purpose. Which of two rows is wrong needs a person who knows
+   why they both exist.
+
+**And do not count rows as things.** `metrc_rpt_transfer_manifests` has 4,072 outbound
+ROWS and 2,355 outbound MANIFESTS. Reporting the row count as a manifest count
+overstated it by 73%, in a figure that had already been handed to the owner and
+written into a brief.
+
+**When you add a table that a sync writes to, register its key in the same commit.**
+The guard checks coverage, so an unregistered sync target fails the build — which is
+the only reason this rule will still be true next month.
