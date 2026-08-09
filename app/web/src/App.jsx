@@ -5,6 +5,7 @@ import EmployeeFile from "./empfile.jsx";
 import ScheduleBuilder from "./schedbuild.jsx";
 import Timesheets from "./timesheets.jsx";
 import HrQueue from "./hrqueue.jsx";
+import SyncItems from "./syncitems.jsx";
 import jsQR from "jsqr";
 import { supabase, FUNCTIONS_URL } from "./lib/supabase.js";
 import { BudzScreen, CeoDashboard, AssistantSettings, BudzPet, useBudzPet, RedGreen,
@@ -7968,6 +7969,13 @@ function Integrations({ session }) {
     loadRuns();
     setBusy(false);
   }
+  /* Licences for the per-endpoint buttons. Taken from the sync runs rather than from
+     METRC_LICENSES, because that secret is write-only and never comes back to the
+     browser - by design. An empty list is handled: the buttons then run all
+     configured licences instead of pretending to scope to one. */
+  const metrcLicences = useMemo(
+    () => [...new Set((runs ?? []).map((r) => r.license).filter((l) => l && l !== "-"))].sort(),
+    [runs]);
   const isSet = (name) => status?.some((s) => s.name === name);
   const setPill = (name) => isSet(name) && <span className="pill ok" style={{ marginLeft: 8 }}>set ✓</span>;
   return (
@@ -8064,6 +8072,11 @@ function Integrations({ session }) {
               </div>
             )}
           </form>
+          {/* PER-ITEM SYNC. Owner, 9 Aug 2026: "EVERYTHING INDIVIDUALLY WE ONLY HAVE
+              SYNC ALL BUTTON" / "LIST ALL SPREADSHEETS WITH A BUTTON". Its own file
+              because App.jsx is already 9,700 lines and the owner has ruled against
+              files big enough that one break takes everything down. */}
+          <SyncItems session={session} licences={metrcLicences} />
         </div>
         <div>
           <div className="msection" style={{ marginTop: 0 }}>

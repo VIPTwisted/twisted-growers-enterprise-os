@@ -123,9 +123,33 @@ Deno.serve(async (req: Request) => {
 
   const started = new Date().toISOString();
   const results: Record<string, number> = {};
+
+  /* ?tab= — sync ONE spreadsheet tab. Owner, 9 Aug 2026: "LIST ALL SPREADSHEETS
+     WITH A BUTTON", "EVERYTHING INDIVIDUALLY".
+
+     Nine tabs were pulled as an all-or-nothing block, so fixing one product sheet
+     meant re-fetching the other eight and waiting for them. Matching is on the tab
+     name EXACTLY as it appears in TABS, including the trailing space in
+     "1.0g Economy Raw " - the sheet really is named that, and silently trimming it
+     here would make the button miss.
+
+     An unknown tab is an ERROR, never a silent no-op that reports success on zero
+     rows. A button that appears to work and does nothing is the dead control this
+     repo has a gate against. */
+  const THIRD_PARTY = "3rd Party Material";
+  const wantedTab = new URL(req.url).searchParams.get("tab");
+  const TABS_TO_RUN = wantedTab ? TABS.filter(([t]) => t === wantedTab) : TABS;
+  /* THIRD_PARTY is a real tab but lives in its own table, so it is deliberately not
+     in TABS and produces no product rows. Without this exemption its button would
+     404 against a tab that plainly exists. */
+  if (wantedTab && !TABS_TO_RUN.length && wantedTab !== THIRD_PARTY) {
+    return json({ ok: false,
+      error: `No spreadsheet tab named "${wantedTab}". Known tabs: ${[...TABS.map(([t]) => t), THIRD_PARTY].join(" | ")}` }, 400);
+  }
+
   try {
     const allRows: Record<string, unknown>[] = [];
-    for (const [tab, category, hdrRow] of TABS) {
+    for (const [tab, category, hdrRow] of TABS_TO_RUN) {
       const grid = await fetchTab(tab);
       const hdr = grid[hdrRow - 1] ?? [];
       const cols: Record<number, string> = {};
@@ -150,8 +174,12 @@ Deno.serve(async (req: Request) => {
       results[tab.trim()] = n;
     }
 
-    // 3rd Party Material
-    const tp = await fetchTab("3rd Party Material");
+    /* 3rd Party Material is its own tab and its own table. On a single-tab run it
+       must NOT be fetched or replaced unless it is the tab that was asked for -
+       otherwise pressing "sync Vaporizers" would silently rewrite third-party
+       material as a side effect. */
+    const doThirdParty = !wantedTab || wantedTab === THIRD_PARTY;
+    const tp = doThirdParty ? await fetchTab(THIRD_PARTY) : [];
     const tpRows: Record<string, unknown>[] = [];
     for (let r = 1; r < tp.length; r++) {
       const [company, tag, strain, product, wg, wl, loc, chk, notes] = tp[r].map((c) => (c ?? "").trim());
@@ -164,18 +192,29 @@ Deno.serve(async (req: Request) => {
         notes: notes || null, source_row: r + 1, synced_at: new Date().toISOString(),
       });
     }
-    results["3rd Party Material"] = tpRows.length;
+    if (doThirdParty) results[THIRD_PARTY] = tpRows.length;
 
-    // Replace atomically-enough: only clear once every tab fetched clean
-    const del1 = await service.from("product_inventory").delete().not("id", "is", null);
-    if (del1.error) throw new Error(del1.error.message);
+    /* Replace atomically-enough: only clear once every tab fetched clean.
+       ⚠ THE DELETE MUST BE SCOPED TO WHAT WAS FETCHED. This clears
+       product_inventory and re-inserts, which is correct for a full run and
+       CATASTROPHIC for a single-tab run - pressing "sync Vaporizers" against an
+       unscoped delete would have removed all 246 rows and re-inserted only the
+       vaporizer ones, silently destroying eight product sheets. source_sheet holds
+       the trimmed tab name on every row, so a single-tab run clears exactly the
+       rows it is about to replace and nothing else. */
+    let del1 = service.from("product_inventory").delete();
+    del1 = wantedTab ? del1.eq("source_sheet", wantedTab.trim()) : del1.not("id", "is", null);
+    const del1r = await del1;
+    if (del1r.error) throw new Error(del1r.error.message);
     for (let i = 0; i < allRows.length; i += 200) {
       const { error } = await service.from("product_inventory").insert(allRows.slice(i, i + 200));
       if (error) throw new Error(error.message);
     }
-    const del2 = await service.from("third_party_material").delete().not("id", "is", null);
-    if (del2.error) throw new Error(del2.error.message);
-    if (tpRows.length) {
+    if (doThirdParty) {
+      const del2 = await service.from("third_party_material").delete().not("id", "is", null);
+      if (del2.error) throw new Error(del2.error.message);
+    }
+    if (doThirdParty && tpRows.length) {
       const { error } = await service.from("third_party_material").insert(tpRows);
       if (error) throw new Error(error.message);
     }
