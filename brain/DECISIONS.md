@@ -6,6 +6,50 @@ above it; never delete. If a figure or rule gets argued twice, it belongs here.
 
 ---
 
+**2026-08-09 — ALLOCATION IS AN APPROVAL WORKFLOW, AND IT IS HOW WE STOP THE BLEED.**
+Owner, this date: *"Vincent currently allocates all weight; our chief cultivator
+must submit approval for what and where they want to allocate, or Vincent can do
+it for them. But forensically auditing allocation of all harvests, tracking
+finished weights, is a critical function for us to stop the bleed."*
+
+**The rule.**
+- **Vincent allocates all weight.** That is the standing position, not a bottleneck
+  to design around.
+- **The Chief Cultivator SUBMITS A REQUEST** — what material, how much, and
+  **where it is going** — and Vincent approves, part-approves or refuses.
+- **Vincent may raise and approve a request on their behalf.** The record must
+  still show it was raised for the Chief Cultivator, so the audit trail never
+  loses who wanted the material.
+- **Every harvest's allocation is forensically auditable**, and finished weight is
+  tracked against it. This is stated as the mechanism for finding where weight is
+  being lost.
+
+**THE TABLE ALREADY IMPLEMENTS THIS EXACTLY. It has never been used.**
+`allocation_requests` carries the whole workflow and holds **0 rows**:
+
+| Stage | Columns that already exist |
+|---|---|
+| Who asked | `requested_by`, `requester_name`, `requester_department` |
+| What | `material_name`, `strain`, `quantity`, `uom`, `pounds`, `stream`, `source_kind`, `source_ref` |
+| Where and why | `destination`, `purpose`, `needed_by`, `priority` |
+| The decision | `decided_by`, `decider_name`, `decided_at`, `decision_reason`, **`approved_quantity`** |
+| The close | `status`, `fulfilled_at`, `fulfilled_note` |
+
+`approved_quantity` being separate from `quantity` is the important one: Vincent can
+approve **less** than was asked for, and the gap between requested and approved is
+itself a measurable signal. `v_allocation_queue` and `v_awaiting_allocation` are
+built on it and both return nothing, because nothing has ever been requested.
+
+**Measured 9 Aug 2026: 0 of 380 harvests carry an allocation.** So today there is
+no record anywhere of where any harvested weight was sent, or who decided it. That
+is precisely the blind spot the owner is describing.
+
+**What this makes the priority.** Not a new build — the first request. The workflow,
+the queue views and the audit columns exist; what is missing is the surface that
+lets the Chief Cultivator raise a request and Vincent decide it. Until one request
+exists, every allocation figure on every page is zero, and zero reads like "nothing
+to see" rather than "never recorded" (rule A3).
+
 **2026-08-08 — MOISTURE LOSS IS MEASURED NIGHTLY, NEVER A HARDCODED BAND.**
 Owner, asked whether the band should be a fixed number: *"it should always be
 accurate not a hardwired number i believe… i could add goal if suggested."*
