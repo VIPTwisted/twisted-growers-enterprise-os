@@ -216,6 +216,12 @@ jobs:
       # pages are added without deciding what kind of page they are.
       - name: Page architecture - primitives are shared, layouts are not
         run: node tools/checks/page-architecture.mjs
+      # Bit twice on 8 Aug 2026: patches.css (269 lines, imported by main.jsx, never added)
+      # and roster/hrdash/kiosk (746 lines, untracked). source-intact.mjs counts TRACKED files
+      # so it is blind to a file that was never added. A clean clone is the only build that
+      # matters, because that is what Netlify does.
+      - name: Nothing the app imports may be missing from git
+        run: node tools/checks/untracked-source.mjs
       - run: node tools/checks/all-checks-wired.mjs
 
       # ---- Rule E1 / E6 / H2: dangerous SQL must not reach a migration ---------------
