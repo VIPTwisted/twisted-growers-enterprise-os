@@ -165,6 +165,32 @@ never overwrite either side. A discrepancy between them is frequently the most v
 row in the system — it is a billing dispute, a short shipment or a data-entry error, and
 flattening it destroys the evidence.
 
+### ⭐ THE JOIN IS EXACT — 100% IS ACHIEVABLE, NOT ASPIRATIONAL
+
+The OpenAPI spec settles the hardest question in this whole build. **Apex order lines
+carry the Metrc package tag directly:**
+
+- **`metrc_package_label`** on every order item — the 24-character Metrc tag
+- **`manifest_number`** on every shipping order — the Metrc manifest
+- **`operation_license`** on the line, **`buyer_state_license`** on the order
+- **`metrc_transfer_template.metrc_manifest_template_id`** on the order
+
+**So the reconciliation is a key join, not a fuzzy match.** There is no excuse for
+name-matching anywhere in this module, and no excuse for a coverage figure below 100% that
+is not explained by a specific missing tag.
+
+| Apex | key | our side |
+|---|---|---|
+| order item | `metrc_package_label` | `metrc_rpt_package_transfers.package_tag` (19,256 rows, full tags) |
+| shipping order | `manifest_number` | `metrc_rpt_transfer_manifests.manifest_number` (5,280) |
+| buyer | `buyer_state_license` | `metrc_rpt_transfer_manifests.destination_licence` (all 4,072 outbound) |
+| order line qty | `order_quantity` + `order_unit_measurement_id` | package quantity + uom — **never add units to pounds** |
+
+**⚠ ORDERS SPLIT.** `split_from_order_id` and `split_chain` are on every order: one Apex
+order can become several, and several can ride one manifest. **Reconcile at LINE level on
+the package tag, then roll up** — matching order-to-manifest one-to-one will fail on every
+split and you will misread that as a discrepancy.
+
 ### 100% RECONCILIATION IS THE REQUIREMENT (Owner, 9 Aug 2026)
 
 > *"this has to reconcile 100% perfect with Metrc."*
@@ -450,6 +476,258 @@ initial bundle shrinks, which the owner has asked for repeatedly on speed ground
 Then a gate: **`tools/checks/file-size-ceiling.mjs`**, failing when a source file crosses
 its ceiling. Grandfather `App.jsx` at its current line count as a **ratchet that may only
 shrink** — so it can never quietly grow back, and every extraction locks in its gain.
+
+---
+
+## 7A. THE SALES MODULE — BUILT LIKE HR, FULLY CUSTOM (Owner, 9 Aug 2026)
+
+> *"like HR this must build unique dashboard and module fully custom with tons of tiles,
+> visuals kpi's so we can run sales and our entire sales team and commissions, crm."*
+
+**Share primitives, never layouts.** A roster is not a ledger is not a punch log, and a
+sales dashboard is none of the three. Do **not** route Sales through a generic report
+screen — 522 pages through one shared screen is the documented CAUSE of the bugs on this
+platform, not a shortcut around them. Build a `tile()` primitive local to the module, the
+way `hrdash.jsx` does, and lay the page out for what sales actually is.
+
+**Copy HR's shape exactly** (`hrdash.jsx`, 281 lines): parallel `Promise.all` load, one
+`useMemo` deriving every metric, a local `tile(key, label, value, unit, tone, foot, drill)`
+where **every tile drills into its records**, and an `assign` state so a task can be raised
+from any tile.
+
+```
+src/sales/
+  salesdash.jsx    the Sales dashboard — tiles, KPIs, visuals
+  inventory.jsx    Apex inventory grid, filters, saved views
+  orders.jsx       shipping + receiving orders
+  crm.jsx          deals, stages, leads
+  customer.jsx     the customer file (the empfile.jsx of sales)
+  commissions.jsx  rep plans, ledger, approvals
+  reconcile.jsx    Apex vs Metrc
+  filters.jsx      the filter engine, data-driven
+  apex.js          data access only, no JSX
+```
+
+### ⚠ NAME COLLISION THAT WILL CORRUPT PRODUCTION DATA
+
+**`pipelines`, `pipeline_stages`, `pipeline_runs`, `pipeline_stage_events` and
+`v_pipeline_stage_aging` are ALL TAKEN BY MANUFACTURING.** They model production runs, not
+deals. An agent that sees the word "pipeline", assumes CRM and writes to them will corrupt
+manufacturing.
+
+**Name the CRM tables `sales_deal`, `sales_deal_stage`, `sales_stage_event`,
+`sales_lead`.** Never `pipeline*`.
+
+### COMMISSIONS — NOTHING EXISTS. ALL OF IT IS NEW.
+
+There is no commission, quota, territory or sales-rep table anywhere. New:
+
+- `sales_rep` — employee_id, territory, quota, effective dates
+- `commission_plan` — basis, effective dates, who approved it
+- `commission_rule` — tiers, rates, and what they apply to (brand, category, customer)
+- `commission_ledger` — order line → rep → basis amount → rate → earned → status → approver
+
+**Four rules that decide whether this is trustworthy or a lawsuit:**
+
+1. **State the BASIS explicitly on every plan.** Gross revenue, net of discount, or cash
+   actually collected are three different numbers. A plan that does not say which is a
+   dispute waiting to happen, and rule A5 already requires a figure to carry what it is.
+2. **Earned is not payable.** A commission accrues on the order and becomes payable only
+   on the plan's trigger — usually collection. Otherwise a cancelled or unpaid order pays
+   a commission that has to be clawed back from a person's wages.
+3. **Commission is PAY, so it is HR, so it requires a human.** Owner ruling: *"ALL HR
+   REQUIRES HUMAN."* The agent calculates and proposes; a person approves every time.
+   Follow the `employee_rates.provisional` / `v_pay_rate_confidence` pattern — **an
+   unapproved commission figure must be visibly provisional on screen**, never shown with
+   the confidence of an approved one. 21 pay rates nobody approved were once presented
+   exactly like rates somebody had.
+4. **Commission depends on price, and price comes from Apex.** If Apex shipping orders
+   carry no line pricing, **commissions cannot be computed at all** — same blocker as
+   revenue. Confirm it before building any of this.
+
+### THE TILES — WHAT THE DASHBOARD MUST CARRY
+
+Every tile obeys the dashboard hard rules: **actionable to ClickUp standard** (assign to a
+named person with a due date and priority, carrying the number that triggered it **captured
+as it stood at that moment**), **drills into its records**, and **replicates up** to
+Control Tower and the Chief Executive Dashboard.
+
+**Revenue & orders** — revenue MTD/QTD/YTD and against the same period last year · open
+order value and the units behind it · average order value · average discount · on-time
+ship rate against promised date · days sales outstanding (needs `netterms`).
+
+**Inventory & fulfilment** — **on hand vs committed vs available**, which does not exist
+today at all · **oversold lines** where committed exceeds available (XJ-13 currently reads
+0 on hand against 864 open — the platform cannot presently tell you whether that is
+make-to-order or oversold) · days of stock cover at current run rate · **ready-to-ship
+blocked by COA**, i.e. anything not COMPLETE.
+
+**Customers** — active, new this month, churned (no order in N days) · top customers by
+revenue and **concentration percentage**, because one customer at 40% of revenue is a risk
+that belongs on a tile · **credit limit utilisation** against `customers.credit_limit` ·
+**customer licence expiry**, since a customer whose licence lapses cannot legally be sold to.
+
+**CRM** — deals and value by stage · **stage ageing**, the deals sitting still · win rate ·
+average days to close · leads created versus converted.
+
+**Team & commissions** — revenue by rep against quota with attainment percentage ·
+commission earned / accrued / approved / paid, kept as four separate numbers ·
+**provisional (unapproved) commission flagged distinctly.**
+
+**Compliance & reconciliation** — **Apex ↔ Metrc coverage %**, the 100% tile · open
+discrepancies (baseline: 60 genuine both-sides, 6.09 lb) · unconfirmed manifests (88
+outbound) · **COA expiry runway** (736 past `coa_valid_until`, 2 still active) · items sold
+whose document status is not COMPLETE.
+
+### NO TILE WITHOUT PROVENANCE
+
+Every tile states **its source (Apex / Metrc / derived) and its as-of time.** A revenue
+figure from Apex and a package count from Metrc must never sit side by side unlabelled.
+That is precisely how $1,317,836 of *purchases* was read as revenue — the column existed on
+both directions and did not say which.
+
+---
+
+## 7B. WHAT APEX IS, AND THE API CONTRACT (researched 9 Aug 2026)
+
+Apex Trading is **B2B wholesale cannabis management software** — 8,000+ clients across 29
+state markets. It is the seller's whole commercial front end, and it is where our money,
+our buyers and our commissions already live.
+
+**Seller feature set, as they name it:** Inventory Management · Order Management · Buyer
+Management · Automated Compliance · Integrations · Reporting & Analytics · **Robust User
+Permissions** · **CRM** · Branded Public Profiles · Branded Menus · Website Menu Widget ·
+Marketplace. Their materials add: a **sales-rep database tracking who has been contacted
+and who should be**, **email marketing**, **workflows & task management**, **COAs
+auto-attached to invoices**, Metrc integration, QuickBooks integration, and an **invoicing
+system that tracks income, salesperson commissions and accounts receivable.**
+
+### The API contract — confirmed, not guessed
+
+- **Auth:** `Authorization: Bearer <token>`. **`Accept: application/json` is required on
+  every request.** Docs at `api-docs.apextrading.com`.
+- **`/welcome` returns the token's permissions.** **Call it first, always.** It validates
+  the key and enumerates scopes without touching a single record — the correct way to
+  prove access before reporting anything as empty (rule A4).
+- **The root resource is `company`.** The token resolves to a company and most models
+  carry a `company_id`.
+- **Orders carry BOTH `buyer_company_id` and `seller_company_id`** — direction is explicit
+  in the data. We are the seller. Do not infer direction from anything else.
+- **Incremental sync is `updated_at_from`.** First call from the date the company joined
+  Apex, then only records changed since the last successful sync. Store the watermark per
+  entity, and store it **only after the pull succeeds** — a watermark advanced on a failed
+  pull creates a permanent hole nobody will ever notice.
+- **⚠ PATCH IS SPARSE, AND A FIELD SET TO AN EMPTY VALUE IS SET TO NULL.** Sending `""`
+  **erases** the field. Any write path must send only fields it intends to change and must
+  never send empty strings for untouched ones. This alone justifies shipping read-only
+  first.
+
+### CORRECTION — AR IS FULLY AVAILABLE. I HAD THIS WRONG.
+
+I inferred from the scope list that there was no invoice or payment data. **The OpenAPI
+spec (`docs/apex/apex-openapi-3.1.json`, 106 endpoints) says otherwise.** There is no
+`/invoices` resource because **invoicing and AR live ON the shipping order**:
+
+`invoice_number` · `subtotal` · `total` · `additional_discount` · `delivery_cost` ·
+`taxes` · `total_payments` · `total_credits` · `total_write_offs` · `total_trades` ·
+**`payment_status`** · **`payments_currently_due`** · `due_date` · `net_terms_id`
+
+…plus a full payments sub-resource at `/v1/shipping-orders/{orderID}/payments`
+(`amount`, `payment_date`, `type`, `pay_type`, `status`).
+
+**So days sales outstanding, AR ageing, credit exposure and paid-versus-due are all
+computable.** The lesson stands and is the same one as the manifest recipients: **a scope
+list is not a schema.** Read the contract before concluding a capability is missing.
+
+### ⚠ EVERY MONEY FIELD HAS A `_raw` TWIN — DO ARITHMETIC ON `_raw` ONLY
+
+`subtotal`/`subtotal_raw`, `total`/`total_raw`, `order_price`/`order_price_raw`,
+`amount`/`amount_raw`, and so on throughout. The bare field is a **formatted display
+string**; `_raw` is the number. **Summing the formatted one produces silent nonsense** —
+the same class of error as summing `weight_variance` percentages. Every stored money value
+comes from `_raw`, and the mapping gate must assert it.
+
+### ⚠ APEX BILLS BY API CREDIT, AND NESTED RESOURCES ARE BILLABLE
+
+`/v1/usage` returns `credits_used`, `monthly_credit_limit`, `request_count`,
+**`billable_nested_resource_count`**, `throttled_request_count`, `error_4xx_count`,
+`error_5xx_count`. Apex's own docs open with *"this will reduce the API fees your company
+… may be charged."*
+
+**Over-fetching costs real money and gets you throttled.** A shipping order can drag in
+`items`, `buyer`, `payments`, `deal_flow`, `sales_reps`, `transporters`, `history`,
+`notes`, `pricing_tier`, `term` — each nested resource billable. Therefore: **always use
+`updated_at_from` deltas**, request only the nesting a job needs, **poll `/v1/usage` and
+put credits-used-against-limit on the dashboard as a tile**, and never build a job that
+re-pulls the world on a schedule.
+
+### COMMISSIONS — ATTRIBUTION EXISTS, THE AMOUNT DOES NOT
+
+`sales_reps` is on every shipping order. **But it carries only `name`, `phone`, `email` —
+there is no rep id and no commission amount anywhere in the API.**
+
+- **Commission amounts must be computed here.** Apex's invoicing shows them in its own UI;
+  the API does not expose them. Ours will be the only machine-readable figure, so it must
+  be right and it must be human-approved.
+- **Match reps on EMAIL, never on name.** A name has no key and drifts exactly the way
+  *"Nova Farms LLC"* / *"Nova Farms, LLC"* drifts. Map `sales_reps.email` to `employees`
+  once, explicitly, and flag every unmatched rep rather than guessing.
+
+---
+
+## 7C. THE FULL SALES MODULE — THE ORDER LIFECYCLE IS THE SPINE
+
+Everything below hangs off one path. Build the path first; the screens are views onto it.
+
+**Quote → Order → Credit check → Allocation → COA gate → Manifest → Transport →
+Delivery confirmation → Invoice → Payment → Commission**
+
+**Every arrow is a gate that can refuse, and every refusal is visible with its reason.**
+
+| stage | the gate | refuses when |
+|---|---|---|
+| Order accepted | **customer standing** | licence expired or expiring inside the delivery window; credit limit exceeded; account inactive |
+| Allocation | **on hand ≥ committed** | stock is already promised elsewhere. This is the number that does not exist today. |
+| COA gate | **document status COMPLETE** | no COA, no manifest, or **COA past `coa_valid_until`** — 736 packages are already past it |
+| Manifest | **Metrc, by a human** | never automated. The platform produces step-by-step instructions and the person creates it. |
+| Delivery confirmation | **shipped vs received** | count or weight variance — the 60 genuine disagreements are exactly this |
+| Invoice | **priced and reconciled** | Apex price and Metrc declared price disagree without a reason |
+| Payment | **net terms clock** | overdue rolls into AR ageing |
+| Commission | **payable trigger** | earned but not collected, or not yet approved by a human |
+
+### The screens
+
+**`salesdash.jsx` — the dashboard.** Tiles per section 7A. First item in the Sales
+category, replicates up to Control Tower and the Chief Executive Dashboard.
+
+**`crm.jsx` — the deal desk.** Deals by stage with value, stage ageing, owner, next action
+and last contact. Mirrors Apex `dealflows` / `buyerstages` / `buyerleads`. **A rep must be
+able to see who has been contacted and who has not** — that is the single feature Apex
+names for reps, and the reason a rep opens the screen at all.
+
+**`customer.jsx` — the customer file.** The `empfile.jsx` of sales: licence and its expiry,
+credit limit and live exposure, net terms, order history, price tier, documents sent, notes,
+open deals, and **every manifest ever sent to them**. `v_customer_manifests` and
+`v_customer_history` already exist — use them.
+
+**`inventory.jsx` — the sellable catalogue.** On hand / committed / available, filters and
+saved views per section 6, batch expansion, COA and manifest badges per line.
+
+**`orders.jsx` — the order desk.** The lifecycle above, one row per order, showing which
+gate it is sitting behind. Shipping and receiving orders both.
+
+**`commissions.jsx` — plans, ledger, approvals.** Per section 7A, human-approved every time.
+
+**`reconcile.jsx` — Apex vs Metrc.** Full outer join, zero orphans, every difference named.
+
+### The price book — do not skip it
+
+Wholesale runs on tiers: list price, customer-specific price, volume breaks, promotional
+price, and **price per case versus per unit** ($240 on a case of 24 is $10 a unit, and the
+two must never be confused). `skus.wholesale_price` exists as a single number with **no
+recorded basis**, which is rule A5 unsatisfied. Model `price_list`, `price_list_entry` and
+`customer_price_assignment`, and record on every order line **which price applied and why**
+— because a discount nobody can explain is a commission dispute and an audit finding.
 
 ---
 

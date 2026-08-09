@@ -149,10 +149,64 @@ told that day, not worked around.**
 of it.** That is the "sales channel" module. `dealdocs` is the likely Apex home of COAs and
 manifests — expect overlap, expect disagreement, reconcile, overwrite nothing.
 
-Credentials are already wired: `APEX_API_KEY`, `APEX_API_BASE`, `APEX_COMPANY_ID` in
-Integrations, stored write-only via `integration-settings` (v4, `APEX_` whitelisted). **The
-base URL is an owner-entered field because Apex's auth scheme and endpoints have NOT been
-verified against their documentation** — confirming them from a real call is your first task.
+### THE CONTRACT IS IN THE REPO — READ IT BEFORE YOU ASSUME ANYTHING
+
+**`docs/apex/apex-openapi-3.1.json`** — the full OpenAPI 3.1 spec, **106 endpoints**.
+
+- **Base URL `https://app.apextrading.com/api`.** Auth `Authorization: Bearer <token>`,
+  and **`Accept: application/json` is required on every request.**
+- **Call `/v1/welcome` FIRST, always.** It returns the token's permissions and proves
+  access without touching a record — the correct way to satisfy "absence is not no-access".
+- **Incremental sync is `updated_at_from`.** First call from the company's join date, then
+  deltas. **Advance the watermark only after a pull SUCCEEDS** — advancing it on a failure
+  leaves a permanent hole nobody will notice.
+- **⚠ `/v1/usage` — APEX BILLS BY CREDIT AND NESTED RESOURCES ARE BILLABLE**
+  (`credits_used`, `monthly_credit_limit`, `billable_nested_resource_count`,
+  `throttled_request_count`). Over-fetching costs real money and gets you throttled.
+  Request only the nesting a job needs, never re-pull the world on a schedule, and **put
+  credits-used-against-limit on the dashboard as a tile.**
+- **⚠ EVERY MONEY FIELD HAS A `_raw` TWIN.** The bare field is a formatted display string;
+  `_raw` is the number. **Do arithmetic on `_raw` only** — summing the formatted one is
+  silent nonsense, the same class of error as summing percentages.
+- **⚠ PATCH IS SPARSE AND AN EMPTY VALUE SETS THE FIELD TO NULL.** Sending `""` erases it.
+  Another reason to ship read-only.
+- **Batches are `/v2/batches`, not v1.** Almost everything else is v1.
+
+**The join to Metrc is EXACT, so 100% is achievable, not aspirational.** Order items carry
+**`metrc_package_label`** (the 24-char tag); orders carry **`manifest_number`**,
+**`buyer_state_license`** and `metrc_transfer_template`. **No fuzzy matching anywhere in
+this module, ever.** **But orders SPLIT** — `split_from_order_id` / `split_chain` mean one
+order becomes several and several ride one manifest, so **reconcile at LINE level on the
+package tag and roll up**; one-to-one order↔manifest matching fails on every split and you
+will misreport that as a discrepancy.
+
+**AR is fully available** — there is no `/invoices` resource because invoicing lives ON the
+shipping order: `invoice_number`, `subtotal`, `total`, `additional_discount`,
+`delivery_cost`, `taxes`, `total_payments`, `total_credits`, `payment_status`,
+`payments_currently_due`, `due_date`, `net_terms_id`, plus
+`/v1/shipping-orders/{orderID}/payments`. **Net terms are
+`finalPaymentDaysAfterDelivery` — the clock runs from DELIVERY, not from invoice date.**
+
+**Commission attribution exists; the amount does not.** `sales_reps` is on every order but
+carries only `name`, `phone`, `email` — **no rep id, no commission amount anywhere in the
+API.** Compute commissions here, **match reps on EMAIL never on name**, and flag every
+unmatched rep instead of guessing.
+
+**Margin is computable** — line items carry `cost_of_goods` and `true_cost` alongside
+`order_price_raw`, plus `minimum_sales_price_raw` so **selling below floor is detectable**.
+
+**The taxonomy is the filter set.** ~40 reference endpoints — cultivars, cultivar-types,
+cannabinoids, terpenes, product-categories, product-types, package-sizes,
+unit-measurements, container-types, storage-types, drying-methods, trim-methods,
+extraction-methods, infusion-methods, grow-environments, grow-mediums, flowering-periods,
+feminized-types, flavors, product-additives, state-of-materials, government-agencies.
+**These are the "many filters and fields" — sync them as reference data and drive the
+filter registry from them.**
+
+Credentials are wired: `APEX_API_KEY`, `APEX_API_BASE`, `APEX_COMPANY_ID` in Integrations,
+stored write-only via `integration-settings` (v4, `APEX_` whitelisted). **The owner had not
+uploaded the key as of 9 Aug 2026** — build against the spec, and say so plainly rather
+than reporting an untested connector as working.
 
 ---
 
