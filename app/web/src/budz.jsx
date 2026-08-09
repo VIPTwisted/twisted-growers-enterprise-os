@@ -137,8 +137,11 @@ LEADERSHIP
 
 THE FLOOR - these are the real departments, with the roles that exist in
 roles_catalog. Read the operation as the person doing the job, not as a row.
-- Cultivation (Cultivation Technician): eight-week cycle. Canopy square
-  footage, NEVER grams per plant. Wet or dry basis stated every single time.
+- Cultivation (Cultivation Technician): eight-week cycle. GRAMS PER PLANT is
+  the benchmark - target 70.6, actual 82.3 across 87 closed harvests. NEVER
+  grams per square foot: the calendar column headed "Projected grams/sqft" is
+  MISLABELLED and is grams per plant, and there is NO square footage recorded
+  anywhere in this business. Wet or dry basis stated every single time.
   The room on a harvest is where it DRIED, not where it grew. A harvest with
   no finished date is not finished and never enters a conversion.
 - Trimming (Trimmer): wet-to-dry loss is normal, not shrinkage to explain
@@ -507,8 +510,8 @@ is not, and a physical count needs the shelf.
 
 
 Facts you must not get wrong:
-- Fresh cannabis is 75-80 percent water, so a 4:1 to 5:1 wet:dry ratio is standard. A wet-to-packaged conversion of 20-25 percent is NORMAL, not underperformance. Above about 30 percent usually means the wet weight was recorded too low at takedown.
-- Grams per plant is NOT a valid benchmark - it is set by plant density and veg time. The published benchmark is grams per square foot of canopy: about 35 for start-ups, 50-70 established.
+- Moisture loss here is 70-77 percent, OWNER-SET on a MEASURED 73.5 percent across the 271 harvests that actually dried. 75-80 percent is published guidance, not ours. A wet-to-packaged conversion of 20-25 percent is NORMAL, not underperformance.
+- GRAMS PER PLANT is the benchmark: target 70.6, actual 82.3 across 87 closed harvests. NEVER grams per square foot - the calendar column headed "Projected grams/sqft" is MISLABELLED and is grams per plant, and there is NO square footage recorded anywhere in this business.
 - A harvest with no finished date has not finished packaging. Never include it when calculating conversion.
 - The room recorded on a harvest is the DRYING location, not the grow room.
 - Standard dry window is 10-14 days from cut to first package.
@@ -577,6 +580,105 @@ export async function budzAnswer(question) {
     if (!d) return null;
     return Math.round((Date.now() - new Date(d).getTime()) / 86400000);
   };
+
+  /* ── FOUR QUESTIONS THAT REACHED NO BRANCH AT ALL ─────────────────────
+     Found 8 Aug 2026 by tools/checks/budz-questions.mjs. The page offered
+     these as buttons, so the platform was promising an answer it had no route
+     to produce - they fell through to the generic path and were improvised at
+     the person asking, which is exactly how "what was backordered" produced a
+     confident, worthless answer.
+
+     Deliberately specific keywords. `has()` is first-match-wins in source
+     order, so a loose keyword here would silently steal a question that
+     already routes correctly somewhere below. */
+
+  if (has("inventory issues", "inventory issue")) {
+    const { rows } = await sel("v_inventory_alerts");
+    if (!rows.length) return none("No inventory alerts are open. Nothing has been raised.", "inventory_alerts");
+    const worst = [...rows].sort((a, b) => (b.dollars ?? 0) - (a.dollars ?? 0));
+    return {
+      headline: `${rows.length} inventory ${rows.length === 1 ? "issue is" : "issues are"} open right now.`,
+      rows: worst.slice(0, 25).map((r) => ({
+        label: `${r.severity ? r.severity.toUpperCase() + " · " : ""}${r.headline}`,
+        detail: `${r.detail ?? ""}${r.what_to_do ? " → " + r.what_to_do : ""}`,
+        meta: [
+          r.area,
+          r.pounds ? num(r.pounds) + " lb" : null,
+          r.dollars ? usd(r.dollars) : null,
+          r.days_open ? "open " + r.days_open + " days" : null,
+          r.raised_date ? "raised " + r.raised_date : null,
+        ].filter(Boolean).join(" · "),
+        drill: r.drill ?? "inventory_alerts",
+      })),
+    };
+  }
+
+  if (has("coas came back", "coa came back", "coas back", "results came back")) {
+    const { rows } = await sel("v_coa_register");
+    const back = rows
+      .filter((r) => r.tested_on)
+      .map((r) => ({ ...r, age: daysAgo(r.tested_on) }))
+      .filter((r) => r.age !== null && r.age <= 7)
+      .sort((a, b) => (a.age ?? 0) - (b.age ?? 0));
+    if (!back.length) return none("No certificate has been recorded against a package in the last seven days.", "coa_register");
+    const today_n = back.filter((r) => r.tested_on === today).length;
+    return {
+      /* A3: say which window this actually covers. "Today" alone would read as
+         nothing happening on a day when results simply have not landed yet. */
+      headline: `${today_n} certificate${today_n === 1 ? "" : "s"} recorded today; ${back.length} in the last seven days.`,
+      rows: back.slice(0, 25).map((r) => ({
+        label: `${r.item_name} · ${r.package_tag}`,
+        detail: `${r.lab_testing_state ?? "state not recorded"}${r.laboratory ? " at " + r.laboratory : ""}${r.thc_result ? " · THC " + r.thc_result : ""}`,
+        meta: `${r.tested_on}${r.age === 0 ? " (today)" : " (" + r.age + "d ago)"}${r.source_harvest ? " · from " + r.source_harvest : ""}${r.coa_link ? " · certificate on file" : " · no certificate file"}`,
+        drill: "coa_register",
+      })),
+    };
+  }
+
+  if (has("expiring", "expire soon", "expires soon")) {
+    const { rows, err } = await sel("v_lab_results");
+    if (err) return none("The lab results view could not be read: " + err, "coa_register");
+    const soon = rows
+      .filter((r) => r.days_until_expiry !== null && r.days_until_expiry !== undefined && r.days_until_expiry <= 60)
+      .sort((a, b) => (a.days_until_expiry ?? 0) - (b.days_until_expiry ?? 0));
+    if (!soon.length) return none("No certificate expires within the next sixty days.", "coa_register");
+    const expired = soon.filter((r) => r.days_until_expiry < 0).length;
+    return {
+      headline: `${soon.length} certificate${soon.length === 1 ? "" : "s"} expire within sixty days${expired ? ` — ${expired} ${expired === 1 ? "has" : "have"} ALREADY EXPIRED` : ""}.`,
+      rows: soon.slice(0, 25).map((r) => ({
+        label: `${r.item_name ?? "item not named"}${r.strain ? " · " + r.strain : ""}`,
+        detail: r.days_until_expiry < 0
+          ? `EXPIRED ${Math.abs(r.days_until_expiry)} days ago — cannot be sold on this certificate`
+          : `expires in ${r.days_until_expiry} days`,
+        meta: `${r.package_tag ?? ""}${r.coa_expires ? " · expires " + r.coa_expires : ""}`,
+        drill: "coa_register",
+      })),
+    };
+  }
+
+  if (has("still open and how long", "open and how long", "harvests are still open")) {
+    const { rows } = await sel("v_harvest_forensic");
+    const open = rows
+      .filter((r) => !r.harvest_closed)
+      .sort((a, b) => (b.total_days_start_to_now ?? 0) - (a.total_days_start_to_now ?? 0));
+    if (!open.length) return none("Every harvest on record has been closed.", "harvest_forensic");
+    const over21 = open.filter((r) => (r.total_days_start_to_now ?? 0) > 21).length;
+    return {
+      headline: `${open.length} harvest${open.length === 1 ? " is" : "s are"} still open — ${over21} of them past 21 days.`,
+      rows: open.slice(0, 25).map((r) => ({
+        label: `${r.harvest_name}${r.strain ? " · " + r.strain : ""}`,
+        detail: `${r.total_days_start_to_now ?? "?"} days open${r.harvest_started ? ", cut " + String(r.harvest_started).slice(0, 10) : ""}${r.what_is_wrong ? " — " + r.what_is_wrong : ""}`,
+        meta: [
+          r.drying_room ? "drying in " + r.drying_room : null,
+          r.plants ? num(r.plants) + " plants" : null,
+          r.wet_lb ? num(r.wet_lb) + " lb wet" : null,
+          r.packaged_lb ? num(r.packaged_lb) + " lb packaged so far" : null,
+          r.harvest_state,
+        ].filter(Boolean).join(" · "),
+        drill: "harvest_forensic",
+      })),
+    };
+  }
 
   /* ── LABORATORY & TESTING ─────────────────────────────────────── */
   if (has("out for testing")) {
@@ -3273,9 +3375,9 @@ export function CeoDashboard({ go }) {
       who: "Cultivation and post-harvest",
       when: c0 ? `Latest month recorded: ${c0.month}` : "—",
       plain: c0
-        ? `Correction first: an earlier version of this card compared you to 130 grams per plant. That figure was not sourced and it has been withdrawn. Grams per plant is not a benchmark any commercial cultivator uses, because it is set by how many plants you put under the light and how long you veg them, not by how well you grow. The real published benchmark is grams per square foot of canopy — about 35 for a start-up and 50 to 70 for an established operation — and at the published density of 0.65 to 1.0 plants per square foot that works out to roughly 50 to 75 grams per plant, not 130. You are inside that range.
+        ? `Correction first: an earlier version of this card compared you to 130 grams per plant. That figure was never sourced and is withdrawn — and the replacement this card then offered was wrong too. It said grams per plant is not a real benchmark and that canopy square footage is. Your own harvest calendar settles it: the column headed "Projected grams/sqft" is mislabelled and is grams per PLANT, proved from the Pull Summary, and there is no square footage recorded anywhere in this business — the figure once held in grow_rooms.sqft turned out to be a plant count in the wrong column. So the benchmark is grams per plant: your target is 70.6 and you are running 82.3 across 87 closed harvests, 17 percent ahead of plan.
 
-The second correction matters more. Fresh cannabis is 75 to 80 percent water, so a 4:1 to 5:1 wet-to-dry ratio is the commercial standard and 20 to 25 percent is a NORMAL conversion, not a failure. The "collapse" this card previously reported was an artifact: ${c0.still_open ?? 0} of ${c0.harvests_cut ?? 0} harvests cut in ${c0.month} are still open and have not finished packaging, so counting them dragged the month down. Measured only on harvests that actually closed, ${c0.month} reads ${c0.our_conversion_pct ?? "n/a"} percent.
+The second correction matters more. Moisture loss here is 70 to 77 percent, set from your own measured 73.5 percent across the 271 harvests that actually dried — not the 75 to 80 percent published figure — so a wet-to-packaged conversion of 20 to 25 percent is NORMAL, not a failure. The "collapse" this card previously reported was an artifact: ${c0.still_open ?? 0} of ${c0.harvests_cut ?? 0} harvests cut in ${c0.month} are still open and have not finished packaging, so counting them dragged the month down. Measured only on harvests that actually closed, ${c0.month} reads ${c0.our_conversion_pct ?? "n/a"} percent.
 
 The real problem is not conversion. It is that 30 harvests are sitting open, averaging 65 days and the oldest at 190 days, with roughly 4,515 pounds of product cut but never closed out. And drying is out of control: only 29 of 143 harvests dried inside the 10 to 14 day window, 78 dried too long and 36 dried in under a week.`
         : "Not enough closed harvests recorded yet to compare against the published benchmarks.",

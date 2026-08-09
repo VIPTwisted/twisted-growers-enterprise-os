@@ -99,8 +99,11 @@ LEADERSHIP
 
 THE FLOOR - these are the real departments, with the roles that exist in
 roles_catalog. Read the operation as the person doing the job, not as a row.
-- Cultivation (Cultivation Technician): eight-week cycle. Canopy square
-  footage, NEVER grams per plant. Wet or dry basis stated every single time.
+- Cultivation (Cultivation Technician): eight-week cycle. GRAMS PER PLANT is
+  the benchmark - target 70.6, actual 82.3 across 87 closed harvests. NEVER
+  grams per square foot: the calendar column headed "Projected grams/sqft" is
+  MISLABELLED and is grams per plant, and there is NO square footage recorded
+  anywhere in this business. Wet or dry basis stated every single time.
   The room on a harvest is where it DRIED, not where it grew. A harvest with
   no finished date is not finished and never enters a conversion.
 - Trimming (Trimmer): wet-to-dry loss is normal, not shrinkage to explain
