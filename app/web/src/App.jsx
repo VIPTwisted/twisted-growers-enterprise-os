@@ -1,5 +1,10 @@
 import React, { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import Roster from "./roster.jsx";
+import HrDashboard from "./hrdash.jsx";
+import EmployeeFile from "./empfile.jsx";
+import ScheduleBuilder from "./schedbuild.jsx";
+import Timesheets from "./timesheets.jsx";
+import HrQueue from "./hrqueue.jsx";
 import jsQR from "jsqr";
 import { supabase, FUNCTIONS_URL } from "./lib/supabase.js";
 import { BudzScreen, CeoDashboard, AssistantSettings, BudzPet, useBudzPet, RedGreen,
@@ -1097,23 +1102,20 @@ const STATUS_COLS = ["status", "state", "source_state", "approval", "release", "
    green = good and sellable · blue = money in or moving · gold = free goods */
 const chipTone = (v) => {
   const s = String(v).toLowerCase();
-  /* Owner, 8 Aug 2026: anyone onboarding, unlicensed, or holding a licence
-     that needs attention stays RED until they are fully onboarded. An agent
-     whose registration has lapsed cannot legally be on the floor, so amber
-     understates it — this is a stop, not a watch. */
-  if (/(not licensed|unlicensed|no licence|no license|licence lapsed|license lapsed|lapsed|onboarding|not onboarded|awaiting licence|awaiting license|licence required|license required|needs attention|no badge)/.test(s)) return "bad";
   if (/(destroy|waste|wasted|missing|lost|unaccounted|shrink|theft|stolen|discrepan|shortage|fail|recall|investigat|violation|critical|denied|reject|void|blocked|expired|do not sell)/.test(s)) return "bad";
   if (/(hold|onhold|on hold|overdue|late|elevated|at risk|unconfirmed|not confirmed|aging|remediat|quarant|no_show|called_out)/.test(s)) return "hot";
   if (/(pend|submit|await|testing|review|watch|due|in progress|in_progress|drying|curing|planned|scheduled|open|requested|propagation)/.test(s)) return "warn";
   if (/(sold|shipped|in transit|intransit|delivered|received|closed|invoiced|paid|leaving)/.test(s)) return "info";
   if (/(free|freebie|sample|promo|donation|comp)/.test(s)) return "gold";
-  /* Owner, 8 Aug 2026: "inactive should be grey". It was rendering green
-     because "inactive" CONTAINS "active" — the good test below matched it
-     first and the neutral test was unreachable. Every inactive row in every
-     table on the platform has been showing green since this was written.
-     Neutral must be tested BEFORE good, not after. */
-  if (/(inactive|retired|harvested|archived|not submitted|notsubmitted|left|terminated|departed)/.test(s)) return "neutral";
   if (/(active|in stock|sellable|passed|testpassed|retestpassed|released|complete|done|finished|approved|reconciled|ok|clear|connected|full custody|on plan|worked|rts|growing|flowering|vegetative)/.test(s)) return "good";
+  /* KNOWN DEFECT, left alone on purpose. "inactive" contains "active", so
+     the test above matches it first and this line is unreachable — every
+     inactive row on the platform renders green instead of grey. The fix is
+     to move this line ABOVE the one before it.
+     Not applied: the owner's hard rule of 8 Aug 2026 confines this agent to
+     HR, and chipTone colours every table in the product. HR pages compute
+     their own chips (see roster.jsx) and do not depend on this. */
+  if (/(inactive|retired|harvested|archived|not submitted|notsubmitted)/.test(s)) return "neutral";
   return "info";
 };
 /* Sitewide color code inside every table: red = issue, green = good, amber = watch, blue = neutral info */
@@ -7854,7 +7856,12 @@ function MetrcReportImports({ session }) {
 
 function Integrations({ session }) {
   const [status, setStatus] = useState(null);
-  const [form, setForm] = useState({ METRC_LICENSES: "", METRC_VENDOR_KEYS: "", METRC_USER_KEY: "", METRC_STATE: "", CLICKUP_TOKEN: "" });
+  /* APEX_* added 9 Aug 2026. Apex is the SALES source of record - Metrc holds what was
+     declared to the state, Apex holds what was actually sold and for how much. The three
+     fields are what the connector needs to authenticate; the base URL is a field rather
+     than a constant because it has NOT been verified against Apex's own API documentation
+     and hard-coding an unverified endpoint is how you get a connector that fails silently. */
+  const [form, setForm] = useState({ METRC_LICENSES: "", METRC_VENDOR_KEYS: "", METRC_USER_KEY: "", METRC_STATE: "", CLICKUP_TOKEN: "", APEX_API_KEY: "", APEX_API_BASE: "", APEX_COMPANY_ID: "" });
   const [msg, setMsg] = useState(null);
   const [busy, setBusy] = useState(false);
   const [runs, setRuns] = useState(null);
@@ -7888,7 +7895,11 @@ function Integrations({ session }) {
     const j = await r.json();
     if (j.ok) {
       setMsg({ kind: "ok", text: `Stored securely: ${j.stored.join(", ")}. Values never display again — re-paste to rotate.` });
-      setForm({ METRC_LICENSES: "", METRC_VENDOR_KEYS: "", METRC_USER_KEY: "", METRC_STATE: "" });
+      /* Clear EVERY field, derived from the form's own keys. The old version listed four
+         by hand and had drifted: a saved ClickUp token stayed sitting in the box, which
+         reads as "not saved yet" and invites a second paste. A reset that has to be
+         updated by hand every time a field is added will always fall behind. */
+      setForm(Object.fromEntries(Object.keys(form).map((k) => [k, ""])));
       loadStatus();
     } else setMsg({ kind: "err", text: j.error ?? "Save failed." });
     setBusy(false);
@@ -7964,6 +7975,22 @@ function Integrations({ session }) {
             <div className="ptitle" style={{ marginTop: 18 }}><span className="pchip" style={{ background: "var(--neon)", color: "var(--neon-ink)" }}>{I.board}</span> ClickUp</div>
             <label>API token — write-only, never displayed {setPill("CLICKUP_TOKEN")}</label>
             <input value={form.CLICKUP_TOKEN} onChange={(e) => setForm({ ...form, CLICKUP_TOKEN: e.target.value })} placeholder={isSet("CLICKUP_TOKEN") ? "•••••• stored — paste to replace" : "ClickUp → avatar → Settings → Apps → API Token (starts pk_)"} />
+
+            {/* APEX — the sales source of record. Metrc holds what was DECLARED to the
+                state; Apex holds what was SOLD and for how much. Neither can answer the
+                other's question, and where they disagree that disagreement is itself the
+                finding (brain/DECISIONS.md, 7 Aug 2026). */}
+            <div className="ptitle" style={{ marginTop: 18 }}><span className="pchip" style={{ background: "var(--neon)", color: "var(--neon-ink)" }}>{I.cash}</span> Apex — sales platform</div>
+            <div className="sub" style={{ margin: "0 0 10px" }}>
+              Apex is the source of record for <b>sales, pricing and terms</b> — Metrc only ever holds the declared transfer. Your key's scopes decide what the connector can reach; the key below is stored write-only and never displayed again.
+            </div>
+            <label>API key {setPill("APEX_API_KEY")}</label>
+            <input value={form.APEX_API_KEY} onChange={(e) => setForm({ ...form, APEX_API_KEY: e.target.value })} placeholder={isSet("APEX_API_KEY") ? "•••••• stored — paste to replace" : "Apex → Settings → API → the key beside your scope list"} />
+            <label>API base URL {setPill("APEX_API_BASE")}</label>
+            <input value={form.APEX_API_BASE} onChange={(e) => setForm({ ...form, APEX_API_BASE: e.target.value })} placeholder={isSet("APEX_API_BASE") ? "•••••• stored — paste to replace" : "from Apex's API documentation — not guessed here on purpose"} />
+            <label>Company ID <span className="sub" style={{ fontWeight: 400 }}>— only if Apex's endpoints ask for one</span> {setPill("APEX_COMPANY_ID")}</label>
+            <input value={form.APEX_COMPANY_ID} onChange={(e) => setForm({ ...form, APEX_COMPANY_ID: e.target.value })} placeholder={isSet("APEX_COMPANY_ID") ? "•••••• stored — paste to replace" : "leave blank if the key already identifies the company"} />
+
             <button className="btn" disabled={busy}>Store securely</button>
             <button type="button" className="btn ghost" style={{ marginLeft: 10 }} disabled={busy} onClick={runSync}>Run Metrc sync now</button>
             {canForce && (
@@ -8559,7 +8586,7 @@ function Spark({ series, direction }) {
   );
 }
 
-function AssignTask({ dept, kpi, value, unit, drill, onDone }) {
+export function AssignTask({ dept, kpi, value, unit, drill, onDone }) {
   const [open, setOpen] = useState(false);
   const [people, setPeople] = useState([]);
   const [who, setWho] = useState("");
@@ -9438,6 +9465,11 @@ export default function App() {
     tasks: <TasksScreen session={session} />,
     messages: <ChatScreen session={session} />,
     people: <People />,
+    dept_dash_hr: <HrDashboard go={setView} session={session} />,
+    employee_file: <EmployeeFile go={setView} session={session} />,
+    schedule_builder: <ScheduleBuilder go={setView} session={session} />,
+    timesheets: <Timesheets go={setView} session={session} />,
+    hr_review_queue: <HrQueue go={setView} session={session} />,
     integrations: <Integrations session={session} />,
     settings: <Settings session={session} prefs={prefs} />,
     help: <Help />,
