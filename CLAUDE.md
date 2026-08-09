@@ -723,3 +723,64 @@ decisions, lessons, domain pages, ingested sources.
 
 A session that learned something and didn't write it back has wasted the
 owner's money twice.
+
+---
+
+# HARD RULE — THE BAR IS TOP-TIER ENGINEERING. NOTHING UNDER PAR.
+
+**Owner, 9 August 2026:** *"Always hard rule to review code and ensure MIT,
+Microsoft, Google standard — or beat them. Nothing under par."*
+
+Binding on every agent and every change, without exception. This is not a
+statement of ambition; it is a review gate, and the questions below are what
+"review" means here.
+
+## The review, before anything ships
+
+**1. Would this survive review at a top engineering organisation?** If the honest
+answer is no, it does not ship. Say so and fix it — shipping it and mentioning the
+weakness afterwards is not the same thing.
+
+**2. If it blocks, it has tests — positive AND negative.** A guard, check,
+constraint or validator ships with fixtures proving it catches what it claims
+**and** does not fire on what it must allow. A blocking check with no tests is
+under par by definition. *Earned 8 Aug 2026: the SQL hook and the CI grep carried
+the same false positive — one locked a function, the other held CI red for a day —
+and neither had a single test.*
+
+**3. It cannot fail silently.** A green light over an empty pipe is worse than a
+red one. Anything that can return nothing must distinguish "nothing" from "nothing
+checked".
+
+**4. Every number carries its provenance, and absence is explained.** No invented
+figures, no blank cells, no zero that reads as an answer when it means "never
+recorded".
+
+**5. Nothing is hardcoded that a person may need to change.** Config is rows.
+
+**6. Measured, not asserted.** Claims about the system are backed by a query run
+just now — not by a document, a memory, or a previous session's summary.
+
+**7. Ratchets, not cliffs.** A gate red on arrival gets switched off, and a
+switched-off gate is worse than none. Record the debt as a baseline that may fall
+and may never rise.
+
+## Where this bar is already higher than industry standard
+
+Do not weaken these toward "normal".
+
+- **Every tile drills to the individual items behind it** (C1), and totals
+  reconcile to those items (C2).
+- **Disagreement is the finding** — never averaged, never silently resolved.
+- **A check that cannot fail proves nothing** (C0b) — including checks OF checks.
+- **Share primitives, never layouts.**
+
+## What "beat them" actually requires
+
+Most organisations review code. Fewer test their own guards. Almost none measure
+what fraction of their written rules are mechanically enforced. **This one does** —
+`tools/checks/rule-ledger.mjs` scores it, and the score may never fall. That is the
+part that beats the standard, and it holds only while every new rule arrives with
+the machinery that enforces it.
+
+**A rule added here without a check to hold it is under par. Write both.**
