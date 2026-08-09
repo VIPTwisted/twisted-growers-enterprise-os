@@ -37,8 +37,14 @@ const BASELINE = {
   // ReportScreen appears once as a definition and once as a use site in App.jsx.
   // When the Data Browser is extracted this becomes 0 in App.jsx entirely.
   reportScreenSites: 2,
-  // Enabled pages with no archetype decided. Measured 8 Aug 2026.
-  pagesWithoutArchetype: 220,
+  // Pages OLDER THAN 24 HOURS with no archetype. A grace period, not an absolute count:
+  // an absolute count thrashes because other agents add pages continuously -- it was set to
+  // 138 and three more arrived in the seconds before the gate ran. Judging only pages that
+  // have had a full day to be declared catches real neglect and ignores work in progress.
+  // 129 legacy pages carry NO created_at and are undeclared: recorded debt, may only fall.
+  // A NEW page gets 24h grace, then pushes this to 130 and fails. That is the ratchet, and
+  // it is immune to other agents adding pages while this runs.
+  pagesUndeclaredAfterADay: 129,
 };
 
 let failed = false;
@@ -183,7 +189,18 @@ async function checkEveryPageDeclaresItself() {
   try {
     await client.connect();
     const { rows: [r] } = await client.query(`
-      select count(*) filter (where archetype is null)::int              as undecided,
+      /* coalesce, because NULL created_at fell into NEITHER bucket and the check reported
+         "0 overdue" while 142 pages were undeclared -- 129 of them with no creation date at
+         all. Third vacuous pass of the day from the same author: the baseline gate read a
+         clock, the freshness check hid a stale licence behind max(), and this one hid 129
+         pages behind a null. A row with no creation date has certainly existed long enough,
+         so null is treated as ancient: fail-safe, never fail-open. */
+      select count(*) filter (where archetype is null
+                             and coalesce(created_at, 'epoch'::timestamptz)
+                                 < now() - interval '24 hours')::int as undecided,
+             count(*) filter (where archetype is null
+                             and coalesce(created_at, 'epoch'::timestamptz)
+                                 >= now() - interval '24 hours')::int as in_grace,
              count(*) filter (where archetype = 'data_browser')::int      as dumps,
              count(*) filter (where archetype is not null
                               and archetype <> 'data_browser')::int       as assigned,
@@ -198,18 +215,23 @@ async function checkEveryPageDeclaresItself() {
       ok(`all ${r.total} enabled pages belong to a module`);
     }
 
-    if (r.undecided > BASELINE.pagesWithoutArchetype) {
+    if (r.undecided > BASELINE.pagesUndeclaredAfterADay) {
       fail(
-        `${r.undecided} enabled pages have no archetype (baseline ${BASELINE.pagesWithoutArchetype}).`,
-        "New pages were added without deciding what KIND of page they are, which is",
-        "exactly how 522 pages ended up sharing one renderer. Set nav_registry.archetype,",
-        "or add the archetype to page_archetype first if it is genuinely new.",
+        `${r.undecided} page(s) have had over 24 hours and still declare no archetype `
+          + `(limit ${BASELINE.pagesUndeclaredAfterADay}).`,
+        "A page whose kind was never decided gets whatever the renderer does by default,",
+        "which is how 522 pages ended up sharing one. Set nav_registry.archetype, or add",
+        "a genuinely new kind to page_archetype first.",
+        "The 24h grace period exists so work in progress is not punished — anything older",
+        "than that is neglect, not progress.",
       );
     } else {
-      ok(`${r.undecided} page(s) awaiting a design decision, baseline ${BASELINE.pagesWithoutArchetype}`);
+      ok(`${r.undecided} page(s) overdue past the 24h grace period `
+         + `(limit ${BASELINE.pagesUndeclaredAfterADay}); ${r.in_grace} still inside it`);
     }
 
-    console.log(`page-architecture: ${r.assigned} assigned - ${r.dumps} data-browser - ${r.undecided} undecided`);
+    console.log(`page-architecture: ${r.assigned} assigned - ${r.dumps} data-browser - `
+      + `${r.undecided} overdue - ${r.in_grace} in grace`);
   } catch (err) {
     console.log(`page-architecture: DEGRADED - archetype coverage NOT verified: ${err.message.trim()}`);
   } finally {

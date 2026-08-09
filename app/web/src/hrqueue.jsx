@@ -197,6 +197,7 @@ export default function HrQueue({ go }) {
                   <>
                     {body[`${r.id}:why`] && <div className="hqwhy"><b>Why the agent raised it</b>{body[`${r.id}:why`]}</div>}
                     <textarea value={body[r.id] ?? ""} rows={12}
+                      aria-label="The letter as it will be filed. Edit it before you act."
                       onChange={(e) => setBody((b) => ({ ...b, [r.id]: e.target.value }))} />
                     <div className="hqedit">Edits are saved with the item. The original agent draft is kept beside it.</div>
                   </>)}
@@ -209,11 +210,13 @@ export default function HrQueue({ go }) {
                   record with your name, the draft you declined, and your reason. That
                   is what makes enforcement provably consistent if it is ever questioned.
                 </div>
-                <select value={reason} onChange={(e) => { setReason(e.target.value); setErr(false); }}>
+                <select value={reason} aria-label="Reason for not acting on this item"
+                  onChange={(e) => { setReason(e.target.value); setErr(false); }}>
                   <option value="">Choose a reason…</option>
                   {IGNORE_REASONS.map(x => <option key={x}>{x}</option>)}
                 </select>
                 <textarea rows={3} placeholder="Why you are not acting on this."
+                  aria-label="Note explaining why you are not acting on this item"
                   value={note} onChange={(e) => { setNote(e.target.value); setErr(false); }} />
                 {err && <div className="hqerr">Pick a reason and write a note — both are required.</div>}
                 <div className="hqacts">
