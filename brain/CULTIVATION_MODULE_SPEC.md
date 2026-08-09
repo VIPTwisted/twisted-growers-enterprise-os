@@ -197,6 +197,41 @@ modelled inside the vape cost calculator — *but what was actually paid for it 
 nowhere*, because `material_purchases` is empty. Adding packaging as a material type
 without recording its purchases just moves the invented number somewhere new.
 
+### ⛔ THE OWNERSHIP LENS — three states, on every weight figure
+
+**Owner, 9 Aug 2026:** *"We need to say what's ours, 3rd party, and/or collective
+all."*
+
+**Every figure that counts material must be readable three ways**, and the reader
+must always know which one they are looking at:
+
+| View | Means |
+|---|---|
+| **OURS** | Grown or made by us under our own licences |
+| **THIRD PARTY** | Bought in, or in our custody but owned by someone else |
+| **ALL** | The collective total — both, stated as a deliberate combination |
+
+**This extends rule C6.** C6 today requires the ours/third-party split on the face of
+the tile for **failed material and revenue only**. The owner has now extended it to
+**every material figure in the platform**: stock, harvests, trim, flower, yield,
+allocation, waste, packaging — all of it.
+
+**Rules that come with it:**
+- **The lens is always visible.** A total with no ownership label is ambiguous and is
+  therefore wrong. "1,943 lb" must read "1,943 lb — all" or "— ours".
+- **ALL is a combination, never a default that hides the split.** Showing the
+  collective is fine; showing it *without saying so* is the failure.
+- **Tolled and consigned material is never in OURS**, and must never count as our
+  stock, production or yield — it is someone else's property in our custody (C6d).
+  It belongs in THIRD PARTY, and in ALL only where the question is genuinely
+  "what is in the building".
+- **Name the supplier** on third-party rows (C6).
+- **Third-party failed material is an INPUT, not a problem** (C6a) — bought at a
+  discount deliberately. The lens must never make bought-in failures look like our
+  quality failures.
+- This is why **the ownership dimension is separate from the material type** — the
+  lens is a filter across every type, not a value inside one.
+
 **And destination is per-lot, not per-supplier** (already ruled, 7 Aug): material
 bought as an input may end up consumed, sold on, or held — decided after arrival, and
 allowed to change with the reason recorded (H1). A supplier-level field cannot carry
