@@ -1427,7 +1427,27 @@ async function askMeteredApi(question, history) {
    called, so both surfaces show what is known immediately and fill in the
    composed answer when it lands. Nobody waits on a model to see a number that
    was already sitting in a view. */
-export async function askBudzFull(question, history = [], { onFacts } = {}) {
+export async function askBudzFull(question, history = [], { onFacts, surface = "assistant" } = {}) {
+  /* MEMORY, BEFORE THE QUESTION IS ANSWERED.
+
+     Wired HERE rather than in each screen, because the pet, the assistant page
+     and TG Brain all come through this one function. Three copies would drift
+     inside a month - the same argument as one chat attachment and one switch.
+
+     It carries three things: approved CORRECTIONS, which outrank the model's own
+     training because a person watched it get that wrong; confirmed FACTS, each
+     with the query that produced it so a number can be re-derived rather than
+     believed; and this person's RECENT questions, so a follow-up continues
+     instead of restarting.
+
+     Failure is silent on purpose. Memory makes a good answer better; it must
+     never be the reason there is no answer at all. */
+  let memory = null;
+  try {
+    const { data } = await supabase.rpc("f_brain_memory_for");
+    memory = data ?? null;
+  } catch { /* answer without it rather than not at all */ }
+
   const a = await budzAnswer(question);
   const facts = a.rows ?? [];
   const cfg = await getAiCfg();
@@ -1438,6 +1458,7 @@ export async function askBudzFull(question, history = [], { onFacts } = {}) {
   let askErr = null;
   const log = history;
   onFacts?.(a, facts);
+  const askedAt = Date.now();
 
       /* ── 1. The desktop bridge ────────────────────────────────────────────
          WHY THIS GOES THROUGH THE DATABASE AND NOT STRAIGHT TO 127.0.0.1.
@@ -1488,7 +1509,10 @@ export async function askBudzFull(question, history = [], { onFacts } = {}) {
                  jsonb and already comes through untouched, so the choice reaches
                  the desktop with no edge function redeploy and nothing new to
                  keep in step. The column is still written for the audit trail. */
-              context: { summary: a.headline, records: facts.slice(0, 40), model: bridgeModel },
+              context: { summary: a.headline, records: facts.slice(0, 40), model: bridgeModel,
+                         /* Corrections first in the object: a reader that truncates
+                            keeps the thing an owner deliberately approved. */
+                         memory },
               model: bridgeModel,
               status: "pending",
             })
@@ -1639,6 +1663,23 @@ export async function askBudzFull(question, history = [], { onFacts } = {}) {
           askErr = `Could not reach the assistant service: ${String(e?.message ?? e).slice(0, 160)}`;
         }
       }
+  /* REMEMBER IT. Fire and forget, and deliberately after the answer is built -
+     nobody waits on a write to a memory table to read their answer.
+
+     Only what was actually composed is stored. The database lookup alone is not
+     an answer worth recalling: it is re-derivable in milliseconds, and filling
+     the table with it would push the real answers out of the recent window. */
+  if (composed) {
+    try {
+      await supabase.from("brain_conversation").insert({
+        surface, question,
+        answer: String(composed).slice(0, 20000),
+        answered_by: via,
+        seconds: Math.round((Date.now() - askedAt) / 1000),
+      });
+    } catch { /* a memory that fails to save must never break the answer */ }
+  }
+
   return { headline: a.headline, facts, composed, via, askErr };
 }
 
