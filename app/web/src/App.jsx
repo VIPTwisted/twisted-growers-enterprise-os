@@ -2888,6 +2888,8 @@ const SYNC_SOURCES = [
     desc: "Invoices, payments, expenses, customers — connects once Intuit app keys are stored." },
   { key: "monday", label: "Monday.com", fn: null, live: false,
     desc: "One-way board sync (idempotent upserts, conflict queue) — connects once workspace/board IDs are stored." },
+  { key: "apex", label: "Apex Trading (sales)", fn: "apex-sync", live: true,
+    desc: "Orders, buyers, products, batches, deal flow, net terms, COAs — the sales source of record. Read-only. Skips any entity still inside its refresh window, because Apex bills by API credit." },
   { key: "clickup", label: "ClickUp", fn: "clickup-sync", live: true,
     desc: "Pulls every space, list, and task (open + closed, subtasks, custom fields) from your ClickUp workspace. Needs the API token stored in Integrations." },
 ];
@@ -7916,6 +7918,23 @@ function Integrations({ session }) {
     loadRuns();
     setBusy(false);
   }
+  /* APEX ONLY. Reports every entity individually, including the ones deliberately
+     SKIPPED because they are still inside their refresh window — a skip that looks
+     like "nothing happened" is the shape of every silent failure found here. */
+  async function runApexSync() {
+    setBusy(true); setForceReport(null);
+    setMsg({ kind: "ok", text: "Pulling Apex — read-only. Anything pulled recently is skipped and costs no credits." });
+    try {
+      const r = await fetch(`${FUNCTIONS_URL}/apex-sync`, { method: "POST", headers: authHeaders() });
+      const j = await r.json();
+      const src = SYNC_SOURCES.find((s) => s.key === "apex");
+      setForceReport({ when: new Date().toLocaleTimeString(), items: [parseSyncResponse(src, j)], notLive: [] });
+      setMsg(j.ok
+        ? { kind: "ok", text: `Apex synced — ${j.total ?? 0} row(s) stored. ${j.results?._credits ?? ""}` }
+        : { kind: "err", text: j.error ?? "Apex sync failed — every entity and its reason is listed below." });
+    } catch (e) { setMsg({ kind: "err", text: String(e) }); }
+    setBusy(false);
+  }
   /* FORCE ALL SYNCS — owner-requested 8 Aug 2026: "I am admin I must be able to force all
      syncs." The Sync Center in the top bar could already do this; Integrations could not,
      and Integrations is where an admin goes when a sync is the problem.
@@ -7993,6 +8012,13 @@ function Integrations({ session }) {
 
             <button className="btn" disabled={busy}>Store securely</button>
             <button type="button" className="btn ghost" style={{ marginLeft: 10 }} disabled={busy} onClick={runSync}>Run Metrc sync now</button>
+            {/* APEX ONLY. Owner, 9 Aug 2026: "do not sync metrc again only sync Apex" and
+                "we need button to manually only sync Apex too". Forcing every source to
+                re-run in order to reach one of them is not free here - Apex bills by API
+                credit - and it is slow for the person waiting. */}
+            <button type="button" className="btn ghost" style={{ marginLeft: 10 }} disabled={busy} onClick={runApexSync}
+              title="Pulls only Apex. Entities still inside their refresh window are skipped and cost nothing.">
+              Sync Apex only</button>
             {canForce && (
               <button type="button" className="btn" style={{ marginLeft: 10 }} disabled={busy} onClick={forceAllSyncs}
                 title="Runs every connected source now, without waiting for its schedule.">
