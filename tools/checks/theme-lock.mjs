@@ -69,6 +69,27 @@ const base = mb.status === 0 && mb.stdout.trim() ? mb.stdout.trim() : ref;
 
 const COLOUR = /#[0-9a-fA-F]{3,8}\b|\b(?:rgba?|hsla?)\s*\([^)]*\)/g;
 
+/* PURE WHITE AND PURE BLACK ARE NOT BRAND COLOURS, and the rule is about brand and mode.
+ *
+ * Narrowed 9 Aug 2026 after tokenising patches.css. Fourteen brand-colour literals there
+ * became color-mix() on --red and --amber, and one #ff8a00 became var(--alert-elevated).
+ * What remained was only white and black, and there is nowhere for them to go:
+ *
+ *   - THERE IS NO TOKEN for ink-on-a-coloured-chip. --ink is #ffffff in dark but #101312 in
+ *     LIGHT, so rewriting `background:var(--red);color:#fff` to var(--ink) would put nearly
+ *     black text on a red chip in light mode. A real contrast bug, introduced to satisfy a
+ *     gate. Creating a token instead is a palette change and needs the owner's unlock.
+ *   - THE LOCKED STYLESHEET ITSELF DOES THIS: styles.css:1706 is
+ *     `.chatfx:hover{background:var(--red);color:#fff}`, plus 9 rgba(0,0,0,…) shadows and
+ *     5 rgba(255,255,255,…) overlays. Forbidding in patches.css what styles.css does nine
+ *     times over would be a rule the codebase already disproves.
+ *
+ * So neutrals are exempt and BRAND colour is counted. That is stricter where it matters: the
+ * ratchet now measures only colours that could drift the brand or break a mode. */
+const NEUTRAL = /^(?:#(?:fff|ffffff|000|000000)|rgba?\(\s*255\s*,\s*255\s*,\s*255[\s,\d.%]*\)|rgba?\(\s*0\s*,\s*0\s*,\s*0[\s,\d.%]*\))$/i;
+const brandColours = (css) =>
+  (css.match(COLOUR) || []).filter((c) => !NEUTRAL.test(c.trim()));
+
 /* Every custom-property declaration inside a :root / [data-theme] block. This is the palette:
    the brand, and both modes. Returned as a sorted "name: value" list so reordering the file
    is not reported as a change but altering a value always is. */
@@ -136,7 +157,7 @@ let now = 0, was = 0;
 const grew = [];
 const untracked = [];
 for (const rel of files) {
-  const n = (readFileSync(join(ROOT, rel), "utf8").match(COLOUR) || []).length;
+  const n = brandColours(readFileSync(join(ROOT, rel), "utf8")).length;
   const src = atBase(rel);
 
   /* A stylesheet with no version in git has no baseline, so every literal in it would read as
@@ -145,7 +166,7 @@ for (const rel of files) {
   const isTracked = git("ls-files", "--error-unmatch", rel).status === 0;
   if (!isTracked) { untracked.push({ rel, n }); continue; }
 
-  const w = src === null ? 0 : (src.match(COLOUR) || []).length;
+  const w = src === null ? 0 : brandColours(src).length;
   now += n; was += w;
   if (n > w) grew.push(`${rel}: ${w} → ${n}  (+${n - w})`);
 }

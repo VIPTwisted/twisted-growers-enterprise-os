@@ -287,6 +287,15 @@ jobs:
         run: node tools/checks/locked-facts-in-prompts.mjs
       - name: The standard is held
         run: node tools/checks/standard-held.mjs
+      # The Apex entity registry drives the whole sync from database rows, and every one of
+      # them was typed by a person reading a 17,512-line contract. Five were wrong on 9 Aug
+      # 2026 - two root keys that abort an entity, a read declaring a write scope, a required
+      # entity guaranteed to 403 on every run, and an hourly full pull of a 3-credit-per-item
+      # endpoint at roughly 307k credits a month against a 100k allowance. None of them would
+      # have failed loudly. This diffs the rows against the committed spec, needs no API key
+      # and costs no credits.
+      - name: Apex registry agrees with the committed contract
+        run: node tools/checks/apex-registry-vs-spec.mjs
       - run: node tools/checks/all-checks-wired.mjs
 
       # ---- Rule E1 / E6 / H2: dangerous SQL must not reach a migration ---------------
