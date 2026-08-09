@@ -4,6 +4,7 @@
   "_how_to_refresh": "List the project's functions (Supabase dashboard, or the MCP list_edge_functions tool) and replace the array below. The check also fails if this file has not been touched in 30 days, because a stale list passes forever while new functions appear behind it.",
   "_last_verified_against_project": "2026-08-09",
   "functions": [
+    "apex-sync",
     "bridge-queue",
     "budz-chat",
     "clickup-customize",
