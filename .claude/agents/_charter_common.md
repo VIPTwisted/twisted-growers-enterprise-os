@@ -15,6 +15,20 @@
 - Never invent statistics, prices, employees, or records. Never seed sample data.
 - Never delete or overwrite owner content (spaces, sheets, boards, tasks) — flag instead.
 - Never handle credentials in plain text — secrets live in integration_secrets, write-only.
+- **Never write a licence number into a document, a template or code.** There are exactly two
+  and they come from `company_licenses`: **MC281714 = cultivation**, **MP281909 = manufacturing**.
+  **157557 is the owner's Metrc USER ID and is NOT A LICENCE** — it belongs to the user key and
+  is never associated with a facility. Rules G1 and G2. In code use `f_is_ours()`, or
+  `f_any_ours(text)` / `f_all_ours(text)` where a field may hold a comma-joined LIST — labs print
+  `License #: MC281714, MP281909` and **621 of our 983 certificates are stored that way**, where
+  `f_is_ours()` returns FALSE because it matches neither member.
+  *Why this is a FORBIDDEN-list item and not a style note:* the owner settled the mapping on
+  7 Aug 2026 with a screenshot of the Metrc facility switcher, the live systems were fixed the
+  same day, and `docs/09_METRC_API_ACCESS.md` still read "MC157557 cultivation" two days later —
+  in the body of an email addressed to **api-info@metrc.com**. A user ID would have gone to the
+  regulator in a licence field. `brain/CONTRADICTIONS.md` §4 had flagged it verbatim and nothing
+  acted. **Enforced since 9 Aug 2026 by `tools/checks/docs-vs-database.mjs`**, which verifies
+  every licence in every live document against `company_licenses` and fails the build.
 
 ## Standing rules
 Theme: neon green brand (#2df26a/#5cff92), zero purple, zero grey/pastel icons (solid vivid

@@ -271,6 +271,14 @@ jobs:
       # fields) because a gate that is red on arrival gets switched off.
       - name: Accessibility - a control a keyboard cannot reach is not a control
         run: node tools/checks/accessibility.mjs
+      # NOTHING in tools/checks read PROSE, so a whole class was unguarded. On 7 Aug 2026 the
+      # owner settled the licence mapping with a screenshot; the live systems were fixed that
+      # day; docs/09_METRC_API_ACCESS.md still read "MC157557 cultivation" two days later, in
+      # the body of an email to api-info@metrc.com. 157557 is his USER ID, not a licence. A
+      # regulator would have received it. CONTRADICTIONS.md had flagged it and nothing acted.
+      # Neither Google nor Microsoft gates documentation against production data. This does.
+      - name: Documents agree with the database (licences)
+        run: node tools/checks/docs-vs-database.mjs
       # The owner's engineering standard. Holds the mechanical parts only -
       # a guard that has been hollowed out still prints its name and enforces nothing.
       # A lesson written in LESSONS.md on 7 Aug shipped for two more days because
