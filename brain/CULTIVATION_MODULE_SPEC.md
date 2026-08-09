@@ -159,6 +159,49 @@ OUT  ───────────────┴──►  ALLOCATED TO MP2
 cost is absent for two of them, and why** (A3) — rather than rendering a blank
 column that reads as zero.
 
+### 2c · MATERIAL TYPES ARE ROWS, AND THE LIST MUST GROW
+
+**Owner, 9 Aug 2026:** *"We must track our trim, flower vs 3rd party, and any other
+materials we may want to add later. We must be able to add such materials — and
+packaging too."*
+
+Two independent dimensions, and they must never be collapsed into one field:
+
+| Dimension | Values today | Must be extensible? |
+|---|---|---|
+| **What the material is** | flower · trim · fresh frozen · concentrate · packaging · … | **YES — by the owner, without a deploy** |
+| **Whose it is** | ours · third-party purchased · tolled/consigned (owned by neither) | Fixed — these three are structural |
+
+**Ours versus third party is NOT a material type.** The same trim can be ours or
+bought in. Storing "third-party trim" as a single type makes it impossible to ask
+"how much trim do we hold" across both, which is exactly the question. Two columns,
+never one.
+
+**⚠ THE TRAP, and it is already in the database.** `suppliers.bought_as` is
+constrained by a **CHECK constraint** with a fixed vocabulary — `sound material`,
+`failed for remediation`, `biomass for extraction`, `our own licence`, `not yet set`.
+A check constraint is **code, not rows**, so adding a material category later needs a
+migration. That directly contradicts G1 and the owner's instruction above.
+
+*(This is on record: on 7 Aug an agent tried to write a new value and the constraint
+correctly rejected it. The design was right to reject the write and wrong to be a
+constraint.)*
+
+**So the module must move the vocabulary into a table** — a `material_types`
+register with the same shape as `reason_code_catalog` (code, label, description,
+active, sort, set_by, updated_at) — referenced by foreign key, editable in Settings.
+Existing values migrate across unchanged; nothing is lost.
+
+**Packaging counts as a material.** It is consumed, it has a cost, and it is already
+modelled inside the vape cost calculator — *but what was actually paid for it exists
+nowhere*, because `material_purchases` is empty. Adding packaging as a material type
+without recording its purchases just moves the invented number somewhere new.
+
+**And destination is per-lot, not per-supplier** (already ruled, 7 Aug): material
+bought as an input may end up consumed, sold on, or held — decided after arrival, and
+allowed to change with the reason recorded (H1). A supplier-level field cannot carry
+it.
+
 ---
 
 ## 3 · The harvest schedule surface
