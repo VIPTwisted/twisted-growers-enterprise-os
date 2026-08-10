@@ -39,6 +39,50 @@ contradiction shipped. A lesson with no guard behind it is a diary entry.
 unexecuted. `rules-in-sync` now holds the four runtime copies together; the
 dashboard card was held by nothing, which is precisely why it survived longest.
 
+**2026-08-09 — FIVE OF NINETEEN VERIFICATION CHECKS WERE LYING, AND NOTHING IN
+THE REPOSITORY COULD HAVE CAUGHT IT.** Found in one sitting:
+`packages-unique-on-tag` read **green on 7 real duplicates** because an identity
+invariant carried a 0.5% tolerance · `lab-samples-shipped-vs-held` read **4,148%
+apart** by comparing every package on a sample-bearing manifest against the
+samples themselves · `packages-shipped-vs-received` was **permanently red**
+because it mixed normal in-transit traffic with genuinely stuck shipments ·
+`room-name-alone-is-not-a-room` **could never pass** and sat in the fault list
+looking like a regression · `held-package-counted-once` **did not exist**, so a
+real cross-licence double-count went unmeasured.
+
+**Every one was a population error** — the same mistake
+[CEO_DASHBOARD_SUBSTITUTION_MAP.md](../docs/CEO_DASHBOARD_SUBSTITUTION_MAP.md)
+was written about, five more times. **All three of the worst arrived in a single
+batch of eleven on 8 Aug**: written, inserted, scheduled, never verified.
+
+**Why nothing caught it: the guards guard the repo, the checks live in the
+database, and nothing spanned the gap.** `guard-fixtures.mjs` proves the *file*
+guards still catch and contains zero references to `verification_checks`. No
+file in the repository tests their SQL. **CI holds no database credential** —
+only `GITHUB_TOKEN` — so a repo-side gate could not reach them even in
+principle. → **`tg_verification_checks_sane()` now audits every check for seven
+failure modes, and PROVES ITSELF FIRST**: five deliberately broken fixtures,
+each asserted to be caught by its own rule, and the nightly job **refuses to
+report if any escapes** — a clean sheet from a blind auditor is worse than no
+auditor, because it manufactures confidence. **Rule: enforcement must live where
+the thing being enforced lives.**
+
+**2026-08-09 — THE CHALLENGER WAS FULLY BUILT AND HAD NEVER RUN. 97 findings,
+zero challenged.** `v_unchallenged_findings`, `v_challenge_overdue` with a real
+SLA per severity, `metric_challenges` to hold the verdict, and
+`tg_require_double_check` guarding closure — **all present, all correct, and the
+queue that said so had been right and unread since the day it was written.** 14
+criticals sat past their window, the worst 72 hours over a 24-hour SLA, and 29
+findings carried no arithmetic at all.
+
+→ Same shape as the alert sender that reported itself unconfigured hourly into
+nowhere, and the schema dump that recorded *"NOT CAPTURED: permission denied for
+schema cron"* honestly and was read by nobody. **Rule A3 makes a tool explain
+its own gaps. It does not make anyone LOOK.** → `tg_escalate_unchallenged()`
+reads the queue nightly and raises a finding. **The general lesson: the last
+inch — something that reads the output — is the part that keeps getting left
+off, and without it the other 99% enforces nothing.**
+
 **2026-08-07 — A DEPLOY SILENTLY KILLED THE METRC SYNC FOR 5½ HOURS AND EVERY
 DASHBOARD REPORTED SUCCESS.** `metrc-sync` was redeployed as v15 at 11:31 UTC
 with `verify_jwt: true`. Its scheduler, `tg_metrc_fire`, sent only an
