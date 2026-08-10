@@ -76,6 +76,53 @@ const SQL_FIXTURES = [
   { rule: "E1", mustBlock: true,  why: "THE 8 AUG HOLE — worst case: a matview cannot be brought back by CREATE OR REPLACE",
     sql: `${DROP} materialized view mv_tower_counts;` },
 
+  /* ── 9 AUG 2026: COMMENTS ARE NOT CODE ────────────────────────────────────────
+   * The hook whitespace-collapsed the entire payload into one line and then matched
+   * keywords, so a `${DROP} view` statement on line 12 paired with the word cascade in a
+   * COMMENT on line 3 and was refused as a CASCADE. It contained no cascade at all.
+   *
+   * ci.yml learned this on 8 Aug and excludes comment lines. The hook did not, so the two
+   * enforcement points disagreed for a day in the direction nobody checks: the strict one
+   * was strict about the wrong thing. Three refusals in a row were phantoms of this kind,
+   * on migrations whose comments merely NAMED the rule they were obeying.
+   *
+   * This is why it matters beyond tidiness. Every migration in this repo carries a paragraph
+   * explaining itself, because the charter demands it. A guard that reads that paragraph as
+   * code punishes exactly the behaviour the charter asks for — and the author of a
+   * blocked-but-correct statement cannot tell a real catch from a phantom, so they stop
+   * believing the guard. That is how a guard dies while still showing green. */
+  { rule: "E1", mustBlock: false, why: "COMMENT IS NOT CODE — a legal replacement whose comment names the forbidden form",
+    sql: `-- ${DROP} view ... cascade blanked every dashboard three times; never again.\n`
+       + `create or replace view v_money_position as select 1;` },
+  /* ci.yml excludes `-- ` comment LINES but knows nothing of C-style block comments, because
+     grep is line-based and cannot strip one that opens and closes mid-line. Measured 9 Aug: 17
+     .sql files, one uses block comments, none names a forbidden verb inside one — so this is
+     latent, not live. Declared rather than hidden: if someone makes CI comment-aware, this
+     fixture fails and the flag comes off. */
+  { rule: "E1", mustBlock: false, ciStricter: true,
+    why: "COMMENT IS NOT CODE — block-comment form; grep cannot see block comments, so CI stays stricter",
+    sql: `/* never ${DROP} view with cascade */ create or replace view v_x as select 1;` },
+  { rule: "E1", mustBlock: true,  why: "a comment nearby must NOT excuse the statement beside it",
+    sql: `-- this migration is careful and reviewed\n${DROP} view v_money_position;` },
+
+  /* ── 9 AUG 2026: THE ESCAPE THE GUARD ITSELF PRESCRIBES ───────────────────────
+   * The hook's refusal message has told callers since 8 Aug to prove nothing depends on the
+   * view and then declare `set local tg.allow_drop = 'yes'`. The code never honoured it: the
+   * drop branch ignored the declaration entirely. So the only documented way to comply was
+   * refused, and a comment in the hook claimed hook and database "now agree" when they did
+   * not — the database has honoured this escape all along.
+   *
+   * An instruction that cannot be followed is worse than a flat prohibition. A flat
+   * prohibition gets escalated to the owner; a false one teaches that the guard is broken and
+   * the next person routes around it. CASCADE stays forbidden with or without the escape. */
+  { rule: "E1", mustBlock: false, ciStricter: true,
+    why: "THE UNHONOURED ESCAPE — the guard's own prescribed path must actually work",
+    sql: `set local tg.allow_drop = 'yes';\n${DROP} view zz_guard_probe_secure;` },
+  { rule: "E1", mustBlock: true,  why: "the escape must NOT unlock cascade — that is the damage itself",
+    sql: `set local tg.allow_drop = 'yes';\n${DROP} view v_money_position cascade;` },
+  { rule: "E1", mustBlock: true,  why: "a matview drop is unrecoverable, so the escape must not cover it either",
+    sql: `set local tg.allow_drop = 'yes';\n${DROP} materialized view mv_tower_counts;` },
+
   // --- Rule E6: 36 views once leaked tags, suppliers and dollar figures ---
   { rule: "E6", mustBlock: true,  why: "the plain form",
     sql: `${G} select on v_customers to ${A};` },
@@ -132,13 +179,58 @@ const FILE_FIXTURES = [
 function ciPatterns() {
   const yml = readFileSync(resolve(root, ".github/workflows/ci.yml"), "utf8");
   const out = [];
-  for (const m of yml.matchAll(/grep\s+-rniE\s+'([^']+)'/g)) {
+  /* Capture the whole `if grep -rniE '...' ... ; then` clause, not just the pattern.
+   *
+   * WHY, 9 Aug 2026: this function modelled only the INCLUSION patterns. Two of the three
+   * CI rules pipe their hits through `grep -viE ':[0-9]+:[[:space:]]*--'` to drop comment
+   * lines, and that pipe was invisible here — so the harness believed CI blocks prose that
+   * CI in fact allows. It would have reported DRIFT against a hook that agrees with CI, and
+   * the fix for the phantom would have been applied to the wrong side.
+   *
+   * A harness that models an enforcement point inaccurately is worse than one that admits it
+   * cannot see it: invariant B is only worth its name if both sides are read as they run. */
+  for (const m of yml.matchAll(/grep\s+-rniE\s+'([^']+)'([\s\S]*?);\s*then/g)) {
     /* POSIX bracket expressions -> JavaScript equivalents. */
     const js = m[1].replace(/\[\[:space:\]\]/g, "\\s").replace(/\[\[:alpha:\]\]/g, "[A-Za-z]");
-    out.push(new RegExp(js, "i"));
+    out.push({
+      re: new RegExp(js, "i"),
+      /* Does this rule pipe its hits through a comment-line exclusion? */
+      skipsComments: /grep\s+-viE\s+'[^']*--/.test(m[2]),
+    });
   }
   return out;
 }
+
+/* ------------------------------------------------------- Bash-carried fixtures ---
+ * THE FOURTH PHANTOM, 9 Aug 2026. The guard scans Bash payloads too, and a commit message
+ * describing rule E1 contains the words it forbids. The commit that fixed the SQL-comment
+ * phantom was itself refused by the guard it was fixing.
+ *
+ * Commit messages here are long by policy: they carry the reasoning, the measurement and the
+ * rule names. That policy and this guard were on a collision course, and the tempting exit —
+ * write the message to a file so the hook never sees it — is the working-around the guard's own
+ * message forbids.
+ *
+ * These are NOT part of the hook-versus-ci comparison: ci.yml greps *.sql files and never sees
+ * a git command, so there is nothing to compare against. */
+const BASH_FIXTURES = [
+  { rule: "E1", mustBlock: false, why: "a commit message may DESCRIBE the rule it fixes (heredoc)",
+    cmd: `git commit -F - <<'EOF'\nFix the E1 phantom\n\nThe hook read a comment as code, so a ${DROP} view statement paired with the\nword cascade in a comment. CASCADE stays absolutely forbidden either way.\nEOF` },
+  { rule: "E1", mustBlock: false, why: "the -m form of the same",
+    cmd: `git commit -m "E1: ${DROP} view ... cascade is still refused, the phantom is not"` },
+  { rule: "H2", mustBlock: false, why: "a commit message naming the forensic tables is documentation",
+    cmd: `git commit -m "H2: block delete from watchdog_findings and truncate of issue_decisions"` },
+  /* The hole this could have opened, closed by construction: any SQL client anywhere in the
+     command means every byte is scanned again, message or not. */
+  { rule: "E1", mustBlock: true,  why: "SMUGGLING — a commit chained to psql must scan the whole command",
+    cmd: `git commit -m "tidy" && psql -c '${DROP} view v_money_position cascade;'` },
+  { rule: "E1", mustBlock: true,  why: "SMUGGLING — psql heredoc is a real execution path and is never treated as prose",
+    cmd: `git commit -m "tidy" ; psql <<'SQL'\n${DROP} view v_money_position;\nSQL` },
+  { rule: "E6", mustBlock: true,  why: "SMUGGLING — the grant surface, same route",
+    cmd: `git commit -m "tidy" && psql -c '${G} select on v_customers to ${A};'` },
+  { rule: "E1", mustBlock: true,  why: "a bare psql drop, no commit involved, must still block",
+    cmd: `psql -c '${DROP} view v_money_position;'` },
+];
 
 /* --------------------------------------------------------------------- runners --- */
 const runHook = (script, payload) =>
@@ -150,8 +242,17 @@ const hookBlocksSql = (sql) =>
 const hookBlocksFile = (path) =>
   runHook(FILE_HOOK, { tool_name: "Write", tool_input: { file_path: `${root}/${path}` } });
 
+const hookBlocksBash = (cmd) =>
+  runHook(SQL_HOOK, { tool_name: "Bash", tool_input: { command: cmd } });
+
 const CI = ciPatterns();
-const ciBlocksSql = (sql) => CI.some((re) => re.test(sql));
+/* grep is LINE-based. Testing the pattern against the whole blob let a `drop view` on line 12
+   pair with a `cascade` on line 3, which is precisely the false positive that blocked three
+   legitimate migrations. Evaluate per line, and honour each rule's comment exclusion. */
+const ciBlocksSql = (sql) =>
+  CI.some(({ re, skipsComments }) =>
+    sql.split(/\r?\n/).some((line) =>
+      re.test(line) && !(skipsComments && /^\s*--/.test(line))));
 
 /* ----------------------------------------------------------------------- report --- */
 let failures = [];
@@ -167,6 +268,20 @@ for (const f of SQL_FIXTURES) {
     failures.push(
       `SQL guard ${f.rule}: expected ${verb} but got ${got ? "BLOCK" : "ALLOW"}\n` +
       `        ${f.why}\n        ${f.sql.slice(0, 120)}`
+    );
+  }
+}
+
+console.log("\nguard-fixtures: SQL guard reading Bash — prose must pass, execution must not\n");
+for (const f of BASH_FIXTURES) {
+  const got = hookBlocksBash(f.cmd);
+  const ok = got === f.mustBlock;
+  const verb = f.mustBlock ? "BLOCK" : "ALLOW";
+  say(ok, `${f.rule} must ${verb.padEnd(5)} — ${f.why}`);
+  if (!ok) {
+    failures.push(
+      `Bash payload ${f.rule}: expected ${verb} but got ${got ? "BLOCK" : "ALLOW"}\n` +
+      `        ${f.why}\n        ${f.cmd.replace(/\n/g, " ⏎ ").slice(0, 140)}`
     );
   }
 }
@@ -189,6 +304,34 @@ if (CI.length === 0) {
   for (const f of SQL_FIXTURES) {
     const hook = hookBlocksSql(f.sql);
     const ci = ciBlocksSql(f.sql);
+
+    /* ONE DELIBERATE ASYMMETRY, AND ONLY IN THE SAFE DIRECTION.
+     *
+     * The interactive hook honours `set local tg.allow_drop = 'yes'` because a person can
+     * prove, in that moment, that nothing depends on the view. ci.yml scans COMMITTED .sql
+     * files, where the same declaration would become a permanent, copyable licence to drop
+     * views — so CI stays absolute. The database's tg_block_view_drops() is the final word
+     * either way.
+     *
+     * ciStricter is allowed ONLY where CI blocks and the hook allows. The reverse — the hook
+     * refusing what CI waves through — is never declarable, because that is the direction in
+     * which something bad reaches main. An undeclared difference in EITHER direction fails. */
+    if (f.ciStricter) {
+      if (ci && !hook) {
+        say(true, `${f.rule} hook=allow ci=block — DECLARED: ${f.why}`);
+        continue;
+      }
+      failures.push(
+        `DECLARED ASYMMETRY NO LONGER HOLDS on ${f.rule}: expected hook=ALLOW ci=BLOCK, ` +
+        `got hook=${hook ? "BLOCK" : "ALLOW"} ci=${ci ? "BLOCK" : "ALLOW"}.\n` +
+        `        ${f.why}\n` +
+        `        Either the hook stopped honouring the escape it prescribes, or CI stopped\n` +
+        `        being the stricter of the two. Both need a decision, not a baseline bump.`
+      );
+      say(false, `${f.rule} declared asymmetry broken — ${f.why}`);
+      continue;
+    }
+
     const ok = hook === ci;
     say(ok, `${f.rule} hook=${hook ? "block" : "allow"} ci=${ci ? "block" : "allow"} — ${f.why}`);
     if (!ok) {
@@ -210,4 +353,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log(`\nguard-fixtures: PASS — ${SQL_FIXTURES.length + FILE_FIXTURES.length} fixtures, and the hook agrees with ci.yml on all ${SQL_FIXTURES.length} SQL cases.`);
+console.log(`\nguard-fixtures: PASS — ${SQL_FIXTURES.length + BASH_FIXTURES.length + FILE_FIXTURES.length} fixtures, and the hook agrees with ci.yml on all ${SQL_FIXTURES.length} SQL cases.`);
