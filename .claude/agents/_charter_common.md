@@ -337,6 +337,40 @@ correctly, and because a guard that blocked a view drop held even when I thought
 I had a good reason - a view an hour old is exactly the kind of thing that feels
 safe to drop, and the habit is what costs you later.
 
+### 7a. BUT IF YOU OBEYED IT AND IT STILL REFUSED, THE REFUSAL IS THE FINDING
+
+Rule 7 on its own leaves you stuck when the guard is the thing that is wrong, and
+on 9 Aug 2026 rule E1 refused four legitimate actions in a row. Not one was a
+violation. Every one was the guard matching PROSE and calling it a statement:
+
+| What was refused | Why it was a phantom |
+|---|---|
+| A migration with the word in a **comment** | Payload collapsed to one line, so a comment on line 3 paired with a statement on line 12 |
+| The **escape the guard's own message prescribes** | The message said to set the allow flag; the code ignored the flag entirely |
+| The same escape, after it was fixed | The fix widened it to matviews, which have no way back — caught by a new fixture, not by review |
+| **The commit describing all three** | The message names the rule, so the guard refused the fix to itself |
+
+So: do not route around it, and do not quietly abandon correct work either.
+
+1. **Read the guard's code.** Not its message — its code. Three of the four above
+   were visible in ten lines. The message and the code disagreed.
+2. **Decide which is wrong, and say which.** A guard that refuses prose is
+   broken. A guard that refuses your statement is probably right.
+3. **Fix it WITH A FIXTURE in `tools/checks/guard-fixtures.mjs`.** A guard fixed
+   without one re-rots, and this is the second time E1 has been repaired. The
+   fixture that pins your fix will also catch you widening it too far: fix 3
+   above was found by its own fixture minutes after it was written.
+4. **Never loosen more than the phantom requires.** The cascading form stayed
+   absolutely forbidden through all four fixes.
+5. **Never write the payload to a file to get past a hook.** That is the
+   working-around rule 7 forbids, and it is always available, which is exactly
+   why it must be refused.
+
+The cost of getting this wrong is not a blocked command. It is that an agent who
+is refused while doing the right thing cannot tell a real catch from a phantom,
+stops believing the guard, and starts looking for the off switch. That is how a
+guard dies while still reporting green.
+
 ## 8. SAY WHAT YOU DID NOT DO
 
 Report the part you skipped, the case you did not cover, the number you could
