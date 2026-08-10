@@ -77,3 +77,36 @@
 --   select pg_get_functiondef('public.tg_verification_checks_sane'::regproc);
 --   select pg_get_functiondef('public.tg_verification_checks_sane_selftest'::regproc);
 --   select pg_get_functiondef('public.tg_audit_the_checks'::regproc);
+
+-- ============================================================================
+-- AND THE FINDINGS THEMSELVES MUST NAME A GUARD
+--
+-- DATA_TRAPS_REGISTER section E calls this the worst trap in the register:
+--
+--   "A decision recorded is not a decision implemented. A decision is not closed
+--    until something in code, config or a check enforces it. Write the guard in
+--    the same session as the decision, or record plainly that it is unguarded.
+--    THIS REGISTER'S GUARD COLUMN IS THAT TEST."
+--
+-- watchdog_findings has carried a guard_recommendation column since it was
+-- created. Measured 9 Aug 2026: 106 findings, ZERO naming a guard, 80 of them
+-- critical or elevated. So every one could recur, and the register's own closing
+-- test had never been applied to the findings it exists to prevent — proven
+-- three times already, most plainly when sales endpoints "permanently disabled"
+-- on 6 Aug were still firing 401s on 7 Aug.
+--
+-- tg_guard_findings_name_a_guard() — cron 'guard-findings-named', 07:00 daily.
+--
+-- A RATCHET, NOT A CLIFF. A trigger demanding the column on write would reject
+-- every existing writer, and a gate red on arrival is a gate somebody switches
+-- off. The count ratchets against findings_without_guard_baseline, an
+-- owner-editable row: it may FALL and may never RISE, and it lowers itself
+-- automatically when the number improves so a gain cannot be given back quietly.
+--
+-- IT MEETS ITS OWN RULE. The finding it raises carries a guard_recommendation
+-- naming itself. A guard that does not satisfy the rule it enforces is not a
+-- guard, it is an opinion.
+--
+-- PROVEN, NOT ASSUMED. Fixture run 9 Aug 2026: baseline dropped to 79 against a
+-- live count of 80, the finding was raised, and the baseline was restored.
+-- ============================================================================
