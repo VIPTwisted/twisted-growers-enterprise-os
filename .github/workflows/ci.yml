@@ -237,6 +237,14 @@ jobs:
       # Three functions ran in production with no source here at all.
       - name: Edge functions are versioned
         run: node tools/checks/edge-functions-versioned.mjs
+
+      # ---- A source that changed must be deployed, or say why not -------------------
+      # edge-functions-versioned checks a function HAS a source file. It passed while
+      # 20 of 25 sources differed from production, including apex-sync, whose four
+      # fixes sat undeployed for 4h38m until a human read the timestamps by hand.
+      - name: Edge function source matches its deploy
+        run: node tools/checks/edge-function-drift.mjs
+
       # The bridge's schema map is generated. Nothing regenerated it, and a map
       # that has drifted is worse than none - it is confidently wrong.
       - name: Schema map is fresh

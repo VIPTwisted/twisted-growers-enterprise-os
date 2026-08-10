@@ -1,0 +1,169 @@
+{
+  "_comment": [
+    "Records, per edge function, the SHA-256 of the local source at the moment it was",
+    "last known to match production. edge-function-drift.mjs recomputes the hash and",
+    "fails when a source changes without the deploy being recorded.",
+    "",
+    "WHY THIS EXISTS. edge-functions-versioned checks that a deployed function HAS a",
+    "source file. It passed while 20 of 25 local sources differed from production,",
+    "including apex-sync, whose four fixes sat undeployed for 4h38m until a human",
+    "noticed. A guard that cannot fail on the thing it guards is decoration.",
+    "",
+    "redacted:true means the local copy was RECOVERED from production with its shared",
+    "admin key replaced by a placeholder. Production is the source of record for those",
+    "and DEPLOYING THEM WOULD BREAK THEM. The hash still pins them, so a silent edit",
+    "is caught."
+  ],
+  "functions": {
+    "apex-sync": {
+      "deployed_version": 2,
+      "sha256": "5c806790376ffa0816d81d6ea1a7acee258147f4a1a0cfa45c2bf164973e1f88",
+      "redacted": false,
+      "note": "Real source. If the hash changes, deploy it or record why not."
+    },
+    "bridge-queue": {
+      "deployed_version": 1,
+      "sha256": "9e28707226cbef4beb8a4207d781cc79fc25fd6526c122c717ad3f13f332156d",
+      "redacted": false,
+      "note": "Real source. If the hash changes, deploy it or record why not."
+    },
+    "budz-chat": {
+      "deployed_version": 4,
+      "sha256": "d4577ceec064f4129358703df66e964047d13099f39e7233971c0f7e2517c7e1",
+      "redacted": false,
+      "note": "Real source. If the hash changes, deploy it or record why not."
+    },
+    "clickup-customize": {
+      "deployed_version": 4,
+      "sha256": "4942cda4a0f9e9aaf6b74e73ca0149c47ef19317ead82fa44819f4d211c346c7",
+      "redacted": true,
+      "note": "Recovered from production with the shared admin key redacted. Production is the source of record; deploying this copy would break the function."
+    },
+    "clickup-sync": {
+      "deployed_version": 2,
+      "sha256": "fb2c37d292f7a432d99f797b03d66325d39a21e96ea74f26108f7a9cc3671390",
+      "redacted": true,
+      "note": "Recovered from production with the shared admin key redacted. Production is the source of record; deploying this copy would break the function."
+    },
+    "coa-extract": {
+      "deployed_version": 2,
+      "sha256": "23556886b72c86f708adff21d0bf336a8624c57343c5a3248f2dd0602d20efe2",
+      "redacted": true,
+      "note": "Recovered from production with the shared admin key redacted. Production is the source of record; deploying this copy would break the function."
+    },
+    "document": {
+      "deployed_version": 1,
+      "sha256": "a480e4c5cc9d359846e4c62b3979c5c72552ae1ab047093880bece72b6c55f4d",
+      "redacted": false,
+      "note": "Real source. If the hash changes, deploy it or record why not."
+    },
+    "hr-clickup-push": {
+      "deployed_version": 1,
+      "sha256": "b6bddae6be5c39782968ac2886e07bed75fec9592feaa998abbf1bf1504eb7f6",
+      "redacted": false,
+      "note": "Real source. If the hash changes, deploy it or record why not."
+    },
+    "integration-settings": {
+      "deployed_version": 4,
+      "sha256": "0887c0fc4602b22859173e8bca9eccefcacc46a824f8899b391648f4a7b7b3fd",
+      "redacted": false,
+      "note": "Real source. If the hash changes, deploy it or record why not."
+    },
+    "manifest-parse": {
+      "deployed_version": 1,
+      "sha256": "adf46c1dc3637f0d1b6a1fe44cd91934cdb48809b266c94e2dc701d432bdc8a9",
+      "redacted": true,
+      "note": "Recovered from production with the shared admin key redacted. Production is the source of record; deploying this copy would break the function."
+    },
+    "metrc-catalog-sync": {
+      "deployed_version": 2,
+      "sha256": "7f85e4c63c59b2b8f2e26fcdd726f414a66cf55efc8a2bae90501f09441370c0",
+      "redacted": true,
+      "note": "Recovered from production with the shared admin key redacted. Production is the source of record; deploying this copy would break the function."
+    },
+    "metrc-delivery-detail": {
+      "deployed_version": 1,
+      "sha256": "6ca0e7754f3ba1467c4ab4b037d8a3c51bcc482c6980221ad35c74edcdac54ed",
+      "redacted": true,
+      "note": "Recovered from production with the shared admin key redacted. Production is the source of record; deploying this copy would break the function."
+    },
+    "metrc-documents": {
+      "deployed_version": 3,
+      "sha256": "7d4b2c79be71727e9f8fbb0b835e32936d1cf4cf49f6381817af7a673bcd4618",
+      "redacted": true,
+      "note": "Recovered from production with the shared admin key redacted. Production is the source of record; deploying this copy would break the function."
+    },
+    "metrc-lab-backfill": {
+      "deployed_version": 1,
+      "sha256": "48fb8235afbc522bf55b8a54d22d599379705d780cee19f97df9cbfd451f48e6",
+      "redacted": true,
+      "note": "Recovered from production with the shared admin key redacted. Production is the source of record; deploying this copy would break the function."
+    },
+    "metrc-lab-sync": {
+      "deployed_version": 1,
+      "sha256": "782f871a17b7b02d57a337df1ffd2b9898409374bafb3e3579dcaa90c6b176e6",
+      "redacted": true,
+      "note": "Recovered from production with the shared admin key redacted. Production is the source of record; deploying this copy would break the function."
+    },
+    "metrc-probe": {
+      "deployed_version": 3,
+      "sha256": "f6256a1289cad1482646794512d1f07b52d48e32c9a2928dca9fa9b226b1b6ea",
+      "redacted": true,
+      "note": "Recovered from production with the shared admin key redacted. Production is the source of record; deploying this copy would break the function."
+    },
+    "metrc-reference-sync": {
+      "deployed_version": 1,
+      "sha256": "b672045f9dfe1e15c09b92531e6ee5be67bea0338006b02c797029c03a27c8aa",
+      "redacted": true,
+      "note": "Recovered from production with the shared admin key redacted. Production is the source of record; deploying this copy would break the function."
+    },
+    "metrc-report-import": {
+      "deployed_version": 1,
+      "sha256": "9aa1471273c0b2aa35bb1428656f2ca6d01c583c6283fd25fe3e01e712b63291",
+      "redacted": true,
+      "note": "Recovered from production with the shared admin key redacted. Production is the source of record; deploying this copy would break the function."
+    },
+    "metrc-sync": {
+      "deployed_version": 19,
+      "sha256": "bc8453d3981d106f7b37bcae3728bd7b9eb43f1d93cfb1c3cfbb98fc6cfba558",
+      "redacted": true,
+      "note": "Recovered from production with the shared admin key redacted. Production is the source of record; deploying this copy would break the function."
+    },
+    "parse-documents": {
+      "deployed_version": 3,
+      "sha256": "ae1f4fe031b26292d4e1ca593cc38f33ab751a597be3c3adcf314d817adaa7d6",
+      "redacted": false,
+      "note": "Real source. If the hash changes, deploy it or record why not."
+    },
+    "report-ingest": {
+      "deployed_version": 3,
+      "sha256": "60d2d7d947420d55073058069144017f57e69b744de72bfa1ca3572aee58942b",
+      "redacted": true,
+      "note": "Recovered from production with the shared admin key redacted. Production is the source of record; deploying this copy would break the function."
+    },
+    "seed-tables": {
+      "deployed_version": 1,
+      "sha256": "1fbe636a6ec048179d5a137ee191b8bf35e57edba3ab85ac7be0d797589b193d",
+      "redacted": true,
+      "note": "Recovered from production with the shared admin key redacted. Production is the source of record; deploying this copy would break the function."
+    },
+    "seed-templates": {
+      "deployed_version": 1,
+      "sha256": "f4d10cb7577b64c3922a064b7070a56b5120392d719f2bdb4268bedaec90da9b",
+      "redacted": true,
+      "note": "Recovered from production with the shared admin key redacted. Production is the source of record; deploying this copy would break the function."
+    },
+    "sheet-push": {
+      "deployed_version": 1,
+      "sha256": "ba72e2d070328ddb5ad5730867800924909ff3c324fcaf333ea19335a37a2466",
+      "redacted": false,
+      "note": "Real source. If the hash changes, deploy it or record why not."
+    },
+    "sheet-sync": {
+      "deployed_version": 3,
+      "sha256": "02b20abf111f817f4fac225c947f36cf928c04ad22f9b0697afcfa5a8b738ab1",
+      "redacted": false,
+      "note": "Real source. If the hash changes, deploy it or record why not."
+    }
+  }
+}
