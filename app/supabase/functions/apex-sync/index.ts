@@ -381,6 +381,77 @@ Deno.serve(async (req: Request) => {
   const only = url.searchParams.get("entity");
   const force = url.searchParams.get("force") === "1";
 
+  /* ── ?probe=metrc ──────────────────────────────────────────────────────────────
+     DOES APEX RETURN ITS METRC DATA, AND DOES IT DO SO FOR THIS ACCOUNT?
+
+     The owner's position is that Apex pulls from Metrc and builds the manifests there, so
+     the two cannot fail to balance. Measured against what we hold, they do not: on 1,739
+     orders and 13,135 lines, metrc_package_label appears 8 times and manifest_number never.
+
+     The reason is in the contract, not the data. ProductResource declares metrc_tags and
+     metrc_lab_results, ShippingOrderResource declares metrc_transfer_template - and the KEYS
+     ARE ABSENT from every payload we hold, not present-and-empty. Absent means never asked
+     for: Apex omits them from list endpoints, and with_metrc exists ONLY on the singular
+     /v1/products/{id}, which this connector has never called.
+
+     So this probe asks. Two calls, roughly 8 credits, ONE record each, and it STORES NOTHING.
+     Proving the field populates before spending credits on 483 products is the difference
+     between a measurement and an assumption - and this whole thread has already cost the
+     owner three confident wrong answers built on the second.
+
+     It reports KEY NAMES AND COUNTS ONLY. A shipping order carries buyer contact details and
+     pricing; echoing a payload into an HTTP response to satisfy curiosity is how business data
+     ends up somewhere it was never meant to be. */
+  if (url.searchParams.get("probe") === "metrc") {
+    const probe: Record<string, unknown> = {};
+
+    const { data: prod } = await supa.from("apex_raw").select("apex_id")
+      .eq("entity", "products").not("apex_id", "is", null).limit(1).maybeSingle();
+    const { data: ord } = await supa.from("apex_raw").select("apex_id")
+      .eq("entity", "shipping-orders").not("apex_id", "is", null).limit(1).maybeSingle();
+
+    /* Report the shape, never the contents. present=false and absent-from-payload are
+       different findings and the caller must be able to tell them apart. */
+    const shape = (o: Record<string, unknown> | null, keys: string[]) => {
+      if (!o) return { reachable: false };
+      const out: Record<string, unknown> = { top_level_keys: Object.keys(o).length };
+      for (const k of keys) {
+        const v = (o as Record<string, unknown>)[k];
+        out[k] = !(k in o) ? "KEY ABSENT — not returned at all"
+               : v == null ? "present but null"
+               : Array.isArray(v) ? `array of ${v.length}`
+               : typeof v === "object" ? `object with keys: ${Object.keys(v as object).join(", ")}`
+               : "present";
+      }
+      return out;
+    };
+
+    if (prod?.apex_id) {
+      const r = await apexGet(base, key, `/v1/products/${prod.apex_id}`, { with_metrc: "true" });
+      const body = r.ok ? await r.json() : null;
+      const row = body?.data ?? body?.product ?? body;
+      probe["products/{id}?with_metrc=true"] = r.ok
+        ? shape(row, ["metrc_tags", "metrc_lab_results", "batches", "id", "name"])
+        : `HTTP ${r.status}`;
+    } else probe["products/{id}?with_metrc=true"] = "no product id in apex_raw to probe with";
+
+    if (ord?.apex_id) {
+      const r = await apexGet(base, key, `/v1/shipping-orders/${ord.apex_id}`, {});
+      const body = r.ok ? await r.json() : null;
+      const row = body?.data ?? body?.order ?? body;
+      probe["shipping-orders/{id}"] = r.ok
+        ? shape(row, ["metrc_transfer_template", "manifest_number", "invoice_number", "items"])
+        : `HTTP ${r.status}`;
+    } else probe["shipping-orders/{id}"] = "no order id in apex_raw to probe with";
+
+    const after = await readCredits();
+    return json({ ok: true, probe, base,
+      credits_spent: creditsBefore != null && after != null ? after - creditsBefore : null,
+      note: "Nothing was stored. KEY ABSENT means Apex does not return the field on this "
+          + "endpoint for this account; 'present but null' means it returns it and it is empty. "
+          + "Those two need completely different responses and must not be confused." }, 200);
+  }
+
   /* BUDGET GUARD. At 90% of the monthly limit this refuses to run. A sync that
      quietly takes the account past its ceiling is worse than one that stops and says
      so. Overridable with force=1 - by a person making a decision, never by a
