@@ -31,14 +31,19 @@
  *   node tools/checks/edge-function-lint.mjs
  */
 import { readFileSync, existsSync, readdirSync, statSync } from "node:fs";
-import { spawnSync } from "node:child_process";
 import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
+import { createRequire } from "node:module";
 import { ESLint } from "eslint";
 import globals from "globals";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
-const ESBUILD = join(ROOT, "app", "web", "node_modules", "esbuild", "bin", "esbuild");
+/* ESBUILD'S NODE API, NOT ITS BINARY. This ran `node .../esbuild/bin/esbuild`,
+   which is a JS shim on Windows and the NATIVE ELF EXECUTABLE on Linux — so in
+   GitHub Actions every one of the 26 functions reported "does not parse" with
+   `ELF^B^A^A / SyntaxError`, and the whole suite has been red on every push while
+   green locally. Same defect as parse-check, same fix. */
+const requireFromWeb = createRequire(join(ROOT, "app", "web", "package.json"));
 
 /* Both trees hold edge functions. supabase/functions/ was missed by an earlier check that
    assumed there was only one, which is how metrc-sales-detail went unexamined. */
@@ -47,8 +52,11 @@ const ROOTS = [
   join(ROOT, "supabase", "functions"),
 ];
 
-if (!existsSync(ESBUILD)) {
-  console.error("edge-function-lint: FAIL — esbuild not found at " + ESBUILD);
+let esbuild;
+try {
+  esbuild = requireFromWeb("esbuild");
+} catch {
+  console.error("edge-function-lint: FAIL — esbuild is not installed under app/web.");
   console.error("  Run `npm install` inside app/web first. Without it, 25 edge functions");
   console.error("  holding service-role credentials get no scope analysis at all.\n");
   process.exit(1);
@@ -119,17 +127,27 @@ for (const abs of files) {
 
   /* Strip the types, keep the line numbers. --sourcemap would be better but the mapping cost
      is not worth it: these files are small and the identifier name is in the message. */
-  /* No --loader flag: that form is stdin-only, and esbuild infers `ts` from the .ts
-     extension when given a path. Passing it produces "loader without extension only
-     applies when reading from stdin" and every file fails for the wrong reason — which is
-     exactly the false-alarm failure mode this repo has been bitten by three times. */
-  const t = spawnSync(process.execPath,
-    [ESBUILD, "--format=esm", "--target=esnext", abs],
-    { encoding: "utf8", maxBuffer: 32 * 1024 * 1024 });
-
-  if (t.status !== 0) {
+  /* loader "ts" is explicit here because transformSync has no filename to infer from.
+     The old CLI form had to OMIT --loader for the opposite reason — that flag is
+     stdin-only on the command line — and that asymmetry is exactly the kind of thing
+     that makes a check fail for the wrong reason. The API has no such trap. */
+  let stripped;
+  try {
+    stripped = esbuild.transformSync(readFileSync(abs, "utf8"), {
+      loader: "ts",
+      format: "esm",
+      target: "esnext",
+      sourcefile: rel,
+      logLevel: "silent",
+    }).code;
+  } catch (e) {
     console.error(`edge-function-lint: FAIL — ${rel} does not parse.`);
-    console.error((t.stderr || "").trim() + "\n");
+    const errs = (e && e.errors) || [];
+    console.error(
+      (errs.length
+        ? errs.map((x) => `  ${rel}:${x.location?.line ?? "?"}  ${x.text}`).join("\n")
+        : String(e?.message ?? e)) + "\n",
+    );
     failed++;
     continue;
   }
@@ -137,7 +155,7 @@ for (const abs of files) {
   /* Imports survive type-stripping and ESLint cannot resolve a jsr:/npm: specifier, but it
      does not need to: the imported bindings are declared by the import statement itself, so
      scope analysis is complete without resolution. */
-  const [res] = await eslint.lintText(t.stdout, { filePath: abs.replace(/\.ts$/, ".mjs") });
+  const [res] = await eslint.lintText(stripped, { filePath: abs.replace(/\.ts$/, ".mjs") });
   const errors = (res?.messages ?? []).filter((m) => m.severity === 2);
   const warnings = (res?.messages ?? []).filter((m) => m.severity === 1);
 
