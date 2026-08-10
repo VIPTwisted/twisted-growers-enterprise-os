@@ -1,0 +1,79 @@
+-- ============================================================================
+-- WHO CHECKS THE CHECKS
+--
+-- ENFORCES rule C0b applied to the checking layer itself: a check that cannot
+-- fail proves nothing — and a check that cannot pass proves nothing either,
+-- because its signal never changes.
+--
+-- WHY THIS EXISTS. On 9 August 2026 five of nineteen verification checks were
+-- found to be lying, in three different directions:
+--
+--   packages-unique-on-tag        read GREEN on 7 real duplicates, because an
+--                                 identity invariant carried a 0.5% tolerance
+--   lab-samples-shipped-vs-held   read 4,148% apart, comparing every package on
+--                                 a sample-bearing manifest against the samples
+--   packages-shipped-vs-received  permanently red, mixing normal in-transit
+--                                 traffic with genuinely stuck shipments
+--   room-name-alone-is-not-a-room could never pass, sitting in the fault list
+--                                 as though it were a regression
+--   held-package-counted-once     did not exist, so a real double-count across
+--                                 the two licences went unmeasured
+--
+-- All three of the worst arrived in ONE BATCH OF ELEVEN on 8 August: written,
+-- inserted, scheduled, and never verified by anything.
+--
+-- THE STRUCTURAL HOLE THIS CLOSES. guard-fixtures.mjs proves the FILE guards
+-- still catch what they claim, and contains zero references to
+-- verification_checks. No file in the repository tests their SQL. The CI
+-- workflow holds no database credential — only GITHUB_TOKEN — so a repo-side
+-- gate cannot reach them even in principle.
+--
+--   THE GUARDS GUARD THE REPO. THE CHECKS LIVE IN THE DATABASE.
+--   NOTHING SPANNED THE GAP. THIS DOES, BY RUNNING WHERE THEY ARE.
+--
+-- ⚠ TWO HOMES WARNING. The canonical definition is the deployed function in the
+-- database; this file is the reviewable copy. That is exactly the arrangement
+-- that let v_lab_results and lab_result_values drift apart (HANDOFF D5), so
+-- treat a difference between the two as a defect and re-export rather than
+-- editing one side. tools/checks/docs-vs-database.mjs exists for this class.
+--
+-- SEVEN WAYS A CHECK CAN LIE, all detected here:
+--   S1 CANNOT FAIL              both sources run identical SQL
+--   S2 INCOMPLETE               no title, no what_it_proves, or no owner
+--   S3 POPULATION MISMATCH      one side SUMS a quantity, the other COUNTS rows
+--   S4 TOLERANCE ON AN IDENTITY absolute wording with a percentage tolerance
+--   S5 SOURCE FAILS TO RUN      the SQL errors; the check silently never runs
+--   S6 NEVER RUN                enabled, scheduled, no run row ever written
+--   S7 CANNOT PASS              never agreed in 10+ runs while marked critical
+--                               or elevated — a permanent red people learn to
+--                               ignore, which is how a real one gets missed
+--
+-- AND IT PROVES ITSELF FIRST. tg_verification_checks_sane_selftest() inserts
+-- five deliberately broken checks, asserts each is caught by its OWN rule, and
+-- removes them. tg_audit_the_checks() runs that self-test before auditing and
+-- REFUSES TO REPORT if any fixture escapes — because a clean sheet from a blind
+-- auditor is worse than no auditor: it manufactures confidence.
+--
+-- SCHEDULE: cron job 'audit-the-checks', 06:50 daily, after the nightly
+-- platform check at 06:40.
+--
+-- RUN BY HAND:
+--   select * from tg_verification_checks_sane();           -- what is defective
+--   select * from tg_verification_checks_sane_selftest();  -- is the auditor awake
+--   select tg_audit_the_checks();                          -- both, and raise findings
+--
+-- FIRST REAL RUN, 9 Aug 2026: self-test 5/5 passed, 2 defective checks found —
+-- plants-metrc-vs-plan and revenue-two-reports, both CANNOT PASS after 17 runs
+-- without a single agreement.
+-- ============================================================================
+
+-- The deployed definitions are in the migration
+-- 'verification_checks_sane_selftest_and_nightly' and in the schema dump under
+-- supabase/migrations/. They are not duplicated here, deliberately: a
+-- hand-maintained second copy of 300 lines of plpgsql is a drift risk with no
+-- upside, and the schema dump already carries the authoritative text.
+--
+-- To review the live definitions:
+--   select pg_get_functiondef('public.tg_verification_checks_sane'::regproc);
+--   select pg_get_functiondef('public.tg_verification_checks_sane_selftest'::regproc);
+--   select pg_get_functiondef('public.tg_audit_the_checks'::regproc);
