@@ -30,6 +30,80 @@
  * the top-bar dropdowns, further down this file. The other 22 uses stay
  * transparent until whoever owns those pages decides to fix them. */
 
+/* ═══ MY WEEK — the staff home ══════════════════════════════════════
+ * Written for a phone in a corridor with one hand free. Big first
+ * answer, then the week, then everything else.
+ */
+.mwload,.mwempty{padding:44px 24px;text-align:center;color:var(--muted);
+  display:flex;flex-direction:column;gap:7px}
+.mwempty b{color:var(--ink);font-size:15px}
+.mw{display:flex;flex-direction:column;gap:13px;padding-bottom:48px;max-width:940px}
+.mwhead h1{margin:0;font-size:27px;font-weight:700;letter-spacing:.01em}
+.mwsub{font-size:12.5px;color:var(--muted);margin-top:4px}
+.mwsub b{color:var(--ink-2);letter-spacing:.04em}
+
+/* The first question, answered biggest. */
+.mwclock{display:flex;align-items:center;gap:14px;background:var(--surface);
+  border:1px solid var(--line);border-radius:10px;padding:18px 20px}
+.mwclock.on{border-color:var(--neon-line);box-shadow:var(--glow)}
+.mwdot{width:13px;height:13px;border-radius:50%;background:var(--neon);flex:none;
+  box-shadow:0 0 12px var(--neon-line);animation:mwpulse 2.4s ease-in-out infinite}
+.mwdot.off{background:var(--muted);box-shadow:none;animation:none}
+@keyframes mwpulse{0%,100%{opacity:1}50%{opacity:.4}}
+.mwct{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}
+.mwct b{font-size:17px;font-weight:800}
+.mwct span{font-size:12.5px;color:var(--muted)}
+
+.mwalert{display:flex;align-items:center;gap:13px;flex-wrap:wrap;border-radius:8px;padding:14px 17px;border:1px solid}
+.mwalert b{flex:1;min-width:220px;font-size:13px;line-height:1.55}
+.mwalert.bad{background:var(--red-soft);border-color:rgba(255,66,69,.42)}
+.mwalert.bad b{color:var(--red)}
+.mwalert.warn{background:var(--amber-soft);border-color:rgba(255,234,0,.35)}
+.mwalert.warn b{color:var(--amber)}
+.mwmsg{background:var(--neon-soft);border:1px solid var(--neon-line);border-radius:6px;
+  padding:11px 14px;font-size:12.5px;color:var(--ink-2)}
+
+.mwnext{background:linear-gradient(120deg,var(--surface),var(--surface-2));
+  border:1px solid var(--neon-line);border-radius:10px;padding:20px 22px;
+  display:flex;flex-direction:column;gap:5px}
+.mwlab{font-size:10px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--neon)}
+.mwnext h2{margin:0;font-size:26px;font-weight:800;letter-spacing:-.01em}
+.mwtimes{display:flex;gap:26px;flex-wrap:wrap;margin-top:9px}
+.mwtimes span{display:flex;flex-direction:column;font-size:10px;font-weight:700;
+  letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.mwtimes b{font-size:19px;font-weight:800;color:var(--ink);text-transform:none;
+  letter-spacing:0;font-variant-numeric:tabular-nums;margin-bottom:2px}
+.mwnote2{text-transform:none!important;letter-spacing:0!important;font-weight:400!important;
+  color:var(--ink-2)!important;font-size:12.5px!important;align-self:center}
+.mwp{margin:6px 0 0;font-size:12.5px;color:var(--muted);line-height:1.6}
+
+.mwacts{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:9px}
+.mwacts .btn{padding:14px 16px;font-size:13.5px}
+
+.mwgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:11px}
+.mwcard{background:var(--surface);border:1px solid var(--line);border-radius:10px;
+  padding:16px 18px;display:flex;flex-direction:column;gap:9px}
+.mwcard h3{margin:0;font-size:13px;font-weight:800;letter-spacing:.03em}
+.mwrows{display:flex;flex-direction:column}
+.mwrow{display:flex;align-items:center;gap:11px;padding:9px 0;
+  border-bottom:1px solid var(--line);font-size:12.5px}
+.mwrow:last-child{border-bottom:0}
+.mwd{width:92px;flex:none;color:var(--muted)}
+.mwz{flex:1;min-width:0;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mwh{font-variant-numeric:tabular-nums;color:var(--ink-2);white-space:nowrap;font-size:11.5px}
+.mwh i{font-style:normal;color:var(--muted)}
+.mwpts{display:flex;align-items:baseline;gap:9px}
+.mwpts b{font-size:30px;font-weight:800;line-height:1;font-variant-numeric:tabular-nums}
+.mwpts b.hot{color:var(--red)}
+.mwpts span{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.09em}
+.mwfine{margin:2px 0 0;font-size:11px;color:var(--muted);line-height:1.6}
+
+@media (max-width:560px){
+  .mwhead h1{font-size:23px}
+  .mwnext h2{font-size:21px}
+  .mwacts{grid-template-columns:1fr 1fr}
+}
+
 /* ═══ TERMINALS & CREDENTIALS ═══════════════════════════════════════
  * The instrument and the credential on one page, because neither is
  * any use without the other. A token shown once is shown loudly.

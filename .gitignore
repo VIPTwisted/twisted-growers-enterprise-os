@@ -2,6 +2,12 @@
 .env
 .env.*
 .mcp.json
+# ...and every variant of it. A .mcp.json.hidden appeared in the working tree on 10 Aug 2026
+# while an agent was running `git add -A`; the exact name `.mcp.json` did not match it, so a
+# file holding the live read-only Postgres URI was one wildcard away from GitHub. A credential
+# committed is exposed RETROACTIVELY - git keeps the history, and only rotation undoes it.
+.mcp.json*
+bridge/token.txt*
 bridge/bridge.err.log
 bridge/bridge.log
 bridge/token.txt
