@@ -44,6 +44,11 @@ const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, "../..");
 const SQL_HOOK = resolve(root, "tools/hooks/guard-sql.mjs");
 const FILE_HOOK = resolve(root, "tools/hooks/guard-protected-files.mjs");
+/* ADDED 9 Aug 2026. guard-secrets.mjs had NO fixtures — the hook that stops a credential
+   reaching a file, protecting against the exact incident that happened (23 live keys, JWTs
+   and signed URLs accumulated in a OneDrive-synced config over several days), and nothing
+   proved it still caught anything. Three of four hooks were covered; this was the fourth. */
+const SECRETS_HOOK = resolve(root, "tools/hooks/guard-secrets.mjs");
 
 /* Assembled from fragments so THIS FILE never contains a literal forbidden statement.
    Otherwise the fixtures would trip the very greps they exist to test — and this file
@@ -215,6 +220,55 @@ const FILE_FIXTURES = [
   { rule: "9/I1", mustBlock: false, why: "a brain document is not a theme file", path: "brain/INDEX.md" },
 ];
 
+/* ------------------------------------------------------------ secret fixtures --- */
+/* Every credential below is ASSEMBLED FROM FRAGMENTS so this file never contains a literal
+   secret-shaped string — the same discipline the SQL fixtures use for forbidden statements.
+   A fixture file that trips the scanner it tests is the snake eating itself.
+
+   The two halves both matter. If the BLOCK cases stop blocking, credentials start reaching
+   files again silently. If the ALLOW cases start blocking, .env and .mcp.json become
+   unwritable, someone switches the hook off, and the protection is gone entirely — which is
+   the more likely way this fails, because a guard that obstructs legitimate work gets removed
+   rather than fixed. */
+/* THE FIRST DRAFT OF THIS FIXTURE WAS WRONG, and it matters how. Its third segment was the
+   three characters "sig", while the pattern requires 10+ per segment — so it never matched and
+   reported the guard as broken when the guard was fine. A fixture that does not match the real
+   shape of the thing proves the wrong thing, and would have sent someone hunting a hole that
+   was not there. Both payloads below are real base64url so the role claim actually decodes. */
+/* {"role":"service_role"} — privileged. MUST be caught. */
+const JWT   = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9"
+            + ".eyJyb2xlIjoic2VydmljZV9yb2xlIn0"
+            + ".QUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVo";
+/* {"role":"anon"} — the publishable key. It SHIPS IN THE BUNDLE BY DESIGN and flagging it
+   would train people to ignore the scanner, so it must be allowed. HANDOFF §6 verifies the
+   whole security model by proving this key gets 401. */
+const ANONJWT = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9"
+            + ".eyJyb2xlIjoiYW5vbiJ9Cg"
+            + ".QUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVo";
+const PGURL = "postgres" + "ql://user:hunter2@db.example.supabase.co:5432/postgres";
+const ADMIN = "x-admin" + "-key: tg-seed-abc123-2026";
+
+const SECRET_FIXTURES = [
+  { rule: "E6", mustBlock: true,  why: "a JWT written into ordinary source",
+    path: "app/web/src/App.jsx",            body: `const key = "${JWT}";` },
+  { rule: "E6", mustBlock: true,  why: "a Postgres URL with a password in a script",
+    path: "tools/whatever.mjs",             body: `const conn = "${PGURL}";` },
+  { rule: "E6", mustBlock: true,  why: "an admin key in a config file",
+    path: "netlify.toml",                   body: `  header = "${ADMIN}"` },
+  { rule: "E6", mustBlock: true,  why: "a credential in a brain document",
+    path: "brain/NOTES.md",                 body: `the key is ${JWT}` },
+  { rule: "E6", mustBlock: false, why: ".mcp.json is the intended home for the connection string",
+    path: ".mcp.json",                      body: `{"url":"${PGURL}"}` },
+  { rule: "E6", mustBlock: false, why: ".env files are gitignored by design",
+    path: ".env.local",                     body: `PGURL=${PGURL}` },
+  { rule: "E6", mustBlock: false, why: "bridge/token.txt is a credential file by design",
+    path: "bridge/token.txt",               body: JWT },
+  { rule: "E6", mustBlock: false, why: "ordinary code carrying no credential must not be blocked",
+    path: "app/web/src/App.jsx",            body: `const rooms = await supabase.from("grow_rooms").select("*");` },
+  { rule: "E6", mustBlock: false, why: "the ANON key is public by design and must never be flagged",
+    path: "app/web/src/App.jsx",            body: `const anonKey = "${ANONJWT}";` },
+];
+
 /* ------------------------------------------------- the greps ci.yml actually runs --- */
 /* Read from ci.yml rather than copied, so this cannot drift from what CI runs — a
    hand-copied pattern here would be a fifth copy of the bug. */
@@ -287,6 +341,11 @@ const hookBlocksFile = (path) =>
 const hookBlocksBash = (cmd) =>
   runHook(SQL_HOOK, { tool_name: "Bash", tool_input: { command: cmd } });
 
+/* The secrets hook reads the target path AND the body, and skips the path itself when
+   scanning — so the payload has to carry both, exactly as a real Write does. */
+const hookBlocksSecret = (path, content) =>
+  runHook(SECRETS_HOOK, { tool_name: "Write", tool_input: { file_path: `${root}/${path}`, content } });
+
 const CI = ciPatterns();
 /* grep is LINE-based. Testing the pattern against the whole blob let a `drop view` on line 12
    pair with a `cascade` on line 3, which is precisely the false positive that blocked three
@@ -335,6 +394,20 @@ for (const f of FILE_FIXTURES) {
   say(ok, `${f.rule} must ${(f.mustBlock ? "BLOCK" : "ALLOW").padEnd(5)} — ${f.path}`);
   if (!ok) {
     failures.push(`File guard ${f.rule}: ${f.path} expected ${f.mustBlock ? "BLOCK" : "ALLOW"} but got ${got ? "BLOCK" : "ALLOW"} (${f.why})`);
+  }
+}
+
+console.log("\nguard-fixtures: secrets — a credential must never reach a file it does not belong in\n");
+for (const f of SECRET_FIXTURES) {
+  const got = hookBlocksSecret(f.path, f.body);
+  const ok = got === f.mustBlock;
+  const verb = f.mustBlock ? "BLOCK" : "ALLOW";
+  say(ok, `${f.rule} must ${verb.padEnd(5)} — ${f.why}`);
+  if (!ok) {
+    failures.push(
+      `Secrets guard ${f.rule}: ${f.path} expected ${verb} but got ${got ? "BLOCK" : "ALLOW"}\n` +
+      `        ${f.why}`
+    );
   }
 }
 

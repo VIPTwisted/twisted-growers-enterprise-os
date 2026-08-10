@@ -14,7 +14,7 @@ import openpyxl, xlrd
 warnings.filterwarnings('ignore')
 
 FN = 'https://fxetuqjryttnypgepsru.supabase.co/functions/v1/report-ingest'
-HDR = {'x-admin-key': 'tg-seed-8f3k2m-2026',
+HDR = {'x-admin-key': os.environ.get('TG_ADMIN_KEY', ''),
        'Authorization': 'Bearer ' + os.environ.get('SUPA_KEY', ''),
        'Content-Type': 'application/json'}
 

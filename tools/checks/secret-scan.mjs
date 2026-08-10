@@ -66,6 +66,17 @@ export const SECRET_PATTERNS = [
   { name: "Slack token",
     re: /\bxox[abprs]-[A-Za-z0-9-]{10,}\b/,
     fix: "Rotate in Slack and load from the environment." },
+  /* ADDED 9 Aug 2026, found by giving guard-secrets.mjs its first fixtures.
+     This scanner had NO pattern for our own edge-function admin key — the shared secret every
+     metrc-* function checks in its x-admin-key header. TEN copies of it had accumulated in a
+     OneDrive-synced config, and they were removed by a one-off script written for that clean-up,
+     NOT by this scanner. So the scanner would have watched the same thing happen again.
+     A credential this codebase actually uses, with no pattern watching for it, is the most
+     ordinary way a secret escapes: everyone assumes the scanner covers it. */
+  { name: "edge-function admin key",
+    re: /\b(x-admin-key\s*[:=]\s*\S+|tg-seed-[A-Za-z0-9]+-\d{4})/i,
+    fix: "Read it from integration_secrets at run time. It is the shared secret every metrc-* "
+       + "function trusts, so a copy in a file is a copy that can be replayed against them." },
 ];
 
 /* Files that legitimately describe credential shapes. Listed here WITH A REASON so an

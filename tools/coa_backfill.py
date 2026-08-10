@@ -23,7 +23,7 @@ KEY = os.environ.get('SUPA_KEY', '')
 # The coa-extract endpoint, not the REST tables: anon has no read on coa_extract
 # and should not - the function holds the admin key and does the reading for us.
 FN = SUPA + '/functions/v1/coa-extract'
-HDR = {'x-admin-key': 'tg-seed-8f3k2m-2026',
+HDR = {'x-admin-key': os.environ.get('TG_ADMIN_KEY', ''),
        'Authorization': 'Bearer ' + KEY,
        'Content-Type': 'application/json'}
 
