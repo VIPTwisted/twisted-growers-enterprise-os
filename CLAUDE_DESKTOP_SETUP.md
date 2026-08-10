@@ -70,7 +70,7 @@ Look for a file called `claude_desktop_config.json`.
       "args": [
         "-y",
         "@modelcontextprotocol/server-postgres",
-        "postgresql://tg_desktop_reader.fxetuqjryttnypgepsru:TGdesk-2026-r3ad0nly-8f3k2m@aws-0-us-east-1.pooler.supabase.com:5432/postgres?sslmode=require"
+        "postgresql://USER:PASSWORD@HOST:5432/postgres?sslmode=require   <-- the real connection string lives ONLY in .mcp.json (gitignored). Rotated 9 Aug 2026; the value previously printed here is dead."
       ]
     }
   }
@@ -89,7 +89,7 @@ Look for a file called `claude_desktop_config.json`.
       "args": [
         "-y",
         "@modelcontextprotocol/server-postgres",
-        "postgresql://tg_desktop_reader.fxetuqjryttnypgepsru:TGdesk-2026-r3ad0nly-8f3k2m@aws-0-us-east-1.pooler.supabase.com:5432/postgres?sslmode=require"
+        "postgresql://USER:PASSWORD@HOST:5432/postgres?sslmode=require   <-- the real connection string lives ONLY in .mcp.json (gitignored). Rotated 9 Aug 2026; the value previously printed here is dead."
       ]
     }
   }

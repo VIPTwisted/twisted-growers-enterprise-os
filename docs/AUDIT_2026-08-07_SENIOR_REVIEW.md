@@ -198,7 +198,7 @@ disabled entirely.**
 plaintext:
 
 ```
-postgresql://tg_desktop_reader.fxetuqjryttnypgepsru:TGdesk-2026-r3ad0nly-8f3k2m@...?sslmode=no-verify
+postgresql://USER:PASSWORD@HOST:5432/postgres?sslmode=require   <-- the real connection string lives ONLY in .mcp.json (gitignored). Rotated 9 Aug 2026; the value previously printed here is dead.
 ```
 
 - Present in commits **`a0fe5aa`** and **`9af82a7`**, and **pushed to `origin/main`**.
