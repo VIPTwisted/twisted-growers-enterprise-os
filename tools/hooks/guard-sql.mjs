@@ -126,7 +126,16 @@ function check(payload) {
    * matched with literals intact — so `create function ... execute 'drop view x cascade'`
    * stays blocked, which is the dynamic-SQL landmine that full literal-stripping would have
    * opened. That route is why this is narrow: it would be committed today and fire later. */
-  const DANGEROUS_VERB = /\b(create|alter|drop|truncate|grant|revoke|execute|do|delete|refresh|call|copy|security\s+label)\b/;
+  /* `do` must mean an anonymous code block, not `on conflict ... DO UPDATE`.
+   *
+   * Listed as a bare word first, and it cost the very statement this was written for: seeding
+   * the policy register is an UPSERT, so its `on conflict do update` read as a DO block, the
+   * skip was refused, and the E1 text inside a literal matched. The fixture had used a plain
+   * INSERT and passed — a fixture that does not match the real shape of the work proves the
+   * wrong thing, which is the same defect as a check that cannot fail wearing different
+   * clothes. The upsert form is now a fixture too. */
+  const DANGEROUS_VERB =
+    /\b(create|alter|drop|truncate|grant|revoke|execute|delete|refresh|call|copy|security\s+label)\b|\bdo\s*\$|\bdo\s+language\b/;
   const isPureDataWrite = (t) => {
     const skeleton = t.replace(/'(?:[^']|'')*'/g, "''")        /* single-quoted literals */
                       .replace(/\$([A-Za-z_]*)\$[\s\S]*?\$\1\$/g, "''"); /* dollar-quoted bodies */

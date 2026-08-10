@@ -145,6 +145,19 @@ const SQL_FIXTURES = [
   { rule: "E1", mustBlock: false, ciStricter: true,
     why: "DATA NOT CODE — a finding may quote the statement that caused it",
     sql: `update watchdog_note set body = 'someone ran ${DROP} view v_money_position cascade' where id = 1;` },
+  /* The REAL shape of the work, not a simplified version of it. The plain-INSERT fixture above
+     passed while the actual policy seed — an UPSERT — was refused, because `on conflict do
+     update` read as a DO block. A fixture that does not match the shape of the work proves the
+     wrong thing. */
+  { rule: "E1", mustBlock: false, ciStricter: true,
+    why: "DATA NOT CODE — the upsert form, which is what the seed actually is",
+    sql: `insert into policy_registry (policy_key, title) values ('E1', 'NEVER ${DROP} view ... cascade')`
+       + ` on conflict (policy_key) do update set title = excluded.title;` },
+  { rule: "E1", mustBlock: false, ciStricter: true,
+    why: "DATA NOT CODE — do nothing is the other upsert tail",
+    sql: `insert into policy_registry (policy_key, title) values ('E1', '${DROP} view ... cascade') on conflict do nothing;` },
+  { rule: "E1", mustBlock: true,  why: "DO BLOCK — an anonymous code block still executes, so it is never prose",
+    sql: `do $$ begin execute '${DROP} view v_money_position cascade'; end $$;` },
   { rule: "E1", mustBlock: true,  why: "DYNAMIC SQL — a function body may not hide the drop in a literal",
     sql: `create function f() returns void as $$ begin execute '${DROP} view v_money_position cascade'; end $$ language plpgsql;` },
   { rule: "E1", mustBlock: true,  why: "the skip must not extend past the data write to a real statement",
