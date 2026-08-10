@@ -7,6 +7,7 @@ import Timesheets from "./timesheets.jsx";
 import HrQueue from "./hrqueue.jsx";
 import Terminals from "./terminals.jsx";
 import MyWeek from "./myweek.jsx";
+import DocReader from "./docreader.jsx";
 import SyncItems from "./syncitems.jsx";
 import jsQR from "jsqr";
 import { supabase, FUNCTIONS_URL } from "./lib/supabase.js";
@@ -9571,6 +9572,7 @@ export default function App() {
     hr_review_queue: <HrQueue go={setView} session={session} />,
     terminals: <Terminals go={setView} session={session} />,
     my_week: <MyWeek go={setView} session={session} />,
+    doc_reader: <DocReader go={setView} session={session} />,
     integrations: <Integrations session={session} />,
     settings: <Settings session={session} prefs={prefs} />,
     help: <Help />,

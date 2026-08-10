@@ -30,6 +30,76 @@
  * the top-bar dropdowns, further down this file. The other 22 uses stay
  * transparent until whoever owns those pages decides to fix them. */
 
+/* ═══ DOCUMENT READER ═══════════════════════════════════════════════
+ * Read, progress per section, then sign the VERSION. The signature box
+ * says what signing means, because receipt is not agreement.
+ */
+.drempty{display:flex;flex-direction:column;align-items:center;gap:7px;text-align:center;
+  padding:44px 24px;border:1px dashed var(--line);border-radius:8px;color:var(--muted)}
+.drempty b{color:var(--ink);font-size:15px}
+.dr{display:flex;flex-direction:column;gap:13px;padding-bottom:48px;max-width:820px}
+.drhead{display:flex;align-items:flex-end;gap:16px;flex-wrap:wrap}
+.drhead h1{margin:0;font-size:25px;font-weight:700;letter-spacing:.01em}
+.drsub{font-size:12.5px;color:var(--muted);margin-top:4px}
+.drsub b{color:var(--ink-2)}
+.drhead button{margin-left:auto}
+.drmsg{background:var(--neon-soft);border:1px solid var(--neon-line);border-radius:6px;
+  padding:11px 14px;font-size:12.5px;color:var(--ink-2);line-height:1.6}
+
+.drlist{display:flex;flex-direction:column;gap:9px}
+.drcard{display:flex;align-items:center;gap:13px;background:var(--surface);
+  border:1px solid var(--line);border-radius:8px;padding:14px 16px;cursor:pointer;
+  font-family:inherit;color:var(--ink);text-align:left;transition:border-color .14s,transform .12s}
+.drcard:hover{border-color:var(--neon-line);transform:translateY(-2px)}
+.drct{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.drct b{font-size:14px;font-weight:800}
+.drct i{font-style:normal;font-size:11.5px;color:var(--muted)}
+.drprog{width:88px;height:6px;border-radius:20px;background:var(--surface-2);
+  border:1px solid var(--line);overflow:hidden;flex:none}
+.drprog span{display:block;height:100%;background:linear-gradient(90deg,var(--neon-hi),var(--neon))}
+
+.drdoc{background:var(--surface);border:1px solid var(--line);border-radius:10px;
+  padding:20px 22px;display:flex;flex-direction:column;gap:12px}
+.drtop{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.drtop h2{margin:0;font-size:20px;font-weight:800;letter-spacing:-.01em}
+.drfrom{font-size:11.5px;color:var(--muted);margin-top:-6px}
+.drbody{font-size:13.5px;line-height:1.75;color:var(--ink-2);white-space:pre-wrap}
+.drcount{font-size:12px;color:var(--muted);border-bottom:1px solid var(--line);padding-bottom:10px}
+.drcount b{color:var(--amber)}
+
+.drsec{border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.drsec.done{border-color:var(--neon-line)}
+.drsechead{width:100%;display:flex;align-items:center;gap:11px;background:var(--surface-2);
+  border:0;padding:12px 14px;cursor:pointer;font-family:inherit;color:var(--ink);text-align:left}
+.drsechead:hover{background:var(--row-hover)}
+.drnum{width:24px;height:24px;border-radius:50%;flex:none;display:grid;place-items:center;
+  font-size:11px;font-weight:800;background:var(--canvas);border:1px solid var(--line);color:var(--muted)}
+.drsec.done .drnum{background:var(--neon);color:var(--neon-ink);border-color:var(--neon)}
+.drtitle{flex:1;min-width:0;font-size:13.5px;font-weight:700}
+.drsecbody{padding:14px 16px 16px;font-size:13px;line-height:1.75;color:var(--ink-2);white-space:pre-wrap}
+
+.drsign{background:var(--surface);border:1px solid var(--neon-line);border-radius:10px;
+  padding:18px 20px;display:flex;flex-direction:column;gap:11px;box-shadow:var(--glow)}
+.drwhat{font-size:12.5px;line-height:1.7;color:var(--ink-2);background:var(--surface-2);
+  border:1px solid var(--line);border-radius:6px;padding:12px 14px}
+.drwhat b{color:var(--ink)}
+.drwhat > b:first-child{display:block;margin-bottom:4px;font-size:11px;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--muted)}
+.drlab{font-size:10px;font-weight:800;letter-spacing:.11em;text-transform:uppercase;color:var(--muted)}
+.drsign input{background:var(--input-bg);border:1px solid var(--line);border-radius:5px;
+  padding:12px 14px;font-size:16px;color:var(--ink);font-family:"Segoe Script","Brush Script MT",cursive;
+  outline:none}
+.drsign input:focus{border-color:var(--neon-line);box-shadow:var(--glow)}
+.dracts{display:flex;gap:9px;flex-wrap:wrap}
+.drblock{font-size:11.5px;color:var(--amber);line-height:1.6}
+
+.drsigned{background:var(--neon-soft);border:1px solid var(--neon-line);border-radius:10px;
+  padding:18px 20px;display:flex;flex-direction:column;gap:6px}
+.drsigned b{font-size:14px}
+.drsigned span{font-size:12px;color:var(--ink-2);line-height:1.6}
+.drsigname{font-family:"Segoe Script","Brush Script MT",cursive;font-size:22px!important;
+  color:var(--neon)!important}
+
 /* ═══ MY WEEK — the staff home ══════════════════════════════════════
  * Written for a phone in a corridor with one hand free. Big first
  * answer, then the week, then everything else.

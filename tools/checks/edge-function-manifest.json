@@ -106,10 +106,10 @@
       "note": "Recovered from production with the shared admin key redacted. Production is the source of record; deploying this copy would break the function."
     },
     "metrc-probe": {
-      "deployed_version": 3,
-      "sha256": "f6256a1289cad1482646794512d1f07b52d48e32c9a2928dca9fa9b226b1b6ea",
-      "redacted": true,
-      "note": "Recovered from production with the shared admin key redacted. Production is the source of record; deploying this copy would break the function."
+      "deployed_version": 4,
+      "sha256": "391edd8813c76660acc31baed678b52e2cef949ab11eafaf684d1f62bd3f9050",
+      "redacted": false,
+      "note": "REAL SOURCE \u2014 no key in the file. Reads TG_ADMIN_KEY from integration_secrets at run time. First of the sixteen moved off the shared literal, 10 Aug 2026. Deployed v4 and verified: correct key 200, wrong key 403, no key 403."
     },
     "metrc-reference-sync": {
       "deployed_version": 1,
