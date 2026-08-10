@@ -13,23 +13,41 @@
  * Uses the esbuild binary already installed under app/web. Output goes nowhere, so this
  * cannot touch dist/ — which is also the deploy directory.
  */
-import { spawnSync } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { createRequire } from "node:module";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const WEB = join(ROOT, "app", "web");
-/* Invoke esbuild's JS entry point with node rather than the .bin shim.
- *
- * The shim is esbuild.cmd on Windows, which node cannot spawn directly; using shell:true to
- * work around that then breaks on the space in "Claude_Twisted Growers" because the shell
- * splits the unquoted command path. Going straight to the JS avoids both problems and is
- * identical on every platform. */
-const bin = join(WEB, "node_modules", "esbuild", "bin", "esbuild");
 
-if (!existsSync(bin)) {
-  console.error("parse-check: esbuild not found at " + bin);
+/* USE ESBUILD'S NODE API. DO NOT SPAWN ITS BINARY.
+ *
+ * This check ran `node node_modules/esbuild/bin/esbuild`. That path is a JavaScript
+ * shim on Windows, so it worked on the machine it was written on. On Linux the same
+ * path is the NATIVE ELF EXECUTABLE, which node cannot parse:
+ *
+ *     node_modules/esbuild/bin/esbuild:1
+ *     ELF^B^A^A
+ *     SyntaxError: Invalid or unexpected token
+ *
+ * So parse-check FAILED ON EVERY PUSH in GitHub Actions while passing locally —
+ * three consecutive red runs, 24 seconds each, unnoticed, because the Action was
+ * advisory and nothing was blocked by it.
+ *
+ * A gate that only passes on its author's operating system is worse than no gate: it
+ * reports green where the work happens and red where the work is checked, so people
+ * learn to ignore the red. That is the same failure as a gate red on arrival, arriving
+ * from the opposite direction.
+ *
+ * The Node API has no shim, no spawn and no platform difference, and it returns
+ * warnings as structured data rather than stderr text that has to be sniffed. */
+const requireFromWeb = createRequire(join(WEB, "package.json"));
+let esbuild;
+try {
+  esbuild = requireFromWeb("esbuild");
+} catch {
+  console.error("parse-check: esbuild is not installed under app/web.");
   console.error("  Run `npm install` inside app/web first.");
   process.exit(1);
 }
@@ -40,21 +58,26 @@ let failed = 0;
 for (const rel of FILES) {
   if (!existsSync(join(WEB, rel))) continue;
 
-  /* spawnSync gives us stderr whether or not the exit code is zero. esbuild exits 0 on
-     warnings, which is precisely the case this check exists to catch. */
-  const r = spawnSync(process.execPath, [bin, "--loader:.jsx=jsx", "--log-level=warning", rel], {
-    cwd: WEB,
-    encoding: "utf8",
-  });
-
-  if (r.error) {
-    console.error("parse-check: could not run esbuild — " + r.error.message);
-    process.exit(1);
+  /* transformSync surfaces WARNINGS as data. esbuild exits zero on a warning, which is
+     precisely the case this check exists to catch — a stray `)}` in JSX is a warning,
+     and one of those rendered as visible text on the Executive Control Tower. */
+  const at = (l) => `${rel}:${l?.line ?? "?"}:${l?.column ?? "?"}`;
+  let noise = "";
+  try {
+    const out = esbuild.transformSync(readFileSync(join(WEB, rel), "utf8"), {
+      loader: rel.endsWith(".jsx") ? "jsx" : "js",
+      sourcefile: rel,
+      logLevel: "silent",
+    });
+    noise = (out.warnings ?? [])
+      .map((w) => `  ${at(w.location)}  ${w.text}`)
+      .join("\n")
+      .trim();
+  } catch (e) {
+    noise = (e.errors ?? []).length
+      ? e.errors.map((x) => `  ${at(x.location)}  ${x.text}`).join("\n")
+      : String(e?.message ?? e);
   }
-
-  const noise = [r.stderr || "", r.status !== 0 ? "esbuild exited " + r.status : ""]
-    .join("\n")
-    .trim();
 
   if (noise) {
     console.error("parse-check: FAIL — " + rel);
