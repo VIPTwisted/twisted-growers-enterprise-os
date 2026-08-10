@@ -304,6 +304,14 @@ jobs:
       # and costs no credits.
       - name: Apex registry agrees with the committed contract
         run: node tools/checks/apex-registry-vs-spec.mjs
+      # verify_jwt is per-function and CANNOT be recovered from the source. 13 of the 26
+      # functions run verify_jwt=false and authenticate in the body; deploying one of them
+      # with the default locks out its real callers, and the reverse publishes an
+      # authenticated endpoint. Deploys here are still manual - pasting a whole file through
+      # an agent's context into an MCP call - so the manifest is the only thing standing
+      # between that and a silent auth change.
+      - name: Deployed manifest declares verify_jwt for every function
+        run: node tools/checks/deployed-manifest-complete.mjs
       # Edge functions had NO scope analysis of any kind. parse-check covers four front-end
       # files with esbuild, which assumes an unresolved identifier is a global; ESLint's
       # no-undef was scoped to app/web/src. On 10 Aug 2026 apex-sync shipped a reference to
