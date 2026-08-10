@@ -3991,7 +3991,7 @@ function SheetSync({ session }) {
         <p className="dashsub">
           For a sheet you are only allowed to look at. Nothing here reaches into the sheet, nothing
           is installed in it, and nobody is given access to it — so no policy is touched. You copy
-          the rows out of the sheet and paste them here, or drop the file the sheet's own Download
+          the rows out of the sheet and paste them here, or drop the file the sheet&rsquo;s own Download
           gives you. It parses the columns, compares against last time and tells you what changed.
         </p>
       </div>
@@ -7121,7 +7121,7 @@ function FinishedGoods({ session }) {
       <div className="pagehead">
         <div>
           <h1>Finished Goods</h1>
-          <div className="sub">The team's live inventory sheet, mirrored tab for tab. Crews keep working in Google Sheets — one press of Sync updates the whole platform for everyone.</div>
+          <div className="sub">The team&rsquo;s live inventory sheet, mirrored tab for tab. Crews keep working in Google Sheets — one press of Sync updates the whole platform for everyone.</div>
         </div>
         {session && <SyncCenter session={session} />}
       </div>
@@ -7135,7 +7135,7 @@ function FinishedGoods({ session }) {
       {rows === null ? (
         <div className="empty"><div className="eicon">{I.box}</div>Loading…</div>
       ) : rows.length === 0 ? (
-        <div className="empty"><div className="eicon">{I.box}</div><b>No rows in this product line yet</b>Press Sync to pull the latest from the team's sheet.</div>
+        <div className="empty"><div className="eicon">{I.box}</div><b>No rows in this product line yet</b>Press Sync to pull the latest from the team&rsquo;s sheet.</div>
       ) : (
         <div className="tablewrap">
           <table>
@@ -7898,9 +7898,19 @@ function Integrations({ session }) {
      Ordered by started_at rather than id - the two tables have independent id
      sequences, so id ordering would interleave them wrongly. */
   const loadRuns = useCallback(async () => {
-    const { data } = await supabase.from("v_all_sync_runs")
+    const { data, error } = await supabase.from("v_all_sync_runs")
       .select("system, endpoint, license, status, records, started_at, error")
       .order("started_at", { ascending: false }).limit(30);
+    /* SURFACE THE ERROR. This was `const { data } = ...` and threw the error away, so
+       a failed query rendered as the empty state - "No sync runs yet" - while 1,739
+       Apex order rows sat in the table. The owner ran two syncs and the screen told
+       him nothing had happened. A read that cannot distinguish "empty" from "failed"
+       is the same silent-failure shape this platform keeps finding, and I wrote it. */
+    if (error) {
+      setRuns([]);
+      setMsg({ kind: "err", text: `Could not read the sync run log: ${error.message}. The runs may have happened — this is a READ failure, not an empty log.` });
+      return;
+    }
     setRuns(data ?? []);
   }, []);
   useEffect(() => { loadStatus(); loadRuns(); }, [loadStatus, loadRuns]);
@@ -8023,14 +8033,14 @@ function Integrations({ session }) {
                 finding (brain/DECISIONS.md, 7 Aug 2026). */}
             <div className="ptitle" style={{ marginTop: 18 }}><span className="pchip" style={{ background: "var(--neon)", color: "var(--neon-ink)" }}>{I.cash}</span> Apex — sales platform</div>
             <div className="sub" style={{ margin: "0 0 10px" }}>
-              Apex is the source of record for <b>sales, pricing and terms</b> — Metrc only ever holds the declared transfer. Your key's scopes decide what the connector can reach; the key below is stored write-only and never displayed again.
+              Apex is the source of record for <b>sales, pricing and terms</b> — Metrc only ever holds the declared transfer. Your key&rsquo;s scopes decide what the connector can reach; the key below is stored write-only and never displayed again.
             </div>
             <label>API key {setPill("APEX_API_KEY")}</label>
-            <input value={form.APEX_API_KEY} onChange={(e) => setForm({ ...form, APEX_API_KEY: e.target.value })} placeholder={isSet("APEX_API_KEY") ? "•••••• stored — paste to replace" : "Apex → Settings → API → the key beside your scope list"} />
+            <input aria-label="Apex API key" value={form.APEX_API_KEY} onChange={(e) => setForm({ ...form, APEX_API_KEY: e.target.value })} placeholder={isSet("APEX_API_KEY") ? "•••••• stored — paste to replace" : "Apex → Settings → API → the key beside your scope list"} />
             <label>API base URL {setPill("APEX_API_BASE")}</label>
-            <input value={form.APEX_API_BASE} onChange={(e) => setForm({ ...form, APEX_API_BASE: e.target.value })} placeholder={isSet("APEX_API_BASE") ? "•••••• stored — paste to replace" : "from Apex's API documentation — not guessed here on purpose"} />
-            <label>Company ID <span className="sub" style={{ fontWeight: 400 }}>— only if Apex's endpoints ask for one</span> {setPill("APEX_COMPANY_ID")}</label>
-            <input value={form.APEX_COMPANY_ID} onChange={(e) => setForm({ ...form, APEX_COMPANY_ID: e.target.value })} placeholder={isSet("APEX_COMPANY_ID") ? "•••••• stored — paste to replace" : "leave blank if the key already identifies the company"} />
+            <input aria-label="Apex API base URL" value={form.APEX_API_BASE} onChange={(e) => setForm({ ...form, APEX_API_BASE: e.target.value })} placeholder={isSet("APEX_API_BASE") ? "•••••• stored — paste to replace" : "from Apex's API documentation — not guessed here on purpose"} />
+            <label>Company ID <span className="sub" style={{ fontWeight: 400 }}>— only if Apex&rsquo;s endpoints ask for one</span> {setPill("APEX_COMPANY_ID")}</label>
+            <input aria-label="Apex company ID" value={form.APEX_COMPANY_ID} onChange={(e) => setForm({ ...form, APEX_COMPANY_ID: e.target.value })} placeholder={isSet("APEX_COMPANY_ID") ? "•••••• stored — paste to replace" : "leave blank if the key already identifies the company"} />
 
             <button className="btn" disabled={busy}>Store securely</button>
             <button type="button" className="btn ghost" style={{ marginLeft: 10 }} disabled={busy} onClick={runSync}>Run Metrc sync now</button>
@@ -8115,7 +8125,17 @@ function Integrations({ session }) {
                       const hasDetail = !!r.error;
                       return (
                         <React.Fragment key={key}>
-                          <tr onClick={() => setOpenRun(isOpen ? null : key)}
+                          {/* Keyboard-reachable, because a row that only answers to a
+                              mouse hides the failure message from anyone not using one.
+                              A <tr> cannot be a <button>, so it takes the role, the
+                              tabIndex and the Enter/Space handling explicitly. */}
+                          <tr onClick={() => hasDetail && setOpenRun(isOpen ? null : key)}
+                              onKeyDown={hasDetail ? (ev) => {
+                                if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); setOpenRun(isOpen ? null : key); }
+                              } : undefined}
+                              tabIndex={hasDetail ? 0 : undefined}
+                              role={hasDetail ? "button" : undefined}
+                              aria-expanded={hasDetail ? isOpen : undefined}
                               style={{ cursor: hasDetail ? "pointer" : "default" }}
                               title={hasDetail ? "Click for the full message" : ""}>
                             <td>{new Date(r.started_at).toLocaleTimeString()}</td>
@@ -8276,7 +8296,7 @@ function Settings({ session, prefs }) {
                 {theme === "light" && <span className="pill ok">active</span>}
               </button>
             </div>
-            <div className="note">Saved to your account instantly. The rail and top bar stay black in both — that's the brand.</div>
+            <div className="note">Saved to your account instantly. The rail and top bar stay black in both — that&rsquo;s the brand.</div>
           </div>
         </div>
         <div className="msection" style={{ marginTop: 0 }}>
@@ -8352,7 +8372,7 @@ function Help() {
       <div className="pagehead">
         <div>
           <h1>Help &amp; Support</h1>
-          <div className="sub">How everything that's live today actually works. This guide grows with every milestone.</div>
+          <div className="sub">How everything that&rsquo;s live today actually works. This guide grows with every milestone.</div>
         </div>
       </div>
       <div className="cols2">
@@ -9278,7 +9298,7 @@ function WelcomeBridge({ onDone }) {
         <h1>Welcome to the Twisted Growers OS</h1>
         <p className="sub">
           Everything on the platform works right now with no setup at all — every report, every dashboard, and the
-          assistant's built-in answers. This page is only about the <b>extra</b> bit: chatting with Claude inside the
+          assistant&rsquo;s built-in answers. This page is only about the <b>extra</b> bit: chatting with Claude inside the
           OS about your own live data.
         </p>
 

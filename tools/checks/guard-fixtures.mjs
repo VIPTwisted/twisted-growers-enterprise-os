@@ -123,6 +123,35 @@ const SQL_FIXTURES = [
   { rule: "E1", mustBlock: true,  why: "a matview drop is unrecoverable, so the escape must not cover it either",
     sql: `set local tg.allow_drop = 'yes';\n${DROP} materialized view mv_tower_counts;` },
 
+  /* ── 9 AUG 2026: FORBIDDEN TEXT AS DATA, the phantom that will recur ──────────
+   * Seeding policy_registry with the 51 rules from CLAUDE.md was refused, because rule E1's
+   * own title is the statement it forbids. A register whose PURPOSE is to catalogue forbidden
+   * statements cannot be written by a guard that greps for them, and the same collision waits
+   * for every finding, work order and audit note that quotes a rule.
+   *
+   * The skip is decided on the code SKELETON with literals removed, so nothing inside a
+   * literal can vote on whether literals are trusted. The last two cases here are the ones
+   * that matter: they are why this is narrow rather than convenient. */
+  /* These three are CI-stricter and it is LIVE, not latent, unlike the block-comment case:
+     grep cannot tell a quoted rule title from a statement, so a policy seed COMMITTED as a
+     .sql file would fail CI. The seed is applied by migration, which CI does not scan, and the
+     honest consequence is recorded here rather than discovered by someone else later. */
+  { rule: "E1", mustBlock: false, ciStricter: true,
+    why: "DATA NOT CODE — the policy register must be able to hold the text of rule E1",
+    sql: `insert into policy_registry (policy_key, title) values ('E1', 'NEVER ${DROP} view ... cascade');` },
+  { rule: "E6", mustBlock: false, ciStricter: true,
+    why: "DATA NOT CODE — and the text of rule E6",
+    sql: `insert into policy_registry (policy_key, title) values ('E6', 'never ${G} select to ${A}');` },
+  { rule: "E1", mustBlock: false, ciStricter: true,
+    why: "DATA NOT CODE — a finding may quote the statement that caused it",
+    sql: `update watchdog_note set body = 'someone ran ${DROP} view v_money_position cascade' where id = 1;` },
+  { rule: "E1", mustBlock: true,  why: "DYNAMIC SQL — a function body may not hide the drop in a literal",
+    sql: `create function f() returns void as $$ begin execute '${DROP} view v_money_position cascade'; end $$ language plpgsql;` },
+  { rule: "E1", mustBlock: true,  why: "the skip must not extend past the data write to a real statement",
+    sql: `insert into policy_registry (policy_key) values ('E1'); ${DROP} view v_money_position;` },
+  { rule: "H2", mustBlock: true,  why: "naming a forensic table forfeits the skip entirely, whatever the verb",
+    sql: `insert into audit_events (note) values ('x'); delete from watchdog_findings where id = 1;` },
+
   // --- Rule E6: 36 views once leaked tags, suppliers and dollar figures ---
   { rule: "E6", mustBlock: true,  why: "the plain form",
     sql: `${G} select on v_customers to ${A};` },

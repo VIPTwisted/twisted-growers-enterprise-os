@@ -42,6 +42,16 @@
  *   RULE 4 · supports_paging matches whether the spec declares `per_page`.
  *   RULE 5 · Every single-segment GET list endpoint in the spec HAS a row. Completeness is
  *            unfalsifiable if the denominator can quietly omit an endpoint.
+ *   RULE 6 · delta_required matches whether the spec marks `updated_at_from` required:true.
+ *
+ * RULE 6 WAS ADDED AFTER THIS GATE PASSED WHILE THE SYNC WAS BROKEN, and that is worth
+ * stating plainly. At 22:21 on 9 Aug 2026 the first real sync returned HTTP 422 on
+ * shipping-orders, receiving-orders, products, buyers and batches - every entity carrying
+ * money, customers, products or Metrc tags - because Apex marks updated_at_from
+ * REQUIRED on seven endpoints and the worker omits it when no watermark exists. This file
+ * checked that the parameter was ACCEPTED and never that it was MANDATORY, so it reported
+ * PASS on a registry that could not pull an order. A gate that passes while the thing it
+ * guards is broken is the failure mode it exists to prevent.
  *
  * It reports credit exposure per entity and passes no verdict on it. There is no threshold in
  * this file on purpose: a cost ceiling is a business decision and belongs in a row, not in a
@@ -87,8 +97,11 @@ function rootKeysOf(path) {
   return Object.keys(schema.properties);
 }
 
-const queryNames = (path) =>
-  ((PATHS[path]?.get?.parameters ?? []).filter((p) => p.in === "query").map((p) => p.name));
+const queryParams = (path) =>
+  ((PATHS[path]?.get?.parameters ?? []).filter((p) => p.in === "query"));
+const queryNames = (path) => queryParams(path).map((p) => p.name);
+const isRequiredParam = (path, name) =>
+  queryParams(path).some((p) => p.name === name && p.required === true);
 
 /* Apex bills 3 credits per item on the endpoints it names as data-heavy, 1 elsewhere. Read
    that list out of the spec's own description rather than retyping it — a hardcoded copy
@@ -120,7 +133,7 @@ async function registryFromDatabase() {
     await client.connect();
     const { rows } = await client.query(
       `select entity, endpoint, api_version, root_key, required, pull_mode,
-              supports_delta, supports_paging, min_interval_minutes
+              supports_delta, delta_required, supports_paging, min_interval_minutes
          from apex_entity order by entity`);
     return rows;
   } catch { return null; }
@@ -188,6 +201,18 @@ for (const r of rows) {
         : `${r.entity}: supports_delta=true but ${path} does NOT accept updated_at_from. ` +
           `The watermark is written and silently ignored, so the run log claims a delta ` +
           `that never happened.`);
+  }
+
+  const specRequiresDelta = isRequiredParam(path, "updated_at_from");           // RULE 6
+  if (specRequiresDelta !== r.delta_required) {
+    fail.push(
+      specRequiresDelta
+        ? `${r.entity}: delta_required=false but the spec marks updated_at_from REQUIRED on ` +
+          `${path}. Called without it, Apex answers HTTP 422 - not a full pull. This is the ` +
+          `defect that returned zero orders, zero buyers and zero products on 9 Aug 2026.`
+        : `${r.entity}: delta_required=true but ${path} does NOT mark updated_at_from ` +
+          `required. The first pull is then needlessly bounded and history is silently ` +
+          `truncated at the seed date.`);
   }
 
   const specPaging = q.includes("per_page");

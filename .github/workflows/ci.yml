@@ -296,6 +296,20 @@ jobs:
       # and costs no credits.
       - name: Apex registry agrees with the committed contract
         run: node tools/checks/apex-registry-vs-spec.mjs
+      # Edge functions had NO scope analysis of any kind. parse-check covers four front-end
+      # files with esbuild, which assumes an unresolved identifier is a global; ESLint's
+      # no-undef was scoped to app/web/src. On 10 Aug 2026 apex-sync shipped a reference to
+      # an undeclared MAX_RATE_RETRIES inside its 429 handler - a ReferenceError that would
+      # only fire while Apex was rate-limiting, on the one path whose job is to survive that.
+      # These 26 functions run unattended on service-role credentials.
+      - name: Edge functions are scope-analysed
+        run: node tools/checks/edge-function-lint.mjs
+      # Wired by Agent G, not its author: all-checks-wired went red because this guard was in
+      # package.json and not here, and a red build blocks everybody. Verified passing first
+      # (7 registered tables, 0 duplicates) so wiring it could not turn CI red for the wrong
+      # reason. If the placement is wrong, move it — the point was not to leave it unwired.
+      - name: No duplicate rows against a registered key
+        run: node tools/checks/no-duplicate-rows.mjs
       - run: node tools/checks/all-checks-wired.mjs
 
       # ---- Rule E1 / E6 / H2: dangerous SQL must not reach a migration ---------------

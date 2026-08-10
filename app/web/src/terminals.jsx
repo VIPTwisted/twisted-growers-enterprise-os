@@ -57,7 +57,7 @@ export default function Terminals({ go }) {
     const [d, s, c] = await Promise.all([
       supabase.from("punch_devices").select("*").order("kind").order("label"),
       supabase.from("employees")
-        .select("id, full_name, employee_code, login_id, status, pin_set_at, badge_code")
+        .select("id, full_name, employee_code, login_id, status, pin_set_at, badge_code, requires_clock_in, clock_exempt_reason, hours_basis")
         .eq("status", "active").order("full_name"),
       supabase.rpc("f_can_decide_hr"),
     ]);
@@ -67,13 +67,32 @@ export default function Terminals({ go }) {
   }, []);
   useEffect(() => { load(); }, [load]);
 
+  /* Counts are taken over the people who are actually ON a clock. Reporting an
+     exempt salaried person as "missing a PIN" is how a real gap gets lost. */
+  const onClock = useMemo(() => staff.filter(s => s.requires_clock_in), [staff]);
   const stats = useMemo(() => ({
     kiosks: devices.filter(d => d.kind === "kiosk" && d.active).length,
     scanners: devices.filter(d => d.kind === "scanner" && d.active).length,
-    withPin: staff.filter(s => s.pin_set_at).length,
-    withBadge: staff.filter(s => s.badge_code).length,
-    total: staff.length,
-  }), [devices, staff]);
+    withPin: onClock.filter(s => s.pin_set_at).length,
+    withBadge: onClock.filter(s => s.badge_code).length,
+    total: onClock.length,
+    exempt: staff.length - onClock.length,
+  }), [devices, staff, onClock]);
+
+  async function toggleClock(s) {
+    setBusy(true); setMsg(null);
+    const next = !s.requires_clock_in;
+    const { error } = await supabase.from("employees").update({
+      requires_clock_in: next,
+      clock_exempt_reason: next ? null : (s.clock_exempt_reason ?? "Set in Terminals & Credentials"),
+    }).eq("id", s.id);
+    setBusy(false);
+    setMsg(error ? error.message
+      : next
+        ? `${nameOf(s.full_name)} is now required to clock in.`
+        : `${nameOf(s.full_name)} is no longer on a clock — they will raise no attendance occurrences and need no PIN.`);
+    load();
+  }
 
   async function addDevice(e) {
     e.preventDefault();
@@ -149,8 +168,9 @@ export default function Terminals({ go }) {
       <div className="tmstats">
         <div className={stats.kiosks ? "" : "hot"}><b>{stats.kiosks}</b><span>wall terminals</span></div>
         <div><b>{stats.scanners}</b><span>door scanners</span></div>
-        <div className={stats.withPin ? "" : "hot"}><b>{stats.withPin}</b><span>of {stats.total} have a PIN</span></div>
+        <div className={stats.withPin ? "" : "hot"}><b>{stats.withPin}</b><span>of {stats.total} on a clock have a PIN</span></div>
         <div><b>{stats.withBadge}</b><span>have a badge</span></div>
+        <div><b>{stats.exempt}</b><span>not on a clock</span></div>
       </div>
 
       {!canDo && (
@@ -183,19 +203,19 @@ export default function Terminals({ go }) {
           <form className="tmform" onSubmit={addDevice}>
             <div className="tmf">
               <label>Name</label>
-              <input value={dLabel} onChange={(e) => setDLabel(e.target.value)}
+              <input aria-label="Field 1" value={dLabel} onChange={(e) => setDLabel(e.target.value)}
                 placeholder="Packaging wall terminal" disabled={!canDo} />
             </div>
             <div className="tmf">
               <label>Kind</label>
-              <select value={dKind} onChange={(e) => setDKind(e.target.value)} disabled={!canDo}>
+              <select aria-label="Field 2" value={dKind} onChange={(e) => setDKind(e.target.value)} disabled={!canDo}>
                 <option value="kiosk">Wall terminal — ID and PIN</option>
                 <option value="scanner">Door scanner — badge only</option>
               </select>
             </div>
             <div className="tmf">
               <label>Where it is</label>
-              <input value={dLocation} onChange={(e) => setDLocation(e.target.value)}
+              <input aria-label="Field 3" value={dLocation} onChange={(e) => setDLocation(e.target.value)}
                 placeholder="Room B, by the gowning door" disabled={!canDo} />
             </div>
             <button className="btn" disabled={busy || !canDo}>Register</button>
@@ -226,7 +246,7 @@ export default function Terminals({ go }) {
           <form className="tmform" onSubmit={savePin}>
             <div className="tmf wide">
               <label>Who</label>
-              <select value={pinFor} onChange={(e) => setPinFor(e.target.value)} disabled={!canDo}>
+              <select aria-label="Field 4" value={pinFor} onChange={(e) => setPinFor(e.target.value)} disabled={!canDo}>
                 <option value="">Choose a person…</option>
                 {staff.map(s => (
                   <option key={s.id} value={s.id}>
@@ -237,12 +257,12 @@ export default function Terminals({ go }) {
             </div>
             <div className="tmf">
               <label>PIN</label>
-              <input type="password" inputMode="numeric" value={pin} maxLength={8}
+              <input aria-label="Field 5" type="password" inputMode="numeric" value={pin} maxLength={8}
                 onChange={(e) => setPin(e.target.value)} placeholder="4–8 digits" disabled={!canDo} />
             </div>
             <div className="tmf">
               <label>Again</label>
-              <input type="password" inputMode="numeric" value={pin2} maxLength={8}
+              <input aria-label="Field 6" type="password" inputMode="numeric" value={pin2} maxLength={8}
                 onChange={(e) => setPin2(e.target.value)} disabled={!canDo} />
             </div>
             <button className="btn" disabled={busy || !canDo}>Set PIN</button>
@@ -256,11 +276,25 @@ export default function Terminals({ go }) {
 
           <div className="tmlist">
             {staff.map(s => (
-              <div className="tmrow" key={s.id}>
+              <div className={`tmrow ${s.requires_clock_in ? "" : "off"}`} key={s.id}>
                 <span className="tmav">{initials(s.full_name)}</span>
-                <span className="tmn"><b>{nameOf(s.full_name)}</b><i>{s.login_id ?? "no login ID"}</i></span>
-                <span className={`schip ${s.pin_set_at ? "ok" : "mute"}`}>
-                  {s.pin_set_at ? "PIN set" : "no PIN"}</span>
+                <span className="tmn">
+                  <b>{nameOf(s.full_name)}</b>
+                  <i>{s.requires_clock_in
+                        ? (s.login_id ?? "no login ID")
+                        : (s.clock_exempt_reason ?? "not on a clock")}</i>
+                </span>
+                {s.requires_clock_in
+                  ? <span className={`schip ${s.pin_set_at ? "ok" : "hot"}`}>
+                      {s.pin_set_at ? "PIN set" : "no PIN"}</span>
+                  : <span className="schip mute">not on a clock</span>}
+                <button className="btn ghost small" disabled={busy || !canDo}
+                  title={s.requires_clock_in
+                    ? "Exempt this person — no PIN needed, no attendance occurrences"
+                    : "Put this person back on a clock"}
+                  onClick={() => toggleClock(s)}>
+                  {s.requires_clock_in ? "Exempt" : "Require"}
+                </button>
               </div>))}
           </div>
         </>)}
@@ -270,7 +304,7 @@ export default function Terminals({ go }) {
           <form className="tmform" onSubmit={saveBadge}>
             <div className="tmf wide">
               <label>Who</label>
-              <select value={badgeFor} onChange={(e) => setBadgeFor(e.target.value)} disabled={!canDo}>
+              <select aria-label="Field 7" value={badgeFor} onChange={(e) => setBadgeFor(e.target.value)} disabled={!canDo}>
                 <option value="">Choose a person…</option>
                 {staff.map(s => (
                   <option key={s.id} value={s.id}>
@@ -281,7 +315,7 @@ export default function Terminals({ go }) {
             </div>
             <div className="tmf wide">
               <label>Badge or fob</label>
-              <input value={badge} onChange={(e) => setBadge(e.target.value)}
+              <input aria-label="Field 8" value={badge} onChange={(e) => setBadge(e.target.value)}
                 placeholder="Scan the badge, or type its number" disabled={!canDo} />
             </div>
             <button className="btn" disabled={busy || !canDo}>Link badge</button>

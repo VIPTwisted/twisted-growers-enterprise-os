@@ -8,10 +8,14 @@
  * Measured before removing anything, and there was nothing to remove — twice over,
  * and both times a blind dedupe would have destroyed real records:
  *
- *   metrc_packages showed SEVEN tags appearing twice. Each appears once under
- *   MC281714 and once under MP281909: the same 84g package in transit between this
- *   company's own two licences, the sender seeing 'intransit' and the receiver
- *   'active'. On (license, tag) there are zero duplicates.
+ *   metrc_packages showed SEVEN tags appearing twice. Each appears once under each
+ *   of this company's own two licences: the same 84g package in transit between
+ *   them, the sender seeing 'intransit' and the receiver 'active'. On
+ *   (license, tag) there are zero duplicates.
+ *
+ *   The licence numbers are deliberately not written here. Rule G2 — they come
+ *   from company_licenses via f_is_ours(), and a literal in a comment is still a
+ *   literal the day someone copies the line into code.
  *
  *   metrc_rpt_transfer_manifests showed 975 groups and 1,851 extra rows. ALL 975
  *   differ in content; none is byte-identical. It is a report SNAPSHOT table — the

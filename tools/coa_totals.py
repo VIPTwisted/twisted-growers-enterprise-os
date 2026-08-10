@@ -31,6 +31,11 @@ import re
 # was confirmed against 15 certificates that print both figures.
 MG_PER_G_PER_PERCENT = 10.0
 
+# THCA loses CO2 on decarboxylation and becomes THC at 0.877 of its mass - the ratio
+# of the molecular weights. Definitional, not a house choice, and printed verbatim on
+# certificates that show their working ("Total THC=THC+THCAX0.877").
+THCA_TO_THC = 0.877
+
 NOT_A_NUMBER = re.compile(r'^(ND|N/?A|NT|<\s*LO[QD]|NOT\s+DETECTED|TESTED)$', re.I)
 
 
@@ -84,6 +89,14 @@ def total_from_line(line, after=0):
     pct, _ = reconcile_pair(frags)
     if pct is not None:
         return pct
+
+    # A line carrying its own definition: the formula's constants are numbers too,
+    # so token order cannot be trusted. The measurement is the one wearing a unit.
+    if '=' in tail:
+        units = VALUE_BEFORE_UNIT.findall(tail)
+        if len(units) == 1:
+            return float(units[0])
+        return None
     # No mg/g column to check against. Accept a lone percentage only when the
     # per-cent sign is actually printed; anything else is ambiguous, and an
     # ambiguous potency is worse than a missing one.
@@ -104,7 +117,19 @@ LABELS = {
     'total_cannabinoids': [r'Total\s+Active\s+Cannabinoids?', r'TOTAL\s+TAC',
                            r'Total\s+Cannabinoids?'],
 }
-EXCLUDE = re.compile(r'Total\s+Available|=|\bLOD\b|\bLOQ\b|analyzed\s+by|Limit\s+of', re.I)
+# A line mentioning the label but printing no measurement: a footnote, a column
+# heading, or a definition. NOTE the '=' case is deliberately NOT here. G7 prints
+# the definition and the answer on the same line -
+#     Total THC=THC+THCAX0.877 25.79 Wt.%
+# - so excluding every line containing '=' threw away the only line carrying the
+# figure. Definition-only lines are caught instead by there being no value to read
+# after the label, which total_from_line already establishes.
+EXCLUDE = re.compile(r'Total\s+Available|\bLOD\b|\bLOQ\b|analyzed\s+by|Limit\s+of', re.I)
+
+# A number immediately before a unit is the measurement; a number inside a formula
+# is not. "Total THC=THC+THCAX0.877 25.79 Wt.%" contains 0.877 and 25.79, and only
+# the second is the result.
+VALUE_BEFORE_UNIT = re.compile(r'(\d*\.?\d+)\s*(?:Wt\.?\s*%|%|mg/g)', re.I)
 
 
 ANY_LABEL = re.compile(
@@ -134,6 +159,52 @@ def _by_column(header_line, value_line, label_start):
         return None
     frags = _tokens(raw)
     return float(frags[0]) if frags else None
+
+
+def _analyte(text, patterns):
+    """One analyte's percentage, read from its own row.
+
+    The row carries several columns - LOQ, result as a percentage, result as mg/g -
+    and the percentage is the one the mg/g column is ten times. That is the same
+    check used for the totals, so a misread column cannot pass silently. ND and BLQ
+    are real zeros here: the analyte was looked for and not found.
+    """
+    for ln in [re.sub(r'[ \t]+', ' ', l).strip() for l in text.split('\n')]:
+        for pat in patterns:
+            m = re.search(pat, ln, re.I)
+            if not m:
+                continue
+            tail = ln[m.end():]
+            # Read the row as COLUMNS, not as a stream of numbers. Green Analytics
+            # prints "LOQ (%) | Result (%) | Result (mg/g)", so a row reading
+            #     Tetrahydrocannabinolic acid (THCA) 0.200 ND ND
+            # means NOT DETECTED - and taking the first number takes 0.200, the
+            # limit of quantitation, as though it were a measurement. That put
+            # 0.877 x 0.2 into four derived totals and made every one of them
+            # 0.2% too high against Metrc. The original parser's own comments
+            # warned about exactly this column and I walked into it anyway.
+            slots = re.findall(r'ND|BLQ|N/?A|<\s*LO[QD]|\d*\.?\d+', tail, re.I)
+            if len(slots) < 2:
+                return None
+            # slots[0] is the LOQ. The result is what follows it.
+            result = slots[1]
+            if re.fullmatch(r'ND|BLQ|N/?A|<\s*LO[QD]', result, re.I):
+                return 0.0        # looked for, not found: a real zero
+            try:
+                pct = float(result)
+            except ValueError:
+                return None
+            # If an mg/g column follows, it must be ten times the percentage.
+            # That is the document proving its own reading, not a tolerance.
+            if len(slots) >= 3 and not re.fullmatch(r'ND|BLQ|N/?A|<\s*LO[QD]', slots[2], re.I):
+                try:
+                    mgg = float(''.join(slots[2:]))
+                    if abs(mgg - pct * MG_PER_G_PER_PERCENT) > max(0.02 * pct * MG_PER_G_PER_PERCENT, 0.05):
+                        return None    # columns do not line up - refuse rather than guess
+                except ValueError:
+                    pass
+            return pct
+    return None
 
 
 def parse_totals(text):
@@ -168,4 +239,24 @@ def parse_totals(text):
             if hit is not None:
                 out[field] = hit
                 break
+
+    # Some certificates print every cannabinoid and no total. Green Analytics lists
+    # THCA and d9-THC to three decimals and stops, so there is no "Total THC" line
+    # to read - 33 certificates were unreadable for that reason alone.
+    #
+    # Total THC is not a house convention: it is THC + THCA x 0.877, the
+    # decarboxylation factor, and other laboratories PRINT that formula on the same
+    # certificate ("Total THC=THC+THCAX0.877"). Computing it from the printed
+    # components is therefore reading what the document states, not inventing a
+    # number - but it is still DERIVED, so it says so and can be checked against
+    # Metrc independently.
+    if 'total_thc' not in out:
+        d9 = _analyte(text, [r'\(\s*[∆Δd]?9?\s*-?\s*THC\s*\)', r'\bDelta\s*9\s*THC\b'])
+        thca = _analyte(text, [r'\(\s*THCA\s*\)', r'\bDelta\s*9\s*THCA\b', r'\bTHCA\b'])
+        if d9 is not None and thca is not None:
+            out['total_thc'] = round(d9 + thca * THCA_TO_THC, 4)
+            out['total_thc_derived'] = True
+            out['total_thc_basis'] = ('computed as d9-THC %s + THCA %s x %s, because the '
+                                      'certificate prints the components and no total'
+                                      % (d9, thca, THCA_TO_THC))
     return out

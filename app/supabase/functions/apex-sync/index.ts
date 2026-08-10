@@ -57,6 +57,10 @@ const DEFAULT_BASE = "https://app.apextrading.com/api";
 const PAUSE_MS = 250;
 const PER_PAGE = 200;
 const MAX_PAGES = 60;
+/* Apex publishes 15 requests/second and sends Retry-After. Three attempts honouring their
+   own header is enough to ride out a burst; more than that is not a rate limit, it is a
+   queue we should not be forming. */
+const MAX_RATE_RETRIES = 3;
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 async function callerIsExecutive(req: Request): Promise<boolean> {
@@ -134,6 +138,11 @@ async function pullEntity(base: string, key: string, e: Entity, runId: string, s
   const rows: Record<string, unknown>[] = [];
   let page = 1;
   let httpStatus = 0;
+  let rateRetries = 0;
+  let truncated = false;
+  /* Apex returns its own pagination metadata. Completeness is read from THAT rather than
+     inferred from a short last page - see the shortfall test below. */
+  let meta: { total?: number; last_page?: number; current_page?: number } | null = null;
 
   try {
     for (;;) {
@@ -147,10 +156,40 @@ async function pullEntity(base: string, key: string, e: Entity, runId: string, s
       const r = await apexGet(base, key, path, params);
       httpStatus = r.status;
 
+      /* 429 MEANS TWO COMPLETELY DIFFERENT THINGS AND THEY NEED OPPOSITE RESPONSES.
+         Apex's own documentation: 15 requests/second per token returns 429 with a
+         Retry-After, and SEPARATELY "if your spending cap is $0, requests that would
+         exceed your free allowance are rejected with a 429 response".
+
+         The first clears in one second. The second does not clear until the month rolls
+         over or somebody raises the cap. Reporting both as "throttled, stopped
+         deliberately" tells an operator to wait when they need to go and change a
+         setting - a wrong label, which costs more than no label because the next person
+         waits too. Distinguish them by the body, and honour Retry-After when it is
+         genuinely a rate limit. */
       if (r.status === 429) {
+        const body = (await r.text()).slice(0, 300);
+        const isRateLimit = /rate limit/i.test(body) || r.headers.has("retry-after");
+        const retryAfter = Number(r.headers.get("retry-after") ?? 0);
+
+        if (isRateLimit && rateRetries < MAX_RATE_RETRIES) {
+          rateRetries++;
+          /* Their header is in seconds and they say to respect it. A fixed guess here
+             would be the same mistake as guessing the limit in the first place. */
+          await sleep(Math.max(retryAfter * 1000, PAUSE_MS * 4));
+          continue;                       // same page, after the wait they asked for
+        }
+        const spendingCap = !isRateLimit;
         await logRun({ status: "throttled", http_status: 429, rows_seen: rows.length, rows_written: 0,
-          error: "Apex returned 429. Stopped this entity rather than retrying into a rate limit." });
-        return `THROTTLED after ${rows.length} row(s) — stopped deliberately`;
+          error: spendingCap
+            ? `HTTP 429 with no rate-limit signal: this is the CREDIT ALLOWANCE or SPENDING CAP, `
+              + `not request rate. Waiting will not clear it. Raise the spending cap in Apex `
+              + `account settings or wait for the monthly allowance to reset. Body: ${body}`
+            : `HTTP 429 rate limit, still refused after ${rateRetries} retries honouring `
+              + `Retry-After. Body: ${body}` });
+        return spendingCap
+          ? `STOPPED — Apex credit allowance or spending cap reached. This does NOT clear by waiting.`
+          : `THROTTLED after ${rows.length} row(s) — rate limited past ${rateRetries} retries`;
       }
       if (!r.ok) {
         const body = (await r.text()).slice(0, 300);
@@ -174,11 +213,32 @@ async function pullEntity(base: string, key: string, e: Entity, runId: string, s
       }
       const list = Array.isArray(chunk) ? chunk : [chunk];
       rows.push(...(list as Record<string, unknown>[]));
+      meta = (body?.meta ?? null) as typeof meta;
 
-      if (!e.supports_paging || list.length < PER_PAGE || page >= MAX_PAGES) break;
+      if (!e.supports_paging || list.length < PER_PAGE) break;
+
+      /* A SILENT CAP READS EXACTLY LIKE A SMALL DATASET. The loop used to stop at
+         MAX_PAGES and report "ok" with whatever it had - 12,000 rows presented as the
+         whole entity, with nothing anywhere saying otherwise. Apex tells us how many
+         records exist; refuse rather than truncate, and say what was left behind. */
+      if (page >= MAX_PAGES) { truncated = true; break; }
       page++;
       await sleep(PAUSE_MS);
     }
+
+    /* COMPLETENESS PROVED BY APEX'S OWN COUNT, not inferred from a short final page.
+       "The last page was short" is an assumption; meta.total is the server's answer to
+       "how many are there".
+
+       WHEN THEY DISAGREE, STORE THE ROWS AND HOLD THE WATERMARK. My first version threw the
+       rows away, which is wrong twice over: the fetch is already paid for in credits, and
+       apex_raw dedupes on (entity, apex_id, payload_hash) so keeping them costs nothing and
+       loses nothing. What must NOT happen is the cursor moving past records we never saw.
+       Holding the watermark makes the next run re-fetch the identical window - the pull
+       retries itself, and the run row says plainly that it was short. */
+    const shortfall = (meta?.total != null && rows.length !== meta.total)
+      ? `Apex's own meta.total says ${meta.total}, we hold ${rows.length}`
+      : truncated ? `hit the ${MAX_PAGES}-page ceiling at ${rows.length} rows` : null;
 
     /* DEDUPE BY CONTENT, computed by POSTGRES. A delta pull returns a row because
        its updated_at moved, which is not the same as its content changing.
@@ -208,15 +268,46 @@ async function pullEntity(base: string, key: string, e: Entity, runId: string, s
     }
 
     /* THE WATERMARK ADVANCES ONLY HERE, ON SUCCESS. Advancing it on a failed pull
-       leaves a hole no later run will ever revisit and nothing downstream can see. */
+       leaves a hole no later run will ever revisit and nothing downstream can see.
+
+       AND IT ADVANCES TO WHEN THE PULL STARTED, NOT WHEN IT FINISHED. This was a real
+       hole in the success path, the mirror of the one guarded above. Apex evaluates the
+       query at the moment the first page is requested; shipping-orders then took 69.3
+       seconds to page through. Setting the cursor to the FINISH time means any record
+       whose updated_at fell inside that window - after Apex snapshotted, before we
+       finished - is never asked for again. Not late. Gone.
+
+       Overlapping instead is free: apex_raw dedupes on (entity, apex_id, payload_hash),
+       so a row re-fetched unchanged is dropped by the unique index rather than stored
+       twice. The only cost of overlap is a few credits. The cost of a gap is a missing
+       order nobody can find, and nothing downstream can detect it. */
     const now = new Date().toISOString();
+
+    /* A SHORT PULL KEEPS ITS ROWS AND LOSES ITS CURSOR. The rows are already stored above.
+       Leaving updated_at_from untouched means the next run asks for the same window again,
+       so the gap closes itself instead of becoming permanent. last_attempt_at still moves,
+       because the attempt did happen and the sentinel needs to see it. */
+    if (shortfall) {
+      await supa.from("apex_watermark").upsert({
+        entity: e.entity, last_attempt_at: now,
+        consecutive_errors: (wmRow?.consecutive_errors ?? 0) + 1,
+      });
+      await logRun({ status: "error", http_status: httpStatus, rows_seen: rows.length,
+        rows_written: written,
+        error: `INCOMPLETE PULL — ${shortfall}. The ${written} row(s) fetched WERE stored `
+             + `(apex_raw dedupes, so keeping them is free), but the watermark was deliberately `
+             + `NOT advanced, so the next run re-fetches this exact window rather than skipping `
+             + `past records nobody has seen.` });
+      return `INCOMPLETE — ${shortfall}; ${written} stored, watermark held for retry.`;
+    }
+
     await supa.from("apex_watermark").upsert({
       entity: e.entity,
-      updated_at_from: e.supports_delta ? now : null,
+      updated_at_from: e.supports_delta ? started : null,
       last_success_at: now, last_attempt_at: now, consecutive_errors: 0,
     });
     await logRun({ status: "ok", http_status: httpStatus, rows_seen: rows.length,
-      rows_written: written, watermark_after: e.supports_delta ? now : null });
+      rows_written: written, watermark_after: e.supports_delta ? started : null });
 
     if (rows.length === 0) {
       return watermarkBefore
@@ -270,14 +361,21 @@ Deno.serve(async (req: Request) => {
 
   let creditsBefore: number | null = null;
   let usageLimit: number | null = null;
-  try {
-    const u = await apexGet(base, key, "/v1/usage", {});
-    if (u.ok) {
+
+  /* Cumulative credits used this month. Reading it between entities turns the difference
+     into that entity's exact cost - measured, not modelled from the published rate card. */
+  async function readCredits(): Promise<number | null> {
+    try {
+      const u = await apexGet(base, key, "/v1/usage", {});
+      if (!u.ok) return null;
       const d = (await u.json())?.data ?? {};
-      creditsBefore = d.credits_used ?? null;
-      usageLimit = d.monthly_credit_limit ?? null;
-    }
-  } catch { /* usage is diagnostics; never let it stop a sync */ }
+      usageLimit = d.monthly_credit_limit ?? usageLimit;
+      return typeof d.credits_used === "number" ? d.credits_used : null;
+    } catch { return null; }   /* diagnostics must never stop a sync */
+  }
+
+  creditsBefore = await readCredits();
+  let creditsCursor: number | null = creditsBefore;   // moves as each entity is billed
 
   const url = new URL(req.url);
   const only = url.searchParams.get("entity");
@@ -331,21 +429,41 @@ Deno.serve(async (req: Request) => {
     results[e.entity] = out;
     const m = out.match(/^(\d+) /);
     if (m) total += Number(m[1]);
+
+    /* PER-ENTITY COST, MEASURED. apex_sync_run.credits_used has existed since the table
+       was created and nothing has ever written to it, so all four cost controls -
+       min_interval_minutes, nesting, supports_delta, required - have been tuned against
+       no feedback at all. You cannot manage what you do not measure.
+
+       One extra /v1/usage read per entity, and the delta from the previous reading IS
+       that entity's cost. It bills ~2 credits a call against a 100,000 monthly
+       allowance, which is a rounding error next to knowing that available-inventory
+       costs 3 per item and net-terms costs 3 in total. */
+    const after = await readCredits();
+    if (creditsCursor != null && after != null) {
+      await supa.from("apex_sync_run")
+        .update({ credits_used: after - creditsCursor })
+        .eq("run_id", runId).eq("entity", e.entity);
+    }
+    if (after != null) creditsCursor = after;
+
     await sleep(PAUSE_MS);
   }
   if (skipped) results._skipped = `${skipped} entit${skipped === 1 ? "y" : "ies"} still inside its refresh window — deliberately not called.`;
 
-  try {
-    const u = await apexGet(base, key, "/v1/usage", {});
-    if (u.ok) {
-      const d = (await u.json())?.data ?? {};
-      const spent = creditsBefore != null && d.credits_used != null ? d.credits_used - creditsBefore : null;
-      results._credits = `${d.credits_used ?? "?"} of ${d.monthly_credit_limit ?? "?"} credits used this month`
-        + (spent != null ? ` · this run cost ${spent}` : "")
-        + (d.throttled_request_count ? ` · ${d.throttled_request_count} throttled` : "");
-    }
-  } catch { /* diagnostics only */ }
+  {
+    const spent = creditsBefore != null && creditsCursor != null ? creditsCursor - creditsBefore : null;
+    results._credits = `${creditsCursor ?? "?"} of ${usageLimit ?? "?"} credits used this month`
+      + (spent != null ? ` · this run cost ${spent}` : "")
+      + ` · per-entity cost recorded on apex_sync_run.credits_used`;
+  }
 
-  const failed = Object.entries(results).filter(([k, v]) => !k.startsWith("_") && /^ERROR|^THROTTLED/.test(v));
+  /* EVERY NON-SUCCESS PREFIX MUST BE LISTED HERE. This regex decides the `ok` flag the
+     caller and the run panel believe. Two new outcomes were added above - INCOMPLETE (rows
+     kept, watermark held) and STOPPED (credit allowance, which waiting will not clear) - and
+     an outcome that is not matched here reports ok:true while the entity is short. That is
+     the precise shape of a silent failure: a real problem wearing a green badge. */
+  const NOT_OK = /^(ERROR|THROTTLED|INCOMPLETE|STOPPED)\b/;
+  const failed = Object.entries(results).filter(([k, v]) => !k.startsWith("_") && NOT_OK.test(v));
   return json({ ok: failed.length === 0, run_id: runId, total, results });
 });

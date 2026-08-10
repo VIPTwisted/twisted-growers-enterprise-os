@@ -162,21 +162,21 @@ export default function Kiosk({ deviceId }) {
           {!result.ok ? (
             <>
               <div className="kicon">✕</div>
-              <h1>That didn't work</h1>
+              <h1>That didn&rsquo;t work</h1>
               <p className="ksub">{result.message}</p>
               <button className="kgo" onClick={reset}>Try again</button>
             </>
           ) : result.late_minutes > 0 && !result.explained ? (
             <>
               <div className="kicon warn">!</div>
-              <h1>You're {result.late_minutes} minutes late</h1>
+              <h1>You&rsquo;re {result.late_minutes} minutes late</h1>
               <p className="ksub">
                 You are clocked in. Repeated lateness may lead to a disciplinary
                 warning. If there is a reason, tell us now — it is recorded with
                 your punch and a manager sees it.
               </p>
               <div className="kreason">
-                <select value={reasonCode} onChange={(e) => { setReasonCode(e.target.value); setReasonErr(false); }}>
+                <select aria-label="Reason" value={reasonCode} onChange={(e) => { setReasonCode(e.target.value); setReasonErr(false); }}>
                   <option value="">Choose a reason…</option>
                   <option>Traffic or transport</option>
                   <option>Family emergency</option>
@@ -186,7 +186,7 @@ export default function Kiosk({ deviceId }) {
                   <option>Approved by my lead</option>
                   <option>No excuse</option>
                 </select>
-                <textarea rows={2} placeholder="What happened?"
+                <textarea aria-label="Note" rows={2} placeholder="What happened?"
                   value={reason} onChange={(e) => { setReason(e.target.value); setReasonErr(false); }} />
                 {reasonErr && <div className="kerr">Choose a reason and write a short explanation.</div>}
                 <div className="krow">

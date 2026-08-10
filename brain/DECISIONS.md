@@ -6,6 +6,36 @@ above it; never delete. If a figure or rule gets argued twice, it belongs here.
 
 ---
 
+**2026-08-09 — OWNER RULING: IDENTITY IS THE TAG. NAMES RESOLVE METRC → COA →
+MANIFEST → A PERSON.** Owner, in three messages: *"we have to always match names to
+Metrc, then COA and manefests"* · *"by tag"* · *"its seed to sale Metrc"*.
+
+Now **rule D4 in CLAUDE.md**, rows in `name_authority`, executable as
+`f_strain_by_tag(tag)`, guarded nightly by `tg_guard_naming()` (cron `guard-naming`,
+06:35). **A name is an attribute of a tag, never an identity** — never resolve a thing
+by matching name strings.
+
+**Why it mattered:** 956 open "strain discrepancies" compared the Metrc *item* name to
+the Metrc *strain* field. Resolved by tag through seed-to-sale: **468 are BLENDS** built
+from 2–6 source harvests, where Metrc's single strain field cannot describe the package
+at all; **337** have one source harvest that confirms the strain field, so the item name
+is a product name. **805 of 956 — 84% — were never discrepancies.** 99 were real (the
+strain field wrong in Metrc), now two `metrc_corrections` raised at source per D2:
+Cherry Lime Gelato→Cherry Lime Runtz (68 packages) and Mango Sherbet→Rainbow Sherbet 11
+(33). 52 remain for a person.
+
+*Applied by `tg_apply_naming_ladder()`; every cleared row carries the deciding rung and
+its evidence. The 904 matching `finding_state` rows are still open — the closure guard
+correctly refused a bulk override, and the LADDER needs one independent review rather
+than 904.*
+
+**2026-08-09 — WORK ORDER RAISED TO TG-08: alert delivery.** 299 alerts queued, 179
+critical, none ever sent; 25 Edge Functions deployed and none sends email. Brief in
+[WORKORDER_TG08_ALERT_DELIVERY.md](WORKORDER_TG08_ALERT_DELIVERY.md). Raised by Agent A,
+outside its lane, not fixed. The sender is correctly built and correctly reports itself
+unconfigured — the root cause is that nothing reads its return value, so it has said so
+hourly for two days into nowhere.
+
 **2026-08-09 — CORRECTION: 380 lb IS THE MONTHLY TARGET. PER PULL IT IS 180 lb.
 THE FLEET IS LARGELY ON TARGET, NOT MISSING BY HALF.**
 

@@ -75,6 +75,40 @@ blocked · **🔴 OPEN** = nothing stops it happening tomorrow.
 enforces it.** Write the guard in the same session as the decision, or record
 plainly that it is unguarded. **This register's GUARD column is that test.**
 
+## F · THE CHECK ITSELF IS WRONG — measured 9 Aug 2026
+
+**Seven defects recorded in `check_defect` in one day. Every one a FALSE ALARM
+or an overstatement. NOT ONE was "the check missed something real."** The checks
+were not failing to catch problems — they were inventing them, at 4× to 15×.
+That is its own trap family, and until 9 Aug there was nowhere to record it.
+
+| # | Trap | What it claimed → what was true | Guard |
+|---|---|---|---|
+| F1 | **No age band** — a difference judged with no maturity window | 201 packages "never confirmed received" → **47**; 154 had shipped within 3 days | 🟢 `check_defect` #1. Band both sides before comparing |
+| F2 | **A comparison that cannot match** — a hidden prefix, a format difference | "the strain field is never wrong" → wrong **99 times**; `item` carries an `M00004123705: ` prefix so the join never matched | 🔴 **OPEN.** Run every new comparison on one known-good row first |
+| F3 | **The population has more shapes than the model** | 956 strain discrepancies → **99**; 468 were BLENDS with 2–6 source harvests, 337 were product names | 🟢 `f_strain_by_tag` returns BLEND, never a strain (rule D4) |
+| F4 | **A legitimate variant read as malformed** | 82 harvest names "off convention" → **6**; `F2 FF`, `F4 H`, lower-case `f3` are all valid | 🟢 G-C rewritten to test what actually breaks the ladder |
+| F5 | **Absence of a thing that was never expected** | 175 certificates "unparsed" → **12**; 163 are pesticide and microbial screens with no THC by nature | 🟢 `backfill_watch.accepted_floor`, and a floor above zero is refused without its evidence |
+| F6 | **A check that cannot fail** | `room-capacity-never-exceeded` compares max observed pull to a capacity that IS the max observed pull | 🟡 `check_defect` #4 recorded; the capacity figures still need the owner |
+| F7 | **Hardcoded evidence, ignoring the registry** | 4 agents "NEVER RAN" → **1**; `v_agent_health` hardcodes its sources and never reads `agent_registry.evidence_table`. Its `ELSE` branch also credits QA's work to `watch:sales` | 🟡 `check_defect` #2, #3 recorded. Watchdog's lane to fix |
+
+**THE GUARD FOR THE WHOLE FAMILY, built 9 Aug 2026:** `trg_require_fixture` on
+`checker_registry`. A check cannot be enabled without naming a fixture that
+proves it **fires on a real violation** AND **stays quiet on a legitimate case**.
+***All six of F1–F6 would have been caught by the negative half alone.***
+
+**A baseline is not a fixture.** It records the present so a count cannot rise;
+it never shows the check firing. Applying that distinction found **nine checkers
+claiming `fixture_proves_it_fails` with no fixture in existence** — the honest
+proven count fell from 15 to 6, and 42 are now grandfathered debt on a ratchet
+that may fall and may never rise.
+
+**Why this family is the most dangerous one in this register:** a trap that
+corrupts data is bounded. A check that cries wolf at 4–15× **trains people to
+ignore the whole register**, and then the 16% that are real go unread. There are
+**179 critical alerts queued unread right now**. That is this trap, already
+paid for.
+
 ---
 
 ## What every agent must do
@@ -93,3 +127,13 @@ sides of any comparison to the same maturity window (C6).** Run the
 
 **Before closing a finding:** name the guard that stops it recurring. If there
 is none, say so in the finding itself.
+
+**Before you BELIEVE a finding — the five questions (section F):**
+1. **Can this comparison ever match?** Run it on one known-good row first.
+2. **Does the population have more shapes than my model?** List them before counting.
+3. **Is there an age band?** A verdict about a period needs that period of history.
+4. **Can this check fail at all?** Write down the input that would make it fire.
+5. **Does it tell "nothing" from "nothing checked"?**
+
+**If a number looks alarming and round, check the comparison before you check the
+business.** On 9 Aug 2026 it was the comparison seven times out of seven.

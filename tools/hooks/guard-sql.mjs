@@ -108,9 +108,43 @@ function check(payload) {
       .replace(/(^|\s)-{1,2}m(?:essage)?[= ]\s*(['"])[\s\S]*?\2/g, " ");
   };
 
+  /* FORBIDDEN TEXT AS DATA — 9 Aug 2026, the fifth phantom, and the one that will recur.
+   *
+   * Seeding policy_registry with the 51 rules from CLAUDE.md was refused, because rule E1's own
+   * title is "NEVER drop view … cascade". A register whose PURPOSE is to catalogue forbidden
+   * statements cannot be written by a guard that greps for forbidden statements. The same
+   * collision waits for every audit note, work order and finding that quotes a rule.
+   *
+   * THE DECISION IS MADE ON THE CODE SKELETON, NOT ON THE TEXT. Literals are removed first,
+   * and only then is the statement's kind read. So nothing hidden inside a literal can vote on
+   * whether literals should be trusted — which is the property that makes this safe rather
+   * than convenient.
+   *
+   * An INSERT, UPDATE or COMMENT cannot drop a view. It has no mechanism to. If the skeleton
+   * contains only those verbs, quoted text is documentation and is skipped. The moment the
+   * skeleton shows create/alter/drop/execute/do/grant/revoke/truncate/delete, every byte is
+   * matched with literals intact — so `create function ... execute 'drop view x cascade'`
+   * stays blocked, which is the dynamic-SQL landmine that full literal-stripping would have
+   * opened. That route is why this is narrow: it would be committed today and fire later. */
+  const DANGEROUS_VERB = /\b(create|alter|drop|truncate|grant|revoke|execute|do|delete|refresh|call|copy|security\s+label)\b/;
+  const isPureDataWrite = (t) => {
+    const skeleton = t.replace(/'(?:[^']|'')*'/g, "''")        /* single-quoted literals */
+                      .replace(/\$([A-Za-z_]*)\$[\s\S]*?\$\1\$/g, "''"); /* dollar-quoted bodies */
+    if (DANGEROUS_VERB.test(skeleton)) return false;
+    /* Never skip anything that so much as NAMES a forensic table. The hook happens to block
+       only delete/truncate/drop against them today, so this changes nothing — it is here so
+       that adding an UPDATE rule later cannot be silently defeated by this shortcut. A guard
+       whose safety depends on a second guard's current wording is one edit from useless. */
+    if (IMMUTABLE.some((t) => new RegExp("\\b" + t + "\\b").test(skeleton))) return false;
+    return /\b(insert\s+into|update\s+\S+\s+set|comment\s+on)\b/.test(skeleton);
+  };
+
   for (const s of strings(payload.tool_input || {})) {
     /* Normalise whitespace so line breaks between keywords cannot slip past. */
     const sql = stripComments(stripCommitMessage(s)).replace(/\s+/g, " ").toLowerCase();
+
+    /* Skipped only after the skeleton proved this statement cannot execute DDL. */
+    if (isPureDataWrite(sql)) continue;
 
     if (/\bdrop\s+(materialized\s+)?view\b[^;]*\bcascade\b/.test(sql)) {
       block(

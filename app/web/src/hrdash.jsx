@@ -18,7 +18,7 @@
    Rule 3: every tile drills into the records beneath it.
    Every figure is computed live. Nothing here is typed in.
 --------------------------------------------------------------------------- */
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "./lib/supabase.js";
 import { AssignTask } from "./App.jsx";
 
@@ -43,6 +43,25 @@ function bucket(d) {
   return "ok";
 }
 
+/* ── THE COMMAND RAIL ─────────────────────────────────────────────────
+   Running HR is roughly seven actions repeated forever. Drilling to a
+   page for each of them is what makes a dashboard a menu instead of a
+   console — so each of these opens a drawer ON the dashboard, does the
+   one thing, and closes. You never lose your place.
+
+   Counts are live, so the rail also tells you which of the seven
+   actually needs you today. Zero is a valid and common answer.
+------------------------------------------------------------------- */
+const ACTIONS = [
+  { key: "gap",     label: "Fill a gap",        hint: "post an open shift or call for extra hours" },
+  { key: "cards",   label: "Approve timecards", hint: "this week, per person" },
+  { key: "pto",     label: "Decide time off",   hint: "approve or deny requests" },
+  { key: "queue",   label: "Clear the queue",   hint: "agent drafts waiting on a decision" },
+  { key: "licence", label: "Chase a licence",   hint: "renewals inside the window" },
+  { key: "punch",   label: "Fix a punch",       hint: "missing clock-outs" },
+  { key: "tell",    label: "Tell the floor",    hint: "message a zone, a shift or everyone" },
+];
+
 export default function HrDashboard({ go }) {
   const [emp, setEmp] = useState(null);
   const [cost, setCost] = useState([]);
@@ -50,6 +69,10 @@ export default function HrDashboard({ go }) {
   const [logins, setLogins] = useState(new Set());
   const [depts, setDepts] = useState({});
   const [assign, setAssign] = useState(null);
+  const [drawer, setDrawer] = useState(null);
+  const [work, setWork] = useState({ open: [], cards: [], pto: [], queue: [], punches: [] });
+  const [busy, setBusy] = useState(false);
+  const [said, setSaid] = useState(null);
 
   useEffect(() => {
     Promise.all([
@@ -119,10 +142,52 @@ export default function HrDashboard({ go }) {
       inactive: emp.length - active.length, total: emp.length };
   }, [emp, cost, cap, logins, depts]);
 
+  /* Everything the rail needs, in one pass. Counts drive the badges;
+     the rows fill whichever drawer gets opened. */
+  const loadWork = useCallback(async () => {
+    const today = new Date().toISOString().slice(0, 10);
+    const weekAgo = new Date(Date.now() - 7 * 864e5).toISOString().slice(0, 10);
+    const [o, c, p, q, x] = await Promise.all([
+      supabase.from("open_shifts").select("*").eq("status", "open").order("work_date"),
+      supabase.from("time_entries").select("id, employee_id, work_date, clock_in, clock_out, employees(full_name)")
+        .gte("work_date", weekAgo).is("approved_by", null).not("clock_out", "is", null),
+      supabase.from("time_off_requests").select("*, employees(full_name)").eq("status", "pending").order("starts_on"),
+      supabase.from("v_hr_waiting_on_a_person").select("id, headline, severity, agent_confidence").limit(50),
+      supabase.from("time_entries").select("id, employee_id, work_date, clock_in, employees(full_name)")
+        .is("clock_out", null).lt("work_date", today),
+    ]);
+    setWork({ open: o.data ?? [], cards: c.data ?? [], pto: p.data ?? [],
+              queue: q.data ?? [], punches: x.data ?? [] });
+  }, []);
+  useEffect(() => { loadWork(); }, [loadWork]);
+
+  const need = {
+    gap: work.open.length, cards: work.cards.length, pto: work.pto.length,
+    queue: work.queue.length, punch: work.punches.length,
+    licence: (m?.blocked.length ?? 0) + (m?.urgent.length ?? 0), tell: 0,
+  };
+
+  async function decidePto(row, status) {
+    setBusy(true);
+    const uid = (await supabase.auth.getUser()).data?.user?.id ?? null;
+    await supabase.from("time_off_requests")
+      .update({ status, decided_by: uid, decided_at: new Date().toISOString() }).eq("id", row.id);
+    setBusy(false); setSaid(`${status === "approved" ? "Approved" : "Denied"} — the employee is told.`);
+    loadWork();
+  }
+
+  async function approveCards(ids) {
+    setBusy(true);
+    const uid = (await supabase.auth.getUser()).data?.user?.id ?? null;
+    await supabase.from("time_entries").update({ approved_by: uid }).in("id", ids);
+    setBusy(false); setSaid(`Approved ${ids.length} ${ids.length === 1 ? "entry" : "entries"}.`);
+    loadWork();
+  }
+
   if (!m) return <div className="hrload">Loading Human Resources…</div>;
 
   const tile = (key, label, value, unit, tone, foot, drill) => (
-    <div className={`hrt ${tone}`} onClick={() => drill && go?.(drill)}>
+    <div role="button" tabIndex={0} onKeyDown={(ev) => { if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); ev.currentTarget.click(); } }} className={`hrt ${tone}`} onClick={() => drill && go?.(drill)}>
       <button className="hrassign" onClick={(ev) => { ev.stopPropagation(); setAssign({ kpi: label, value, unit, drill }); }}>
         Assign
       </button>
@@ -181,6 +246,140 @@ export default function HrDashboard({ go }) {
         </section>
       )}
 
+      {/* THE COMMAND RAIL — seven actions, each done here, not elsewhere. */}
+      <div className="hrrail">
+        {ACTIONS.map(a => (
+          <button key={a.key}
+            className={`hrrailb ${drawer === a.key ? "on" : ""} ${need[a.key] ? "has" : ""}`}
+            onClick={() => { setDrawer(drawer === a.key ? null : a.key); setSaid(null); }}>
+            <b>{a.label}</b>
+            <i>{a.hint}</i>
+            {need[a.key] > 0 && <em>{need[a.key]}</em>}
+          </button>))}
+      </div>
+
+      {said && <div className="hrsaid">{said}</div>}
+
+      {drawer && (
+        <div className="hrdrawer">
+          <div className="hrdhead">
+            <b>{ACTIONS.find(a => a.key === drawer)?.label}</b>
+            <button className="hrdx" onClick={() => setDrawer(null)}>Close</button>
+          </div>
+
+          {drawer === "cards" && (work.cards.length === 0
+            ? <p className="hrdnone">Every timecard this week is approved.</p>
+            : <>
+                <div className="hrdrows">
+                  {work.cards.slice(0, 12).map(c => (
+                    <div className="hrdrow" key={c.id}>
+                      <span>{nameOf(c.employees?.full_name)}</span>
+                      <span className="hrdmuted">{c.work_date}</span>
+                      <button className="btn small" disabled={busy}
+                        onClick={() => approveCards([c.id])}>Approve</button>
+                    </div>))}
+                </div>
+                <button className="btn small" disabled={busy}
+                  onClick={() => approveCards(work.cards.map(c => c.id))}>
+                  Approve all {work.cards.length} — none has a missing clock-out
+                </button>
+              </>)}
+
+          {drawer === "pto" && (work.pto.length === 0
+            ? <p className="hrdnone">No time-off requests waiting.</p>
+            : <div className="hrdrows">
+                {work.pto.map(r => (
+                  <div className="hrdrow" key={r.id}>
+                    <span>{nameOf(r.employees?.full_name)}</span>
+                    <span className="hrdmuted">{r.starts_on} → {r.ends_on} · {r.hours} h</span>
+                    <button className="btn small" disabled={busy}
+                      onClick={() => decidePto(r, "approved")}>Approve</button>
+                    <button className="btn ghost small" disabled={busy}
+                      onClick={() => decidePto(r, "denied")}>Deny</button>
+                  </div>))}
+              </div>)}
+
+          {drawer === "punch" && (work.punches.length === 0
+            ? <p className="hrdnone">No missing clock-outs.</p>
+            : <>
+                <p className="hrdwarn">
+                  A missing clock-out cannot be approved — approving it would approve an
+                  end time nobody recorded. Correct it on the record instead.
+                </p>
+                <div className="hrdrows">
+                  {work.punches.map(p2 => (
+                    <div className="hrdrow" key={p2.id}>
+                      <span>{nameOf(p2.employees?.full_name)}</span>
+                      <span className="hrdmuted">in {new Date(p2.clock_in).toLocaleString()}, never out</span>
+                      <button className="btn ghost small" onClick={() => go?.("timesheets")}>Correct</button>
+                    </div>))}
+                </div>
+              </>)}
+
+          {drawer === "queue" && (work.queue.length === 0
+            ? <p className="hrdnone">Nothing drafted is waiting on a decision.</p>
+            : <>
+                <p className="hrdwarn">
+                  Decisions are made one at a time, on the queue page. There is no bulk
+                  approve anywhere in this system, deliberately.
+                </p>
+                <div className="hrdrows">
+                  {work.queue.slice(0, 8).map(q => (
+                    <div className="hrdrow" key={q.id}>
+                      <span>{q.headline}</span>
+                      <span className={`schip ${q.agent_confidence === "unsure" ? "bad" : "mute"}`}>
+                        {q.agent_confidence ?? "likely"}</span>
+                    </div>))}
+                </div>
+                <button className="btn small" onClick={() => go?.("hr_review_queue")}>
+                  Open the queue — {work.queue.length} waiting
+                </button>
+              </>)}
+
+          {drawer === "gap" && (work.open.length === 0
+            ? <>
+                <p className="hrdnone">No open shifts posted.</p>
+                <button className="btn small" onClick={() => go?.("schedule_builder")}>
+                  Open the schedule builder to post one
+                </button>
+              </>
+            : <div className="hrdrows">
+                {work.open.map(o => (
+                  <div className="hrdrow" key={o.id}>
+                    <span>{o.work_date}</span>
+                    <span className="hrdmuted">{o.offer_kind} · {o.reason ?? "open"}</span>
+                    <span className="schip warn">unclaimed</span>
+                  </div>))}
+              </div>)}
+
+          {drawer === "licence" && (need.licence === 0
+            ? <p className="hrdnone">Every active licence is valid and outside the renewal window.</p>
+            : <div className="hrdrows">
+                {[...m.blocked, ...m.urgent].map(e => (
+                  <div className="hrdrow" key={e.id}>
+                    <span>{nameOf(e.full_name)}</span>
+                    <span className="hrdmuted">
+                      {e.d === null ? "no licence on file" : e.d < 0 ? `lapsed ${Math.abs(e.d)} d ago` : `${e.d} d left`}
+                    </span>
+                    <button className="btn small"
+                      onClick={() => setAssign({ kpi: `Renew agent registration — ${nameOf(e.full_name)}`,
+                        value: e.d ?? 0, unit: "days", drill: "people" })}>Assign renewal</button>
+                  </div>))}
+              </div>)}
+
+          {drawer === "tell" && (
+            <>
+              <p className="hrdwarn">
+                Messages are drafted here and <b>sent by a person</b> — the owner&rsquo;s ruling
+                covers reminders too. An audience matching nobody is left unsent rather
+                than quietly marked delivered.
+              </p>
+              <button className="btn small" onClick={() => go?.("hr_delivery")}>
+                Open message delivery
+              </button>
+            </>)}
+        </div>)}
+
       {/* 2 — The numbers that matter. Every one assigns and drills. */}
       <div className="hrtiles">
         {tile("ready", "Legally ready to work", m.active.length - m.blocked.length - m.urgent.length, `of ${m.active.length}`,
@@ -233,7 +432,7 @@ export default function HrDashboard({ go }) {
         <div className="dgrid">
           <div className="dhead"><span>Department</span><span className="r">Staff</span><span className="r">Capacity</span><span className="r">Weekly cost</span><span className="r">At risk</span></div>
           {m.byDept.map(([name, d]) => (
-            <div className="drow" key={name} onClick={() => go?.("people")}>
+            <div role="button" tabIndex={0} onKeyDown={(ev) => { if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); ev.currentTarget.click(); } }} className="drow" key={name} onClick={() => go?.("people")}>
               <span className="dn">{name}</span>
               <span className="r">{d.n}</span>
               <span className="r">{d.hrs ? Math.round(d.hrs) + " h" : "—"}</span>

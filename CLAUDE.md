@@ -474,6 +474,45 @@ instructions and cannot be closed without who, when and a Metrc reference.
 
 **D3. Metrc-facing tasks do not clear until fixed at source.**
 
+**D4. 🏷️ IDENTITY IS THE TAG. NAMES RESOLVE METRC → COA → MANIFEST → A PERSON.**
+*(Owner ruling, 9 August 2026: "we have to always match names to Metrc, then COA
+and manifests" · "by tag" · "it's seed to sale Metrc". Binds every agent, every
+check, every import, every page.)*
+
+**A name is an attribute of a tag, never an identity.** Never resolve a thing by
+matching name strings. Resolve the **tag**, then read the name off the winning
+source. The rungs are rows in `name_authority`, executable as
+**`f_strain_by_tag(tag)`**, and they run in order — stop at the first that answers:
+
+| Rung | Source | How to read it |
+|---|---|---|
+| **1** | **Metrc seed-to-sale** | Walk the tag to its source harvest(s). **More than one harvest → the package is a BLEND and has no single strain.** Exactly one → the harvest names it, via `TG <strain> - <YYYYMMDD> <room>`. |
+| **2** | **Certificate of analysis** | `coa_extract.metrc_batch_id` names the harvest. The **only independent** source (C0) — every Metrc field shares one origin and cannot disconfirm another. |
+| **3** | **Manifest** | What was declared in custody. Weakest: it restates what the shipper typed. |
+| **4** | **A person** | Nothing above answered. Raise it with an owner and a clock. Never guess (A5). |
+
+**The four corollaries — each one is a rule, not advice:**
+
+1. **An item name is a PRODUCT name, not a strain.** Comparing the two and calling
+   the difference a discrepancy is a category error. It manufactured **805 false
+   findings** out of 956 before this rule existed.
+2. **A strain comparison is only valid on a single-harvest package.** On a blend it
+   is meaningless by construction — Metrc holds one strain field and the package
+   has several. `f_strain_by_tag` returns `BLEND` and **no strain**, deliberately:
+   returning one contributor as though it were the answer breaks A1.
+3. **A strain must exist in the Metrc strain register.** A name that is not
+   registered is a product name or a typo, never a strain.
+4. **Blends need a contributing-strains list.** Metrc cannot hold one, so it lives
+   here, **derived from the source harvests and never typed**.
+
+**Enforced by `tg_guard_naming()`, nightly:** G-A/G-B catch a blend or a product
+name raised as a discrepancy · G-C catches a harvest name whose strain or date
+cannot be read (HANDOFF defect D7) · G-D catches a harvest naming a strain that is
+not registered. **G-C was itself wrong on its first run** — it demanded a
+single-token room suffix and rejected legitimate `F2 FF`, `F4 H` and lower-case
+`f3`, flagging 82 where 6 were real. *A check must measure the thing that breaks,
+not a shape somebody imagined.*
+
 ## E · Database safety
 
 **E1. NEVER `drop view … cascade`.** It destroyed `mv_department_dashboard`
@@ -705,6 +744,78 @@ a journal entry on its own initiative** — not to tidy up, not to record its ow
 not because it seems helpful. The journal is the human record of human decisions.
 This sits beside H1: an issue never clears itself, and an agent never speaks for a
 person.
+
+## K · Checks about checks — read this before you write a check
+
+**Owner, 9 August 2026: "why are we getting these issues and errors" — then "fix so we
+stop having issues and train agents".** This section is the answer and the training.
+
+**K0. THE MEASURED FACT THAT PRODUCED THIS SECTION.** Seven defects were recorded in
+`check_defect` on 9 Aug 2026. **Every single one was a FALSE ALARM or an overstatement.
+Not one was "the check missed something real."** The checks were not failing to catch
+problems — they were inventing them:
+
+| Claimed | Actually was | Out by |
+|---|---|---|
+| 201 packages never confirmed received | 47 (154 were in normal transit) | 4× |
+| 956 strain discrepancies | 99 (468 were blends, 337 product names) | 10× |
+| 82 harvest names off convention | 6 (`F2 FF`, `F4 H`, `f3` are legitimate) | 14× |
+| 175 certificates unparsed | 12 (163 are safety screens with no THC by nature) | 15× |
+| 4 agents "NEVER RAN" | 1 (the view ignores `agent_registry.evidence_table`) | 4× |
+| 2 backfills "stalled 7 days" | 0 (the readings were minutes apart) | ∞ |
+
+**A register that is mostly false alarms trains people to ignore all of it, and that is
+how the real ones get missed.** There are 179 critical alerts queued unread right now.
+
+**K1. THE FIVE QUESTIONS. Answer all five, in writing, before any check ships.**
+Each one is a defect that actually happened here:
+
+1. **Can this comparison ever match?** — I compared a harvest strain to
+   `metrc_rpt_package_transfers.item`, which carries an `M00004123705: ` id prefix. It
+   could never match, returned zero, and I reported "the strain field is never wrong."
+   It was wrong 99 times. **Run the comparison on one known-good row first.**
+2. **Does the population have more shapes than my model?** — a package with six source
+   harvests is a BLEND and has no single strain. A pesticide screen has no THC. **List
+   the shapes before you count.**
+3. **Is there an age band?** — 154 packages were "unconfirmed" because they shipped
+   yesterday. Two readings minutes apart were a "seven-day stall". **A verdict about a
+   period needs that period of history; below it, say TOO SOON TO SAY — which is not
+   the same as a pass.**
+4. **Can this check fail at all?** — `room-capacity-never-exceeded` compares the maximum
+   observed pull to the recorded capacity, and the capacity WAS the maximum observed
+   pull. **Write down the input that would make it fire. If you cannot, it proves nothing.**
+5. **Does it tell "nothing" from "nothing checked"?** — a sync reporting `ok, records: 0`,
+   a job hammering a finished queue, `k.data ?? []`. **Silence must be distinguishable
+   from success.**
+
+**K2. NO CHECK SHIPS WITHOUT BOTH HALVES OF ITS FIXTURE.** Positive: it FIRES on a real
+violation. **Negative: it STAYS QUIET on a legitimate case.** *All six of the defects
+above would have been caught by the negative half alone.* Enforced by trigger
+`trg_require_fixture` on `checker_registry` — a checker cannot be enabled without naming
+`fixture_selftest_fn`, `fixture_positive_case` and `fixture_negative_case`. The gate is
+itself fixture-proven by `tg_selftest_fixture_gate` (7 cases: 5 refusals, 2 allowances).
+
+**A baseline is not a fixture.** A `baseline.json` records the present so the count
+cannot rise. It never demonstrates the check firing. On 9 Aug this distinction found
+**nine checkers claiming `fixture_proves_it_fails` with no fixture in existence** — the
+honest proven count fell from 15 to 6.
+
+**K3. RATCHETS, NOT CLIFFS.** 42 enabled checkers have no fixture. Demanding one from
+all 42 at once would switch every gate off, and a switched-off gate is worse than none.
+They are **grandfathered with a written reason**, baselined in `ratchet_baseline`, and
+the count **may fall and may never rise** — enforced by `trg_ratchet_guard`, checked
+nightly by `tg_check_fixture_ratchet`.
+
+**K4. WHEN A CHECK IS WRONG, THE FAULT BELONGS TO THE CHECK.** Record it in
+`check_defect` with what it claimed, what was actually true, and the SQL that proves it.
+`v_check_trust` then labels every reading from that check UNTRUSTED until it is fixed.
+**Do not quietly correct a check and move on** — the defect register is how we learn
+whether checks are getting better or worse.
+
+**K5. A FINDING RAISED IN ERROR IS WITHDRAWN ON THE RECORD, NEVER DELETED.** Say what
+you claimed, what was true, and why the comparison misled you. Three of the seven
+defects were mine, and one was me repeating a fault I had recorded ninety minutes
+earlier. That is on the record too, and it belongs there.
 
 ---
 

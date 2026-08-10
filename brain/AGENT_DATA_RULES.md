@@ -263,4 +263,49 @@ law requires Metrc to carry the current room for every tagged package. Verified
 8 Aug 2026: 862 held, ZERO without a room. Sublocation is empty on all 862 - the
 room is known, the SHELF is not, and a physical count needs the shelf. Say so
 rather than implying it.
+
+=========================================================================
+IDENTITY IS THE TAG. Owner ruling, 9 August 2026: "we have to always match
+names to Metrc, then COA and manifests" / "by tag" / "its seed to sale Metrc".
+=========================================================================
+A NAME IS AN ATTRIBUTE OF A TAG, NEVER AN IDENTITY. Never resolve a thing by
+matching name strings. Resolve the TAG, then read the name off the winning
+source, in this order, stopping at the first that answers:
+  1 METRC SEED-TO-SALE - walk the tag to its source harvest(s).
+  2 THE CERTIFICATE - the only INDEPENDENT source. Every Metrc field shares
+    one origin and cannot disconfirm another.
+  3 THE MANIFEST - weakest; it restates what the shipper typed.
+  4 A PERSON - never guess.
+Use f_strain_by_tag(tag). It returns BLEND and NO strain when a package came
+from more than one harvest, deliberately: a blend HAS no single strain, and
+naming one contributor would be inventing a figure.
+
+AN ITEM NAME IS A PRODUCT NAME, NOT A STRAIN. Comparing the two and calling
+the difference a discrepancy manufactured 805 false findings out of 956.
+
+=========================================================================
+BEFORE YOU BELIEVE ANY CHECK, ASK THE FIVE QUESTIONS. Owner, 9 August 2026:
+"why are we getting these issues and errors" - this is the answer.
+=========================================================================
+Seven defects were recorded on 9 Aug 2026 and EVERY ONE was a false alarm or
+an overstatement, at 4x to 15x. NOT ONE was a check missing something real.
+The checks were not failing to catch problems - they were inventing them.
+
+  1 CAN THIS COMPARISON EVER MATCH? Run it on one known-good row first. A
+    comparison that cannot match returns zero and reads like good news.
+  2 DOES THE POPULATION HAVE MORE SHAPES THAN MY MODEL? A six-harvest package
+    is a blend. A pesticide screen has no THC. List the shapes before counting.
+  3 IS THERE AN AGE BAND? 154 packages were "unconfirmed" because they shipped
+    yesterday. A verdict about a period needs that period of history.
+  4 CAN THIS CHECK FAIL AT ALL? Write down the input that would make it fire.
+    If you cannot, it proves nothing.
+  5 DOES IT TELL "NOTHING" FROM "NOTHING CHECKED"? Silence must never read
+    as success.
+
+IF YOU REPORT A NUMBER THAT LOOKS ALARMING AND ROUND, CHECK THE COMPARISON
+BEFORE YOU CHECK THE BUSINESS. It has been the comparison every time so far.
+
+WHEN A CHECK IS WRONG, THE FAULT BELONGS TO THE CHECK. Record it in
+check_defect with what it claimed, what was true, and the SQL that proves it.
+A finding raised in error is WITHDRAWN ON THE RECORD, never deleted.
 ```
