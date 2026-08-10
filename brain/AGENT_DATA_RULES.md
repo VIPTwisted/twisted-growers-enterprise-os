@@ -308,4 +308,163 @@ BEFORE YOU CHECK THE BUSINESS. It has been the comparison every time so far.
 WHEN A CHECK IS WRONG, THE FAULT BELONGS TO THE CHECK. Record it in
 check_defect with what it claimed, what was true, and the SQL that proves it.
 A finding raised in error is WITHDRAWN ON THE RECORD, never deleted.
+
+=========================================================================
+HARVEST, YIELD AND COST. Measured 10 August 2026. Every agent, Budz and
+TG Brain answer harvest questions from these rules, never from memory.
+=========================================================================
+THE MOISTURE LOSS IS RECORDED IN METRC. All 24,896.7 lb of it. Do NOT say it
+is missing. The METRC API CARRIES NO MOISTURE FIELD - only CurrentWeight,
+which is a RESIDUAL of wet minus waste minus packaged. The only source of
+moisture loss is the Harvests-Inactive report export, in
+metrc_rpt_harvest_moisture. Reading the API residual and calling it
+"never entered" produced a false finding on 10 Aug 2026, withdrawn the
+same day.
+
+THE HARVEST BALANCE CLOSES EXACTLY, on all 350 closed harvests:
+  wet 39,853.3 - waste 3,670.5 - water 24,896.3 - dry yield 11,288.1 = 0.00
+
+⚠ AND THAT PROVES NOTHING ABOUT HONESTY. Metrc DERIVES moisture as the
+residual, so the balance closes on a dishonest harvest too. Never present
+"it balances" as evidence. That is a check that cannot fail.
+
+WHAT DOES CATCH MANIPULATION is the relationship between what a person types
+and what Metrc enforces:
+  wet weight  - typed at takedown. Manipulable.
+  plant count - typed. Manipulable.
+  packaged    - becomes TAGGED PACKAGES in Metrc. Hardest to fake.
+  water %     - DERIVED, so it MOVES when either typed number is fudged.
+Yield short + water IN band (70-77%)  -> the grow, not the dry room.
+Yield short + water ABOVE band        -> wet overstated at takedown, or
+                                         material left after weighing.
+Yield short + water BELOW band        -> wet possibly understated to make a
+                                         poor yield look normal.
+
+FRESH FROZEN IS PACKAGED WET at about 4.5:1. NEVER add it to dried flower at
+face weight. Doing so understated cost per pound by 40%: Jan-Jul 2026 gives
+$461.71/lb wet-added versus $766.81/lb correctly converted. The superseded
+$591.39 sits between the two, which is what a partly-converted denominator
+looks like. Trailing 12-month cost per pound is $841.25 and is PROVISIONAL -
+there is NO P&L in this system, only one owner-stated overhead row.
+
+A SINGLE MONTH IS NOT A COST PER POUND. Harvests land on a 14-day pull
+cadence while overhead is constant, so single months swing $269 to $4,516.
+Always answer from the trailing 12-month figure.
+
+METRC RECORDS NO PERSON ON A HARVEST. Not in the API, not in the export.
+Accountability lives ONLY in harvest_responsibility in this platform. If
+nobody is assigned, say "NOBODY ASSIGNED" - never guess a name.
+
+RANK PEOPLE ON THE STRAIN'S OWN MEDIAN, not the flat 70.6 g target. A flat
+target is unfair to a low-yielding cultivar and lets a high-yielding one hide.
+v_cultivation_scoreboard carries vs_own_strain_g for exactly this.
+
+WHERE TO READ IT, never re-derive by hand:
+  v_harvest_water_and_yield  - every harvest: wet, waste, water, dry yield
+  v_harvest_yield_audit      - the verdict and which number moved
+  v_harvest_accountability   - who owned it, at grow and at dry
+  v_cultivation_scoreboard   - per person and per room
+  v_cost_per_pound           - trailing cost per pound, provisional
+
+=========================================================================
+INVENTORY POSITION AND THE 2024 RECONCILIATION. Established by the forensic
+audit of 10 August 2026. Full working in docs/AUDIT_2024_INVENTORY_BALANCE.md.
+=========================================================================
+HARVEST RESIDUAL IS WATER. IT IS NOT INVENTORY AND MUST NEVER BE REPORTED AS
+HELD PRODUCT. Metrc CurrentWeight is wet - waste - packaged. Read literally it
+says 29,412 lb sits in rooms, against 2,554.7 lb of physical on-hand stock -
+a 65% dry yield, which does not exist. Proven three ways:
+  1 Fresh frozen uses the IDENTICAL arithmetic and never dries: 1.2%. Dried
+    rooms: 74-84%. A formula artifact would appear in both. It does not.
+  2 The CURE VAULT holds ZERO packages - 85 rows, all finished, 0.0 lb - yet
+    the residual attributes 8,462 lb to it. No physical counterpart exists.
+  3 A FINISHED harvest declares nothing more comes off it, so its residual can
+    only be water plus unrecorded loss.
+
+A HARVEST'S ROOM IS A LABEL THAT DOES NOT MOVE. DryingLocationName stays put;
+only PACKAGES carry a location that moves. Always answer "what is in room X"
+from packages. Reading the harvest label as a location put 12,804 lb in the
+Fulfillment Vault and 8,462 lb in a vault holding nothing.
+
+HELD-BUT-UNPACKAGED PRODUCT COMES FROM OPEN HARVESTS ONLY, corrected by the
+moisture rule: 833.4 lb, not 29,412 lb. Read v_held_unpackaged_flower.
+
+WHERE TO READ IT:
+  v_inventory_position_by_room - on hand by room, licence and category, with
+                                 the room's role and whether the owner confirmed it
+  v_held_unpackaged_flower     - real product not yet packaged, water separated
+  v_destruction_ledger         - every channel by which mass legitimately left
+  v_material_sourcing          - ours / third party / collective
+  room_roles                   - what each room is FOR, with attribution
+
+ROOM ROLES ARE BUSINESS PRACTICE, NOT DATA. Owner-stated 10 Aug 2026:
+Pre Trim Storage = finished harvest, dried, going into trim - PRODUCT, not
+water. Packaging Room = weight staged for 3.5 g jars and pre-rolls. Fulfillment
+Vault = bulk flower and outbound. Dry Rooms = where water leaves. CURE VAULT IS
+UNCONFIRMED - room_roles.confirmed_by is NULL and it must be shown as
+unconfirmed, never asserted.
+
+*** APEX IS THE RECORD OF TRUTH FOR SALES. METRC IS NOT. ***
+Owner ruling, 10 Aug 2026: "METRC IS SEED TO SALE SOFTWARE NOT USED FOR SALES
+AND ACCOUNTING", "USE APEX FOR SALES AND ACCOUNTING". Metrc carries the
+manifest and the weight, never the money. Metrc's 2024 price fields are wrong
+in BOTH directions: $514,120 of apparent value against 22.1 lb going to a
+transporter, while 616.4 lb of genuine bulk sales carry $0.12, $0.11 and $0.06.
+
+APEX *_raw MONEY FIELDS ARE INTEGER CENTS. total_raw 6931600 is $69,316.00.
+Summing them as dollars reports 2024 revenue as $22,635,172 instead of
+$226,351.72 - a 100x error that looks entirely plausible on a dashboard.
+
+EAGLE EYES (MT281320) AND MMM TRANSPORT (MT281556) ARE TRANSPORTERS, NEVER
+CUSTOMERS. Any MT licence is haulage or storage and is excluded from revenue
+and from customer counts. This confusion once booked $901,430 as revenue.
+
+METRC AND APEX CANNOT BE RECONCILED TODAY, AND THE REASON IS NOT OUR SYNC.
+Verified with apex-probe on 10 Aug 2026: the key HOLDS view:dealdocs and
+view:receiving-orders; /v1/deal-docs returns HTTP 200 meta.total=0 on every
+filter tried; /v1/receiving-orders returns 0 from 2023-11-30; the ORDER DETAIL
+endpoint returns manifest_number:null and metrc_package_label:null, identical
+to the list; /v2 of all three is 404. The owner states every order has a
+manifest and COA - so they exist in the Apex UI and are NOT on API v1. This is
+a VENDOR question. An earlier note called it a sync defect; that was wrong.
+
+NEVER REPORT "NO MATCH FOUND" WHEN THE JOIN KEY ITSELF IS ABSENT. That reports
+our own silence as a business finding - the same class of error as reporting
+data missing without counting it. Say which key is missing, and stop.
+
+A ZERO-ROW PULL MUST NEVER ADVANCE A CURSOR PAST A WINDOW IT DID NOT READ.
+receiving-orders and deal-docs returned 0 rows in ~200ms, were logged
+status=ok, and had their cursor moved from 2023-11-30 to today - making the
+whole history permanently unreachable behind a green badge. Fixed in apex-sync
+v3: an entity that has NEVER returned a row holds its cursor. Holding on an
+empty entity costs one cheap call; advancing past an unread window costs the
+history, silently and forever.
+
+USE apex-probe BEFORE GUESSING AT AN APEX ENDPOINT. GET only, gated on
+TG_ADMIN_KEY, reports status, elapsed_ms, the root keys actually present,
+Apex's own meta.total and the first record's fields:
+  select tg_call_function('apex-probe?path=/v1/deal-docs&keys=1&qs=order_id=123');
+  -- then read net._http_response by the returned id
+Redeploying a sync to test each guess is slow and costs credits.
+
+2024 IS NOT CLOSED. Six of ten tests pass. The plant-side balance is SHORT BY
+704 TO 1,633 lb (dry yield 17.7% of usable wet against the 23-30% the company's
+own 70-77% moisture band implies), the Apex join cannot run, there are ZERO
+2024 lab results in the platform, and opening stock at 1 Jan 2024 is not
+established. An earlier report claimed "0.0 lb unexplained" - that came from
+Metrc's residual identity, which closes against itself and proves nothing.
+NEVER present that identity as evidence the year balances.
+
+THE 2024 FIRST HARVESTS TESTED LOW AND THE WEIGHT WAS HELD BACK DELIBERATELY,
+then moved as BULK AT A MAJOR DISCOUNT rather than launching the brand on it.
+Owner-stated 10 Aug 2026. This is a BUSINESS DECISION, NOT A DISCREPANCY, and
+must never be flagged as one. It explains the low realised value per pound, the
+late start to selling (first Apex order 20 Sep 2024) and inventory that sat
+untested through late 2024.
+
+WE BUY TRIM AND FRESH FROZEN FROM THIRD PARTIES. 2024: 1,050.4 lb of fresh
+frozen (Coastal Cultivars 681.5, Flower Power 368.9) plus ~264 lb of trim. That
+is INPUT MASS that never came off our plants - counting it as our production
+overstates yield, omitting it from intake breaks the balance. Trim goes to
+economy pre-rolls and to manufacturing.
 ```
