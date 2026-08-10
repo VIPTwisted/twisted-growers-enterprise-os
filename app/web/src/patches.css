@@ -30,6 +30,62 @@
  * the top-bar dropdowns, further down this file. The other 22 uses stay
  * transparent until whoever owns those pages decides to fix them. */
 
+/* ═══ ONBOARDING CONSOLE ════════════════════════════════════════════
+ * The go-live tool. Numbered steps because it is a procedure, not a
+ * form — and the order is the order the law and the floor require.
+ */
+.ob{display:flex;flex-direction:column;gap:13px;padding-bottom:48px;max-width:880px}
+.obhead{display:flex;align-items:flex-end;gap:16px;flex-wrap:wrap}
+.obhead h1{margin:0;font-size:26px;font-weight:700;letter-spacing:.02em}
+.obsub{font-size:12.5px;color:var(--muted);margin-top:4px}
+.obhead button{margin-left:auto}
+.obwarn{background:var(--amber-soft);border:1px solid color-mix(in srgb,var(--amber) 40%,transparent);
+  border-radius:8px;padding:12px 15px;font-size:12.5px;line-height:1.65;color:var(--ink-2)}
+.obwarn b{display:block;color:var(--ink);margin-bottom:3px}
+.obmsg{background:var(--neon-soft);border:1px solid var(--neon-line);border-radius:6px;
+  padding:11px 14px;font-size:12.5px;color:var(--ink-2);line-height:1.6}
+
+.obpick{display:flex;flex-direction:column;gap:6px}
+.obpick label{font-size:9.5px;font-weight:800;letter-spacing:.11em;text-transform:uppercase;color:var(--muted)}
+.obpick select{background:var(--input-bg);border:1px solid var(--line);border-radius:6px;
+  padding:12px 13px;font-size:14px;color:var(--ink);font-family:inherit;outline:none}
+.obpick select:focus{border-color:var(--neon-line);box-shadow:var(--glow)}
+
+.obcard{background:var(--surface);border:1px solid var(--line);border-radius:10px;
+  padding:18px 20px;display:flex;flex-direction:column;gap:13px}
+.obcard h2{margin:0;font-size:14px;font-weight:800;letter-spacing:.02em;
+  display:flex;align-items:center;gap:10px}
+.obcard h2 span{width:24px;height:24px;border-radius:50%;display:grid;place-items:center;
+  font-size:12px;font-weight:800;background:var(--neon);color:var(--neon-ink);flex:none}
+.obgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px}
+.obf{display:flex;flex-direction:column;gap:5px;min-width:0}
+.obf label{font-size:9.5px;font-weight:800;letter-spacing:.11em;text-transform:uppercase;color:var(--muted)}
+.obf input,.obf select{background:var(--input-bg);border:1px solid var(--line);border-radius:5px;
+  padding:9px 11px;font-size:13px;color:var(--ink);font-family:inherit;outline:none;width:100%}
+.obf input:focus,.obf select:focus{border-color:var(--neon-line);box-shadow:var(--glow)}
+.obf input[readonly]{color:var(--muted)}
+.obf i{font-style:normal;font-size:10.5px;color:var(--muted);line-height:1.45}
+.obcheck{display:flex;align-items:center;gap:9px;font-size:13px;color:var(--ink-2);cursor:pointer}
+.obcheck input{accent-color:var(--neon);width:16px;height:16px;cursor:pointer}
+.obp{margin:0;font-size:12.5px;color:var(--muted);line-height:1.65}
+.obp b{color:var(--ink)}
+.obcard > .btn{align-self:flex-start}
+
+.obblock{background:var(--red-soft);border:1px solid color-mix(in srgb,var(--red) 40%,transparent);
+  border-radius:6px;padding:11px 13px;font-size:12px;line-height:1.6;color:var(--ink-2)}
+.obblock b{display:block;color:var(--red);margin-bottom:2px}
+.obsteps{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.obstep{display:flex;align-items:center;gap:11px;padding:11px 13px;
+  border-bottom:1px solid var(--line);background:var(--surface)}
+.obstep:last-child{border-bottom:0}
+.obstep.blocks{box-shadow:inset 3px 0 0 var(--amber)}
+.obstep.late{background:var(--red-soft)}
+.obn{width:22px;height:22px;border-radius:50%;flex:none;display:grid;place-items:center;
+  font-size:10px;font-weight:800;background:var(--surface-2);border:1px solid var(--line);color:var(--muted)}
+.obt{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
+.obt b{font-size:12.5px;font-weight:700}
+.obt i{font-style:normal;font-size:10.5px;color:var(--muted);line-height:1.45}
+
 /* ═══ DOCUMENT READER ═══════════════════════════════════════════════
  * Read, progress per section, then sign the VERSION. The signature box
  * says what signing means, because receipt is not agreement.
