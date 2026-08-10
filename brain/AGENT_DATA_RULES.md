@@ -467,4 +467,61 @@ frozen (Coastal Cultivars 681.5, Flower Power 368.9) plus ~264 lb of trim. That
 is INPUT MASS that never came off our plants - counting it as our production
 overstates yield, omitting it from intake breaks the balance. Trim goes to
 economy pre-rolls and to manufacturing.
+
+=========================================================================
+THE COA IS THE SOURCE OF RECORD FOR EVERY LAB FIGURE. Owner ruling,
+10 August 2026. METRC IS NOT.
+=========================================================================
+"ALL TESTING SHOULD BE IMPORTED DIRECTLY FROM COA NOT OUR METRC SYSTEM."
+"EACH STRAIN OR ITEM SHOULD HAVE FULL DETAILED COA."
+"THAT IS NUMBER ONE QUESTION FROM BUYERS - THC AND TAC."
+
+METRC'S FEED CARRIES NO TAC LINE AT ALL. Verified across all ~280 distinct
+test names we hold: no "TAC", no "Total Active Cannabinoids", no "Total
+Cannabinoids". It carries the state-required analytes only. Metrc also carries
+NO terpene profile. Both live on the laboratory PDF.
+  coa_extract.total_cannabinoids  <- THIS IS TAC, from the real COA
+  coa_extract.total_terpenes, terpene_profile, cannabinoid_profile
+Read potency from coa_extract. Never back-fill a COA gap with a Metrc number -
+silently mixing two sources is how a customer is told something the certificate
+does not say. v_product_listing enforces this: a lab field is NULL when the COA
+lacks it, and publish_readiness names what is blocking.
+
+METRC LAB RESULTS ARE PER LICENCE - PULL BOTH. The MP281909 export starts
+1/1/2025; the MC281714 export reaches back to 9/2024 with 4,403 rows for 2024.
+We had only pulled the manufacturing side and concluded "there are no 2024 lab
+results". There were - under the other licence. Any claim that a Metrc report
+holds nothing for a period must name WHICH LICENCE was pulled.
+
+UNITS: Metrc reports potency as BOTH "(%)" and "(mg/g)" under test names that
+both begin "Total THC". % = mg/g / 10. Averaging them together produced an
+apparent 798.75% concentrate. v_potency_analytes normalises and keeps
+raw_value + raw_unit so the conversion is never silent.
+
+*** f_is_ours() HANDLES A FIELD NAMING SEVERAL LICENCES. ***
+A COA's client_license routinely reads "MC281714, MP281909" because one company
+holds both. The function used exact equality and returned FALSE, so 621 of our
+own certificates - 525 carrying TAC - were booked as another company's. FIXED IN
+THE FUNCTION on 10 Aug 2026 (splits on , ; / |). This was the SECOND time that
+defect bit: the first fix was applied at ONE CALL SITE, so every new caller
+inherited it again. Fix shared logic in the shared function.
+
+STRAIN TYPE (indica / sativa / hybrid) IS NOT IN ANY SYSTEM WE HOLD. Not Metrc,
+not the COA. It is a fact about the genetics. strain_library.strain_type is NULL
+until a person sets it, and a listing cannot be published without it. NEVER infer
+it from a strain name onto a customer-facing page.
+
+A METRC REPORT'S FILENAME DOES NOT STATE ITS PERIOD - THE TITLE BLOCK DOES.
+LabResultsReport.xls "all results" -> starts 1/1/2025. InventoryPointInTime (4)
+"a point in time" -> 31 Dec 2025, not 2024. HarvestsReport "from 6 Jan 2024" ->
+earliest actual harvest 15 May 2024. Header row is 12 (13 on Packages
+Adjustments); read with header=0 and every column returns Unnamed with values
+shifted. Registered in source_export with SHA-256 and what each proved.
+
+AN ALWAYS-NULL COLUMN ANSWERS ZERO, IT DOES NOT ERROR. metrc_rpt_plants_destroyed
+.destroyed_on is NULL on all 3,773 rows because THE METRC REPORT HAS NO SUCH
+COLUMN - we invented it. Reading it reported "ZERO plants destroyed in 2024" to
+the owner when 3,025 were destroyed (the date is phase_date). Run
+f_field_coverage() before trusting any count of nothing; field_gap records all 25
+known gaps.
 ```
