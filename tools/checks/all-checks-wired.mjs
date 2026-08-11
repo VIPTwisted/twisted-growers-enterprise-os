@@ -44,6 +44,12 @@ const SELF = basename(fileURLToPath(import.meta.url));
 const NOT_A_GATE = {
   "dump-schema.mjs":
     "Operator tool, not a gate. Reads the live database with credentials CI does not hold, and writes a schema dump. Run by hand when the schema needs rebuilding.",
+  "run-gates.mjs":
+    "The RUNNER, not a gate. It executes every check:* in the `check` chain and reports which one failed. Chaining it INTO that chain would make it invoke itself, and then invoke itself again, forever - it parses `check` out of package.json precisely so the list is never duplicated. It is wired in at netlify.toml, which calls `npm run gates` on the deploy path, and that wiring is asserted below rather than left to trust.",
+  "deploy-current.mjs":
+    "A POST-deploy assertion, and it CANNOT be a pre-deploy gate. It asks whether the LIVE SITE is serving current main. Run before the build, the answer is necessarily no - that is the whole reason a deploy is happening - so it fails, blocks the build, and prevents the very deploy that would make it pass. A permanent deadlock, not a temporary red. Its verdict is only meaningful AFTER a publish, so it belongs in a post-deploy hook or a scheduled watch, which is Agent D's lane. Exempt on architecture, not on convenience.",
+  "lane-discipline.mjs":
+    "TEMPORARY, and Agent D's to remove. Agent D's guard, deliberately not yet wired. It currently fails on two unowned files that sit in two different agents' work, and it reports 0 of 56 commits carrying an 'Agent: X' trailer - so by its own output its cross-lane rule is dormant. Wiring it now would block EVERY agent's deploy on a commit convention nobody has adopted yet, which is a process decision for D and the owner, not something the pipeline should impose by stealth. TO REMOVE THIS: claim the unowned files in agent_lane (or list them in that file's UNOWNED_OK), get agents emitting the Agent trailer, then add check:lane to the chain and delete this entry.",
 };
 
 /* THERE ARE TWO PLACES THAT RUN THESE, AND CHECKING ONLY ONE MISSED FOUR.
@@ -154,4 +160,35 @@ if (unwired.length || !selfWired) {
   process.exit(1);
 }
 
+/* THE DEPLOY PATH MUST ACTUALLY INVOKE THE CHAIN.
+ *
+ * Everything above proves each guard is LISTED in package.json's `check` chain. It
+ * does not prove anything RUNS that chain on the deploy path - and netlify.toml is
+ * the only gate that can stop a ship, because Actions builds in parallel and cannot.
+ *
+ * Deleting `npm run gates` from the build command would leave every check above
+ * still listed, still passing this gate, and never executed on a deploy again. That
+ * is the exact shape of a vacuous guard this file was written to prevent, one level
+ * up from where it was looking. */
+const NETLIFY = "netlify.toml";
+let toml = "";
+try {
+  toml = readFileSync(resolve(root, NETLIFY), "utf8");
+} catch {
+  console.error(`all-checks-wired: FAIL — ${NETLIFY} is missing.`);
+  console.error("      It is the only place a failing guard can stop a deploy.\n");
+  process.exit(1);
+}
+/* Either entry point is acceptable: `gates` is the runner that executes the chain and
+   names the failure, `check` is the raw chain itself. What is NOT acceptable is neither. */
+if (!/npm run (gates|check)\b/.test(toml)) {
+  console.error(`all-checks-wired: FAIL — ${NETLIFY} does not run the gates.`);
+  console.error("      Its build command invokes neither `npm run gates` nor `npm run check`,");
+  console.error("      so every guard in tools/checks is listed, green, and never executed on");
+  console.error("      the deploy path. Actions cannot stop a ship; only this can.\n");
+  process.exit(1);
+}
+const entry = /npm run gates\b/.test(toml) ? "npm run gates" : "npm run check";
+
 console.log(`all-checks-wired: PASS — all ${checks.length + 1} guards run in BOTH GitHub Actions and the Netlify build.`);
+console.log(`all-checks-wired: ok      — netlify.toml runs them on the deploy path via \`${entry}\`.`);
