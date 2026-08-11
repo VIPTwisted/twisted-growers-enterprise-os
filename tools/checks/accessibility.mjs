@@ -52,10 +52,10 @@ const SRC = join(ROOT, "app", "web", "src");
  * to is the same error that read still_in_room_lb as a dry weight and called three cultivation
  * views a payroll leak. Measure with the tool, not with grep. */
 const BASELINE = {
-  clickWithoutKeyboard: 36,
+  clickWithoutKeyboard: 35,
   imgWithoutAlt: 0,
   positiveTabIndex: 0,
-  inputWithoutLabel: 133,
+  inputWithoutLabel: 126,
 };
 
 const INTERACTIVE = /^(button|a|input|select|textarea|summary|label|option)$/i;

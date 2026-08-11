@@ -96,7 +96,7 @@ function Launcher({ onGo, onClose, apps }) {
             <div className="lt">TG Workspace</div>
             <div className="ls">Work, People and Finance — everything that is not the production floor.</div>
           </div>
-          <input className="lsearch" placeholder="Search…" value={q} autoFocus onChange={(e) => setQ(e.target.value)} />
+          <input aria-label="Search" className="lsearch" placeholder="Search…" value={q} autoFocus onChange={(e) => setQ(e.target.value)} />
           <button className="btn small ghost" onClick={onClose}>✕</button>
         </div>
         <div className="lcats">
@@ -204,12 +204,12 @@ function TimeTools({ session }) {
               ? <button className="btn small" onClick={stopTrack}>Stop & save</button>
               : <button className="btn small" onClick={() => setTrack(Date.now())}>Start</button>}
           </div>
-          <input className="ttnote" placeholder="What are you working on? (optional)" value={note} onChange={(e) => setNote(e.target.value)} />
+          <input aria-label="What are you working on" className="ttnote" placeholder="What are you working on? (optional)" value={note} onChange={(e) => setNote(e.target.value)} />
           <div className="ttsub">Tracked today: {fmtHMS(todaySec)} — saved to your account; payroll timesheets wire in with the Work Layer.</div>
           <div className="usep" />
           <div className="ulabel">Timer</div>
           <div className="ttrow">
-            <input className="ttmin" type="number" min="1" value={timerMin} onChange={(e) => setTimerMin(e.target.value)} />
+            <input aria-label="Timer length in minutes" className="ttmin" type="number" min="1" value={timerMin} onChange={(e) => setTimerMin(e.target.value)} />
             <span className="ttsub" style={{ margin: 0 }}>minutes</span>
             {timerEnd
               ? <button className="btn small ghost" onClick={() => setTimerEnd(null)}>Cancel</button>
@@ -571,9 +571,9 @@ function Auth() {
           <h3>{mode === "signin" ? "Sign in" : "Create account"}</h3>
           <div className="hint">{mode === "signin" ? "Welcome back to the command center." : "The first account ever created becomes the owner."}</div>
           <label>Email</label>
-          <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required autoComplete="email" />
+          <input aria-label="Email address" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required autoComplete="email" />
           <label>Password</label>
-          <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={8} autoComplete="current-password" />
+          <input aria-label="Password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={8} autoComplete="current-password" />
           <button className="btn" disabled={busy}>{mode === "signin" ? "Sign in" : "Create account"}</button>
           <button type="button" className="btn ghost" style={{ marginLeft: 10 }} onClick={() => { setMode(mode === "signin" ? "signup" : "signin"); setMsg(null); }}>
             {mode === "signin" ? "First time? Create account" : "Have an account? Sign in"}
@@ -1187,12 +1187,12 @@ function DateRangeSelect({ label, from, to, onFrom, onTo, onPreset }) {
   return (
     <>
       <span className="flab">{label}</span>
-      <select className="fdate" value={shown} onChange={(e) => pick(e.target.value)}>
+      <select aria-label="Date range preset" className="fdate" value={shown} onChange={(e) => pick(e.target.value)}>
         {DATE_PRESETS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}
       </select>
-      <input type="date" className="fdate" value={from} onChange={(e) => { setPreset("custom"); onFrom(e.target.value); }} />
+      <input aria-label="From date" type="date" className="fdate" value={from} onChange={(e) => { setPreset("custom"); onFrom(e.target.value); }} />
       <span className="flab">to</span>
-      <input type="date" className="fdate" value={to} onChange={(e) => { setPreset("custom"); onTo(e.target.value); }} />
+      <input aria-label="To date" type="date" className="fdate" value={to} onChange={(e) => { setPreset("custom"); onTo(e.target.value); }} />
     </>
   );
 }
@@ -1859,7 +1859,7 @@ function RpFieldsPanel({ cols, shown, setShown, onClose }) {
       </div>
       {shown.map((name) => (
         <div key={name} className="findrow" style={{ display: "flex", alignItems: "center", gap: 6, padding: "2px 0" }}>
-          <input type="checkbox" checked readOnly onClick={() => toggle(name)} />
+          <input aria-label="Hide this column" type="checkbox" checked readOnly onClick={() => toggle(name)} />
           <span style={{ flex: 1 }}>{rpLabel(name)}</span>
           <span className="note">{cols.find((c) => c.name === name)?.kind}</span>
           <button className="btn small ghost" title="Move earlier" onClick={() => move(name, -1)}>↑</button>
@@ -1871,7 +1871,7 @@ function RpFieldsPanel({ cols, shown, setShown, onClose }) {
           <div className="note">Hidden — nothing is lost, tick to bring it back:</div>
           {cols.filter((c) => !shown.includes(c.name)).map((c) => (
             <div key={c.name} className="findrow" style={{ display: "flex", alignItems: "center", gap: 6, padding: "2px 0" }}>
-              <input type="checkbox" checked={false} onChange={() => toggle(c.name)} />
+              <input aria-label="Show this column" type="checkbox" checked={false} onChange={() => toggle(c.name)} />
               <span style={{ flex: 1 }}>{rpLabel(c.name)}</span>
               <span className="note">{c.kind}{c.allNull ? " · empty on every row read" : ""}</span>
             </div>
@@ -1896,19 +1896,19 @@ function RpFiltersPanel({ cols, filters, setFilters, onClose }) {
         const ops = RP_OPS[kind] ?? RP_OPS.text;
         return (
           <div key={i} className="findrow" style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap", padding: "4px 0" }}>
-            <select className="fdate" value={f.col} onChange={(e) => set(i, { col: e.target.value, op: (RP_OPS[cols.find((c) => c.name === e.target.value)?.kind ?? "text"] ?? RP_OPS.text)[0][0], value: "", value2: "" })}>
+            <select aria-label="Filter column" className="fdate" value={f.col} onChange={(e) => set(i, { col: e.target.value, op: (RP_OPS[cols.find((c) => c.name === e.target.value)?.kind ?? "text"] ?? RP_OPS.text)[0][0], value: "", value2: "" })}>
               {cols.map((c) => <option key={c.name} value={c.name}>{rpLabel(c.name)}</option>)}
             </select>
-            <select className="fdate" value={f.op} onChange={(e) => set(i, { op: e.target.value })}>
+            <select aria-label="Filter operator" className="fdate" value={f.op} onChange={(e) => set(i, { op: e.target.value })}>
               {ops.map(([k, l]) => <option key={k} value={k}>{l}</option>)}
             </select>
             {rpNeedsValue(f.op) && (
-              <input className="fdate" type={kind === "date" ? "date" : kind === "number" ? "number" : "text"}
+              <input aria-label="Filter value" className="fdate" type={kind === "date" ? "date" : kind === "number" ? "number" : "text"}
                 placeholder={f.op === "in" ? "value one, value two, value three" : "value"}
                 value={f.value ?? ""} onChange={(e) => set(i, { value: e.target.value })} />
             )}
             {f.op === "between" && (
-              <input className="fdate" type={kind === "date" ? "date" : "number"} placeholder="and"
+              <input aria-label="Filter upper bound" className="fdate" type={kind === "date" ? "date" : "number"} placeholder="and"
                 value={f.value2 ?? ""} onChange={(e) => set(i, { value2: e.target.value })} />
             )}
             <button className="btn small ghost" onClick={() => setFilters(filters.filter((_, n) => n !== i))}>Remove</button>
@@ -2259,7 +2259,7 @@ function ReportScreen({ entry, actions, session }) {
 
       {/* THE ONE TOOLBAR. Same order, same wording, same position, every report. */}
       <div className="filterbar">
-        <input className="fsearch" placeholder="Search every text column on this report…" value={searchLive}
+        <input aria-label="Search every text column on this report" className="fsearch" placeholder="Search every text column on this report…" value={searchLive}
           onChange={(e) => setSearchLive(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter") setSearch(searchLive); }} />
         <button className="btn small" onClick={() => setSearch(searchLive)}>Find</button>
@@ -2272,7 +2272,7 @@ function ReportScreen({ entry, actions, session }) {
             in the view, stated plainly here and never dressed up as a feature. */}
         {dateCols.length > 0 ? (
           <>
-            <select className="fdate" value={dateCol ?? ""} onChange={(e) => setDateCol(e.target.value)}
+            <select aria-label="Date column to filter on" className="fdate" value={dateCol ?? ""} onChange={(e) => setDateCol(e.target.value)}
               title="Which date this range applies to">
               {dateCols.map((c) => <option key={c} value={c}>{rpLabel(c)}</option>)}
             </select>
@@ -2294,7 +2294,7 @@ function ReportScreen({ entry, actions, session }) {
         <button className={`btn small ${filters.length ? "" : "ghost"}`} onClick={() => setPanel(panel === "filters" ? null : "filters")}>
           Filters{filters.length ? ` (${filters.length})` : ""}
         </button>
-        <select className="fdate" value={groupBy} onChange={(e) => setGroupBy(e.target.value)} title="Group the rows and subtotal each group">
+        <select aria-label="Group rows by" className="fdate" value={groupBy} onChange={(e) => setGroupBy(e.target.value)} title="Group the rows and subtotal each group">
           <option value="">No grouping</option>
           {dimCols.map((d) => <option key={d} value={d}>Group by {rpLabel(d)}</option>)}
         </select>
@@ -2598,14 +2598,14 @@ function FilterBar({ qLive, setQLive, onFind, dateCol, dFrom, dTo, setDFrom, set
                      dims = [], dimSel = {}, onDim }) {
   return (
     <div className="filterbar">
-      <input className="fsearch" placeholder="Search anything — name, batch, tag…" value={qLive}
+      <input aria-label="Search" className="fsearch" placeholder="Search anything — name, batch, tag…" value={qLive}
         onChange={(e) => setQLive(e.target.value)}
         onKeyDown={(e) => { if (e.key === "Enter") onFind(); }} />
       <button className="btn small" onClick={onFind}>Find</button>
       {dims.map(({ col, values }) => (
         <span key={col} style={{ display: "contents" }}>
           <span className="flab">{col.replaceAll("_", " ")}</span>
-          <select className="fdate" value={dimSel[col] ?? ""}
+          <select aria-label="Filter value" className="fdate" value={dimSel[col] ?? ""}
             onChange={(e) => onDim(col, e.target.value || null)}>
             <option value="">All</option>
             {values.map((v) => <option key={v} value={v}>{v}</option>)}
@@ -3335,15 +3335,15 @@ function ValuationRates({ session }) {
             {mayEdit && edit === r.stream && (
               <div className="vrform">
                 <label>Dollars per pound
-                  <input type="number" step="0.01" value={form.dollars_per_pound ?? ""}
+                  <input aria-label="Dollars per pound" type="number" step="0.01" value={form.dollars_per_pound ?? ""}
                     onChange={(e) => setForm({ ...form, dollars_per_pound: e.target.value })} />
                 </label>
                 <label>Basis — where this number comes from
-                  <input value={form.basis ?? ""} placeholder="e.g. average of the last six wholesale invoices"
+                  <input aria-label="Basis for this rate" value={form.basis ?? ""} placeholder="e.g. average of the last six wholesale invoices"
                     onChange={(e) => setForm({ ...form, basis: e.target.value })} />
                 </label>
                 <label>Anything else worth recording
-                  <input value={form.source_note ?? ""} placeholder="optional"
+                  <input aria-label="Source note" value={form.source_note ?? ""} placeholder="optional"
                     onChange={(e) => setForm({ ...form, source_note: e.target.value })} />
                 </label>
                 <div className="vractions">
@@ -3365,11 +3365,11 @@ function ValuationRates({ session }) {
             rate wherever that material appears.
           </p>
           <div className="vrovform">
-            <label>Package tag<input value={nv.package_tag} onChange={(e) => setNv({ ...nv, package_tag: e.target.value })} placeholder="leave blank to use a harvest" /></label>
-            <label>Harvest name<input value={nv.harvest_name} onChange={(e) => setNv({ ...nv, harvest_name: e.target.value })} placeholder="leave blank to use a package tag" /></label>
-            <label>Stream<input value={nv.stream} onChange={(e) => setNv({ ...nv, stream: e.target.value })} placeholder="optional" /></label>
-            <label>Dollars per pound<input type="number" step="0.01" value={nv.dollars_per_pound} onChange={(e) => setNv({ ...nv, dollars_per_pound: e.target.value })} /></label>
-            <label className="wide">Why this batch is different<input value={nv.reason} onChange={(e) => setNv({ ...nv, reason: e.target.value })} placeholder="e.g. bought at a discount to remediate" /></label>
+            <label>Package tag<input aria-label="Package tag" value={nv.package_tag} onChange={(e) => setNv({ ...nv, package_tag: e.target.value })} placeholder="leave blank to use a harvest" /></label>
+            <label>Harvest name<input aria-label="Harvest name" value={nv.harvest_name} onChange={(e) => setNv({ ...nv, harvest_name: e.target.value })} placeholder="leave blank to use a package tag" /></label>
+            <label>Stream<input aria-label="Stream" value={nv.stream} onChange={(e) => setNv({ ...nv, stream: e.target.value })} placeholder="optional" /></label>
+            <label>Dollars per pound<input aria-label="Dollars per pound" type="number" step="0.01" value={nv.dollars_per_pound} onChange={(e) => setNv({ ...nv, dollars_per_pound: e.target.value })} /></label>
+            <label className="wide">Why this batch is different<input aria-label="Why this batch is different" value={nv.reason} onChange={(e) => setNv({ ...nv, reason: e.target.value })} placeholder="e.g. bought at a discount to remediate" /></label>
           </div>
           <button className="vrbtn primary" onClick={addOverride}>Save the override</button>
         </div>
@@ -3597,7 +3597,7 @@ function ProductionCalculator({ session }) {
                   <span className="cinpl">{r.label}</span>
                   {edit === r.key ? (
                     <span className="cinpe">
-                      <input autoFocus type="number" step="any" value={draft}
+                      <input aria-label="Value" autoFocus type="number" step="any" value={draft}
                         onChange={(e) => setDraft(e.target.value)}
                         onKeyDown={(e) => { if (e.key === "Enter") save(r.key); if (e.key === "Escape") setEdit(null); }} />
                       <button className="vrbtn primary" onClick={() => save(r.key)}>Save</button>
@@ -3714,7 +3714,7 @@ function HarvestLaborCalculator({ session }) {
     if (!r) return null;
     return edit === k ? (
       <span className="cinpe">
-        <input autoFocus type="number" step="any" value={draft}
+        <input aria-label="Value" autoFocus type="number" step="any" value={draft}
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter") save(k); if (e.key === "Escape") setEdit(null); }} />
         <button className="vrbtn primary" onClick={() => save(k)}>Save</button>
@@ -3808,7 +3808,7 @@ function HarvestLaborCalculator({ session }) {
                   <td>
                     {edit === x.id + "p" ? (
                       <span className="cinpe">
-                        <input autoFocus type="number" step="any" value={draft}
+                        <input aria-label="Value" autoFocus type="number" step="any" value={draft}
                           onChange={(e) => setDraft(e.target.value)}
                           onKeyDown={(e) => { if (e.key === "Enter") savePace(x.id, "plants_per_min_per_person", draft); if (e.key === "Escape") setEdit(null); }} />
                         <button className="vrbtn primary" onClick={() => savePace(x.id, "plants_per_min_per_person", draft)}>Save</button>
@@ -3823,7 +3823,7 @@ function HarvestLaborCalculator({ session }) {
                   <td>
                     {edit === x.id + "s" ? (
                       <span className="cinpe">
-                        <input autoFocus type="number" step="any" value={draft}
+                        <input aria-label="Value" autoFocus type="number" step="any" value={draft}
                           onChange={(e) => setDraft(e.target.value)}
                           onKeyDown={(e) => { if (e.key === "Enter") savePace(x.id, "staff_on_task", draft); if (e.key === "Escape") setEdit(null); }} />
                         <button className="vrbtn primary" onClick={() => savePace(x.id, "staff_on_task", draft)}>Save</button>
@@ -4048,9 +4048,9 @@ function SheetSync({ session }) {
                   Or use <b>File → Download → Comma separated values</b> in the sheet and drop the
                   file here. Both do the same thing. Neither changes the sheet or its sharing.
                 </p>
-                <textarea className="sspaste" value={paste} placeholder="Paste the sheet here…"
+                <textarea aria-label="Paste the sheet here" className="sspaste" value={paste} placeholder="Paste the sheet here…"
                   onChange={(e) => { setPaste(e.target.value); doParse(e.target.value); }} />
-                <input className="ssfile" type="file" accept=".csv,.tsv,.txt"
+                <input aria-label="Choose a file to upload" className="ssfile" type="file" accept=".csv,.tsv,.txt"
                   onChange={(e) => onFile(e.target.files?.[0])} />
 
                 {parsed && (
@@ -4239,11 +4239,11 @@ function BusinessRules({ session }) {
               {mayEdit && edit === r.key && (
                 <div className="vrform">
                   <label>{r.label} ({r.unit})
-                    <input autoFocus type="number" step="any" value={draft}
+                    <input aria-label="Value" autoFocus type="number" step="any" value={draft}
                       onChange={(e) => setDraft(e.target.value)} />
                   </label>
                   <label>Where this number comes from
-                    <input value={why} placeholder="e.g. our own drying trials over the last six months"
+                    <input aria-label="Why this figure" value={why} placeholder="e.g. our own drying trials over the last six months"
                       onChange={(e) => setWhy(e.target.value)} />
                   </label>
                   <div className="vractions">

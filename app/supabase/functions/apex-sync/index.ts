@@ -122,6 +122,16 @@ async function firstRunCursor(): Promise<string> {
   return typeof joined === "string" && joined ? joined : APEX_EPOCH;
 }
 
+/* Has this entity EVER returned a row, on any run in its history? A zero-row answer
+   from an entity that has never once produced data is not evidence the entity is
+   empty -- it is equally consistent with asking the wrong question, which is exactly
+   what happened to receiving-orders and deal-docs. RECOVERED FROM PRODUCTION v4. */
+async function entityHasEverReturnedRows(entity: string): Promise<boolean> {
+  const { count } = await supa.from("apex_raw")
+    .select("id", { count: "exact", head: true }).eq("entity", entity);
+  return (count ?? 0) > 0;
+}
+
 async function pullEntity(base: string, key: string, e: Entity, runId: string, seed: string): Promise<string> {
   const started = new Date().toISOString();
   const { data: wmRow } = await supa.from("apex_watermark").select("*").eq("entity", e.entity).maybeSingle();
@@ -301,15 +311,39 @@ async function pullEntity(base: string, key: string, e: Entity, runId: string, s
       return `INCOMPLETE — ${shortfall}; ${written} stored, watermark held for retry.`;
     }
 
+    /* A ZERO-ROW FIRST PULL IS NOT PROOF OF AN EMPTY ENTITY and must not move the
+       cursor past a window it never read. receiving-orders and deal-docs returned 0
+       rows in ~200ms, were logged ok, and had their cursor advanced to that moment --
+       making the whole history permanently unreachable behind a green status.
+       Holding on a genuinely empty entity costs one cheap repeated call; advancing
+       past an unread window costs the history.
+
+       RECOVERED FROM PRODUCTION 11 Aug 2026. This guard was deployed as apex-sync v4
+       and existed ONLY in the deployment -- the repo copy still advanced the cursor
+       unconditionally. Deploying the repo source would have deleted it and silently
+       reintroduced the bug it fixes. */
+    const provenNonEmpty = rows.length > 0 || await entityHasEverReturnedRows(e.entity);
+    const holdCursor = e.supports_delta && !provenNonEmpty;
+    const nextCursor = e.supports_delta ? (holdCursor ? (watermarkBefore ?? seed) : started) : null;
+
     await supa.from("apex_watermark").upsert({
       entity: e.entity,
-      updated_at_from: e.supports_delta ? started : null,
+      updated_at_from: nextCursor,
       last_success_at: now, last_attempt_at: now, consecutive_errors: 0,
     });
     await logRun({ status: "ok", http_status: httpStatus, rows_seen: rows.length,
-      rows_written: written, watermark_after: e.supports_delta ? started : null });
+      rows_written: written, watermark_after: nextCursor,
+      error: holdCursor
+        ? `ZERO ROWS AND THIS ENTITY HAS NEVER RETURNED ONE. Cursor deliberately HELD at `
+        + `${watermarkBefore ?? seed} rather than advanced, so the next run re-asks the same `
+        + `full window.`
+        : null });
 
     if (rows.length === 0) {
+      if (holdCursor) {
+        return `0 rows — and this entity has NEVER returned one. Cursor HELD at ${watermarkBefore ?? seed}. `
+             + `Verify with apex-probe before believing it is empty.`;
+      }
       return watermarkBefore
         ? "0 new (delta — nothing changed since the last successful pull)"
         : "0 rows — and this was a FULL pull, so the entity is genuinely empty at Apex";
