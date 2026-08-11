@@ -43,6 +43,7 @@
  * one static key currently bypasses executive auth on sixteen deployed functions.
  */
 import { readFileSync, existsSync, readdirSync } from "node:fs";
+import { Buffer } from "node:buffer";
 import { createHash } from "node:crypto";
 import { resolve, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -62,7 +63,25 @@ if (!existsSync(MANIFEST)) {
 const manifest = JSON.parse(readFileSync(MANIFEST, "utf8"));
 const pinned = manifest.functions ?? {};
 
-const sha = (p) => createHash("sha256").update(readFileSync(p)).digest("hex");
+/* HASH THE CONTENT, NOT THE LINE ENDINGS.
+ *
+ * This repo has core.autocrlf=true and no .gitattributes, so a checkout on Windows
+ * writes CRLF and a checkout on Linux writes LF - the SAME commit, two different byte
+ * streams, two different sha256s. Netlify builds on Linux; agents work on Windows.
+ *
+ * Hashing raw bytes therefore made this gate answer differently depending on WHO RAN IT.
+ * On 11 Aug 2026 it reported parse-documents as drifted (ae1f4fe -> 0dca802b) on a
+ * Windows tree while the identical commit hashed ae1f4fe on Netlify and matched the
+ * manifest exactly. A gate whose verdict depends on the machine is worse than no gate:
+ * it burns time chasing a difference that does not exist, and - the dangerous direction -
+ * it would equally report a REAL drift as clean if the line endings happened to cancel out.
+ *
+ * Normalising CRLF to LF makes the answer identical everywhere. It changes no pinned
+ * value: every hash already in the manifest was recorded from an LF checkout. */
+const sha = (p) =>
+  createHash("sha256")
+    .update(Buffer.from(readFileSync(p).toString("utf8").replace(/\r\n/g, "\n"), "utf8"))
+    .digest("hex");
 
 const drifted = [];
 const untracked = [];
