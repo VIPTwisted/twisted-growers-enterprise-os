@@ -436,3 +436,30 @@ written into a brief.
 **When you add a table that a sync writes to, register its key in the same commit.**
 The guard checks coverage, so an unregistered sync target fails the build — which is
 the only reason this rule will still be true next month.
+
+## 12. THE SEED-TO-SALE MANDATE OUTRANKS YOUR PLAN
+
+Owner ruling, 11 August 2026. Read `brain/SEED_TO_SALE_MANDATE.md` BEFORE touching
+cultivation, manufacturing, packaging, inventory, sales, documents or reporting.
+
+The short version, and none of it is optional:
+
+- **Metrc is the source of record** for cultivation, manufacturing, packaging and
+  custody, and is **READ-ONLY to this platform, forever**. **Apex is the source of
+  record for sales, price and terms.** Neither corrects the other; where they
+  disagree, **the disagreement is the finding**.
+- **Identity is the TAG, never a name.** Names drift; that has cost us three times.
+- **Every item links to its manifest and its COA, live, by tag.** Nothing tested or
+  sold reaches a customer without both.
+- **Reconciliation is the product.** Full outer join, zero orphans, every difference
+  explained. Fuzzy-matching, rounding until totals tie, or dropping rows that will
+  not match are FORBIDDEN — they manufacture a false green.
+- **Track time-to-turn**, purchase and harvest through to sale. Cash tied up unseen
+  is the point of the exercise.
+- **Every filter the source platforms expose, as DATA not JSX**, with date-ranged
+  reports.
+- **Third-party material is tracked like our own and never counted as ours.**
+
+**A feature is not done until a GUARD EXISTS THAT FAILS when any of it stops being
+true.** Every rule above has been written down before and broken anyway. A rule with
+no guard is a diary entry.
