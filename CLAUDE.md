@@ -548,6 +548,87 @@ and caused three blank screens.
 **F5. Use the whole page.** No wasted space in critical workspace, no horizontal
 scrollbars, no cut-off labels.
 
+**F6. 🔒 CHANGE ONLY WHAT WAS ASKED FOR. NOTHING ELSE ON THE PAGE.**
+*(Owner, 10 August 2026: "they can not change color theme and can only change all
+items i ask for if i don't ask for it they are NOT permitted to change anything on
+page!")*
+
+An agent asked to change one tile changes **that tile**. Not the layout, not the
+spacing, not the wording of a neighbouring label, not the order of anything, not
+"while I was in there". **The theme is locked (I1) and so is everything you were
+not asked about.**
+
+- **Adding** a section you were asked for is permitted. **Rearranging** the ones
+  you were not is a stop-work event.
+- If you believe something else on the page is wrong, **say so and leave it**.
+  Raise it; do not fix it.
+- The owner grades pages himself. An unrequested "improvement" is a regression
+  by definition, because it was not asked for and cannot be approved in advance.
+
+## L · CCC compliance and real seed-to-sale
+
+**Owner mandate, 10 August 2026, in his own words: "this OS must be fully
+compliant with all CCC rules and be full seed to sale tracking system… every item
+is fully tracked in locations from seed to sale including 3rd party… all data must
+reconcile between all platforms & spreadsheets fully without discrepancies… Real
+seed to sale. you must follow this too."**
+
+**L1. THE SYSTEM OF RECORD FOR EACH DOMAIN. Never blend them, never guess.**
+
+| Domain | The source of record |
+|---|---|
+| Cultivation, manufacturing, packaging | **Metrc** |
+| **All sales** | **Apex** |
+| Custody in and out | **The manifest**, reconciled for every tag bought or sold |
+| Anything tested | **The COA**, reconciled |
+
+A figure derived from the wrong system for its domain is wrong even when it looks
+right. Sales do not come from Metrc; cultivation does not come from Apex.
+
+**L2. EVERY TAG CARRIES ITS MANIFEST AND ITS COA, IN REAL TIME.** Not a link to a
+document page — the manifest and the certificate, openable from the row itself,
+wherever the item appears. This restates C3a and extends it: **real time**, not
+on a nightly job. Where either is absent the row states which reason (A3).
+
+**L3. THIRD-PARTY MATERIAL IS TRACKED LIKE OUR OWN.** Custody is the test, not
+ownership (J7). Tolled, consigned and bought-in material occupies a room, has a
+tag, and must reconcile like anything else. `third_party_material` holds 16 rows
+and **nothing reads it** — that is a live breach of this rule.
+
+**L4. NO DISCREPANCIES BETWEEN PLATFORMS. A DISCREPANCY IS A STOP, NOT A NOTE.**
+Every platform and every spreadsheet must reconcile: Metrc against Apex, both
+against the manifests, all of it against the COAs. Where two disagree, the
+disagreement is the finding (J6) and it is worked, not averaged.
+
+**L5. TIME-TO-TURN IS TRACKED ON EVERY LOT.** How long material takes to turn from
+**bought**, from **cultivated** and from **harvested** through to sold. The owner's
+reason, stated: *"so we can closely monitor and not tie up cashflow."* Cash tied up
+in slow stock is the cost this measures, and it is measured per lot, not in
+aggregate.
+
+**L6. EVERY ITEM FILTERS BY EVERY DIMENSION EVERY PLATFORM CARRIES, AND EVERY
+REPORT PULLS BY THOSE FILTERS AND BY DATE RANGE.** If Metrc, Apex or a spreadsheet
+carries a field, this OS filters on it. A report that cannot be pulled by date
+range is not finished.
+
+**L7. EVERY TAG CARRIES EVERY REASON CODE AND EVERY REMARK.** *(Owner, 10 Aug
+2026: "each tag has to track all reason codes, and remarks every damn detail.")*
+Every adjustment, every waste, every destruction, every note — with the code, the
+remark, the person and the time. **A quantity change with no remark is an
+unexplained movement of product.** Measured 10 Aug 2026: 4,414 adjustments all
+carry a reason and a person, but **1,356 carry no remark at all**, 984 of them
+under "Over/Under Pulled".
+
+**⚠ L-GAP. WHAT IS NOT TRUE TODAY, measured 10 August 2026.** This section is a
+mandate, not a description. Against it, right now:
+- **The OS holds ZERO sales.** `sales_orders`, `sales_order_lines`, `invoices` and
+  `metrc_sales` are all empty. **3,850 rows of Apex data arrived and none is
+  mapped**, because `apex_field_map` has **0 rows**. Same shape as the lab-results
+  failure: in the building, not on the shelves.
+- **Time-to-turn does not exist.** No view measures it.
+- **`third_party_material` is read by nothing.**
+- Any agent stating a sales figure today is inventing it (A1).
+
 ## G · Configuration
 
 **G1. Nothing is hardcoded.** Every threshold, rate and licence is a database row

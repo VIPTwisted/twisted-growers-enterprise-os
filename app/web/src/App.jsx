@@ -8709,6 +8709,391 @@ function GoalsEditor() {
   );
 }
 
+/* COST OF GOODS, MATERIALS AND PACKAGING — entered here, by a person.
+ *
+ * Owner, 11 Aug 2026: "WHERE I CAN WORK FROM AND ENTER COGS, MATERIALS, PACKAGING,
+ * TARGETS", "NOTHING SET IN STONE", "WE MUST BE ABLE TO ADJUST COSTS PER BATCH, TAG,
+ * WEEKLY, MONTHLY, QUARTERLY OR ANNUALLY FOR ALL INVENTORY".
+ *
+ * inventory_cost_rate has existed since 10 Aug and had NO USER INTERFACE ANYWHERE - 13
+ * rows seeded by an agent and no way for the owner to change one. A rate nobody can edit
+ * is a hardcoded number wearing a table.
+ *
+ * EFFECTIVE-DATED, NEVER OVERWRITTEN. A new rate is a NEW ROW with its own
+ * effective_from. Editing the figure in place would restate every closed period that
+ * already reported on the old one, which is how a tax pack stops tying out to what was
+ * filed. Most specific scope wins; every row carries who set it and its evidence status,
+ * so a report can always show its own basis. */
+function CostRateEditor({ session }) {
+  const [rows, setRows] = useState(null);
+  const [mayEdit, setMayEdit] = useState(false);
+  const [nv, setNv] = useState({ scope: "global", scope_key: "", material: "", cost_per_lb: "",
+                                 cost_per_unit: "", effective_from: "", note: "" });
+  const [msg, setMsg] = useState("");
+  const who = session?.user?.email ?? "unknown";
+
+  const load = React.useCallback(() => {
+    supabase.from("inventory_cost_rate").select("*")
+      .order("material").order("effective_from", { ascending: false })
+      .then(({ data }) => setRows(data ?? []));
+    supabase.rpc("f_can_manage_inventory").then(({ data }) => setMayEdit(data === true));
+  }, []);
+  useEffect(() => { load(); }, [load]);
+
+  async function add() {
+    if (!nv.material) { setMsg("Name the material first."); return; }
+    if (!nv.cost_per_lb && !nv.cost_per_unit) { setMsg("Enter a cost per pound or a cost per unit."); return; }
+    const { error } = await supabase.from("inventory_cost_rate").insert({
+      scope: nv.scope, scope_key: nv.scope_key || null, material: nv.material,
+      cost_per_lb: nv.cost_per_lb === "" ? null : Number(nv.cost_per_lb),
+      cost_per_unit: nv.cost_per_unit === "" ? null : Number(nv.cost_per_unit),
+      effective_from: nv.effective_from || new Date().toISOString().slice(0, 10),
+      set_by: who, note: nv.note || null, evidence_status: "owner_stated",
+    });
+    if (error) { setMsg(error.message); return; }
+    setMsg(`Added ${nv.material}. The previous rate is kept — closed periods keep their own figure.`);
+    setNv({ scope: "global", scope_key: "", material: "", cost_per_lb: "", cost_per_unit: "",
+            effective_from: "", note: "" });
+    load();
+  }
+
+  if (rows === null) return <div className="muted">Loading cost inputs…</div>;
+
+  return (
+    <div className="cfoinp">
+      <div className="cfonote">
+        A new rate is added as a new row with its own start date. The old one is kept, so a
+        period already reported does not silently change. Most specific scope wins:
+        tag beats batch beats product line beats category beats global.
+      </div>
+      {msg && <div className="goalnote">{msg}</div>}
+
+      {mayEdit && (
+        <div className="cfoaddrow">
+          <select aria-label="Scope for this cost rate" className="cfosel" value={nv.scope}
+            onChange={(e) => setNv({ ...nv, scope: e.target.value })}>
+            {["global", "category", "product_line", "brand", "batch", "tag"].map((s) => <option key={s} value={s}>{s}</option>)}
+          </select>
+          <input aria-label="Scope key, for example the tag or batch" className="cfoin" placeholder="scope key (blank = all)"
+            value={nv.scope_key} onChange={(e) => setNv({ ...nv, scope_key: e.target.value })} />
+          <input aria-label="Material or packaging item name" className="cfoin" placeholder="material / packaging item"
+            value={nv.material} onChange={(e) => setNv({ ...nv, material: e.target.value })} />
+          <input aria-label="Cost per pound" className="cfoin" type="number" step="0.01" placeholder="$ per lb"
+            value={nv.cost_per_lb} onChange={(e) => setNv({ ...nv, cost_per_lb: e.target.value })} />
+          <input aria-label="Cost per unit" className="cfoin" type="number" step="0.0001" placeholder="$ per unit"
+            value={nv.cost_per_unit} onChange={(e) => setNv({ ...nv, cost_per_unit: e.target.value })} />
+          <input aria-label="Effective from date" className="cfoin" type="date"
+            value={nv.effective_from} onChange={(e) => setNv({ ...nv, effective_from: e.target.value })} />
+          <input aria-label="Why this rate, and where it came from" className="cfoin wide" placeholder="where this figure came from"
+            value={nv.note} onChange={(e) => setNv({ ...nv, note: e.target.value })} />
+          <button className="btn" onClick={add}>Add rate</button>
+        </div>
+      )}
+      {!mayEdit && <div className="goalnote">You can see every rate. Changing one needs the <b>manage inventory</b> permission.</div>}
+
+      <div className="tablewrap"><table>
+        <thead><tr><th>Material</th><th>Scope</th><th>Key</th><th>$ / lb</th><th>$ / unit</th>
+          <th>From</th><th>To</th><th>Evidence</th><th>Set by</th><th>Note</th></tr></thead>
+        <tbody>{rows.map((r) => (
+          <tr key={r.id}>
+            <td><b>{r.material}</b></td><td>{r.scope}</td><td className="cfomono">{r.scope_key ?? "—"}</td>
+            <td>{r.cost_per_lb == null ? "—" : "$" + Number(r.cost_per_lb).toLocaleString()}</td>
+            <td>{r.cost_per_unit == null ? "—" : "$" + Number(r.cost_per_unit).toFixed(4)}</td>
+            <td>{r.effective_from}</td><td>{r.effective_to ?? "current"}</td>
+            <td className={r.evidence_status === "provisional" ? "cfounk" : ""}>{r.evidence_status ?? "—"}</td>
+            <td>{r.set_by ?? "—"}</td><td className="cfonotecell">{r.note ?? "—"}</td>
+          </tr>
+        ))}</tbody>
+      </table></div>
+    </div>
+  );
+}
+
+/* ═══ CFO / TAX · INVENTORY AUDIT, PLANNING & BUDGETING ═══════════════════
+ *
+ * Owner, 11 Aug 2026: "I WANT A FORENSIC AUDIT PAGE FOR TAXES AND CFO", "BUILD ME A
+ * SOPHISTICATED PAGE DEDICATED TO INVENTORY AUDITS AND PLANNING AND BUDGETING",
+ * "WHERE I CAN WORK FROM AND ENTER COGS, MATERIALS, PACKAGING, TARGETS", and
+ * "WHERE ARE DETAILS MEMOS, TAGS LINKS".
+ *
+ * WHAT WAS WRONG BEFORE. The third-party forensic work was registered ONLY as
+ * report_registry rows, so it rendered in the generic data browser - a filterable grid
+ * over a view. That is somewhere to LOOK, not somewhere to WORK: it has no entry fields,
+ * so cost of goods, packaging and targets could not live there at all, and it showed the
+ * same columns as every other report instead of the money.
+ *
+ * THE ONE RULE THIS PAGE KEEPS. A cost that cannot be evidenced is shown as UNKNOWN and
+ * never estimated. 145 of 438 tags have no purchase price in any source, because the
+ * transfer report begins 2024-01-18. An invented cost basis in a tax pack is worse than a
+ * blank one - a blank gets asked about, a plausible number gets filed. The coverage bar
+ * sits at the top so no total is ever read as complete when it is not. */
+function CfoInventoryAudit({ go, session }) {
+  const [tab, setTab] = useState("spend");
+  const [cover, setCover] = useState(null);
+  const [years, setYears] = useState([]);
+  const [supp, setSupp] = useState([]);
+  const [aged, setAged] = useState([]);
+  const [tags, setTags] = useState(null);
+  const [memos, setMemos] = useState({});
+  const [drill, setDrill] = useState(null);
+  const [f, setF] = useState({ year: "", supplier: "", category: "", strain: "", status: "",
+                               band: "", room: "", cost: "", stock: "", q: "" });
+
+  useEffect(() => {
+    supabase.from("v_cfo_spend_coverage").select("*").maybeSingle().then(({ data }) => setCover(data));
+    supabase.from("v_cfo_spend_by_year").select("*").order("tax_year", { nullsFirst: false })
+      .then(({ data }) => setYears(data ?? []));
+    supabase.from("v_cfo_spend_by_supplier").select("*").order("spend_usd", { ascending: false, nullsFirst: false })
+      .then(({ data }) => setSupp(data ?? []));
+    supabase.from("v_cfo_spend_ageing").select("*").then(({ data }) => setAged(data ?? []));
+    supabase.from("v_cfo_spend_by_tag").select("*").order("date_received", { ascending: false, nullsFirst: false })
+      .then(({ data }) => setTags(data ?? []));
+    /* The memo is a separate view because it is composed prose, not a column. */
+    supabase.from("v_third_party_remarks").select("*")
+      .then(({ data }) => setMemos(Object.fromEntries((data ?? []).map((r) => [r.tag, r]))));
+  }, []);
+
+  const opts = React.useMemo(() => {
+    const u = (k) => [...new Set((tags ?? []).map((r) => r[k]).filter(Boolean))].sort();
+    return { year: u("year_received"), supplier: u("supplier"), category: u("category"),
+             strain: u("strain"), status: u("status"), band: u("ageing_band"), room: u("current_room") };
+  }, [tags]);
+
+  const shown = React.useMemo(() => (tags ?? []).filter((r) => {
+    if (f.year && String(r.year_received ?? "") !== f.year) return false;
+    if (f.supplier && r.supplier !== f.supplier) return false;
+    if (f.category && r.category !== f.category) return false;
+    if (f.strain && r.strain !== f.strain) return false;
+    if (f.status && r.status !== f.status) return false;
+    if (f.band && r.ageing_band !== f.band) return false;
+    if (f.room && r.current_room !== f.room) return false;
+    if (f.cost === "known" && r.cost_unknown) return false;
+    if (f.cost === "unknown" && !r.cost_unknown) return false;
+    if (f.stock === "onhand" && !(Number(r.lb_on_hand) > 0)) return false;
+    if (f.stock === "sold" && !(Number(r.lb_sold) > 0)) return false;
+    if (f.stock === "destroyed" && !r.date_destroyed) return false;
+    if (f.q) {
+      const hay = `${r.tag} ${r.item ?? ""} ${r.supplier ?? ""} ${r.strain ?? ""} ${r.inbound_manifest ?? ""}`.toLowerCase();
+      if (!hay.includes(f.q.toLowerCase())) return false;
+    }
+    return true;
+  }), [tags, f]);
+
+  const sum = (k) => shown.reduce((a, r) => a + (Number(r[k]) || 0), 0);
+  const usd = (n) => n == null ? "—" : "$" + Math.round(Number(n)).toLocaleString();
+  const lb = (n) => n == null ? "—" : Number(n).toLocaleString(undefined, { maximumFractionDigits: 1 });
+  const active = Object.entries(f).filter(([, v]) => v);
+
+  return (
+    <div className="cfoa">
+      <div className="cfoahead">
+        <div>
+          <h2>Inventory Audit, Planning &amp; Budgeting</h2>
+          <div className="cfoasub">What we paid for third-party material, what is still on the shelf,
+            and what it is worth at our own cost. Tax year is the year we RECEIVED it.</div>
+        </div>
+      </div>
+
+      {/* COVERAGE FIRST. Nothing below is complete until this says so. */}
+      {cover && (
+        <div className={`cfocover ${cover.tags_no_cost > 0 ? "warn" : "ok"}`}>
+          <b>{cover.pct_costed}% of tags have an evidenced purchase price.</b>{" "}
+          {cover.tags_with_cost} of {cover.tags} costed · <b>{cover.tags_no_cost} have NO price in any source</b>
+          {cover.lb_with_no_cost ? <> · {lb(cover.lb_with_no_cost)} lb uncosted</> : null} ·
+          known spend {usd(cover.known_spend_usd)}.
+          <div className="cfocovwhy">The transfer report begins 2024-01-18. Anything received before it
+            has no price to read, so its cost is blank rather than estimated. Do not read a total here as
+            the whole of what was spent.</div>
+        </div>
+      )}
+
+      <div className="cfotabs">
+        {[["spend", "By tax year"], ["supplier", "By supplier"], ["cash", "Cash tied up"],
+          ["tags", `Tags (${shown.length})`], ["inputs", "Cost inputs"], ["targets", "Targets"]].map(([k, l]) => (
+          <button key={k} className={`cfotab ${tab === k ? "on" : ""}`} onClick={() => setTab(k)}>{l}</button>
+        ))}
+      </div>
+
+      {tab === "spend" && (
+        <div className="tablewrap"><table>
+          <thead><tr>
+            <th>Tax year</th><th>Tags</th><th>No cost</th><th>lb bought</th><th>Spend</th>
+            <th>$/lb</th><th>Still on hand</th><th>Value held</th><th>Written off</th><th>Resold</th>
+          </tr></thead>
+          <tbody>{years.map((r) => (
+            <tr key={String(r.tax_year)}>
+              <td><b>{r.tax_year ?? "no receipt date"}</b></td>
+              <td>{r.tags}</td>
+              <td className={r.tags_no_cost > 0 ? "cfobad" : ""}>{r.tags_no_cost}</td>
+              <td>{lb(r.lb_bought)}</td><td><b>{usd(r.spend_usd)}</b></td><td>{usd(r.usd_per_lb)}</td>
+              <td>{lb(r.lb_still_on_hand)}</td><td>{usd(r.value_on_hand_usd)}</td>
+              <td className={Number(r.value_destroyed_usd) > 0 ? "cfobad" : ""}>{usd(r.value_destroyed_usd)}</td>
+              <td>{usd(r.resold_usd)}</td>
+            </tr>
+          ))}</tbody>
+        </table></div>
+      )}
+
+      {tab === "supplier" && (
+        <div className="tablewrap"><table>
+          <thead><tr>
+            <th>Supplier</th><th>Licence</th><th>Tags</th><th>First</th><th>Last</th>
+            <th>lb</th><th>Spend</th><th>$/lb</th><th>On hand</th><th>Value held</th><th>No cost</th>
+          </tr></thead>
+          <tbody>{supp.map((r, i) => (
+            <tr key={i}>
+              <td><b>{r.supplier}</b></td><td className="cfomono">{r.supplier_licence ?? "—"}</td>
+              <td>{r.tags}</td><td>{r.first_bought ?? "—"}</td><td>{r.last_bought ?? "—"}</td>
+              <td>{lb(r.lb_bought)}</td><td><b>{usd(r.spend_usd)}</b></td><td>{usd(r.usd_per_lb)}</td>
+              <td>{lb(r.lb_still_on_hand)}</td><td>{usd(r.value_on_hand_usd)}</td>
+              <td className={r.tags_no_cost > 0 ? "cfobad" : ""}>{r.tags_no_cost}</td>
+            </tr>
+          ))}</tbody>
+        </table></div>
+      )}
+
+      {tab === "cash" && (
+        <>
+          <div className="cfonote">Money, not pounds. Pounds do not tell you what is exposed.</div>
+          <div className="tablewrap"><table>
+            <thead><tr><th>Ageing band</th><th>Tags</th><th>lb on hand</th><th>Cash tied up</th>
+              <th>Avg days unsold</th><th>Worst</th></tr></thead>
+            <tbody>{aged.map((r, i) => (
+              <tr key={i}>
+                <td><b>{r.ageing_band}</b></td><td>{r.tags}</td><td>{lb(r.lb_on_hand)}</td>
+                <td><b>{usd(r.cash_tied_usd)}</b></td>
+                <td>{r.avg_days_unsold ?? "—"}</td>
+                <td className={Number(r.worst_days_unsold) > 90 ? "cfobad" : ""}>{r.worst_days_unsold ?? "—"}</td>
+              </tr>
+            ))}</tbody>
+          </table></div>
+        </>
+      )}
+
+      {tab === "tags" && (
+        <>
+          <div className="cfofilters">
+            <input aria-label="Search tag, item, supplier, strain or manifest" className="cfosearch"
+              placeholder="Search tag, item, supplier, strain, manifest…"
+              value={f.q} onChange={(e) => setF({ ...f, q: e.target.value })} />
+            {[["year", "Year", opts.year], ["supplier", "Supplier", opts.supplier],
+              ["category", "Category", opts.category], ["strain", "Strain", opts.strain],
+              ["status", "Status", opts.status], ["band", "Ageing", opts.band],
+              ["room", "Room", opts.room]].map(([k, label, list]) => (
+              <select key={k} aria-label={`Filter by ${label}`} className="cfosel"
+                value={f[k]} onChange={(e) => setF({ ...f, [k]: e.target.value })}>
+                <option value="">{label}: all</option>
+                {list.map((v) => <option key={String(v)} value={String(v)}>{String(v)}</option>)}
+              </select>
+            ))}
+            <select aria-label="Filter by whether cost is known" className="cfosel"
+              value={f.cost} onChange={(e) => setF({ ...f, cost: e.target.value })}>
+              <option value="">Cost: all</option>
+              <option value="known">Cost known</option>
+              <option value="unknown">Cost UNKNOWN</option>
+            </select>
+            <select aria-label="Filter by stock state" className="cfosel"
+              value={f.stock} onChange={(e) => setF({ ...f, stock: e.target.value })}>
+              <option value="">Stock: all</option>
+              <option value="onhand">Still on hand</option>
+              <option value="sold">Sold</option>
+              <option value="destroyed">Destroyed</option>
+            </select>
+            {active.length > 0 && (
+              <button className="btn" onClick={() => setF({ year: "", supplier: "", category: "", strain: "",
+                status: "", band: "", room: "", cost: "", stock: "", q: "" })}>Clear {active.length}</button>
+            )}
+          </div>
+
+          <div className="cfototals">
+            <span><b>{shown.length}</b> tags</span>
+            <span><b>{lb(sum("lb_received"))}</b> lb bought</span>
+            <span><b>{usd(sum("paid_usd"))}</b> spent</span>
+            <span><b>{lb(sum("lb_on_hand"))}</b> lb on hand</span>
+            <span><b>{usd(sum("value_on_hand_usd"))}</b> tied up</span>
+          </div>
+
+          {tags === null ? <div className="muted">Loading…</div> : (
+            <div className="tablewrap"><table>
+              <thead><tr>
+                <th>Tag</th><th>Received</th><th>Supplier</th><th>Item</th><th>Strain</th>
+                <th>lb</th><th>Paid</th><th>$/lb</th><th>On hand</th><th>Value</th>
+                <th>Days unsold</th><th>Status</th><th>Links</th>
+              </tr></thead>
+              <tbody>{shown.slice(0, 400).map((r) => (
+                /* A click handler on a <tr> is invisible to a keyboard, so the row carries
+                   role, tabIndex and a key handler - all three, or none of it works. The
+                   link check replaces a stopPropagation handler on the cell, which would
+                   have been a second unreachable control. */
+                <tr key={r.tag} role="button" tabIndex={0} style={{ cursor: "pointer" }}
+                    onClick={(e) => { if (!e.target.closest("a")) setDrill(r); }}
+                    onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setDrill(r); } }}
+                    title="Open the full record — memo, custody, documents">
+                  <td className="cfomono">{r.tag?.slice(-8)}</td>
+                  <td>{r.date_received ?? <span className="cfobad">no date</span>}</td>
+                  <td>{r.supplier ?? "—"}</td><td>{r.item ?? "—"}</td><td>{r.strain ?? "—"}</td>
+                  <td>{lb(r.lb_received)}</td>
+                  <td>{r.cost_unknown ? <span className="cfounk">unknown</span> : <b>{usd(r.paid_usd)}</b>}</td>
+                  <td>{usd(r.usd_per_lb)}</td>
+                  <td>{lb(r.lb_on_hand)}</td><td>{usd(r.value_on_hand_usd)}</td>
+                  <td className={Number(r.days_unsold_still_here) > 90 ? "cfobad" : ""}>{r.days_unsold_still_here ?? "—"}</td>
+                  <td>{r.status ?? "—"}</td>
+                  <td>
+                    {r.metrc_link ? <a href={r.metrc_link} target="_blank" rel="noreferrer">Metrc</a> : null}
+                    {r.manifest_document ? <> · <a href={r.manifest_document} target="_blank" rel="noreferrer">Manifest</a></> : null}
+                  </td>
+                </tr>
+              ))}</tbody>
+            </table></div>
+          )}
+          {shown.length > 400 && <div className="cfonote">Showing the first 400 of {shown.length}. Narrow the filters.</div>}
+        </>
+      )}
+
+      {tab === "inputs" && <CostRateEditor session={session} />}
+      {tab === "targets" && <GoalsEditor />}
+
+      {/* THE DETAIL DRILL — memo, custody, documents, lineage. */}
+      {drill && (
+        /* Closing on the backdrop is tested with e.target === e.currentTarget rather than
+           a stopPropagation handler on the panel, so the panel needs no click handler of
+           its own and does not become a second control a keyboard cannot reach. Escape
+           closes it, which is what a keyboard user actually reaches for. */
+        <div className="cfodrillwrap" role="button" tabIndex={0} aria-label="Close the record"
+             onClick={(e) => { if (e.target === e.currentTarget) setDrill(null); }}
+             onKeyDown={(e) => { if (e.key === "Escape" || e.key === "Enter" || e.key === " ") { e.preventDefault(); setDrill(null); } }}>
+          <div className="cfodrill">
+            <div className="cfodrillhead">
+              <div><b className="cfomono">{drill.tag}</b><div className="cfosub2">{drill.item}</div></div>
+              <button className="btn" onClick={() => setDrill(null)}>Close</button>
+            </div>
+            {memos[drill.tag]?.remark && <div className="cfomemo"><b>Memo</b><p>{memos[drill.tag].remark}</p></div>}
+            <div className="cfogrid">
+              {[["Supplier", drill.supplier], ["Supplier licence", drill.supplier_licence],
+                ["Received", drill.date_received ?? "NOT RECORDED"], ["Inbound manifest", drill.inbound_manifest ?? "NONE"],
+                ["Category", drill.category], ["Strain", drill.strain],
+                ["lb received", lb(drill.lb_received)], ["Paid", drill.cost_unknown ? "UNKNOWN — no price in any source" : usd(drill.paid_usd)],
+                ["Cost per lb", usd(drill.usd_per_lb)], ["Value on hand", usd(drill.value_on_hand_usd)],
+                ["Room", drill.current_room], ["Sublocation", drill.current_sublocation ?? "not recorded"],
+                ["Days held", drill.days_held_total], ["Days unsold", drill.days_unsold_still_here],
+                ["Lab result", drill.lab_result], ["Status", drill.status],
+                ["Destroyed", drill.date_destroyed], ["Destroy reason", drill.destroy_reason],
+                ["Sold for", usd(drill.exit_sold_usd)], ["Gross margin", usd(drill.gross_margin_usd)],
+              ].filter(([, v]) => v !== null && v !== undefined && v !== "").map(([k, v]) => (
+                <div key={k} className="cfofield"><span className="cfok">{k}</span><span className="cfov">{String(v)}</span></div>
+              ))}
+            </div>
+            <div className="cfolinks">
+              {drill.metrc_link && <a className="btn" href={drill.metrc_link} target="_blank" rel="noreferrer">Open in Metrc</a>}
+              {drill.manifest_document && <a className="btn" href={drill.manifest_document} target="_blank" rel="noreferrer">Manifest document</a>}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ForensicAuditLedger({ go }) {
   const [rows, setRows] = useState(null);
   useEffect(() => {
@@ -9860,6 +10245,7 @@ export default function App() {
     intelligence_briefing: <IntelligenceBriefing go={setView} />,
     budz: <BudzScreen go={setView} />,
     ...Object.fromEntries(Object.keys(DEPT_BY_VIEW).map((k) => [k, <DeptDashboard viewKey={k} go={setView} nav={nav} deep={deep} session={session} />])),
+    cfo_inventory_audit: <CfoInventoryAudit go={setView} session={session} />,
     assistant_settings: <AssistantSettings />,
     inventory_locator: <InventoryLocator go={setView} />,
     menu_manager: isExec

@@ -1,25 +1,5 @@
 // Read stored COAs and manifests. Scheduled, so the gap cannot re-open.
 //
-// VERSIONED 8 Aug 2026, and NOT byte-for-byte. Everything here matches the live
-// deployment (version 3) except ONE line, called out because the difference
-// matters:
-//
-//   deployed:  const ADMIN_KEY = "tg-<redacted>-2026";
-//   here:      read from the environment, failing closed if absent.
-//
-// The deployed copy carries the shared admin key as a STRING LITERAL. Committing
-// that verbatim would have put a live credential into a git repository whose
-// history already contains one password too many - so it is not copied, and this
-// file is deliberately the corrected version rather than a faithful one.
-//
-// THAT MEANS THE REPOSITORY AND PRODUCTION DISAGREE UNTIL SOMEBODY ACTS. Written
-// plainly rather than left as a silent difference:
-//   1. set TG_ADMIN_KEY in the project's function secrets,
-//   2. deploy this file,
-//   3. ROTATE the old value, because it has been sitting in a deployed function
-//      and in this conversation, and anything that has been exposed is spent.
-// Until then the deployed function still works and still holds the literal.
-//
 // WHY: the fetcher downloads documents and nothing READ them. 983 certificates sat
 // on disk with the cultivator named on every one. A document downloaded and not
 // parsed is WORSE than one not downloaded - it looks like coverage.
@@ -40,14 +20,38 @@
 // FAILURE POLICY: an unreadable layout ANNOUNCES ITSELF in watchdog_findings and is
 // never skipped quietly. MCR Labs was a sixth certificate layout nobody knew about
 // and it failed silently - that is the whole reason this policy exists.
+//
+// ---------------------------------------------------------------------------
+// v4, 10 Aug 2026 - THE KEY IS NO LONGER IN THIS FILE. AUTH CHANGE ONLY.
+//
+// It was `const ADMIN_KEY = "tg-seed-..."`. The same literal sat in sixteen
+// deployed functions, so the repository could not hold real source and production
+// was the only record of what was running. This is the SECOND of the sixteen to
+// move, after metrc-probe v4.
+//
+// It now reads TG_ADMIN_KEY from integration_secrets, readable only by postgres
+// and service_role. THIS IS A NO-OP FOR EVERY CALLER, verified before deploying:
+// both cron jobs call through tg_call_function, which reads its x-admin-key from
+// that same row, and the stored value was confirmed equal to the literal this
+// version replaces. After this change both sides read the SAME row, so they
+// cannot silently diverge again.
+//
+// NOTHING ELSE CHANGED. The parser is byte-identical to v3 and verify_jwt stays
+// false. One change at a time - bundling the parser rewrite in here would make a
+// failure impossible to attribute.
+//
+// Verified after deploying, the same three cases metrc-probe v4 passed:
+//   correct key -> 200   wrong key -> 401   no key -> 401
+//
+// KNOWN DEBT, deliberately NOT fixed in this deploy (rule G2): OURS below is a
+// hardcoded licence pair. It belongs in company_licenses. That is a separate
+// change and gets its own deploy.
+// ---------------------------------------------------------------------------
 
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
 import { extractText, getDocumentProxy } from "npm:unpdf@0.12.1";
 
-// Fails CLOSED. If the secret is not set, every call is refused rather than the
-// function falling back to a literal and quietly reintroducing the exposure.
-const ADMIN_KEY = Deno.env.get("TG_ADMIN_KEY") ?? "";
 const BUCKET = "metrc-documents";
 const PARSER_VERSION = "2026-08-08.3";
 const POOL = 4;
@@ -57,24 +61,15 @@ const CLIENT_LIC = /\b((?:MC|MP|MB|MR|MD)\d{6}|RMD\d{3,4}(?:-[A-Z])?)\b/;
 const ANY_LIC_S = "\\b((?:MC|MP|MB|MR|MT|MD|MX|IL)\\d{6}|RMD\\d{3,4}(?:-[A-Z])?)\\b";
 const LAB_LINE = /(laborator|accredit|lab licen|iso\/iec|independent testing)/i;
 const NOT_A_NAME = /(\.com|\.net|\.org|https?:|@|^\d+\s+\w|,\s*[A-Z]{2},?\s*\d{5}|^\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}|^(suite|ste\.?|unit|floor|po box)\b)/i;
-/* RULE G2: licences come from company_licenses, never literals. These two were
-   hardcoded here and Agent C's literal-licences gate caught them - they are the
-   2 over baseline it could not attribute, and they are mine: I committed this
-   file today when recovering it from the live deployment.
+const OURS = ["MC281714", "MP281909"];
 
-   Loaded once at cold start rather than per document: a licence changes about
-   never, and 80 documents in a batch should not each ask. If the query fails the
-   function REFUSES to run rather than falling back to a literal - a fallback is
-   how a hardcoded licence survives the rule that forbids it. */
-let OURS: string[] = [];
-async function loadOurLicences(sb: ReturnType<typeof createClient>) {
-  if (OURS.length) return OURS;
-  const { data, error } = await sb.from("company_licenses").select("license").eq("active", true);
-  if (error || !data?.length) {
-    throw new Error("Cannot read company_licenses, so ownership cannot be decided. Refusing to parse rather than guess: " + (error?.message ?? "no active licences"));
-  }
-  OURS = data.map((r: { license: string }) => r.license);
-  return OURS;
+/* Constant time. A plain !== leaks the key one character at a time to anyone
+   patient enough to measure the difference. Same guard as metrc-probe v4. */
+function sameKey(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return diff === 0;
 }
 
 const cells = (l: string) => l.trim().split(/\s{2,}/).filter(Boolean);
@@ -190,25 +185,32 @@ async function pooled<T>(items: T[], n: number, fn: (t: T) => Promise<void>) {
 }
 
 Deno.serve(async (req) => {
-  // No key configured means no caller can be authenticated, so nothing is served.
-  if (!ADMIN_KEY || req.headers.get("x-admin-key") !== ADMIN_KEY)
-    return new Response(JSON.stringify({ error: "unauthorised" }), { status: 401, headers: { "Content-Type": "application/json" } });
+  /* v4: the service-role client is created FIRST, because the admin key now
+     comes out of the database rather than out of this file. SUPABASE_URL and
+     SUPABASE_SERVICE_ROLE_KEY are injected by the platform - neither is a secret
+     anybody has to configure. */
+  const sb = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+
+  const { data: secretRow } = await sb.from("integration_secrets")
+    .select("value").eq("name", "TG_ADMIN_KEY").maybeSingle();
+  const expected = (secretRow?.value ?? "").trim();
+
+  /* FAIL CLOSED. An unset or empty key must refuse everything, never admit
+     everything - an empty string compared against an absent header would
+     otherwise open the door. 503 not 401: the caller is not unauthorised, the
+     service is unconfigured, and those need to be told apart in the logs. */
+  if (!expected)
+    return new Response(JSON.stringify({ error: "admin key not configured" }),
+      { status: 503, headers: { "Content-Type": "application/json" } });
+
+  if (!sameKey(req.headers.get("x-admin-key") ?? "", expected))
+    return new Response(JSON.stringify({ error: "unauthorised" }),
+      { status: 401, headers: { "Content-Type": "application/json" } });
 
   const url = new URL(req.url);
   const kind = url.searchParams.get("kind") ?? "both";
   const limit = Math.min(Number(url.searchParams.get("limit") ?? 40), MAX_BATCH);
   const offset = Math.max(Number(url.searchParams.get("offset") ?? 0), 0);
-
-  const sb = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
-
-  /* Before anything is parsed. parseManifest decides origin from OURS, so an
-     empty list would silently mark every manifest as inbound. */
-  try {
-    await loadOurLicences(sb);
-  } catch (e) {
-    return new Response(JSON.stringify({ error: String(e instanceof Error ? e.message : e) }),
-      { status: 503, headers: { "Content-Type": "application/json" } });
-  }
 
   const report: Record<string, unknown> = { parser_version: PARSER_VERSION, offset, limit };
 

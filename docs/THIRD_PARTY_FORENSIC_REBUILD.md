@@ -24,6 +24,58 @@ problem.** Five times out of five that is what it was.
 
 ---
 
+## 0b · WHAT WE PAID DOES NOT COME FROM METRC — read this before quoting any cost
+
+**Owner, 11 Aug 2026: "the price is in APEX", "there are fucking invoices".** He is right, and
+every cost figure produced from Metrc so far is the wrong number wearing a dollar sign.
+
+| Source | What it actually is |
+|---|---|
+| `metrc_rpt_package_transfers.receiver_wholesale_price` | a **COMPLIANCE DECLARATION** on a manifest |
+| Apex `receiving-orders` | **the inbound purchase record — the real invoice** |
+
+This is already a locked rule in `conversion_factors`: *Apex is the sales source of record, not
+Metrc. Label every Metrc-derived price a "declared wholesale transfer price", never a realised
+price.* It applies to PURCHASES exactly as it applies to sales, and I broke it on 11 Aug by
+building a CFO spend view on the Metrc column.
+
+**Proof that the Metrc figure cannot be trusted as cost.** Derived two independent ways it does
+not agree with itself:
+
+| Derivation | lb | USD |
+|---|---:|---:|
+| `v_forensic_audit_panel` line 2, inbound manifests | 3,370.6 | **$1,276,288** |
+| deduped billed lines joined to third-party TAGS | 3,801.3 | **$838,953** |
+
+More pounds, less money, same subject. The gap is **not** explained by inbound lines outside the
+third-party population — those total **$960**. Do not pick one. Neither is cost.
+
+### The blocker, and it is an import gap not a business gap
+
+**`apex_raw` holds ZERO rows for `receiving-orders`.** It has never once imported.
+
+| Date | Entity | Result |
+|---|---|---|
+| 2026-08-09 | `receiving-orders` | HTTP **422** — "The updated at from field is required" |
+| 2026-08-10 | `receiving-orders` | status **ok**, HTTP 200, **0 rows** |
+| 2026-08-09 | `deal-docs` | status **ok**, HTTP 200, **0 rows** |
+
+The 422 was fixed by sending `updated_at_from`; the endpoint then answered 200 with nothing.
+`apex-probe` exists precisely for this and says it plainly: a 200ms empty answer from an account
+that demonstrably has purchases *"is not 'the entity is empty' — it is an endpoint being asked
+the wrong question."*
+
+**Until `receiving-orders` imports, there is no evidenced cost of third-party material, and any
+$/lb, margin or inventory valuation built on the Metrc column is indicative only and must be
+labelled as such.** Fixing the receiving-orders pull is the single highest-value piece of work
+outstanding on this whole subject — it is worth more than any further Metrc-side derivation.
+
+Also absent: `deal-docs`, which is the Apex side of COAs and manifests. 118 of 438 third-party
+tags never appear in the Metrc transfer report at all (1,386.0 lb), so for those Apex is the
+**only** possible source of a price.
+
+---
+
 ## 1 · Field map — where every value actually comes from
 
 ### Identity and ownership

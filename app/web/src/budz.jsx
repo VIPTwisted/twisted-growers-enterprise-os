@@ -3057,7 +3057,17 @@ export function BudzScreen({ go }) {
           {/* IDENTICAL to the pet's. Owner, 8 Aug 2026: "Pet and assistant on
               OS have same rules." Same hook, same limits, same three ways in. */}
           <ChatFiles bag={bag} />
-          <div className={`budzask${bag.dropping ? " dropping" : ""}`} {...bag.dropProps}>
+          {/* RESTING GLOW. Owner, 11 Aug 2026: "add soft glow around textbox like this
+              its too dark without it and boring." At rest the input carried a dull
+              --line border and no shadow, so the bar read as disabled until clicked.
+              This is the EXISTING .askbar treatment (styles.css ~644) applied to the
+              container: same --glow and --neon-line tokens, same 12px radius, no new
+              colour or value invented - the theme is locked and this consumes it
+              rather than changing it. Deliberately on the CONTAINER, not the input,
+              so `.budzask input:focus` still lights the field on click. */}
+          <div className={`budzask${bag.dropping ? " dropping" : ""}`} {...bag.dropProps}
+            style={{ boxShadow: "var(--glow)", border: "1px solid var(--neon-line)",
+                     borderRadius: 12, padding: 8 }}>
             <input ref={askFileRef} type="file" multiple style={{ display: "none" }}
               onChange={(e) => { bag.add(e.target.files); e.target.value = ""; }} />
             <VoiceButtons voice={voice} />

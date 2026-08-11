@@ -83,6 +83,43 @@ reads the queue nightly and raises a finding. **The general lesson: the last
 inch — something that reads the output — is the part that keeps getting left
 off, and without it the other 99% enforces nothing.**
 
+**2026-08-10 — A RED TILE ON THE CULTIVATION DASHBOARD ACCUSED THE BUSINESS OF
+LOSING 21,935 lb, AND IT WAS MEASURING AN EMPTY TABLE OF OUR OWN.**
+The tile read *"Moisture loss not recorded — 21,935.4 lb, 269 closed harvests"*.
+Its source, `v_moisture_loss_register.needs_recording`, was defined as **"no row
+exists in `moisture_loss_entries`"** — our own internal register, which holds
+**zero rows**. So it was true for every harvest that has ever existed. **A check
+that cannot fail, flagging 100% of the business, dressed as a compliance
+emergency.**
+
+**The truth:** Metrc holds the moisture loss on **271 of 276** closed dried
+harvests, in the Harvests-Inactive export. The mass balance closes to **0.00 lb**
+across all 350 closed harvests. The genuine gap is **five** harvests — and all
+five balance to zero without any moisture at all, because they were packed WET
+and their names simply lack the `FF` suffix. So the real gap is **zero**, and
+what exists is a naming defect.
+
+**I made the identical error the same morning, from the other direction.** I read
+the Metrc **API**, which carries no moisture field — only `CurrentWeight`, a
+residual of wet minus waste minus packaged — saw 24,826 lb of residual, and
+recorded a journal entry saying it had never been entered. `CONTRADICTIONS.md`
+item 9 already said *"moisture loss IS recorded in Metrc, in the export the
+Harvests report doesn't carry"*. **I read that file that morning and contradicted
+it hours later.** Entry superseded, go-live item withdrawn, both with the
+arithmetic on the record.
+
+→ **Rules.** **A check against one of our own tables measures OUR record-keeping,
+not the business — label it that way or it reads as an accusation.** Before
+believing any check, ask what happens when its comparison table is empty: if the
+answer is "it fires on everything", it has never been tested.
+**And the API and the report exports carry different fields — a number absent
+from one is not absent from the business.** Check the export before calling
+anything missing.
+
+*Also earned here: the harvest mass balance ALWAYS closes, because Metrc derives
+moisture as the residual. "It balances" is therefore never evidence of honesty,
+and must never be presented to the owner as such.*
+
 **2026-08-07 — A DEPLOY SILENTLY KILLED THE METRC SYNC FOR 5½ HOURS AND EVERY
 DASHBOARD REPORTED SUCCESS.** `metrc-sync` was redeployed as v15 at 11:31 UTC
 with `verify_jwt: true`. Its scheduler, `tg_metrc_fire`, sent only an

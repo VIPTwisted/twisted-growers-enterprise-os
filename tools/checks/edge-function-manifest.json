@@ -136,10 +136,10 @@
       "note": "Recovered from production with the shared admin key redacted. Production is the source of record; deploying this copy would break the function."
     },
     "parse-documents": {
-      "deployed_version": 3,
-      "sha256": "ae1f4fe031b26292d4e1ca593cc38f33ab751a597be3c3adcf314d817adaa7d6",
+      "deployed_version": 4,
+      "sha256": "1a5ac74f78bc8df244801472c19b0e3e3d9e7e9a56c23e7e59e7947cb7c2cf5d",
       "redacted": false,
-      "note": "Real source. If the hash changes, deploy it or record why not."
+      "note": "REAL SOURCE — no key in the file, and now genuinely byte-equivalent to production. SECOND of the sixteen moved off the shared literal, 10 Aug 2026, after metrc-probe. Reads TG_ADMIN_KEY from integration_secrets at run time; constant-time compare; fails closed with 503 if unset. Deployed v4 and verified: correct key 200, wrong key 401, no key 401. CORRECTION: this entry previously read deployed_version 3 / 'Real source' while the DEPLOYED copy carried the admin key as a string literal and the repo copy read it from the environment — they differed in the one line that decides whether the function starts, and the manifest said they did not. verify_jwt stays false; both cron jobs call through tg_call_function."
     },
     "report-ingest": {
       "deployed_version": 3,
