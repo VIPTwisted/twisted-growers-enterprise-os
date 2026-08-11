@@ -152,6 +152,47 @@ days with nobody watching.
 order. "Freshness SLO breached" → who to tell. Written before the incident, because
 during one nobody writes documentation.
 
+**9. TEST THE DATA, NOT ONLY THE CODE. This is the largest gap in the whole system.**
+This platform has 40 code gates and 7 code tests, and **not one assertion about the
+DATA**. Google, Microsoft and every serious data team run a scheduled suite of data
+tests, separate from code tests, that assert things like:
+- `tag_event.tag` is never null · `metrc_packages` is unique on (licence, tag)
+- every `apex_raw.entity` exists in `apex_entity` · every `tag_event.manifest_number`
+  exists in `metrc_rpt_transfer_manifests`
+- `uom` is only ever a value from an accepted list · quantities are never negative
+- no table that should be growing has flatlined
+**Code tests prove the parser works on a fixture. Data tests prove production is
+sane right now.** That is a different question and it is the one that has been
+unanswered. Build it as `data_assertion` rows + a runner, so adding an assertion is an
+INSERT, not a deploy.
+
+**10. WRITE TO STAGING, VALIDATE, THEN PROMOTE.** Never let an import write straight
+into a production table. Land it, run the assertions against the landed batch, and
+promote only if they pass. `apex_raw` already works this way and it is why an Apex
+schema surprise cannot corrupt anything downstream. Every other importer should
+follow it.
+
+**11. AN AUDIT LOG ON EVERY FORENSIC TABLE — who changed what row, when, and to what.**
+A Postgres trigger writing to `row_audit`. Rule 10 says correct by adding rather than
+editing; the audit log is how you PROVE that happened. "A regulator asks what changed"
+must be a query, not an archaeology project.
+
+**12. PROVE THE BACKUP RESTORES.** "We have backups" and "we restored one and it
+worked" are different claims and only the second is true until tested. Restore to a
+scratch branch on a schedule, count the rows, compare to production, record the
+result. **An untested backup is a belief.**
+
+**13. DEPRECATE, NEVER DELETE — including columns.** Rule 9 forbids deleting data;
+schema needs the same discipline. A superseded column is renamed `x_deprecated_YYYYMM`
+and kept, with a comment naming its replacement. `coa_extract` will grow superseded
+fields as the parser improves, and dropping one silently breaks whatever read it.
+
+**14. PERFORMANCE IS A CONTRACT TOO.** 20+ years of data means the query that is fast
+today is slow in year three. Track the slowest queries, keep indexes matched to the
+real access patterns (by tag, by date range), and partition the big time-series tables
+BEFORE they hurt — `tag_event`, lab results, transfers. Designing for growth is rule
+9's other half.
+
 **AND THE ONE THEY ALL SHARE, WHICH THIS PLATFORM KEEPS RELEARNING:** every practice
 above is enforced by something that FAILS, not by a document describing it. A guard, a
 constraint, a scheduled check. Rules 11 to 14 of the charter exist because prose was
