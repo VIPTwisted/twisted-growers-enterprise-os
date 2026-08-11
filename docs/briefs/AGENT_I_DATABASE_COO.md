@@ -103,6 +103,62 @@ a finished-goods figure.**
 
 ---
 
+## THE STANDARD YOU ARE HELD TO — what QuickBooks, Microsoft, Google and ClickUp do
+
+Owner's standing rule: their standard or better, nothing under par. Eight practices
+those companies treat as non-negotiable. Each one below is here because its absence
+has already cost this platform something specific.
+
+**1. REPLAY. This is the one that matters most this week.**
+Fixing a parser is worthless if it only applies to future files. When you fix
+`manifest_extract`, the **764 rows already parsed are still wrong** — and the PDFs are
+on disk. Every parser must be re-runnable over history: `reparse(document_id)` and
+`reparse_all(parser_version)`. Store `parser_version` on every extracted row so you can
+ask "which rows came from the broken version" and reprocess exactly those.
+**Google will not ship a pipeline that cannot be backfilled.** Nor should you.
+
+**2. IDEMPOTENCY.** Importing the same file twice must produce the same database, not
+double the rows. Upsert on a natural key, never blind insert. QuickBooks has done this
+for thirty years because a double-imported bank feed is a wrong balance sheet. Your
+equivalent: a double-imported manifest is a wrong inventory position.
+
+**3. A DEAD-LETTER QUEUE, WORKED — not a log nobody reads.**
+`import_rejects`: the row, the file, the reason, the fix, and a status. Rejections that
+are only counted become a number everyone learns to ignore. Rejections that are
+*assigned* get fixed. **A rejected row is a missing fact, and a missing fact in
+seed-to-sale is a compliance gap.**
+
+**4. DATA CONTRACTS WITH FRESHNESS SLOs.** For each table, in a table: required
+columns, types, nullability, natural key, source, and **how stale it may be before
+somebody is told**. Metrc packages: 24h. Apex orders: 4h. Reference taxonomy: 30d.
+A contract nobody measures is a wish — so measure it and surface the breach.
+
+**5. LINEAGE — every column traceable to its origin.** `tag_event.source` already does
+this; extend it everywhere. When the owner asks "where did this number come from" the
+answer is a row, not a recollection. Microsoft calls this provenance; here it is the
+difference between a finding and an assertion.
+
+**6. NO HARD DELETES ON ANYTHING FORENSIC.** Soft-delete with `deleted_at` and a
+reason. QuickBooks never destroys a financial record; it voids it and keeps the
+history. A regulator asking "what did you delete and why" must get an answer.
+
+**7. RECONCILIATION AS A SCHEDULED JOB, NOT AN AUDIT.** Metrc against Apex against the
+spreadsheets, running on a clock, writing findings. An audit is something a person
+remembers to do. A job runs whether anyone remembers or not — which is the entire
+difference, and this platform has already proved it: fourteen deploys failed over two
+days with nobody watching.
+
+**8. A RUNBOOK PER FAILURE MODE.** "Import rejected 400 rows" → what to check, in
+order. "Freshness SLO breached" → who to tell. Written before the incident, because
+during one nobody writes documentation.
+
+**AND THE ONE THEY ALL SHARE, WHICH THIS PLATFORM KEEPS RELEARNING:** every practice
+above is enforced by something that FAILS, not by a document describing it. A guard, a
+constraint, a scheduled check. Rules 11 to 14 of the charter exist because prose was
+tried first, repeatedly, and did not hold.
+
+---
+
 ## HOW YOU ARE GOVERNED
 
 You own `agents, guards & loops` jointly with D, and you are the standing owner of
