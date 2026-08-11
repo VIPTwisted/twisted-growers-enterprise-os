@@ -558,3 +558,55 @@ The answer was right — all 2,947 lines really are 3.5 g — but right by luck.
 - **North End Blunts** (18,240 pre-roll units, $5.72/unit) — tier and material not stated.
 - **Bulk Extract** (7,825 units) — no material model.
 - `fresh_frozen_wet_to_dry` 4.5 vs the worksheet's 5.0.
+
+---
+
+## 17 · Costs, adjustable at any scope and any period (0072)
+
+Owner: *"WE MUST BE ABLE TO ADJUST COSTS PER BATCH, TAG, WEEKLY, MONTHLY, QUARTERLY
+OR ANNUALLY FOR ALL INVENTORY."*
+
+`inventory_cost_rate` — one table, two axes:
+
+- **Scope**, most specific wins: `tag` → `batch` → `brand` → `product_line` →
+  `category` → `global`.
+- **Period** — every rate is effective-dated, so weekly, monthly, quarterly and annual
+  are the same mechanism at different lengths. Editing a rate going forward **never
+  restates a closed period**.
+
+`f_cost_rate(material, on_date, tag, batch, brand, product_line, category)` resolves
+it and **returns the scope it matched**, so a report can always show which rate was
+applied and who set it. A `daterange` exclusion constraint makes two conflicting rates
+at the same scope impossible.
+
+Verified: a tag rate of $1,650 applied inside its window, fell back to the $1,200
+global rate outside it, and a different tag resolved to global.
+
+Seeded from the worksheet: flower $1,200/lb (Summary Q6), trim $300/lb (Summary C6),
+fresh frozen $240/lb (Summary M11 — 0.20 × the dry rate).
+
+### North End Blunts — resolved
+
+PREMIUM. Owner: *"OUR PREMIUM FLOWER AND DIAMONDS AND OR OTHER CONTRATE."* Infused
+blunts drawing **both** premium flower and concentrate, so they are **not** costed on
+a flower:trim formulation. 18,240 units at $5.72.
+
+---
+
+## 18 · Pages now live — Reports → Inventory & Audit
+
+| Page | Object | Kind |
+|---|---|---|
+| Inventory Reconciliation (annual close) | `v_rpt_inventory_reconciliation` | reconciliation |
+| Forensic Inventory Position | `v_forensic_inventory` | stock position |
+| Sold and Shipped, by Tag | `v_forensic_sold_by_tag` | custody chain |
+| Room Census (all forms) | `v_forensic_room_census` | stock position |
+| Production Yield Standards | `production_yield_standard` | **editable** |
+| Brand Tier and Material | `product_brand_tier` | **editable** |
+| Pre-Roll Formulation (by period) | `preroll_formulation` | **editable** |
+| Inventory Cost Rates | `inventory_cost_rate` | **editable** |
+| Material Drawn by Sales | `v_material_requirement` | cost sheet |
+
+Plus Command Center tiles (variance · sold YTD · shipped with no Apex invoice ·
+third-party on hand) and Cultivation tiles (plants growing · produced YTD · dried
+awaiting trim · dried bulk on hand).
