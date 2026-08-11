@@ -19,7 +19,30 @@
   # Reproduced exactly by installing a clean clone with NODE_ENV=production.
   # Stated in the command rather than left to an env var, because the command is
   # the thing that has to be right and an env var is one more place to look.
-  command = "npm install --include=dev --no-audit --no-fund && cd ../.. && npm install --include=dev --no-audit --no-fund && npm run check && cd app/web && npm run build"
+  # `npm run gates`, NOT `npm run check`. Same 37 gates, same order, same fail-fast -
+  # the runner PARSES the chain out of `check` so the two can never drift apart. What
+  # changes is only what a red build SAYS.
+  #
+  # Fourteen builds failed across 9-11 Aug 2026 and nobody could name the gate that
+  # stopped them. `check` chains 37 gates with `&&`, so the first non-zero exit kills
+  # the chain and the last line Netlify prints is its own generic:
+  #
+  #     Build script returned non-zero exit code: 2
+  #
+  # The failing gate's message is thousands of lines up, and the gates that never ran
+  # look exactly like the ones that passed. Diagnosis meant cloning the repo and
+  # running the chain by hand, which is why two days of red went unread. The gate was
+  # doing its job. The PIPELINE was swallowing the reason.
+  #
+  # The runner names the failing gate in a banner at the bottom, next to Netlify's own
+  # error, lists what never ran as UNKNOWN rather than passing, and prints the exact
+  # one-line command to reproduce it locally.
+  #
+  # It also reports DEGRADED gates on a GREEN build. schema-baseline, docs-vs-database
+  # and page-architecture need a database, there is none here, and they answer PASS
+  # without verifying anything. They are honest about it - but that honesty scrolled
+  # past unread inside a passing build, which is precisely how a vacuous gate survives.
+  command = "npm install --include=dev --no-audit --no-fund && cd ../.. && npm install --include=dev --no-audit --no-fund && npm run gates && cd app/web && npm run build"
   publish = "dist"
 
 [build.environment]

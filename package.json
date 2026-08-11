@@ -11,6 +11,7 @@
     "check:theme": "node tools/checks/theme-lock.mjs",
     "check:boundaries": "node tools/checks/error-boundaries.mjs",
     "check:routing": "node tools/checks/routing.mjs",
+    "gates": "node tools/checks/run-gates.mjs",
     "check": "npm run check:intact && npm run check:baseline && npm run check:dupes && npm run check:theme && npm run check:parse && npm run check:numbers && npm run check:boundaries && npm run check:routing && npm run check:trend && npm run check:bridge && npm run check:rules && npm run check:guards && npm run check:secrets && npm run check:ledger && npm run check:aggregate && npm run check:literal-licences && npm run check:no-fabricated-data && npm run check:tile-drills && npm run check:ui-language && npm run check:dead-controls && npm run check:silent && npm run check:edgefns && npm run check:fndrift && npm run check:deployedmanifest && npm run check:schemamap && npm run check:pages && npm run check:untracked && npm run check:budz && npm run check:a11y && npm run check:accessibility && npm run check:lockedfacts && npm run check:docsdb && npm run check:apex && npm run check:edgelint && npm run check:standard && npm run check:wired && npm run check:lint",
     "check:guards": "node tools/checks/guard-fixtures.mjs",
     "check:secrets": "node tools/checks/secret-scan.mjs",
