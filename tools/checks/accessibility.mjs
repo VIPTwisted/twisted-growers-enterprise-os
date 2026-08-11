@@ -51,11 +51,16 @@ const SRC = join(ROOT, "app", "web", "src");
  * or key handler. Counting a pattern and inferring meaning without checking what it is attached
  * to is the same error that read still_in_room_lb as a dry weight and called three cultivation
  * views a payroll leak. Measure with the tool, not with grep. */
+/* LOWERED 11 Aug 2026 after the scanner fix above: 35 -> 34 and 126 -> 125. Not debt paid -
+   debt that was never there. The two-level brace regex was truncating tags at the `>` inside
+   an arrow function, so attributes past that point were invisible and correctly-built controls
+   counted as violations. The ratchet may fall and may never rise; this is it falling because
+   the measurement got honest, which is the only reason a baseline should ever move. */
 const BASELINE = {
-  clickWithoutKeyboard: 35,
+  clickWithoutKeyboard: 34,
   imgWithoutAlt: 0,
   positiveTabIndex: 0,
-  inputWithoutLabel: 126,
+  inputWithoutLabel: 125,
 };
 
 const INTERACTIVE = /^(button|a|input|select|textarea|summary|label|option)$/i;
@@ -73,16 +78,81 @@ function jsxFiles(dir, out = []) {
 
 /* Walk opening tags. Deliberately a scanner rather than a parser: it must never crash the build
    on syntax it does not understand, so anything ambiguous is SKIPPED rather than guessed at.
-   A false pass is recoverable; a gate that dies on valid code gets deleted. */
+   A false pass is recoverable; a gate that dies on valid code gets deleted.
+
+   FIXED 11 Aug 2026, Agent I. This WAS a regex whose brace alternative handled at most TWO
+   levels of nesting:  \{(?:[^{}]|\{[^{}]*\})*\}
+   A React key handler is routinely three:
+
+       onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); go(); } }}
+       //        1        2                        3
+
+   At three levels the alternative failed, the scanner fell through to [^<>'"], and the tag
+   TERMINATED AT THE `>` INSIDE THE ARROW `=>`. Everything after it - including the onKeyDown
+   itself - was never in `attrs`. So the check reported "click handler with no role + tabIndex
+   + key handler" against an element that had all three, and said so in a comment.
+
+   It cost two false findings on App.jsx:9028 and :9062, both written correctly by an agent that
+   had read the rule. A wrong label costs more than no label: this one would have had somebody
+   "fix" working accessible code, or worse, raise the baseline.
+
+   Now a real balanced scan: quote-aware, brace-depth-aware, terminating on the first `>` that is
+   at depth 0 and outside a string. Depth is unbounded, so it cannot rot at an arbitrary level.
+   Unterminated tags are still SKIPPED rather than guessed at, per the original intent.
+   Self-test: node tools/checks/accessibility.mjs --selftest */
 function openingTags(src) {
   const tags = [];
-  const re = /<([A-Za-z][A-Za-z0-9.]*)((?:[^<>'"]|'[^']*'|"[^"]*"|\{(?:[^{}]|\{[^{}]*\})*\})*?)(\/?)>/g;
-  let m;
-  while ((m = re.exec(src)) !== null) {
-    tags.push({ name: m[1], attrs: m[2] || "", index: m.index });
+  for (let i = 0; i < src.length; i++) {
+    if (src[i] !== "<") continue;
+    const nm = /^<([A-Za-z][A-Za-z0-9.]*)/.exec(src.slice(i, i + 64));
+    if (!nm) continue;
+    let j = i + nm[0].length, depth = 0, quote = null, end = -1;
+    for (; j < src.length; j++) {
+      const c = src[j];
+      if (quote) { if (c === quote && src[j - 1] !== "\\") quote = null; continue; }
+      if (c === "'" || c === '"' || c === "`") { quote = c; continue; }
+      if (c === "{") { depth++; continue; }
+      if (c === "}") { depth--; continue; }
+      if (c === ">" && depth === 0) { end = j; break; }
+      if (c === "<" && depth === 0) break;   // a new tag started: this one never closed
+    }
+    if (end < 0) continue;                    // ambiguous - skip, never guess
+    let attrs = src.slice(i + nm[0].length, end);
+    if (attrs.endsWith("/")) attrs = attrs.slice(0, -1);
+    tags.push({ name: nm[1], attrs, index: i });
+    i = end;
   }
   return tags;
 }
+
+/* Both halves. The positive proves it still catches a genuinely unreachable control; the
+   negative proves it stays quiet on the three-level key handler that produced the false
+   finding. The negative half is the one that matters here - it is the half that was missing. */
+function selftest() {
+  const cases = [
+    ["div with onClick only", `<div onClick={() => go()}>x</div>`, 1],
+    ["div, role+tabIndex, NO key handler", `<div role="button" tabIndex={0} onClick={() => go()}>x</div>`, 1],
+    ["button needs nothing", `<button onClick={() => go()}>x</button>`, 0],
+    ["React component needs nothing", `<Thing onClick={() => go()} />`, 0],
+    ["one-level key handler", `<div role="button" tabIndex={0} onClick={() => go()} onKeyDown={fn}>x</div>`, 0],
+    ["TWO-level key handler", `<div role="button" tabIndex={0} onClick={(e) => { go(); }} onKeyDown={(e) => { go(); }}>x</div>`, 0],
+    ["THREE-level key handler - the false finding", `<tr role="button" tabIndex={0}\n  onClick={(e) => { if (!e.target.closest("a")) go(r); }}\n  onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); go(r); } }}>x</tr>`, 0],
+    ["three-level onClick but NO key handler still fires", `<tr role="button" tabIndex={0}\n  onClick={(e) => { if (e.key === "x") { go(); } }}>x</tr>`, 1],
+    ["a > inside a string does not end the tag", `<div role="button" tabIndex={0} title="a > b" onClick={fn} onKeyDown={fn}>x</div>`, 0],
+  ];
+  let bad = 0;
+  for (const [name, jsx, expect] of cases) {
+    const hits = openingTags(jsx).filter((t) => {
+      const has = (re) => re.test(t.attrs);
+      if (!has(/\bonClick\s*=/) || INTERACTIVE.test(t.name) || /^[A-Z]/.test(t.name)) return false;
+      return !(has(/\brole\s*=/) && has(/\btabIndex\s*=/) && has(/\bonKey(Down|Press|Up)\s*=/));
+    }).length;
+    if (hits !== expect) { console.error(`  selftest FAIL: ${name} — expected ${expect}, got ${hits}`); bad++; }
+  }
+  if (bad) { console.error(`accessibility: SELF-TEST FAILED, ${bad} of ${cases.length}.`); process.exit(1); }
+  console.log(`accessibility: scanner self-test PASSED (${cases.length} cases, 5 of them negative — the half that stops a wrong label).`);
+}
+if (process.argv.includes("--selftest")) { selftest(); process.exit(0); }
 
 const lineOf = (src, i) => src.slice(0, i).split("\n").length;
 

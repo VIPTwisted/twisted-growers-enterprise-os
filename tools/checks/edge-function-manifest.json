@@ -136,10 +136,10 @@
       "note": "Recovered from production with the shared admin key redacted. Production is the source of record; deploying this copy would break the function."
     },
     "parse-documents": {
-      "deployed_version": 4,
-      "sha256": "1a5ac74f78bc8df244801472c19b0e3e3d9e7e9a56c23e7e59e7947cb7c2cf5d",
+      "deployed_version": 7,
+      "sha256": "57230dbb40717f853a0fad361f76ef3b89000bc5c4845012df187896233969dd",
       "redacted": false,
-      "note": "REAL SOURCE — no key in the file, and now genuinely byte-equivalent to production. SECOND of the sixteen moved off the shared literal, 10 Aug 2026, after metrc-probe. Reads TG_ADMIN_KEY from integration_secrets at run time; constant-time compare; fails closed with 503 if unset. Deployed v4 and verified: correct key 200, wrong key 401, no key 401. CORRECTION: this entry previously read deployed_version 3 / 'Real source' while the DEPLOYED copy carried the admin key as a string literal and the repo copy read it from the environment — they differed in the one line that decides whether the function starts, and the manifest said they did not. verify_jwt stays false; both cron jobs call through tg_call_function."
+      "note": "Real source. Deployed v7 on 11 Aug 2026 by Agent I. TWO things in one deploy and the second was not planned. Planned: rule G2 - OURS was a hardcoded licence pair that its own comment called KNOWN DEBT deliberately not fixed; literal-licences went 57 to 59 and failed the build, so it is fixed here. It now loads from company_licenses and FAILS CLOSED with 503, because an empty list would make every manifest record US as the counterparty. UNPLANNED: THE REPO WAS BEHIND PRODUCTION. The repo held a v4/v5-era file with no identity parser and no v6 regression fix while production ran v6, and THIS GATE CANNOT SEE THAT - it compares the repo to this pin, not to production, so it said deploy it. Deploying the repo would have shipped the v5 bug that wrote NULL over client_name and client_license on five certificates, erasing the field rule C0 calls the only independent source of who grew the material. Caught by reading production first. Production v6 was merged into the repo and G2 applied on top; nothing from v6 removed. Same shape as apex-sync on 10 Aug. verify_jwt false, unchanged - the admin key is the gate."
     },
     "report-ingest": {
       "deployed_version": 3,
@@ -170,6 +170,12 @@
       "sha256": "02b20abf111f817f4fac225c947f36cf928c04ad22f9b0697afcfa5a8b738ab1",
       "redacted": false,
       "note": "Real source. If the hash changes, deploy it or record why not."
+    },
+    "coa-inspect": {
+      "deployed_version": 1,
+      "sha256": "44a5afb24e3538596244e235927a8294f8c2974c2e9d50f82273d7424523ce5d",
+      "redacted": false,
+      "note": "Real source. Deployed v1 on 10 Aug 2026 and recovered into the repo on 11 Aug 2026 by Agent I, verbatim from the deployment - it had been running for a day with no source anywhere, found by diffing the 27 live functions against the 26 with source. READ ONLY: it downloads a stored certificate and reports what the text actually extracts to, so the COA parser can be written against reality rather than an assumption. Writes nothing. Admin-key gated with a constant-time compare, key read from integration_secrets at run time, so no literal in the file. verify_jwt false, which is correct here because the admin key is the gate."
     }
   }
 }

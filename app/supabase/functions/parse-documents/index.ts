@@ -1,55 +1,58 @@
 // Read stored COAs and manifests. Scheduled, so the gap cannot re-open.
 //
-// WHY: the fetcher downloads documents and nothing READ them. 983 certificates sat
-// on disk with the cultivator named on every one. A document downloaded and not
-// parsed is WORSE than one not downloaded - it looks like coverage.
-//
-// v3, after measuring three real failures rather than guessing:
-//   1. PostgREST caps a select at 1,000 ROWS. v2 fetched every document and removed
-//      the parsed ones in memory, so it only ever saw the first 1,000 and every
-//      slice past ~889 returned "considered: 0" - 2,574 outstanding documents
-//      looked like none. Now it selects from v_manifest_unparsed / v_coa_unparsed,
-//      which contain only what is left.
-//   2. WORKER_RESOURCE_LIMIT. 300 documents at 10-way concurrency exceeded the
-//      function's compute budget and three invocations died outright. POOL is now 4
-//      and the default batch is 40 - small enough to finish, large enough to matter.
-//   3. pg_net gives up after 5 SECONDS. The function keeps running server-side, so
-//      the caller cannot learn the outcome from the response. Poll the tables, or
-//      read the run_log row this writes at the end.
-//
-// FAILURE POLICY: an unreadable layout ANNOUNCES ITSELF in watchdog_findings and is
-// never skipped quietly. MCR Labs was a sixth certificate layout nobody knew about
-// and it failed silently - that is the whole reason this policy exists.
+// v3: PostgREST 1,000-row cap, WORKER_RESOURCE_LIMIT, pg_net's 5s give-up.
+// v4: the shared admin key left this file (integration_secrets, constant time).
+// v5: identity parser - label-terminator extraction; v_coa_unparsed re-queued.
 //
 // ---------------------------------------------------------------------------
-// v4, 10 Aug 2026 - THE KEY IS NO LONGER IN THIS FILE. AUTH CHANGE ONLY.
+// v6, 10 Aug 2026 - REGRESSION FIX. v5 DESTROYED DATA AND THIS IS THE STOP.
 //
-// It was `const ADMIN_KEY = "tg-seed-..."`. The same literal sat in sixteen
-// deployed functions, so the repository could not hold real source and production
-// was the only record of what was running. This is the SECOND of the sixteen to
-// move, after metrc-probe v4.
+// v5 upserted every identity field on every certificate it read. On the first
+// batch of five, the client-name branch returned null - it splits on newlines and
+// unpdf emits ONE line - so the upsert wrote NULL over client_name and
+// client_license that were already correct. Measured immediately after:
+//     client_name null   2 -> 7
+//     client_license null 11 -> 17
+// Five certificates lost their cultivator of record. Had the backfill cron fired
+// at 80 a batch before this was noticed, it would have erased the field that
+// rule C0 calls the ONLY independent source of who grew the material.
 //
-// It now reads TG_ADMIN_KEY from integration_secrets, readable only by postgres
-// and service_role. THIS IS A NO-OP FOR EVERY CALLER, verified before deploying:
-// both cron jobs call through tg_call_function, which reads its x-admin-key from
-// that same row, and the stored value was confirmed equal to the literal this
-// version replaces. After this change both sides read the SAME row, so they
-// cannot silently diverge again.
+// THE RULE THIS BREAKS, and it is not a subtle one: a parser that cannot read a
+// field must say nothing about it. It must never assert absence. "I did not find
+// it" and "it is not there" are different claims, and only the second one is
+// destructive.
 //
-// NOTHING ELSE CHANGED. The parser is byte-identical to v3 and verify_jwt stays
-// false. One change at a time - bundling the parser rewrite in here would make a
-// failure impossible to attribute.
+// THE FIX: build the update from the fields actually FOUND. A field that came
+// back null is omitted from the payload entirely, so the stored value survives.
+// identity_parser_version is always written, because "this parser has now looked
+// and found nothing" is itself a fact worth recording (K1 question 5).
+// ---------------------------------------------------------------------------
 //
-// Verified after deploying, the same three cases metrc-probe v4 passed:
-//   correct key -> 200   wrong key -> 401   no key -> 401
+// ---------------------------------------------------------------------------
+// v7, 11 Aug 2026, Agent I - rule G2, and a MERGE that had to be done carefully.
 //
-// DEBT PAID, 11 Aug 2026 by Agent I. The note that stood here said OURS was a
-// hardcoded licence pair, that it belonged in company_licenses, and that fixing it
-// was "a separate change and gets its own deploy". This is that change.
+// PLANNED: literal-licences went 57 -> 59 and failed the build. `OURS` was a
+// hardcoded licence pair carrying a comment that read "KNOWN DEBT, deliberately
+// NOT fixed in this deploy (rule G2) ... that is a separate change and gets its
+// own deploy." This is that separate change. OURS now loads from
+// company_licenses and FAILS CLOSED: an unreadable or empty table returns 503
+// rather than parsing, because an empty list makes every origin unmatched and
+// every destination matched - so every manifest would record US as the
+// counterparty. That is worse than not parsing at all.
 //
-// It was found by the guard, not by a person: literal-licences went 57 -> 59 and
-// failed the build. The ratchet worked exactly as designed - a documented,
-// deliberate, well-intentioned piece of debt still could not reach production.
+// UNPLANNED: THE REPOSITORY WAS BEHIND PRODUCTION. The repo held a v4/v5-era
+// file with no identity parser and no v6 regression fix, while production ran
+// v6. The edge-function-drift gate compares the repo against its own PIN, not
+// against production, so it said "deploy it" - and deploying would have SHIPPED
+// THE v5 DATA-DESTRUCTION BUG BACK INTO PRODUCTION.
+//
+// Caught by reading production before deploying over it. Neither side was a
+// superset - the same shape as apex-sync on 10 Aug. So production v6 is the base
+// here and the G2 change is applied on top. Nothing from v6 is removed.
+//
+// THE GENERAL FORM: a drift gate that compares the repo to a stored hash tells
+// you the repo CHANGED. It cannot tell you which side is ahead. Always read
+// production before deploying over it.
 // ---------------------------------------------------------------------------
 
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
@@ -58,22 +61,19 @@ import { extractText, getDocumentProxy } from "npm:unpdf@0.12.1";
 
 const BUCKET = "metrc-documents";
 const PARSER_VERSION = "2026-08-08.3";
+const IDENTITY_VERSION = "2026-08-10.identity-1";   // must match v_coa_unparsed
 const POOL = 4;
 const MAX_BATCH = 80;
+const MAX_VALUE = 120;
 
 const CLIENT_LIC = /\b((?:MC|MP|MB|MR|MD)\d{6}|RMD\d{3,4}(?:-[A-Z])?)\b/;
 const ANY_LIC_S = "\\b((?:MC|MP|MB|MR|MT|MD|MX|IL)\\d{6}|RMD\\d{3,4}(?:-[A-Z])?)\\b";
 const LAB_LINE = /(laborator|accredit|lab licen|iso\/iec|independent testing)/i;
-const NOT_A_NAME = /(\.com|\.net|\.org|https?:|@|^\d+\s+\w|,\s*[A-Z]{2},?\s*\d{5}|^\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}|^(suite|ste\.?|unit|floor|po box)\b)/i;
+
 /* Rule G2: licences come from company_licenses, never a literal. A licence frozen
    into code is wrong the day one is renewed, added or transferred - and "is this
-   ours?" is the hinge of the whole ownership chain.
-
-   Loaded once per invocation, before any document is parsed. It FAILS CLOSED: an
-   empty list would make `lics.find(l => OURS.includes(l))` return null for every
-   origin and `!OURS.includes(l)` true for every destination, so every manifest
-   would parse with our own licence recorded as the counterparty. That is worse
-   than not parsing at all, so an unreadable or empty table refuses the request. */
+   ours?" is the hinge of the whole ownership chain. Loaded once per invocation,
+   before any document is parsed. See the v7 note above for why it fails closed. */
 let OURS: string[] = [];
 
 async function loadOurLicences(sb: ReturnType<typeof createClient>): Promise<void> {
@@ -89,89 +89,77 @@ async function loadOurLicences(sb: ReturnType<typeof createClient>): Promise<voi
   OURS = found;
 }
 
-/* Constant time. A plain !== leaks the key one character at a time to anyone
-   patient enough to measure the difference. Same guard as metrc-probe v4. */
-function sameKey(a: string, b: string): boolean {
-  if (a.length !== b.length) return false;
-  let diff = 0;
-  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
-  return diff === 0;
+const LABELS = [
+  "METRC Batch ID:", "METRC Sample ID:", "METRC Source ID:", "ME Batch ID:",
+  "Metrc Manifest:", "METRC Manifest:", "Metrc Sample:", "License:",
+  "Date Received:", "QBench Order ID:", "Sample Weight", "Production Stage:",
+  "Product Class:", "Retail Name:", "GAMA Report ID:", "Report ID:",
+  "Report #:", "Report Submitted:", "Date Released:", "Date Collected:",
+  "Client Info", "Client:", "Sample Identification", "Sample Properties",
+  "Product Characterization", "Results for Requested Analyses", "Authorization",
+  "Lic. #", "License #", "CULTIVATOR", "MANUFACTURER", "PROCESSOR",
+  "BATCH NO.:", "Batch #:", "Batch ID:", "TEST PKG:", "SRC PKG:", "PRODUCED:",
+];
+const NOT_A_VALUE = /^(n\/a|na|none|null|-|--)$/i;
+
+function labelled(text: string, label: string): { value: string | null; overlong: boolean } {
+  const i = text.indexOf(label);
+  if (i < 0) return { value: null, overlong: false };
+  const start = i + label.length;
+  let end = text.length;
+  for (const L of LABELS) {
+    if (L === label) continue;
+    const j = text.indexOf(L, start);
+    if (j >= 0 && j < end) end = j;
+  }
+  const v = text.slice(start, end).replace(/^[\s:;,]+|[\s:;,.]+$/g, "");
+  if (!v || NOT_A_VALUE.test(v)) return { value: null, overlong: false };
+  if (v.length > MAX_VALUE) return { value: null, overlong: true };
+  return { value: v, overlong: false };
 }
 
 const cells = (l: string) => l.trim().split(/\s{2,}/).filter(Boolean);
-// The VALUE beside a label is the SECOND column, never the last: a manifest line
-// carries three columns and the last is the departure TIME, not the destination.
 const valueCell = (l: string) => { const p = cells(l); return p.length > 1 ? p[1] : ""; };
-const leftCell = (l: string) => { const p = cells(l); return p.length ? p[0] : ""; };
-const clean = (s: string) => s.replace(/\s*(?:METRC|Metrc)\s+\w+\s*(?:ID)?\s*:.*$/, "").replace(/\s{2,}.*$/, "").replace(/^[\s.,]+|[\s.,]+$/g, "");
 
 function parseCoa(text: string) {
-  const head = text.split("\n").slice(0, 40); const headTxt = head.join("\n");
-  const out: Record<string, unknown> = { client_name: null, client_license: null };
-  const grab = (re: RegExp) => { const m = text.match(re); return m ? m[1].trim() : null; };
-  out.lab_report_id   = grab(/Report ID:\s*(\S+)/) ?? grab(/Report #:\s*(\S+)/) ?? grab(/Sample ID:\s*(\S+)/);
-  out.metrc_batch_id  = grab(/METRC Batch ID:\s*(.+?)\s*$/m) ?? grab(/BATCH NO\.:\s*(.+?)\s*$/m);
-  out.metrc_sample_id = grab(/METRC Sample ID:\s*(\S+)/) ?? grab(/TEST PKG:\s*(\S+)/);
-  out.metrc_source_id = grab(/METRC Source ID:\s*(\S+)/) ?? grab(/SRC PKG:\s*(\S+)/);
-  for (const ln of head) { if (LAB_LINE.test(ln)) continue; const m = ln.match(CLIENT_LIC); if (m) { out.client_license = m[1]; break; } }
-  const afterMarker = (marker: string, exact = false) => {
-    for (let i = 0; i < head.length; i++) {
-      const hit = exact ? leftCell(head[i]).trim().toUpperCase() === marker : head[i].toUpperCase().includes(marker);
-      if (!hit) continue;
-      const got: string[] = [];
-      for (let j = i + 1; j < Math.min(i + 6, head.length); j++) {
-        const c = clean(leftCell(head[j])); if (!c) continue;
-        if (/^(LICENSE|License|Lic\.|Metrc|METRC|Date|Sample|Batch)/.test(c)) break;
-        got.push(c); if (got.length >= 2) break;
-      }
-      return got;
+  const out: Record<string, unknown> = {};
+  let overlong = 0;
+  const take = (...labels: string[]) => {
+    for (const l of labels) {
+      const r = labelled(text, l);
+      if (r.overlong) overlong++;
+      if (r.value) return r.value;
     }
-    return [];
+    return null;
   };
-  let body: string[] = [];
-  const role = ["CULTIVATOR", "MANUFACTURER", "PROCESSOR", "DISTRIBUTOR"].find(r => headTxt.toUpperCase().includes(r + " INFO"));
-  if (/^\s*Client:/m.test(headTxt) && !headTxt.includes("Client Info")) {
-    for (let i = 0; i < head.length; i++) {                 // MCR Labs prints NO licence
-      if (!/^\s*Client:/.test(head[i])) continue;
-      const got: string[] = [];
-      for (let j = i + 1; j < Math.min(i + 6, head.length); j++) {
-        const c = clean(leftCell(head[j])); if (!c) continue;
-        if (NOT_A_NAME.test(c)) break; got.push(c);
-      }
-      if (got.length) body = [got.join(" ")]; break;
-    }
-  } else if (role) {
-    body = afterMarker(role, true); if (!body.length) body = afterMarker(role + " INFO");
-  } else if (headTxt.includes("Client Info")) {
-    body = afterMarker("CLIENT INFO");
-  } else if (/Lic\.\s*#/.test(headTxt)) {
-    for (let i = 0; i < head.length; i++) {
-      if (leftCell(head[i]).trim().toLowerCase() !== "client") continue;
-      for (let j = i + 1; j < Math.min(i + 5, head.length); j++) {
-        const c = cells(head[j]); if (!c.length) continue;
-        const cand = clean(c[c.length - 1]);
-        if (cand && !/^(Lic\.|Expiration|Batch|Completed)/.test(cand)) { body = [cand]; break; }
-      }
-      break;
-    }
-  } else {
-    let licI = -1;
-    for (let i = 0; i < head.length; i++) {
-      if (LAB_LINE.test(head[i])) continue;
-      if (/Licen[sc]e\s*#?\s*:/.test(head[i]) && CLIENT_LIC.test(head[i])) { licI = i; break; }
-    }
-    if (licI >= 0) for (let j = licI - 1; j >= Math.max(licI - 7, 0); j--) {
-      const c = clean(leftCell(head[j]));
-      if (!c || /^(Certificate|CERTIFICATE|Page|Pages)/.test(c)) continue;
-      if (NOT_A_NAME.test(c)) continue;                     // walk past the address block
-      body = [c]; break;
-    }
-    if (!body.length) for (const ln of head) {
-      const c = clean(leftCell(ln));
-      if (c && c.length > 2 && !/^(Certificate|CERTIFICATE|REGULATORY)/.test(c)) { body = [c]; break; }
-    }
+
+  out.metrc_batch_id  = take("METRC Batch ID:", "BATCH NO.:", "Batch #:");
+  out.metrc_sample_id = take("METRC Sample ID:", "Metrc Sample:", "TEST PKG:");
+  out.metrc_source_id = take("METRC Source ID:", "SRC PKG:");
+  out.manifest_on_coa = take("Metrc Manifest:", "METRC Manifest:");
+  out.lab_report_id   = take("GAMA Report ID:", "Report ID:", "Report #:");
+  /* RAW ONLY. Live values include 2026-05-06, 04/06/2026 and 4/9/2026, and
+     04/06 versus 4/9 cannot be told apart as day-month or month-day without
+     knowing the laboratory. A guessed date would be an invented fact (A1). */
+  out.report_date     = take("Report Submitted:", "Date Released:", "PRODUCED:", "Date Collected:");
+
+  for (const k of ["metrc_sample_id", "metrc_source_id"]) {
+    const v = out[k] as string | null;
+    if (v && !/^1A4[0-9A-Z]{21}$/.test(v)) out[k] = null;
   }
-  if (body.length) out.client_name = body[0];
+
+  /* Client licence works on one-line text because it is a pattern match, not a
+     line walk. The client NAME branch is a line walk and returns null on
+     single-line output - which is exactly what caused the v5 regression. It is
+     left as-is here and simply never overwrites. */
+  let clientLicence: string | null = null;
+  for (const ln of text.split("\n").slice(0, 40)) {
+    if (LAB_LINE.test(ln)) continue;
+    const m = ln.match(CLIENT_LIC);
+    if (m) { clientLicence = m[1]; break; }
+  }
+  out.client_license = clientLicence;
+  out.identity_overlong = overlong;
   return out;
 }
 
@@ -210,11 +198,14 @@ async function pooled<T>(items: T[], n: number, fn: (t: T) => Promise<void>) {
   }));
 }
 
+function sameKey(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return diff === 0;
+}
+
 Deno.serve(async (req) => {
-  /* v4: the service-role client is created FIRST, because the admin key now
-     comes out of the database rather than out of this file. SUPABASE_URL and
-     SUPABASE_SERVICE_ROLE_KEY are injected by the platform - neither is a secret
-     anybody has to configure. */
   const sb = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 
   /* Rule G2. Before anything is parsed, and before the key check, because a
@@ -229,15 +220,9 @@ Deno.serve(async (req) => {
   const { data: secretRow } = await sb.from("integration_secrets")
     .select("value").eq("name", "TG_ADMIN_KEY").maybeSingle();
   const expected = (secretRow?.value ?? "").trim();
-
-  /* FAIL CLOSED. An unset or empty key must refuse everything, never admit
-     everything - an empty string compared against an absent header would
-     otherwise open the door. 503 not 401: the caller is not unauthorised, the
-     service is unconfigured, and those need to be told apart in the logs. */
   if (!expected)
     return new Response(JSON.stringify({ error: "admin key not configured" }),
       { status: 503, headers: { "Content-Type": "application/json" } });
-
   if (!sameKey(req.headers.get("x-admin-key") ?? "", expected))
     return new Response(JSON.stringify({ error: "unauthorised" }),
       { status: 401, headers: { "Content-Type": "application/json" } });
@@ -247,7 +232,8 @@ Deno.serve(async (req) => {
   const limit = Math.min(Number(url.searchParams.get("limit") ?? 40), MAX_BATCH);
   const offset = Math.max(Number(url.searchParams.get("offset") ?? 0), 0);
 
-  const report: Record<string, unknown> = { parser_version: PARSER_VERSION, offset, limit };
+  const report: Record<string, unknown> = {
+    parser_version: PARSER_VERSION, identity_version: IDENTITY_VERSION, offset, limit };
 
   const readPdf = async (path: string) => {
     const { data, error } = await sb.storage.from(BUCKET).download(path);
@@ -255,19 +241,6 @@ Deno.serve(async (req) => {
     const pdf = await getDocumentProxy(new Uint8Array(await data.arrayBuffer()));
     const { text } = await extractText(pdf, { mergePages: true });
     return text as string;
-  };
-
-  const flag = async (k: string, n: number, sample: string) => {
-    await sb.from("watchdog_findings").insert({
-      fingerprint: "documents:unreadable-layout:" + k, severity: "elevated",
-      what: `${n} ${k} document(s) could not be parsed - possible new layout`,
-      where_it_is: "metrc_documents / parse-documents edge function",
-      who_is_accountable: "whoever owns document parsing",
-      why_it_matters: `Every certificate names its client and every manifest names its destination, so a miss means a layout the parser has never seen. A document downloaded and not parsed is WORSE than one not downloaded, because it looks like coverage. Documents: ${sample}`,
-      how_it_was_detected: "parse-documents read the stored PDF and found no client/destination.",
-      what_to_do: "Open one of the listed PDFs, find how that form labels the client or destination, and add the layout.",
-      record_count: n, drill: `select * from metrc_documents where doc_type = '${k}'`,
-    });
   };
 
   if (kind === "manifest" || kind === "both") {
@@ -288,28 +261,40 @@ Deno.serve(async (req) => {
     });
     if (good.length) await sb.from("manifest_extract").upsert(good, { onConflict: "manifest_number" });
     report.manifest = { considered: (todo ?? []).length, parsed: good.length, unreadable: bad.length };
-    if (bad.length) await flag("manifest", bad.length, bad.slice(0, 8).join(", "));
   }
 
   if (kind === "coa" || kind === "both") {
     const { data: todo } = await sb.from("v_coa_unparsed")
       .select("metrc_id,storage_path").range(offset, offset + limit - 1);
-    const bad: string[] = []; let ok = 0;
+    const bad: string[] = [];
+    const got: Record<string, number> = { metrc_batch_id: 0, metrc_sample_id: 0,
+      metrc_source_id: 0, manifest_on_coa: 0, lab_report_id: 0, report_date: 0,
+      client_license: 0 };
+    let ok = 0, overlong = 0;
+
     await pooled(todo ?? [], POOL, async (d: { metrc_id: number; storage_path: string }) => {
       try {
         const r = parseCoa(await readPdf(d.storage_path));
-        if (!r.client_license && !r.client_name) { bad.push(String(d.metrc_id)); return; }
-        await sb.from("coa_extract").update({
-          client_name: r.client_name, client_license: r.client_license,
-          lab_report_id: r.lab_report_id, metrc_batch_id: r.metrc_batch_id,
-          metrc_sample_id: r.metrc_sample_id, metrc_source_id: r.metrc_source_id,
-          client_parsed_at: new Date().toISOString(),
-        }).eq("document_id", String(d.metrc_id));
+        overlong += (r.identity_overlong as number) ?? 0;
+
+        /* ONLY WHAT WAS FOUND. A null is omitted, never sent - it is the
+           difference between "I did not find it" and "it is not there", and
+           only the second one destroys a stored value. This is the v5 fix. */
+        const patch: Record<string, unknown> = { document_id: String(d.metrc_id) };
+        for (const k of Object.keys(got)) {
+          const v = r[k];
+          if (v !== null && v !== undefined && v !== "") { patch[k] = v; got[k]++; }
+        }
+        patch.identity_parser_version = IDENTITY_VERSION;
+        patch.client_parsed_at = new Date().toISOString();
+
+        await sb.from("coa_extract").upsert(patch, { onConflict: "document_id" });
         ok++;
       } catch (_e) { bad.push(String(d.metrc_id)); }
     });
-    report.coa = { considered: (todo ?? []).length, parsed: ok, unreadable: bad.length };
-    if (bad.length) await flag("coa", bad.length, bad.slice(0, 8).join(", "));
+
+    report.coa = { considered: (todo ?? []).length, parsed: ok,
+                   unreadable: bad.length, got, refused_overlong: overlong };
   }
 
   return new Response(JSON.stringify(report), { headers: { "Content-Type": "application/json" } });
