@@ -525,3 +525,85 @@ the owner when 3,025 were destroyed (the date is phase_date). Run
 f_field_coverage() before trusting any count of nothing; field_gap records all 25
 known gaps.
 ```
+
+```
+*** A SCHEDULE THAT CANNOT FAIL PROVES NOTHING. ***
+"11,236.9 wet - 712.6 waste - 8,515.1 water - 2,009.3 packaged = 0.0000" was
+quoted for several answers as proof 2024 balanced. Metrc DEFINES moisture loss as
+wet - waste - packaged, so it is an IDENTITY: it closes on fabricated numbers and
+proves only that four fields agree with themselves. The same trap was nearly
+shipped twice - a roll-forward reported "manufacturing process loss 0.0 lb"
+because consumption had been defined as the child package's created weight, so
+mass in equalled mass out by construction. BEFORE QUOTING ANY BALANCE, ASK WHICH
+LINE COULD COME OUT WRONG. If none can, it is not a reconciliation.
+f_inventory_reconciliation() draws its five lines from five different sources for
+exactly this reason.
+
+*** A TRANSFER ROW HAS A DIRECTION, AND `licence` IS NOT IT. ***
+metrc_rpt_package_transfers holds BOTH legs of every movement because the report
+is imported from both licences. The `licence` column is the REPORTING licence.
+Direction lives only in source_row->>'Origin Lic.' / 'Dest. Lic.'. Treating every
+row as an outflow made tag ...6048 read CREATED +77.2, SHIPPED -77.2, with 77.2 lb
+still physically on the shelf, and "shipped" tag ...5085 29.3 lb when only 15.0 lb
+ever existed. Use v_transfer_line, which classifies OUTBOUND / INBOUND / INTERNAL.
+
+*** INTERNAL MC <-> MP TRANSFERS ARE NOT A SALE AND NOT A PURCHASE. ***
+The same physical material moving between our own two licences double-counts if
+booked as either. Excluded from the reconciliation and disclosed as a memo line
+(12,080.2 lb to date). BUT at PACKAGE level the internal leg MUST be deducted -
+the source tag is consumed and a NEW tag is created at the destination. Company-
+level netting reasoning does not belong in a per-package ledger; that single error
+was worth 10,190.6 lb.
+
+*** TRANSFER WEIGHT: USE METRC'S OWN POUNDS, NOT OUR DERIVED ONE. ***
+shipped_lb was derived by matching OUR item catalogue for a unit of measure, so it
+resolved only for OUR items and was NULL for every third-party inbound line -
+making 3,370.6 lb of purchases look like 0.0. source_row 'Weight Ship''d' and
+'Weight Rcv''d' are ALREADY IN POUNDS, cover 17,668 rows against 16,086, and agree
+with the derived value on 99.1% of overlaps.
+
+*** metrc_packages IS THE ACTIVE PACKAGE LIST, NOT THE FULL HISTORY. ***
+It holds 4,343 tags; metrc_rpt_package_transfers references 15,496. 14,125 tags
+carrying 13,524.4 lb are absent from it. ANY BALANCE KEYED ON THE MIRROR CANNOT
+SEE MOST SHIPMENTS. Verified on trimmed/uppercased tags, so it is not a formatting
+artifact. Company-level figures come from the transfer report; the mirror is only
+authoritative for what is on hand NOW.
+
+*** THE POINT IN TIME REPORT HAS NO WEIGHT COLUMN. ***
+metrc_rpt_point_in_time records WHICH tag was in WHICH room on a date - never how
+much. A historic position can state tags and rooms as fact, but its pounds are
+RECONSTRUCTED and must be labelled so. 31 Dec 2024 has a snapshot for MC281714
+only (85 package tags, 60 weighable) and none for MP281909, so 2024 CANNOT be
+closed on counted weight.
+
+*** PRODUCTION HAS TWO MEASUREMENTS THAT DISAGREE BY 2,424 lb. ***
+Package-created (13,713.5 lb) is an EVENT with a real date. Harvest report
+packaged_lb (11,289.1 lb) is a per-harvest FIELD dated on finished_on - when the
+harvest was CLOSED, not when packages were made. Dating production by harvest
+closure drove FY2025 to -570.9 lb of expected inventory, a negative physical
+quantity. The schedule runs on package-created and carries the other as a memo.
+The difference is SYSTEMATIC, positive every year (2024 +485.1, 2025 +284.7,
+2026 +1,103.9), NOT a December/January timing effect, and its cause is OPEN.
+
+*** NEVER PLUG A RESIDUAL TO MAKE A TOTAL CLOSE. ***
+Every finished package reads Quantity = 0 with a FinishedDate, so adding a
+"FINISHED zeroes it" event would have made the ledger reproduce 100% and mean
+nothing. A finished package's residual IS the finding - process loss that Metrc
+never tags. Validate only where the answer is not already baked in: the honest
+test is the OPEN packages, currently 87.5% reproduced within 2 lb.
+
+*** A DASHBOARD TILE MUST NOT RECONSTRUCT THE LEDGER. ***
+Audit tiles were first built to compute live "so the variance can never go stale".
+f_inventory_reconciliation walks every package event; the dashboard read AND
+tg_snapshot_dashboards both hit the statement timeout, and the dashboards were
+broken until it was replaced. Tiles aggregate the five sources directly and are
+materialised (mv_dept_dash_audit_tiles). Likewise mv_forensic_sales exists because
+matching invoices re-exploded 1,739 nested Apex orders once per each of 14,501
+transfer rows.
+
+*** mv_department_dashboard IS NOW A VIEW OVER mv_department_dashboard_base. ***
+The 400-line matview was RENAMED, never retyped - re-keying it by hand risks one
+silent typo blanking every dashboard. The view unions the base with
+mv_dept_dash_audit_tiles. tg_snapshot_dashboards refreshes the BASE, because
+REFRESH MATERIALIZED VIEW cannot target a view.
+```

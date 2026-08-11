@@ -10,6 +10,7 @@ import MyWeek from "./myweek.jsx";
 import DocReader from "./docreader.jsx";
 import Onboard from "./onboard.jsx";
 import StaffForms from "./staffforms.jsx";
+import PayRuns from "./payruns.jsx";
 import SyncItems from "./syncitems.jsx";
 import jsQR from "jsqr";
 import { supabase, FUNCTIONS_URL } from "./lib/supabase.js";
@@ -9579,6 +9580,7 @@ export default function App() {
     my_callout: <StaffForms mode="callout" go={setView} />,
     my_timeoff: <StaffForms mode="timeoff" go={setView} />,
     my_incident: <StaffForms mode="incident" go={setView} />,
+    pay_runs: <PayRuns go={setView} session={session} />,
     integrations: <Integrations session={session} />,
     settings: <Settings session={session} prefs={prefs} />,
     help: <Help />,
