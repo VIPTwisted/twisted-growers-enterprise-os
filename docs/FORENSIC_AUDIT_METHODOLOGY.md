@@ -753,3 +753,69 @@ instead of merely bounded.
 **Check the closed-system constraint BEFORE reporting any derived component.** A part
 cannot exceed the whole. Both my wrong figures — 9.8% and 6,511 lb — would have been
 caught in one line of arithmetic.
+
+---
+
+## 21 · CORRECTION — the inbound manifest was always there, and so was the delivery date
+
+I reported that the 2023 and 2024 third-party material had **no manifests**. Wrong, twice
+over, and the owner caught both.
+
+**1. Every tag carries its inbound manifest on the PACKAGE RECORD.**
+`raw->>'ReceivedFromManifestNumber'` — a field I never read, because I was only joining
+the transfer report (which begins 2024-01-18). Coverage:
+
+| Year | Third-party tags | With a manifest on the package record |
+|---|---:|---:|
+| 2023 | 17 | **17** |
+| 2024 | 45 | **45** |
+| 2025 | 13 | 8 |
+| 2026 | 363 | 329 |
+
+The 2023 Paper City delivery was manifest **0002199263**. The 2024 deliveries were eleven
+manifests: 0002580506, 0002292709, 0002206196, 0002275643, 0002017594, 0002304019,
+0002143888, 0002234522, 0002164575, 0002172173.
+
+**2. `PackagedDate` is the SUPPLIER's date, not ours.** `ReceivedDateTime` is when we took
+delivery. I read the first as the second and reported that Paper City's fresh frozen "sat
+in our freezer for eight months."
+
+| | |
+|---|---|
+| Supplier packaged it | 2023-10-09 |
+| **We took delivery** | **2024-04-25** |
+| **Age on arrival** | **199 days — the supplier's, not ours** |
+| Written off | 2024-06-06 |
+| **We held it** | **42 days** |
+
+That reverses the commercial reading entirely. It is not a story about material ageing in
+our freezer; it is a story about six-month-old material being delivered and scrapped six
+weeks later, with no failing lab test on record.
+
+### Rules this establishes
+
+- **A missing manifest is a missing JOIN until proven otherwise.** Check the package
+  record's own fields before concluding the paperwork does not exist.
+- **Never treat PackagedDate as a receipt date.** For purchased material they can be
+  months apart, and the difference decides whose problem the ageing is.
+- Every tag now carries `age_on_arrival_days`, and the remark states in words that the
+  age is the supplier's.
+
+### Now on every third-party tag
+
+`v_third_party_forensic` — delivery date, supplier packaging date, age on arrival,
+inbound manifest and its PDF, COA, current room and sublocation, **date processed into our
+product and what it became**, date sold and to whom, destruction with the adjuster's own
+note, and four ageing measures: `days_held_total`, `days_to_process`, `days_to_sell`,
+`days_unsold_still_here` with an `ageing_band`.
+
+**Measured:** no third-party tag has ever been sold as-is — `days_to_sell` is NULL in
+every year. It all goes into our own product. Average age on arrival: 68 days (2024),
+30 days (2026). Oldest unsold item on hand today: 120 days.
+
+### Alert
+
+`v_alert_destroyed_unexplained` raises whenever material is destroyed with no reason code,
+no note, or no failing lab test. Owner ruling: owner, executive, CFO and admin are
+notified in-app and by email. It currently fires on **9 tags, 540.0 lb, all Paper City,
+all adjusted by Robert Goode** — and on nothing else in the entire history.
