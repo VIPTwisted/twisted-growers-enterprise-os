@@ -610,3 +610,83 @@ a flower:trim formulation. 18,240 units at $5.72.
 Plus Command Center tiles (variance · sold YTD · shipped with no Apex invoice ·
 third-party on hand) and Cultivation tiles (plants growing · produced YTD · dried
 awaiting trim · dried bulk on hand).
+
+---
+
+## 19 · Everything is an editable input — nothing is hardwired (0074–0078)
+
+Owner, 11 Aug 2026: *"DO NOT SET IN STONE WE HAVE TO PULL 100% ACCURATE COSTS OF
+MATERIAL AND INPUT IT AND HAVE ABILITY TO EDIT CAN NOT BE HARD WIRED YOU ARE JUST
+PUTTING IN THESE FIGURES TEMPORARILY RIGHT NOW."*
+
+**Every seeded figure is marked `provisional`** and listed on *Provisional Figures
+(not yet verified)*. Nothing may be quoted as actual until it leaves that list. No
+view carries a literal — every number resolves through a table.
+
+### One scope model, used by everything
+
+`tag → batch → brand → product_line → category → global → base`. Most specific wins,
+every level effective-dated. Weekly, monthly, quarterly and annual are the same
+mechanism at different lengths, so **editing a rate going forward never restates a
+closed period.**
+
+| Input | Table | Resolver |
+|---|---|---|
+| Cost per material | `inventory_cost_rate` | `f_cost_rate()` |
+| Any production standard | `production_standard_override` | `f_yield_standard()` |
+| Pre-roll flower:trim split | `preroll_formulation` | `f_preroll_formulation_at()` |
+| Labor / packaging on-off | `cost_tracking_policy` | `f_cost_tracking()` |
+
+Each resolver **returns the scope it matched and the evidence status**, so a report
+can always show which figure was used, who set it, and whether it is still a
+placeholder. Every table has a `daterange` exclusion constraint — two conflicting
+rows at one scope are impossible.
+
+Verified: a tag rate of $1,650 applied inside its window, fell back to the $1,200
+global rate outside it, and a different tag resolved to global.
+
+### Labor and packaging — only where switched on
+
+Owner: *"NOT ALL ITEMS ONLY THOSE NEED TO ON"* / *"ADMIN WILL DECIDE THIS."*
+`cost_tracking_policy` is **OFF globally by default**. Four categories are seeded as
+*proposed ON, admin to confirm*: Vape Product, Concentrate, Raw Pre-Rolls, Infused
+Pre-Rolls. Bulk flower sold by the pound has no per-unit packaging, and charging it
+some would quietly inflate cost of goods.
+
+Rates seeded from the worksheet: vape packaging $1.037 and hardware $1.43 per unit,
+concentrate packaging $1.08, pre-roll packaging $0.33 and labor $5.062 per gram, all
+on a $20/hr labor rate.
+
+### Permissions
+
+`f_can_manage_inventory()` — `owner`, `executive`, `cfo`, `admin`, **or** anyone the
+permission admin later grants the `manage_inventory` capability. RLS is enforced on
+every cost and yield table, and those pages are `admin_only` in the menu. The
+capability is registered for all twelve roles so it is manageable from the permission
+screen rather than by code change.
+
+### Packaging reordering
+
+`supply_items` **already existed** — the owner's own catalogue from 5 Aug 2026. It was
+extended, not duplicated; a second packaging table would guarantee two disagreeing
+counts. Added: sku, reorder_qty, safety_stock, lead_time_days, cost_per_unit,
+track_enabled, last_counted_at, and a flexible restock cadence.
+
+`supply_consumption_rule` turns real activity into real demand — per unit sold, per
+unit manufactured, per plant grown, per pound packaged or harvested.
+
+Cadence is a **kind plus an interval**, so "every 2 months" or "every 3rd harvest"
+needs no schema change. Calendar cadences fall due on a date; **event cadences
+(per_harvest, per_pull, per_batch) fall due when the harvest actually comes off.**
+
+All 15 catalogue items currently read **NOT TRACKED** — nothing has been counted and
+tracking is off by default. `NEVER COUNTED` and `NO REORDER LEVEL SET` are reported as
+their own states, never as zero: an uncounted item is not an item we have none of, and
+that difference matters to whoever is placing the order.
+
+### Pages — Reports → Inventory & Audit (16, of which 8 admin-only)
+
+Reconciliation · Forensic Position · Sold by Tag · Room Census · Yield Standards* ·
+Brand Tier* · Pre-Roll Formulation* · Cost Rates* · Material Drawn* · Provisional
+Figures* · Standard Overrides* · Labor & Packaging Tracking* · Packaging Reorder ·
+Packaging Catalogue · Consumption Rules* · Restock Due.  (* = admin only)
