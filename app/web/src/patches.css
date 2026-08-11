@@ -1092,7 +1092,7 @@
 .falhead {
   display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap;
   padding: 10px 12px; margin-bottom: 6px;
-  border-left: 3px solid var(--accent, #2df26a);
+  border-left: 3px solid var(--accent);
   background: rgba(45,242,106,0.05);
 }
 .falheadmain { font-size: 1.05rem; letter-spacing: -0.01em; }
@@ -1152,7 +1152,7 @@
 }
 .falbig {
   display: flex; flex-direction: column; gap: 3px;
-  padding: 14px 16px; background: var(--panel, #121212);
+  padding: 14px 16px; background: var(--panel);
 }
 .falbiglab { font-size: 0.68rem; letter-spacing: 0.1em; text-transform: uppercase; opacity: 0.55; }
 .falbigval { font-size: 1.9rem; font-weight: 600; letter-spacing: -0.03em; line-height: 1.05; }
@@ -1168,8 +1168,8 @@
 /* The CFO Dashboard jump, right-most in the Command header actions. Given the
    accent so it reads as a destination rather than another utility button. */
 .btn.cfobtn {
-  border-color: var(--accent, #2df26a);
-  color: var(--accent, #2df26a);
+  border-color: var(--accent);
+  color: var(--accent);
   font-weight: 600;
 }
 .btn.cfobtn:hover { background: rgba(45,242,106,0.12); }
@@ -1182,19 +1182,19 @@
 .goalwrap { display: flex; flex-direction: column; gap: 10px; }
 .goalnote {
   padding: 8px 12px; border-radius: 8px; font-size: 13px;
-  background: var(--panel-2, rgba(127,127,127,.10));
-  border: 1px solid var(--line, rgba(127,127,127,.22));
+  background: var(--panel-2);
+  border: 1px solid var(--line);
 }
 .goaltbl { display: flex; flex-direction: column; gap: 8px; }
 .goalrow {
   display: grid; gap: 4px 18px; align-items: center; padding: 12px 14px;
   grid-template-columns: minmax(190px, 1.6fr) repeat(3, minmax(84px, auto)) auto 1fr;
-  border: 1px solid var(--line, rgba(127,127,127,.22));
-  border-left: 3px solid var(--line, rgba(127,127,127,.35));
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--line);
   border-radius: 10px; background: var(--panel, transparent);
 }
-.goalrow.off    { border-left-color: #c0392b; }
-.goalrow.on     { border-left-color: #2e8b57; }
+.goalrow.off    { border-left-color: var(--red); }
+.goalrow.on     { border-left-color: var(--neon); }
 .goalrow.nodata { border-left-color: rgba(127,127,127,.45); }
 .goalname { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .goalunit { font-size: 11px; letter-spacing: .04em; text-transform: uppercase; opacity: .6; }
@@ -1203,15 +1203,15 @@
 .goalval  { font-variant-numeric: tabular-nums; font-size: 15px; }
 .goalin   {
   width: 88px; padding: 4px 6px; font-variant-numeric: tabular-nums; font-size: 14px;
-  border: 1px solid var(--line, rgba(127,127,127,.35)); border-radius: 6px;
+  border: 1px solid var(--line); border-radius: 6px;
   background: transparent; color: inherit;
 }
 .goalpill {
   justify-self: start; padding: 3px 9px; border-radius: 999px;
   font-size: 11px; letter-spacing: .04em; text-transform: uppercase; white-space: nowrap;
 }
-.goalpill.on     { background: rgba(46,139,87,.16);  color: #2e8b57; }
-.goalpill.off    { background: rgba(192,57,43,.16);  color: #c0392b; }
+.goalpill.on     { background: rgba(46,139,87,.16);  color: var(--neon); }
+.goalpill.off    { background: rgba(192,57,43,.16);  color: var(--red); }
 .goalpill.nodata { background: rgba(127,127,127,.16); opacity: .8; }
 .goalact { display: flex; align-items: center; gap: 10px; justify-self: end; }
 .goalen  { display: flex; align-items: center; gap: 5px; font-size: 12px; opacity: .8; }
@@ -1232,12 +1232,12 @@
 .cfoasub, .cfosub2 { font-size: 13px; opacity: .65; }
 .cfocover {
   padding: 11px 14px; border-radius: 10px; font-size: 13px; line-height: 1.5;
-  border: 1px solid var(--line, rgba(127,127,127,.25));
-  border-left: 3px solid #2e8b57; background: var(--panel-2, rgba(127,127,127,.08));
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--neon); background: var(--panel-2);
 }
-.cfocover.warn { border-left-color: #d68910; }
+.cfocover.warn { border-left-color: var(--amber); }
 .cfocovwhy { margin-top: 5px; font-size: 12px; opacity: .7; }
-.cfotabs { display: flex; gap: 6px; flex-wrap: wrap; border-bottom: 1px solid var(--line, rgba(127,127,127,.2)); }
+.cfotabs { display: flex; gap: 6px; flex-wrap: wrap; border-bottom: 1px solid var(--line); }
 .cfotab {
   padding: 8px 14px; border: 0; background: transparent; color: inherit; cursor: pointer;
   font-size: 13px; border-bottom: 2px solid transparent; margin-bottom: -1px; opacity: .65;
@@ -1247,39 +1247,39 @@
 .cfofilters { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .cfosearch {
   flex: 1 1 260px; min-width: 200px; padding: 7px 11px; border-radius: 8px; font-size: 13px;
-  border: 1px solid var(--line, rgba(127,127,127,.3)); background: transparent; color: inherit;
+  border: 1px solid var(--line); background: transparent; color: inherit;
 }
 .cfosel, .cfoin {
   padding: 6px 9px; border-radius: 8px; font-size: 12px; color: inherit; background: transparent;
-  border: 1px solid var(--line, rgba(127,127,127,.3));
+  border: 1px solid var(--line);
 }
 .cfoin.wide { flex: 1 1 220px; }
 .cfototals {
   display: flex; flex-wrap: wrap; gap: 20px; padding: 10px 13px; border-radius: 9px;
-  background: var(--panel-2, rgba(127,127,127,.07)); font-size: 13px;
+  background: var(--panel-2); font-size: 13px;
   font-variant-numeric: tabular-nums;
 }
 .cfomono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
-.cfobad { color: #c0392b; font-weight: 600; }
-.cfounk { color: #d68910; font-style: italic; }
+.cfobad { color: var(--red); font-weight: 600; }
+.cfounk { color: var(--amber); font-style: italic; }
 .cfonote { font-size: 12px; opacity: .7; line-height: 1.5; }
 .cfonotecell { max-width: 320px; font-size: 12px; opacity: .8; }
 .cfoaddrow { display: flex; flex-wrap: wrap; gap: 7px; align-items: center; padding: 11px;
-  border: 1px dashed var(--line, rgba(127,127,127,.35)); border-radius: 10px; }
+  border: 1px dashed var(--line); border-radius: 10px; }
 .cfoinp { display: flex; flex-direction: column; gap: 12px; }
 /* The drill: everything known about one tag, including the prose memo. */
 .cfodrillwrap {
-  position: fixed; inset: 0; background: rgba(0,0,0,.55); z-index: 90;
+  position: fixed; inset: 0; background: color-mix(in srgb, var(--canvas) 72%, transparent); z-index: 90;
   display: flex; align-items: flex-start; justify-content: center; padding: 5vh 16px; overflow-y: auto;
 }
 .cfodrill {
   width: min(880px, 100%); border-radius: 12px; padding: 18px;
-  background: var(--bg, #14161a); border: 1px solid var(--line, rgba(127,127,127,.3));
+  background: var(--bg); border: 1px solid var(--line);
   display: flex; flex-direction: column; gap: 14px;
 }
 .cfodrillhead { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
 .cfomemo { padding: 11px 13px; border-radius: 9px; font-size: 13px; line-height: 1.55;
-  background: var(--panel-2, rgba(127,127,127,.09)); border-left: 3px solid currentColor; }
+  background: var(--panel-2); border-left: 3px solid currentColor; }
 .cfomemo p { margin: 4px 0 0; opacity: .85; }
 .cfogrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 9px 18px; }
 .cfofield { display: flex; flex-direction: column; gap: 1px; }
