@@ -30,6 +30,74 @@
  * the top-bar dropdowns, further down this file. The other 22 uses stay
  * transparent until whoever owns those pages decides to fix them. */
 
+/* ═══ STAFF FORMS ═══════════════════════════════════════════════════
+ * Call out · request time off · report an incident. Phone-first, large
+ * targets, one decision per block. These replaced four buttons that
+ * navigated to raw table grids.
+ */
+.sfempty,.sfdone{display:flex;flex-direction:column;align-items:center;gap:11px;
+  text-align:center;padding:52px 24px;color:var(--muted)}
+.sfempty b,.sfdone b{color:var(--ink);font-size:15px;max-width:44ch;line-height:1.6}
+.sfok{width:54px;height:54px;border-radius:50%;display:grid;place-items:center;
+  font-size:26px;font-weight:800;background:var(--neon);color:var(--neon-ink);
+  box-shadow:var(--glow)}
+.sf{display:flex;flex-direction:column;gap:15px;padding-bottom:52px;max-width:620px}
+.sfhead h1{margin:0;font-size:26px;font-weight:700;letter-spacing:.01em}
+.sfhead p{margin:7px 0 0;font-size:13px;color:var(--muted);line-height:1.65}
+.sfhead p b{color:var(--ink-2)}
+.sfmsg{background:var(--red-soft);border:1px solid color-mix(in srgb,var(--red) 40%,transparent);
+  border-radius:6px;padding:11px 14px;font-size:12.5px;color:var(--ink-2)}
+
+.sffield{display:flex;flex-direction:column;gap:6px}
+.sffield > label{font-size:9.5px;font-weight:800;letter-spacing:.11em;
+  text-transform:uppercase;color:var(--muted);display:flex;gap:7px;align-items:baseline}
+.sffield > label span{font-weight:400;letter-spacing:0;text-transform:none;font-size:10.5px}
+.sffield i{font-style:normal;font-size:11px;color:var(--muted);line-height:1.5}
+.sffield input,.sffield select,.sffield textarea{background:var(--input-bg);
+  border:1px solid var(--line);border-radius:6px;padding:12px 13px;font-size:14px;
+  color:var(--ink);font-family:inherit;outline:none;width:100%}
+.sffield textarea{resize:vertical;line-height:1.6}
+.sffield input:focus,.sffield select:focus,.sffield textarea:focus{
+  border-color:var(--neon-line);box-shadow:var(--glow)}
+.sfrow{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:11px}
+.sfnone{font-size:12.5px;color:var(--muted);line-height:1.6;
+  border:1px dashed var(--line);border-radius:6px;padding:13px 15px}
+.sffine{font-size:11.5px;color:var(--muted);line-height:1.65;
+  border-left:3px solid var(--line);padding-left:13px}
+
+.sfshifts{display:flex;flex-direction:column;gap:7px}
+.sfshift{display:flex;flex-direction:column;gap:2px;align-items:flex-start;
+  background:var(--surface);border:1px solid var(--line);border-radius:8px;
+  padding:13px 15px;cursor:pointer;font-family:inherit;color:var(--ink);text-align:left}
+.sfshift:hover{border-color:var(--neon-line)}
+.sfshift.on{border-color:var(--neon);background:var(--neon-soft)}
+.sfshift b{font-size:14px;font-weight:800}
+.sfshift i{font-style:normal;font-size:11.5px;color:var(--muted)}
+
+.sfnotice{border-radius:8px;padding:13px 15px;font-size:12.5px;line-height:1.65;
+  color:var(--ink-2);border:1px solid}
+.sfnotice b{display:block;margin-bottom:3px;font-size:13.5px}
+.sfnotice.ok{background:var(--neon-soft);border-color:var(--neon-line)}
+.sfnotice.ok b{color:var(--neon)}
+.sfnotice.bad{background:var(--amber-soft);border-color:color-mix(in srgb,var(--amber) 38%,transparent)}
+.sfnotice.bad b{color:var(--amber)}
+
+.sfchips{display:flex;flex-wrap:wrap;gap:8px}
+.sfchip{background:var(--surface);border:1px solid var(--line);border-radius:20px;
+  padding:10px 16px;font-size:13px;color:var(--ink-2);font-family:inherit;cursor:pointer;
+  transition:border-color .13s,color .13s,background .13s}
+.sfchip:hover{border-color:var(--neon-line)}
+.sfchip.on{background:var(--neon);border-color:var(--neon);color:var(--neon-ink);font-weight:700}
+
+.sfbal{display:flex;gap:11px;flex-wrap:wrap}
+.sfbalb{flex:1;min-width:120px;background:var(--surface);border:1px solid var(--line);
+  border-radius:8px;padding:14px 16px;display:flex;flex-direction:column;gap:3px}
+.sfbalb b{font-size:25px;font-weight:800;line-height:1;font-variant-numeric:tabular-nums}
+.sfbalb span{font-size:10.5px;color:var(--muted);line-height:1.4}
+
+.sfbig{padding:16px 20px!important;font-size:15px!important;width:100%}
+.sfacts{display:flex;gap:9px;flex-wrap:wrap;justify-content:center}
+
 /* ═══ ONBOARDING CONSOLE ════════════════════════════════════════════
  * The go-live tool. Numbered steps because it is a procedure, not a
  * form — and the order is the order the law and the floor require.

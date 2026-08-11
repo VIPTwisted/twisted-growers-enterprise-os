@@ -178,11 +178,14 @@ export default function MyWeek({ go }) {
           </>)}
       </section>
 
+      {/* These four went to raw table grids until 10 Aug 2026 — a packager
+          tapping "Call out" at 5:40 got a database view with a column header
+          row. They now open the forms that were built for the job. */}
       <div className="mwacts">
-        <button className="btn ghost" onClick={() => go?.("time_off_requests")}>Request time off</button>
-        <button className="btn ghost" onClick={() => go?.("callouts")}>Call out</button>
+        <button className="btn ghost" onClick={() => go?.("my_timeoff")}>Request time off</button>
+        <button className="btn ghost" onClick={() => go?.("my_callout")}>Call out</button>
         <button className="btn ghost" onClick={() => go?.("shift_swaps")}>Swap a shift</button>
-        <button className="btn ghost" onClick={() => go?.("hr_incidents")}>Report an incident</button>
+        <button className="btn ghost" onClick={() => go?.("my_incident")}>Report an incident</button>
       </div>
 
       <div className="mwgrid">
