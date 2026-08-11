@@ -8445,6 +8445,9 @@ const TELL_YOUR_AI = [
    Verified 7 Aug 2026 against: select distinct department from mv_department_dashboard. */
 const DEPT_BY_VIEW = {
   dept_dash_command: "Command",
+  /* The CFO dashboard reuses the Finance figures and adds the Inventory Forensic
+     Audit. Owner 11 Aug 2026: "ADD A TAB THAT EVEN BRINGS USER TO CFO DASHBOARD". */
+  dept_dash_cfo: "Finance",
   dept_dash_cultivation: "Cultivation",
   dept_dash_inventory: "Inventory",
   dept_dash_quality: "Quality",
@@ -8620,40 +8623,58 @@ function ForensicAuditLedger({ go }) {
     </button>
   );
 
+  const counted  = rows.find((r) => r.line === "Counted on hand");
+  const expected = rows.find((r) => r.line === "Expected on hand");
+  const excTotal = band("EXCEPTION").length;
+
+  /* Three headline figures, then the schedule in named categories. The CEO reads the
+     top line; the CFO reads down. Deliberately NOT a tile grid — eighteen identical
+     cards is what this replaced. */
+  const Big = ({ label, val, unit, tone, sub }) => (
+    <div className={`falbig ${tone || ""}`}>
+      <span className="falbiglab">{label}</span>
+      <span className="falbigval">{val}<em>{unit}</em></span>
+      {sub && <span className="falbigsub">{sub}</span>}
+    </div>
+  );
+
+  const Group = ({ tag, cls, blurb, list }) => list.length > 0 && (
+    <div className="falgroup">
+      <div className="falgrouphead">
+        <span className={`falbandtag ${cls}`}>{tag}</span>
+        {blurb && <span className="falgroupblurb">{blurb}</span>}
+      </div>
+      {list.map((r) => <Row key={r.ord} r={r} />)}
+    </div>
+  );
+
   return (
     <div className="falwrap">
-      <div className="falhead">
-        <span className="falheadmain">
-          {lb(inTotal)} lb in
-          {spend && <> · <b>${Number(spend.usd).toLocaleString()}</b> paid for purchased material</>}
-        </span>
-        {variance && (
-          <span className={`falvar ${Number(variance.lb) < 0 ? "neg" : "pos"}`}>
-            variance {lb(variance.lb)} lb
-          </span>
-        )}
+      <div className="falbigrow">
+        <Big label="Material in, all sources" val={lb(inTotal)} unit=" lb"
+             sub={spend ? "$" + Number(spend.usd).toLocaleString() + " paid for purchased material" : null} />
+        <Big label="Counted on hand today" val={counted ? lb(counted.lb) : "—"} unit=" lb"
+             sub={expected ? "expected " + lb(expected.lb) + " lb" : null} />
+        <Big label="Unexplained variance" val={variance ? lb(variance.lb) : "—"} unit=" lb"
+             tone={variance && Number(variance.lb) < 0 ? "neg" : "pos"}
+             sub={excTotal + " open exception" + (excTotal === 1 ? "" : "s")} />
       </div>
 
-      <div className="falband"><span className="falbandtag in">Material in</span></div>
-      {band("IN").map((r) => <Row key={r.ord} r={r} />)}
-
-      <div className="falband"><span className="falbandtag out">Material out</span></div>
-      {band("OUT").map((r) => <Row key={r.ord} r={r} />)}
-
-      <div className="falband"><span className="falbandtag result">The balance</span></div>
-      {band("RESULT").map((r) => <Row key={r.ord} r={r} />)}
-      {band("MEMO").map((r) => <Row key={r.ord} r={r} />)}
-
-      <div className="falband"><span className="falbandtag exc">Open exceptions</span></div>
-      {band("EXCEPTION").map((r) => <Row key={r.ord} r={r} />)}
-
-      <div className="falband"><span className="falbandtag tp">Third-party material</span></div>
-      {band("THIRD PARTY").map((r) => <Row key={r.ord} r={r} />)}
+      <Group tag="Material in" cls="in" list={band("IN")}
+             blurb="What we grew and what we bought" />
+      <Group tag="Material out" cls="out" list={band("OUT")}
+             blurb="Sold, wasted, destroyed" />
+      <Group tag="The balance" cls="result" list={[...band("RESULT"), ...band("MEMO")]}
+             blurb="Five independent sources — it is allowed to disagree" />
+      <Group tag="Open exceptions" cls="exc" list={band("EXCEPTION")}
+             blurb="Each one is a missing entry, not missing paperwork" />
+      <Group tag="Third-party material" cls="tp" list={band("THIRD PARTY")}
+             blurb="Purchased, resold, remediated" />
 
       <div className="falfoot">
-        Every line is drawn from a DIFFERENT source, so this schedule is capable of
-        failing to balance — that is the point. A negative variance is manufacturing
-        yield loss, which Metrc never tags. Click any line for the records behind it.
+        Every line comes from a DIFFERENT source, so this schedule is capable of failing
+        to balance — that is the whole point of it. A negative variance is manufacturing
+        yield loss, which Metrc never tags. Click any line to open the records behind it.
       </div>
     </div>
   );
@@ -8946,6 +8967,10 @@ function DeptDashboard({ viewKey, go, nav, deep, session }) {
   const [computed, setComputed] = useState(null);
   const [ver, setVer] = useState(0);
   const [busy, setBusy] = useState(false);
+  /* The selected range, lifted out of the date control so the tiles can be recomputed
+     for it. Empty strings mean "all time" and the RPC treats them as null. */
+  const [range, setRange] = useState({ from: "", to: "" });
+  const onRange = React.useCallback((r) => setRange(r), []);
 
   const deepItems = (deep ?? []).filter((d) => d.category === dept);
   const deepGroups = Object.entries(
@@ -8958,8 +8983,22 @@ function DeptDashboard({ viewKey, go, nav, deep, session }) {
 
   const load = async () => {
     setBusy(true);
+    /* Owner, twice: "dashboards are pulling all data, that is not functional" and
+       "DATE RANGE IS NOT WORKING — FIX THIS SITE WIDE". Reports always honoured the
+       range; dashboards never did, because each tile was one pre-computed row with no
+       date on it.
+
+       f_department_dashboard recomputes the FLOW tiles for the window and returns
+       tile_kind / honours_range / range_note so each tile can state its own truth. A
+       POSITION ("on hand") cannot be restated to a past date — we hold three counted
+       snapshots — so it says that instead of pretending. If the RPC is unavailable we
+       fall back to the matview rather than showing an empty dashboard. */
     const [k, t, g, a, tk, st] = await Promise.all([
-      supabase.from("mv_department_dashboard").select("*").eq("department", dept).order("ord"),
+      supabase.rpc("f_department_dashboard",
+        { p_dept: dept, p_from: range.from || null, p_to: range.to || null })
+        .then((r) => (r.error || !r.data)
+          ? supabase.from("mv_department_dashboard").select("*").eq("department", dept).order("ord")
+          : r),
       supabase.from("v_dashboard_trend").select("*").eq("department", dept),
       supabase.from("kpi_targets").select("*").eq("department", dept),
       supabase.from("v_inventory_alerts").select("*"),
@@ -8975,7 +9014,7 @@ function DeptDashboard({ viewKey, go, nav, deep, session }) {
     setStock(st.data ?? []);
     setBusy(false);
   };
-  useEffect(() => { load(); }, [dept, ver]);
+  useEffect(() => { load(); }, [dept, ver, range.from, range.to]);
 
   const refreshNow = async () => { setBusy(true); await supabase.rpc("tg_snapshot_dashboards"); setVer((v) => v + 1); };
 
@@ -9010,11 +9049,20 @@ function DeptDashboard({ viewKey, go, nav, deep, session }) {
         <div className="dashacts">
           {/* The date range belongs HERE, in the header row, compact — owner ruling
               8 Aug 2026. It used to render as a full-width strip below the header. */}
-          <RpDashboardDateRange viewKey={viewKey} session={session} source="mv_department_dashboard" />
+          <RpDashboardDateRange viewKey={viewKey} session={session} onRange={onRange} />
           <button className="btn" onClick={refreshNow} disabled={busy}>{busy ? "Refreshing…" : "↻ Recompute now"}</button>
           <button className="btn" onClick={() => window.print()}>🖨 Print</button>
           <button className="btn" onClick={() => go("dashboard_tasks")}>Tasks</button>
           <button className="btn" onClick={() => go("inventory_alerts")}>Alerts</button>
+          {/* Owner 11 Aug 2026: "ADD A TAB THAT EVEN BRINGS USER TO CFO DASHBOARD ...
+              ADD TO THE RIGHT OF SCREEN". Sits last in the header actions, so it is
+              the right-most control on the row. */}
+          {dept === "Command" && (
+            <button className="btn cfobtn" onClick={() => go("dept_dash_cfo")}
+              title="Value of stock, the money position, and the full inventory forensic audit">
+              CFO Dashboard →
+            </button>
+          )}
         </div>
       </div>
 
@@ -9029,8 +9077,8 @@ function DeptDashboard({ viewKey, go, nav, deep, session }) {
       {/* CFO · Inventory Forensic Audit — its own section, Command only.
           Owner 11 Aug 2026: keep it away from the other sections and out of the
           tile grid. Nothing above or below is altered; this is purely additive. */}
-      {dept === "Command" && (
-        <Section title="CFO · Inventory Forensic Audit — seed to sale, every pound">
+      {(dept === "Command" || viewKey === "dept_dash_cfo") && (
+        <Section title="FINANCE &amp; TAX · Inventory Forensic Audit — every pound, seed to sale">
           <ForensicAuditLedger go={go} />
         </Section>
       )}
