@@ -54,6 +54,39 @@ header row, tab), `import_field_map` (**mapping as DATA**), `import_run` (rows r
 written, **rejected AND WHY**). Preview before writing. **Never silently drop a row** —
 "row issues" stops being an excuse when rejections are counted and visible.
 
+**2A. LEARN EVERY REPORT — this is the capability, not a nice-to-have.**
+
+Owner, 11 Aug 2026: *"handle any type of report and map it... I can feed it new
+reports today... I think that will be best if I feed it reports again."*
+
+**He is right, and it only works if the mapping is REMEMBERED.** An importer that
+re-derives the mapping every time is not smarter on the tenth file than the first —
+it is the same guess, repeated. The whole point is that feeding it a report TEACHES
+it.
+
+How it must work:
+
+1. **Fingerprint the file** — its header row, in order. That is the signature of a
+   report kind, and it is stable across dates far better than a filename
+   (`LabResultsReport (2).xls` and `LabResultsReport.csv` are the same report).
+2. **Look the fingerprint up in `import_field_map`.** Known? Map it and import,
+   no questions. **That is what "gets smarter" means: the second file of a kind is
+   automatic.**
+3. **Unknown?** Propose a mapping — match on column name, then on data shape (a
+   24-character `1A4…` string is a Metrc tag; `MC`/`MP`/`MX`/`IL` is a licence) —
+   and **show it to a person before writing a single row.**
+4. **Store the confirmed mapping against the fingerprint.** Never ask twice.
+5. **Record every rejected row with its reason** in `import_run`. "Row issues" stops
+   being an excuse the moment rejections are counted and visible.
+
+**Never guess silently.** An unmapped column is reported, never dropped — the owner
+has spent weeks finding fields that existed in a source and nowhere in the database.
+`v_apex_field_coverage` is the pattern: every key seen against every column mapped,
+with the unmapped ones named and counted.
+
+**The test:** he feeds the same report kind twice. The first needs a person. The
+second must need nobody.
+
 **3. Finish the ledger.** 7 Metrc report tables unread: wholesale 12,282, adjustments
 4,414, plants_destroyed 3,773, test_batches 739, packages_inventory 508, harvests 380,
 harvest_moisture 350. **Adjustments and destructions change QUANTITY and are invisible
