@@ -159,6 +159,35 @@ one.
 
 ---
 
+## 4A. NAME THE LICENSEE — NEVER "OURS"
+
+**Owner ruling, 11 August 2026:** *"Every tag must state cultivator and/or
+manufacturer and even packager if on COA or manifest. It's always the Company name —
+you cannot say 'ours', that is out of legal compliance for seed to sale."*
+
+**This is a compliance rule, not a wording preference.** Under seed-to-sale every
+package must attribute the LICENSED ENTITY that cultivated, manufactured or packaged
+it. A regulator asking "who made this" cannot be answered with "ours" — that names
+nobody, and it appears on no certificate and no manifest.
+
+- **Always the company name and its licence.** The licence is the identity; the name
+  is what a person reads. Both, every time.
+- **Never "ours", "our grow", "our farm", "in-house", or a bare blank.** A blank reads
+  as "probably us", which is the same failure with better manners.
+- **Unattributed is stated in words** — "UNATTRIBUTED: no cultivator, manufacturer or
+  packager recorded on any COA or manifest" — so the gap is visible and countable.
+- **Every attribution carries its source**: COA, manifest, Metrc, or a person. An
+  attribution with no source is an assertion, not a record.
+- **Names come from `company_licenses`**, never a literal, so a renewed, added or
+  transferred licence is correct everywhere at once.
+
+⚠ **This was violated while the mandate was being written.** `tag_event.ours` was
+created as a BOOLEAN on 11 Aug — in the same session as this ruling. A boolean cannot
+name a cultivator. Replaced with cultivator, manufacturer and packager, each carrying
+licence, name and source. **And `App.jsx:2586` still shows a user "ours or bought in".**
+
+---
+
 ## 5. LOCATION, ALWAYS — INCLUDING THIRD-PARTY
 
 **Every item is tracked in a location, from seed to sale, including material held
