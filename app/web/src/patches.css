@@ -1081,3 +1081,64 @@
 :root[data-theme="light"] .repmenu {
   box-shadow: var(--shadow-lg), 0 0 0 1px var(--line);
 }
+
+/* ---------- CFO · Inventory Forensic Audit ----------
+   Owner 11 Aug 2026: its own section, and NOT another tile grid. A ledger reads
+   down a column; a tile grid reads across a page. An audit is a ledger, so the
+   rows align on the number and the basis sits beside it in the same line of sight.
+   Purely additive — no existing class is touched. */
+.falwrap { display: flex; flex-direction: column; gap: 0; font-variant-numeric: tabular-nums; }
+
+.falhead {
+  display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap;
+  padding: 10px 12px; margin-bottom: 6px;
+  border-left: 3px solid var(--accent, #2df26a);
+  background: rgba(45,242,106,0.05);
+}
+.falheadmain { font-size: 1.05rem; letter-spacing: -0.01em; }
+.falvar { margin-left: auto; font-weight: 600; padding: 2px 10px; border-radius: 3px; }
+.falvar.neg { color: #ff8b6b; background: rgba(255,139,107,0.12); }
+.falvar.pos { color: #2df26a; background: rgba(45,242,106,0.12); }
+
+.falband { padding: 14px 12px 4px; }
+.falbandtag {
+  font-size: 0.66rem; letter-spacing: 0.12em; text-transform: uppercase;
+  opacity: 0.75; border-bottom: 1px solid currentColor; padding-bottom: 2px;
+}
+.falbandtag.in     { color: #6bd3ff; }
+.falbandtag.out    { color: #ffb86b; }
+.falbandtag.result { color: #e8e8e8; }
+.falbandtag.exc    { color: #ff8b6b; }
+.falbandtag.tp     { color: #c58bff; }
+
+.falrow {
+  display: grid; grid-template-columns: minmax(190px,1.4fr) 110px 96px minmax(0,2.2fr) 18px;
+  gap: 10px; align-items: baseline; width: 100%; text-align: left;
+  padding: 7px 12px; background: transparent; border: 0;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  color: inherit; cursor: pointer; font: inherit;
+}
+.falrow:hover { background: rgba(255,255,255,0.04); }
+.falline  { font-weight: 500; }
+.fallb    { text-align: right; font-weight: 600; }
+.fallb em { font-style: normal; opacity: 0.5; font-size: 0.78em; }
+.falusd   { text-align: right; opacity: 0.85; }
+.falbasis { font-size: 0.76rem; opacity: 0.62; line-height: 1.35; }
+.falgo    { opacity: 0; transition: opacity .12s; }
+.falrow:hover .falgo { opacity: 0.6; }
+
+.fal-result .falline, .fal-result .fallb { font-weight: 700; }
+.fal-result { background: rgba(255,255,255,0.03); }
+.fal-exception .falline { color: #ff8b6b; }
+.fal-thirdparty .falline { color: #c58bff; }
+.fal-memo .falline, .fal-memo .fallb { opacity: 0.7; font-style: italic; }
+
+.falfoot {
+  margin-top: 12px; padding: 10px 12px; font-size: 0.76rem; line-height: 1.5;
+  opacity: 0.6; border-top: 1px solid rgba(255,255,255,0.08);
+}
+
+@media (max-width: 900px) {
+  .falrow { grid-template-columns: 1fr 92px; }
+  .falusd, .falbasis, .falgo { display: none; }
+}

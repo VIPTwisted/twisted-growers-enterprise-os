@@ -8583,6 +8583,82 @@ function FlowStrip({ go }) {
   );
 }
 
+/* ---------- CFO · Inventory Forensic Audit ----------
+   Owner, 11 Aug 2026: "DO NOT PUT OUR FORENSIC AUDIT WITH OTHER SECTIONS ... IN OWN
+   NEW SECTION" and "NOT ANOTHER SHIT ASS BORING TILE".
+
+   So this is a LEDGER, not a tile grid. A tile shows one number with no arithmetic;
+   an audit has to show the working — what came in, what went out, what is left, and
+   what does not add up — so a reader can follow the line down instead of taking a
+   single figure on trust. Every row drills to the records behind it.
+
+   It reads v_forensic_audit_panel, which carries a `kind` per row (IN / OUT / RESULT
+   / MEMO / EXCEPTION / THIRD PARTY) so each band can be styled as what it is. */
+function ForensicAuditLedger({ go }) {
+  const [rows, setRows] = useState(null);
+  useEffect(() => {
+    supabase.from("v_forensic_audit_panel").select("*").order("ord")
+      .then(({ data }) => setRows(data ?? []));
+  }, []);
+  if (!rows || !rows.length) return null;
+
+  const lb = (v) => v == null ? "—" :
+    Number(v).toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+  const band = (k) => rows.filter((r) => r.kind === k);
+  const variance = rows.find((r) => r.line === "VARIANCE");
+  const inTotal = band("IN").reduce((a, r) => a + Number(r.lb || 0), 0);
+  const spend = rows.find((r) => r.usd != null && r.kind === "IN");
+
+  const Row = ({ r }) => (
+    <button className={`falrow fal-${String(r.kind).toLowerCase().replace(/\s+/g, "")}`}
+      onClick={() => r.drill && go(r.drill)} title="Open every record behind this line">
+      <span className="falline">{r.line}</span>
+      <span className="fallb">{lb(r.lb)}<em> lb</em></span>
+      <span className="falusd">{r.usd != null ? "$" + Number(r.usd).toLocaleString() : ""}</span>
+      <span className="falbasis">{r.basis}</span>
+      <span className="falgo">→</span>
+    </button>
+  );
+
+  return (
+    <div className="falwrap">
+      <div className="falhead">
+        <span className="falheadmain">
+          {lb(inTotal)} lb in
+          {spend && <> · <b>${Number(spend.usd).toLocaleString()}</b> paid for purchased material</>}
+        </span>
+        {variance && (
+          <span className={`falvar ${Number(variance.lb) < 0 ? "neg" : "pos"}`}>
+            variance {lb(variance.lb)} lb
+          </span>
+        )}
+      </div>
+
+      <div className="falband"><span className="falbandtag in">Material in</span></div>
+      {band("IN").map((r) => <Row key={r.ord} r={r} />)}
+
+      <div className="falband"><span className="falbandtag out">Material out</span></div>
+      {band("OUT").map((r) => <Row key={r.ord} r={r} />)}
+
+      <div className="falband"><span className="falbandtag result">The balance</span></div>
+      {band("RESULT").map((r) => <Row key={r.ord} r={r} />)}
+      {band("MEMO").map((r) => <Row key={r.ord} r={r} />)}
+
+      <div className="falband"><span className="falbandtag exc">Open exceptions</span></div>
+      {band("EXCEPTION").map((r) => <Row key={r.ord} r={r} />)}
+
+      <div className="falband"><span className="falbandtag tp">Third-party material</span></div>
+      {band("THIRD PARTY").map((r) => <Row key={r.ord} r={r} />)}
+
+      <div className="falfoot">
+        Every line is drawn from a DIFFERENT source, so this schedule is capable of
+        failing to balance — that is the point. A negative variance is manufacturing
+        yield loss, which Metrc never tags. Click any line for the records behind it.
+      </div>
+    </div>
+  );
+}
+
 function MoneyBar({ go }) {
   const [rows, setRows] = useState(null);
   useEffect(() => {
@@ -8948,6 +9024,15 @@ function DeptDashboard({ viewKey, go, nav, deep, session }) {
           <Section title="Seed to sale — where everything is right now"><FlowStrip go={go} /></Section>
           <Section title="Where the money is standing"><MoneyBar go={go} /></Section>
         </>
+      )}
+
+      {/* CFO · Inventory Forensic Audit — its own section, Command only.
+          Owner 11 Aug 2026: keep it away from the other sections and out of the
+          tile grid. Nothing above or below is altered; this is purely additive. */}
+      {dept === "Command" && (
+        <Section title="CFO · Inventory Forensic Audit — seed to sale, every pound">
+          <ForensicAuditLedger go={go} />
+        </Section>
       )}
 
       <Section title={`${dept} key figures`} count={rows.length}>
