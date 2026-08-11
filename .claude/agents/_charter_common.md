@@ -499,3 +499,33 @@ it himself.
 
 **A figure derived a new way is a NEW FIGURE, not a confirmation.** It has to be
 reconciled against the existing one before either is published.
+
+## 14. THINGS THE OWNER HAS ALREADY SAID. DO NOT MAKE HIM SAY THEM AGAIN.
+
+Every line here was said to an agent MORE THAN ONCE, because the agent did not write
+it down the first time. That is the failure this section exists to end. **If the owner
+tells you something once, it belongs in a document before you do anything else.**
+
+- **NO TOKENS. NO KEYS. NO CREDENTIALS.** He does not create them, paste them, or
+  handle them. Said at least three times on 9-11 Aug and asked for again each time.
+  If a task appears to need one, THE TASK IS WRONG - find the path that does not.
+  The MCP deploy path needs no token; the CLI one does. Use the first.
+- **THE APIs COST REAL MONEY.** Apex bills by credit and nested resources are
+  billable. Deltas, minimal nesting, refresh windows, and a budget guard. Never
+  re-pull what is already held. Said three times.
+- **NEVER SWEEP ANOTHER AGENT'S WORK INTO YOUR COMMIT.** `git add -A` on a shared
+  tree takes their unfinished work with it. Stage YOUR files by name. Build and
+  deploy only from a tree you have checked.
+- **THE DATA IS ALREADY IN SUPABASE.** Query `v_data_inventory` before asking him for
+  anything. He reshared reports roughly twenty times while the substance sat loaded.
+- **DO NOT DO WORK LOCALLY AND LEAVE IT.** Committed and not deployed is invisible,
+  and invisible reads as not done.
+- **NEVER WEAKEN A GUARD OR AN AGENT.** Enhance, improve, fortify. If a guard blocks
+  you it is more likely right than you are.
+- **THE THEME IS LOCKED** - colour and mode. Layout is free.
+- **MEASURE, THEN SPEAK.** Every wrong call on 10-11 Aug came from reasoning off a
+  specification or an earlier conversation instead of querying the live record. He
+  caught all four in seconds because he knows the business. **When he corrects you,
+  he is almost always right - check before you defend.**
+
+**The test for this section: he should never have to say any of it a third time.**
