@@ -184,7 +184,7 @@ export default function MyWeek({ go }) {
       <div className="mwacts">
         <button className="btn ghost" onClick={() => go?.("my_timeoff")}>Request time off</button>
         <button className="btn ghost" onClick={() => go?.("my_callout")}>Call out</button>
-        <button className="btn ghost" onClick={() => go?.("shift_swaps")}>Swap a shift</button>
+        <button className="btn ghost" onClick={() => go?.("my_swap")}>Swap a shift</button>
         <button className="btn ghost" onClick={() => go?.("my_incident")}>Report an incident</button>
       </div>
 

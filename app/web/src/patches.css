@@ -30,6 +30,61 @@
  * the top-bar dropdowns, further down this file. The other 22 uses stay
  * transparent until whoever owns those pages decides to fix them. */
 
+/* ═══ MY AVAILABILITY · SWAP ════════════════════════════════════════
+ * A seven-day grid, because that is how a week is thought about.
+ * Tap cycles: no preference → can work → cannot work → cleared.
+ */
+.msempty{display:flex;flex-direction:column;align-items:center;gap:7px;text-align:center;
+  padding:48px 24px;color:var(--muted)}
+.msempty b{color:var(--ink);font-size:15px}
+.ms{display:flex;flex-direction:column;gap:14px;padding-bottom:52px;max-width:640px}
+.mshead h1{margin:0;font-size:26px;font-weight:700;letter-spacing:.01em}
+.mshead p{margin:8px 0 0;font-size:13px;color:var(--muted);line-height:1.7}
+.mshead p b{color:var(--ink-2)}
+.msmsg{background:var(--neon-soft);border:1px solid var(--neon-line);border-radius:6px;
+  padding:11px 14px;font-size:12.5px;color:var(--ink-2);line-height:1.6}
+
+.msgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:9px}
+.msday{display:flex;flex-direction:column;gap:3px;align-items:flex-start;
+  background:var(--surface);border:1px solid var(--line);border-radius:9px;
+  padding:15px 16px;cursor:pointer;font-family:inherit;color:var(--ink);text-align:left;
+  transition:border-color .13s,background .13s}
+.msday:hover{border-color:var(--neon-line)}
+.msday b{font-size:14px;font-weight:800}
+.msday i{font-style:normal;font-size:11.5px;color:var(--muted)}
+.msday.yes{border-color:var(--neon);background:var(--neon-soft)}
+.msday.yes i{color:var(--neon)}
+.msday.no{border-color:color-mix(in srgb,var(--red) 45%,transparent);background:var(--red-soft)}
+.msday.no i{color:var(--red)}
+.msfine{margin:0;font-size:11.5px;color:var(--muted);line-height:1.65}
+.msfine b{color:var(--ink-2)}
+
+.mscard{background:var(--surface);border:1px solid var(--line);border-radius:9px;
+  padding:16px 18px;display:flex;flex-direction:column;gap:10px}
+.mscard h3{margin:0;font-size:13px;font-weight:800;letter-spacing:.03em}
+.mscard input,.mscard select{background:var(--input-bg);border:1px solid var(--line);
+  border-radius:6px;padding:11px 13px;font-size:13.5px;color:var(--ink);
+  font-family:inherit;outline:none;width:100%}
+.mscard input:focus,.mscard select:focus{border-color:var(--neon-line);box-shadow:var(--glow)}
+.msrow{display:flex;gap:9px;flex-wrap:wrap;align-items:center}
+.msrow input{flex:1;min-width:140px}
+.msrows{display:flex;flex-direction:column}
+.msline{display:flex;align-items:center;gap:11px;padding:9px 0;
+  border-bottom:1px solid var(--line);font-size:12.5px}
+.msline:last-child{border-bottom:0}
+.msd{width:110px;flex:none;color:var(--muted)}
+.msz{flex:1;min-width:0;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.msnone{margin:0;font-size:12.5px;color:var(--muted);line-height:1.6}
+
+.msshifts{display:flex;flex-direction:column;gap:7px}
+.msshift{display:flex;flex-direction:column;gap:2px;align-items:flex-start;
+  background:var(--surface-2);border:1px solid var(--line);border-radius:8px;
+  padding:12px 14px;cursor:pointer;font-family:inherit;color:var(--ink);text-align:left}
+.msshift:hover{border-color:var(--neon-line)}
+.msshift.on{border-color:var(--neon);background:var(--neon-soft)}
+.msshift b{font-size:13.5px;font-weight:800}
+.msshift i{font-style:normal;font-size:11.5px;color:var(--muted)}
+
 /* ═══ PAY RUNS ══════════════════════════════════════════════════════
  * A ledger screen: money right-aligned, totals prominent, the flow
  * visible. Refuses to open on placeholder rates.
