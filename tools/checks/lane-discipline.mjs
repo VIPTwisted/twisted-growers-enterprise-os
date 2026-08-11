@@ -37,6 +37,7 @@ import { readFileSync, existsSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { resolve, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { likeMatch } from "../lib/sqlglob.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const SINCE = process.env.LANE_SINCE || "36 hours ago";
@@ -83,8 +84,10 @@ try {
     process.exit(1);
   }
 
-  const like = (p, pat) =>
-    new RegExp("^" + pat.replace(/[.+^${}()|[\]\\]/g, "\\$&").replace(/%/g, ".*").replace(/_/g, ".") + "$").test(p);
+  /* The matcher now lives in tools/lib/sqlglob.mjs and is covered by
+     tools/tests/sqlglob.test.mjs - it was inline and untested, and it is exactly the
+     kind of function that looks obviously right and is quietly too wide. */
+  const like = likeMatch;
   const ownersOf = (f) => lanes.filter((l) => (l.owns_paths || []).some((pat) => like(f, pat))).map((l) => l.agent);
 
   /* %b is DELIBERATELY absent. Including the body put every line of every commit
