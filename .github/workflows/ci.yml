@@ -104,6 +104,23 @@ jobs:
       - name: Schema baseline is fresh
         run: node tools/checks/schema-baseline-fresh.mjs
 
+      # ---- Standard rule 6: what runs in production is in the repository -------------
+      # Measured 11 Aug 2026: supabase/migrations held ONE file while
+      # supabase_migrations.schema_migrations held 590 rows. `apply_migration` writes
+      # Supabase's own history and does NOT write a file here, so every agent doing schema
+      # work opens the gap on every call — database_governance, tag_event_ledger,
+      # v_data_inventory and apex_split_nesting_cost_control were all live in production
+      # with no source in this repository. A schema you cannot rebuild from the repository
+      # is one you cannot restore, review, or reason about.
+      # It ALSO flags a migration NAME recorded twice: one apply_migration call that day was
+      # recorded at 154152 and again at 154220, 28 seconds apart. The tool retried, and it
+      # was harmless only because that SQL happened to be idempotent.
+      # No database here, so it answers PASS (DEGRADED) and says what it did not check —
+      # the pattern netlify.toml already documents for schema-baseline, docs-vs-database
+      # and page-architecture. It verifies for real in `npm run check` locally.
+      - name: Migrations in production exist in this repository
+        run: node tools/checks/migration-drift.mjs
+
       # ---- The guards must still CATCH, not merely run --------------------------------
       # all-checks-wired proves a guard runs; it says itself it does not check whether
       # the guard is any good. On 8 Aug 2026 the SQL hook and the grep below carried the
@@ -198,6 +215,23 @@ jobs:
       # 8 Aug 2026 nothing checked it once.
       - name: Every tile opens to its records
         run: node tools/checks/tile-drills.mjs
+
+      # ---- Rules L6 / §7 / C3a / I4 / J7: the reports were governed by nothing ---------
+      # Pages have five gates. Reports had none, and the owner asked for this specifically.
+      # Measured 11 Aug 2026: 102 reports whose source carries a date and whose view drops
+      # it, so they cannot be pulled by date range (L6) — computed by v_report_standard
+      # since 8 Aug and READ BY NOBODY, which is the watchdog's own class of defect. 113
+      # reports no role can open. 93 reports sitting in the left rail instead of the
+      # Reports dropdown (I4). 17 filter and column lists frozen into JSX (§7 — "a
+      # hard-coded filter list means every new filter is a code change, so it never
+      # happens"). 15 rooms rendered without their department and ZERO uses of
+      # room_qualified (J7). None of the four canonical C3a reasons for an absent
+      # certificate can be produced by this front end at all.
+      # A ratchet, because every one of those is above zero today and a gate red on arrival
+      # gets switched off. The source rules run here; L6 and I4 need nav_registry and
+      # answer DEGRADED where there is no database.
+      - name: Reports meet their contract
+        run: node tools/checks/report-contract.mjs
 
       # ---- Rule I2 / A3: a button that does nothing lies about the product ------------
       # 332 buttons, 0 inert, baselined at zero — so a new dead control fails the build.

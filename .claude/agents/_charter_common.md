@@ -128,7 +128,14 @@ most often, inline so you cannot miss them:
 3. **Measure again with the same query.** Report both numbers.
 4. **Know the undo before you start.** State it in your report.
 5. **Verify the thing you did not touch** — a dashboard going blank is the
-   classic silent failure (129 read sites swallow errors as `?? []`).
+   classic silent failure. **117 of the 142 supabase reads in the front end bind
+   `data` and never bind `error`**, so a permission denial, a dropped view and a
+   statement timeout all arrive as `data = null`, become `[]`, and render as an
+   empty section with no message. `?? []` appears **263** times.
+   *(Measured 11 Aug 2026 and now enforced: `tools/checks/silent-failures.mjs`
+   ratchets both counts, so this line can never drift again. The 129 that stood
+   here from 8 Aug was a manual count nothing re-derived; it was never wrong so
+   much as never checked.)*
 6. **Stay in your lane.** Out-of-lane findings go to `actions_register` or a
    work order — never a quiet fix in someone else's file.
 7. **If you cannot verify it, do not do it.** Report instead.

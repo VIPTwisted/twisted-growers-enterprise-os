@@ -2,18 +2,23 @@
   "_what_this_is": "Silent failures that were already present on 8 Aug 2026 and are knowingly carried, each with a reason and an owner. A NEW one fails the build. Removing an entry is free and always welcome. An entry with a vague reason is a bug in this file: the point is that somebody looked.",
   "acknowledged": {
     "supabase/migrations/<timestamp>_baseline_live_schema.sql:-- NOT CAPTURED: permission denied for schema cron": {
-      "reason": "The schema dump cannot read the cron schema, so NO scheduled jobs are captured in it. The dump is therefore incomplete in a way that matters: 34 cron jobs run this platform and a restore from this file alone would bring back a database that does nothing on a schedule. The dumping role lacks permission; re-running as a role that can read the cron schema fixes it. Recorded honestly by the dump itself since it was written, and read by nobody until this check existed.",
-      "area": "the schema dump — an incomplete dump silently understates the database",
-      "acknowledged_on": "2026-08-08",
-      "action": "Re-run tools/checks/dump-schema.mjs as a role that can read the cron schema, or record the schedules by hand. Until then, treat the dump as recoverable-but-inert.",
-      "severity": "elevated — affects disaster recovery, not day-to-day"
+      "reason": "Pre-existing on 8 Aug 2026. Not yet acted on.",
+      "area": "the schema dump — an incomplete dump silently understates the database"
     },
     "docs/handoff/DATA_INTEGRITY_2026-08-06.md:All **983 certificates** have now been read. 3 failed to parse.": {
-      "reason": "Three certificates of analysis could not be parsed. The sentence sits inside a paragraph reporting success, which is exactly how a small failure disappears - 983 read, and the 3 that did not are a subordinate clause. Rule C0 makes the COA the ONLY independent answer to 'is this ours?', so three unparsed certificates are three packages whose ownership cannot be confirmed from an independent source.",
-      "area": "the handoff pack — the document a new agent trusts on day one",
-      "acknowledged_on": "2026-08-08",
-      "action": "Identify the 3 and open them by hand. They are on disk in metrc_documents.storage_path. Relates to the 11 rows in coa_extract with a null client_license (board item T2).",
-      "severity": "elevated — ownership provenance, rule C0"
+      "reason": "Pre-existing on 8 Aug 2026. Not yet acted on.",
+      "area": "the handoff pack — the document a new agent trusts on day one"
+    }
+  },
+  "read_sites": {
+    "_what_this_is": "Front-end read-site debt, measured 11 Aug 2026 by Agent W. Both numbers may fall and may never rise.",
+    "_why_this_section_exists": "The charter and brain/AGENT_BRIEFING.md have said since 8 Aug 2026 that '129 read sites swallow errors as ?? []'. Agent B measured 263 on 11 Aug and it was reported as having doubled under a gate named silent-failures. It had not doubled and the gate was not stale: THIS CHECK HAD NEVER COUNTED THEM. Everything above it scans generated artefacts and has never opened a front-end file. The 129 was a one-off manual count on 8 Aug that nothing ever re-derived. A figure quoted in three governing documents with no check behind it, drifting for three days, is the same class this file exists for, one level up.",
+    "_the_three_numbers": "263 = occurrences of `?? []` (several lines carry two). 233 = LINES containing it. 129 = the retired 8 Aug manual count. All three are true of different questions, which is why the discrepancy looked like a doubling. The documents have been corrected to 263 with the derivation beside it.",
+    "_which_number_matters": "Neither. `(rows ?? []).map(...)` on an array already in hand is harmless and there are dozens. The count that costs is unguardedSupabaseReads: 117 of 142 supabase reads bind `data` and never bind `error`, so a permission denial, a dropped view and a statement timeout are indistinguishable from an empty table. Work that number down first; swallowOccurrences will follow it.",
+    "_the_exemplars": "BAD: ForensicAuditLedger, App.jsx:9097. Three lines, no error bound, `return null` on empty, so the whole section vanishes from the Command Center with no message and no trace in the DOM. GOOD: BrainFiles, App.jsx:4996, in the same file: binds error, keeps loading / error-with-message / genuinely-empty as three separate states, and its `?? []` sits on the ELSE branch of an explicit error check where it can only mean the query succeeded and returned nothing.",
+    "limits": {
+      "swallowOccurrences": 263,
+      "unguardedSupabaseReads": 117
     }
   }
 }

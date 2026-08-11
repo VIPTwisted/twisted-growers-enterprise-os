@@ -43,9 +43,13 @@
 // Verified after deploying, the same three cases metrc-probe v4 passed:
 //   correct key -> 200   wrong key -> 401   no key -> 401
 //
-// KNOWN DEBT, deliberately NOT fixed in this deploy (rule G2): OURS below is a
-// hardcoded licence pair. It belongs in company_licenses. That is a separate
-// change and gets its own deploy.
+// DEBT PAID, 11 Aug 2026 by Agent I. The note that stood here said OURS was a
+// hardcoded licence pair, that it belonged in company_licenses, and that fixing it
+// was "a separate change and gets its own deploy". This is that change.
+//
+// It was found by the guard, not by a person: literal-licences went 57 -> 59 and
+// failed the build. The ratchet worked exactly as designed - a documented,
+// deliberate, well-intentioned piece of debt still could not reach production.
 // ---------------------------------------------------------------------------
 
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
@@ -61,7 +65,29 @@ const CLIENT_LIC = /\b((?:MC|MP|MB|MR|MD)\d{6}|RMD\d{3,4}(?:-[A-Z])?)\b/;
 const ANY_LIC_S = "\\b((?:MC|MP|MB|MR|MT|MD|MX|IL)\\d{6}|RMD\\d{3,4}(?:-[A-Z])?)\\b";
 const LAB_LINE = /(laborator|accredit|lab licen|iso\/iec|independent testing)/i;
 const NOT_A_NAME = /(\.com|\.net|\.org|https?:|@|^\d+\s+\w|,\s*[A-Z]{2},?\s*\d{5}|^\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}|^(suite|ste\.?|unit|floor|po box)\b)/i;
-const OURS = ["MC281714", "MP281909"];
+/* Rule G2: licences come from company_licenses, never a literal. A licence frozen
+   into code is wrong the day one is renewed, added or transferred - and "is this
+   ours?" is the hinge of the whole ownership chain.
+
+   Loaded once per invocation, before any document is parsed. It FAILS CLOSED: an
+   empty list would make `lics.find(l => OURS.includes(l))` return null for every
+   origin and `!OURS.includes(l)` true for every destination, so every manifest
+   would parse with our own licence recorded as the counterparty. That is worse
+   than not parsing at all, so an unreadable or empty table refuses the request. */
+let OURS: string[] = [];
+
+async function loadOurLicences(sb: ReturnType<typeof createClient>): Promise<void> {
+  const { data, error } = await sb.from("company_licenses").select("license").eq("active", true);
+  if (error) throw new Error("company_licenses unreadable: " + error.message);
+  const found = (data ?? []).map((r: { license: string }) => r.license).filter(Boolean);
+  if (!found.length) {
+    throw new Error(
+      "company_licenses returned no active licences. Refusing to parse - every origin " +
+      "would be misclassified as a destination and every manifest would name us as the " +
+      "counterparty.");
+  }
+  OURS = found;
+}
 
 /* Constant time. A plain !== leaks the key one character at a time to anyone
    patient enough to measure the difference. Same guard as metrc-probe v4. */
@@ -190,6 +216,15 @@ Deno.serve(async (req) => {
      SUPABASE_SERVICE_ROLE_KEY are injected by the platform - neither is a secret
      anybody has to configure. */
   const sb = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+
+  /* Rule G2. Before anything is parsed, and before the key check, because a
+     misconfigured licence table is a refusal rather than a bad parse. */
+  try {
+    await loadOurLicences(sb);
+  } catch (e) {
+    return new Response(JSON.stringify({ error: String(e instanceof Error ? e.message : e) }),
+      { status: 503, headers: { "Content-Type": "application/json" } });
+  }
 
   const { data: secretRow } = await sb.from("integration_secrets")
     .select("value").eq("name", "TG_ADMIN_KEY").maybeSingle();

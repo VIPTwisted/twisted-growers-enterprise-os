@@ -394,8 +394,13 @@ component three times.
 2. **One change.** Not three.
 3. **Measure again with the same query.** Report both numbers.
 4. **Know the undo before you start.** State it in your report.
-5. **Verify what you did NOT touch.** 129 read sites swallow errors as
-   `?? []`, so a blank dashboard is the classic silent failure.
+5. **Verify what you did NOT touch.** **117 of the 142 supabase reads in the
+   front end bind `data` and never bind `error`** — a permission denial, a
+   dropped view and a statement timeout all become `[]` — and `?? []` appears
+   **263** times. A blank dashboard is the classic silent failure.
+   *(Measured 11 Aug 2026 and enforced by `tools/checks/silent-failures.mjs`,
+   which ratchets both counts. The 129 that stood here from 8 Aug was a manual
+   count nothing ever re-derived.)*
 6. **Stay in your lane.** Out-of-lane findings go to `actions_register` or a
    work order — never a quiet fix in someone else's file.
 7. **If you cannot verify it, do not do it.** Report instead.

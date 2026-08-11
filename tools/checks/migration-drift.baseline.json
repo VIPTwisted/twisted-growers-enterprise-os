@@ -1,0 +1,17 @@
+{
+  "_what_this_is": "Migration drift already present when this gate was written, 11 Aug 2026. These are DEBT: each number may fall and may never rise. Lowering one is free and always welcome. Raising one is a decision for the owner, not an edit to this file.",
+  "_not_written_by_bless": "Set by hand, deliberately. --bless was run and rejected: at the moment of writing another agent had staged the deletion of 20260811063750_baseline_live_schema.sql and left its replacement 20260811160031 untracked, so the tree momentarily contained no baseline dump and --bless would have recorded 588 missing. Blessing a transient is how a ratchet becomes a rubber stamp. The 0 below is the measured count once the on-disk dump is committed, verified by running the comparator against the full on-disk file set: 587 covered by the squash, 0 missing.",
+  "limits": {
+    "missing": 0,
+    "duplicates": 3
+  },
+  "measured_on": "2026-08-11",
+  "missing_at_baseline": [],
+  "duplicates_at_baseline": [
+    "watchdog_fingerprint_uniqueness (20260807114741, 20260807114814)",
+    "0053_forensic_inventory_filterable (20260811012808, 20260811012828)",
+    "metrc_backfill_window_driver (20260811154152, 20260811154220)"
+  ],
+  "_why_duplicates_is_3_and_not_0": "supabase_migrations.schema_migrations is an append-only history of what was actually run. These three names each ran twice and that is now a permanent fact; removing the rows would falsify the record of what production executed. The number can only fall if Supabase's own history is ever rebuilt. A FOURTH duplicate fails the build, which is the point: it means apply_migration retried again, and the next retry may land on SQL that is not idempotent.",
+  "_why_missing_is_0_and_must_stay_there": "There is no historical debt to grandfather here. Every migration applied before the newest baseline dump is genuinely in the repository, because a squash dump IS the source for everything it covers. So the honest limit is zero, and the very next apply_migration that does not write a file takes it to 1 and fails on the spot. That is the hole this gate was built to close."
+}

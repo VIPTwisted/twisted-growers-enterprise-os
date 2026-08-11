@@ -1,0 +1,56 @@
+{
+  "_what_this_is": "Report-contract debt in the SOURCE, recorded 11 Aug 2026. Each number may fall and may never rise. The database-side limits are NOT here: they live in ratchet_baseline, because that is where the figure is measured and one figure gets one home.",
+  "limits": {
+    "hardcodedFilterLists": 17,
+    "bareRoomRenders": 15,
+    "documentSitesWithNoReason": 1,
+    "c3aReasonsMissing": 4
+  },
+  "measured_on": "2026-08-11",
+  "_judgment_on_the_17": "Reviewed one by one rather than counted. Sixteen are genuine section 7 debt: FG_TABS (App.jsx:7098-7106) freezes the column set of nine Finished Goods tabs, so adding one column needs a deploy; DIM_COLS (2589) and STATUS_COLS (1103) freeze the filter and status vocabulary for every page that uses the client toolbar; DASH_STARTERS (6274-6277) freezes the widget set of four starter dashboards; TRACE_KEYS (648) freezes which columns can be traced from. ONE is not debt: App.jsx:1283, [\"is_null\",\"not_null\",\"is_true\",\"is_false\"], is the filter ENGINE's own operator vocabulary and not a list of the user's filters -- moving it into a table would put executable behaviour in data with nothing gained. It is counted anyway rather than special-cased, because a name-based exemption is a hole somebody widens later, and because an inventory a reviewer can argue with beats a rule that quietly forgives. Treat 16, not 17, as the work.",
+  "_why_c3aReasonsMissing_is_4": "None of the four canonical C3a reasons can be produced by this front end at all. The nearest thing, App.jsx:1744, reads \"No manifest - packaged here and never transferred, or not yet synced\", which merges two of the four into one sentence and therefore tells the reader nothing. The gate's needle deliberately requires the comma form; a looser needle passed this paraphrase, which would have had the gate certify the exact defect it exists to find. The single occurrence of \"Never submitted for testing\" in App.jsx is at line 9243, inside a code comment about a 2026 sparkline bug, and comments are stripped before any detector runs.",
+  "inventory": {
+    "hardcodedFilterLists": [
+      "app/web/src/App.jsx:648  (22) package_tag, tag, harvest_name, harvest",
+      "app/web/src/App.jsx:1103  (33) status, state, source_state, approval",
+      "app/web/src/App.jsx:1283  (4) is_null, not_null, is_true, is_false",
+      "app/web/src/App.jsx:2589  (35) stock_status, origin, stream, category",
+      "app/web/src/App.jsx:6274  (8) p0_actions, golive_open, metrc_pkgs, metrc_plants",
+      "app/web/src/App.jsx:6275  (7) metrc_plants, metrc_harvests, pulls_ahead, pulls_overdue",
+      "app/web/src/App.jsx:6276  (7) fg_lots, fg_rts, fg_expiring, tp_lots",
+      "app/web/src/App.jsx:6277  (4) emp_active, emp_today, time_exc, payroll_wk",
+      "app/web/src/App.jsx:7098  (14) current_status, bulk_metrc_tag, prefill_metrc_tag, final_metrc_tag",
+      "app/web/src/App.jsx:7099  (14) current_status, bulk_metrc_tag, prefill_metrc_tag, final_metrc_tag",
+      "app/web/src/App.jsx:7100  (13) current_status, bulk_metrc_tag, final_metrc_tag, production_batch",
+      "app/web/src/App.jsx:7101  (14) current_status, projected_avail, bulk_metrc_tag, final_metrc_tag",
+      "app/web/src/App.jsx:7102  (13) current_status, bulk_metrc_tag, final_metrc_tag, production_batch",
+      "app/web/src/App.jsx:7103  (14) current_status, projected_avail, bulk_metrc_tag, final_metrc_tag",
+      "app/web/src/App.jsx:7104  (14) current_status, bulk_metrc_tag, final_metrc_tag, production_batch",
+      "app/web/src/App.jsx:7105  (12) current_status, bulk_metrc_tag, final_metrc_tag, production_batch",
+      "app/web/src/App.jsx:7106  (12) current_status, bulk_metrc_tag, final_metrc_tag, production_batch"
+    ],
+    "bareRoomRenders": [
+      "app/web/src/App.jsx:3856  ${chosen.room}",
+      "app/web/src/App.jsx:4820  ${r.room ?? \"\"}",
+      "app/web/src/App.jsx:6642  ${r.room}",
+      "app/web/src/App.jsx:6649  ${r.room}",
+      "app/web/src/App.jsx:6654  ${r.room}",
+      "app/web/src/App.jsx:3757  {r.room}",
+      "app/web/src/App.jsx:3769  {chosen.room}",
+      "app/web/src/budz.jsx:851  ${r.room ?? \"unknown room\"}",
+      "app/web/src/budz.jsx:867  ${r.room ?? \"unknown room\"}",
+      "app/web/src/budz.jsx:880  ${r.room}",
+      "app/web/src/budz.jsx:893  ${r.room}",
+      "app/web/src/budz.jsx:906  ${r.room ?? r.event_type ?? \"Pull\"}",
+      "app/web/src/budz.jsx:1148  ${r.room ?? \"\"}",
+      "app/web/src/budz.jsx:1161  ${r.room || \"room\"}",
+      "app/web/src/budz.jsx:3426  ${r.room || \"a room\"}"
+    ],
+    "c3aReasonsMissing": [
+      "\"Never submitted for testing\" — no certificate exists to link.",
+      "\"Out for testing since {date}\" — result not returned yet.",
+      "\"Certificate not yet fetched from Metrc\" — it exists; our copy is missing.",
+      "\"No manifest — packaged here, never transferred.\""
+    ]
+  }
+}
