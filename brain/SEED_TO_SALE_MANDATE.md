@@ -38,7 +38,30 @@ rounding error, it is a wrong answer with a citation.
 | Lab results, potency | **The COA** | Metrc's copy, which restates it |
 | Third-party material | **Metrc + the manifest** | the sheet alone |
 
-**METRC IS THE LEGAL RECORD AND IS READ-ONLY TO THIS PLATFORM, FOREVER.** Where a
+**METRC IS THE SOURCE OF ALL INVENTORY.** Owner, 11 Aug 2026, verbatim: *"Metrc
+source of all inventory tags, manifests of cultivation, harvest, packaging, 3rd party
+purchasing and reselling, ours and 3rd party goods."*
+
+That is broader than "cultivation and manufacturing". It covers the ENTIRE physical
+lifecycle, including goods bought from third parties and resold, and goods held for
+others. If it has a tag, Metrc is where it lives.
+
+**THE MANIFEST IS THE SEAM, NOT A TAG STAMPED INTO APEX.**
+
+Metrc's manifest already holds the packages, the tags, the weights, the destination
+licence, what shipped and what was received. Apex holds the commercial half: the
+order, the price, the discount, the invoice, the terms, the transporter. They are two
+halves of ONE transaction and they join at the MANIFEST.
+
+⚠ DO NOT LOOK FOR METRC TAGS INSIDE APEX. Measured 11 Aug 2026 on live data:
+`metrc_package_label` is populated on **8 of 13,135** Apex order lines, and
+`manifest_number` on **0 of 1,739** orders. I reported that as a data-entry failure by
+the sales team. IT WAS NOT. It was me imposing the wrong model and calling the wrong
+answer a finding. Apex was never meant to carry them. What Apex DOES carry on all
+1,739 orders is `transporters`, with the transporter's `facility_license` - the same
+MX licence pattern the manifest parser already keys on.
+
+**METRC IS READ-ONLY TO THIS PLATFORM, FOREVER.** Where a
 Metrc write is required, the platform produces step-by-step instructions and a
 PERSON does it. No agent, no automation, no exception.
 

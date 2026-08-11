@@ -767,3 +767,23 @@ times. Recomputed on the LATEST snapshot per (licence, manifest, direction):
 **Always reduce to the latest snapshot before counting anything from this table.** The
 inbound 16.00 lb figure I reported earlier was a superseded snapshot and does not exist in
 current data.
+
+---
+
+## ⚠ CORRECTED 11 AUG 2026 — THE JOIN IS THE MANIFEST, NOT A TAG IN APEX
+
+Earlier text in this brief says Apex order lines carry `metrc_package_label` so the
+join is exact. **That is true of Apex's SPECIFICATION and false of the live data.**
+
+Measured: `metrc_package_label` populated on **8 of 13,135** order lines.
+`manifest_number` on **0 of 1,739** orders. `transporters` on **1,739 of 1,739**.
+
+Apex was never meant to carry Metrc identifiers. **Metrc is the source of ALL
+inventory** - tags, manifests, cultivation, harvest, packaging, third-party purchasing
+and reselling, ours and third-party goods. Apex is the commercial half: order, price,
+discount, invoice, terms, transporter.
+
+**Reconcile Metrc manifest ↔ Apex order** on buyer licence + transporter licence +
+date + quantity - keys BOTH sides actually hold. Do NOT build a reconciliation engine
+on `metrc_package_label`; it is empty by design and a screen built on it will report
+0.06% coverage and be correct to do so.
