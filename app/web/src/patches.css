@@ -1173,3 +1173,53 @@
   font-weight: 600;
 }
 .btn.cfobtn:hover { background: rgba(45,242,106,0.12); }
+
+/* ── Goals and targets editor (Command / Cultivation) ─────────────────────
+   Owner 11 Aug 2026: a person with permission sets these, not the code.
+   Deliberately NOT the tile grid — the owner has ruled twice that stacking
+   figures as identical tiles buries them. Rows read left to right: what it is,
+   what it actually is, what it should be, and whether that is met. */
+.goalwrap { display: flex; flex-direction: column; gap: 10px; }
+.goalnote {
+  padding: 8px 12px; border-radius: 8px; font-size: 13px;
+  background: var(--panel-2, rgba(127,127,127,.10));
+  border: 1px solid var(--line, rgba(127,127,127,.22));
+}
+.goaltbl { display: flex; flex-direction: column; gap: 8px; }
+.goalrow {
+  display: grid; gap: 4px 18px; align-items: center; padding: 12px 14px;
+  grid-template-columns: minmax(190px, 1.6fr) repeat(3, minmax(84px, auto)) auto 1fr;
+  border: 1px solid var(--line, rgba(127,127,127,.22));
+  border-left: 3px solid var(--line, rgba(127,127,127,.35));
+  border-radius: 10px; background: var(--panel, transparent);
+}
+.goalrow.off    { border-left-color: #c0392b; }
+.goalrow.on     { border-left-color: #2e8b57; }
+.goalrow.nodata { border-left-color: rgba(127,127,127,.45); }
+.goalname { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.goalunit { font-size: 11px; letter-spacing: .04em; text-transform: uppercase; opacity: .6; }
+.goalfig  { display: flex; flex-direction: column; gap: 2px; }
+.goallbl  { font-size: 10px; letter-spacing: .06em; text-transform: uppercase; opacity: .55; }
+.goalval  { font-variant-numeric: tabular-nums; font-size: 15px; }
+.goalin   {
+  width: 88px; padding: 4px 6px; font-variant-numeric: tabular-nums; font-size: 14px;
+  border: 1px solid var(--line, rgba(127,127,127,.35)); border-radius: 6px;
+  background: transparent; color: inherit;
+}
+.goalpill {
+  justify-self: start; padding: 3px 9px; border-radius: 999px;
+  font-size: 11px; letter-spacing: .04em; text-transform: uppercase; white-space: nowrap;
+}
+.goalpill.on     { background: rgba(46,139,87,.16);  color: #2e8b57; }
+.goalpill.off    { background: rgba(192,57,43,.16);  color: #c0392b; }
+.goalpill.nodata { background: rgba(127,127,127,.16); opacity: .8; }
+.goalact { display: flex; align-items: center; gap: 10px; justify-self: end; }
+.goalen  { display: flex; align-items: center; gap: 5px; font-size: 12px; opacity: .8; }
+/* The basis and the note run the full width beneath the figures — they are the
+   reason the number is trustworthy, not a footnote to be cropped. */
+.goalbasis, .goalwhy { grid-column: 1 / -1; font-size: 12px; line-height: 1.45; opacity: .72; }
+.goalwhy { opacity: .55; font-style: italic; }
+@media (max-width: 820px) {
+  .goalrow { grid-template-columns: 1fr 1fr; }
+  .goalact { justify-self: start; }
+}

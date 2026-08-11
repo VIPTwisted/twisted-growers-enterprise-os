@@ -8597,6 +8597,118 @@ function FlowStrip({ go }) {
 
    It reads v_forensic_audit_panel, which carries a `kind` per row (IN / OUT / RESULT
    / MEMO / EXCEPTION / THIRD PARTY) so each band can be styled as what it is. */
+/* GOALS AND TARGETS — set here, by a person with permission, never in code.
+   Owner 11 Aug 2026: "USER WITH PERMISSION SETS THIS IN COMMAND DASHBOARD".
+
+   Reads v_goal_status, which pairs each goal with its actual WHERE ONE CAN BE COMPUTED
+   HONESTLY and null plus a stated reason where it cannot. That `basis` line is shown on
+   every row on purpose: a target scoring against an actual nobody can trace is how a
+   metric ends up judging a person on a number the business never agreed. A blank actual
+   with a reason is a better answer than a plausible one.
+
+   Editing is gated on f_can_manage_goals() - the four senior roles, plus any role an
+   admin grants `manage_goals`. Non-editors see the figures and never see an input. */
+function GoalsEditor() {
+  const [rows, setRows] = useState(null);
+  const [mayEdit, setMayEdit] = useState(false);
+  const [draft, setDraft] = useState({});
+  const [saving, setSaving] = useState(null);
+  const [note, setNote] = useState("");
+
+  const load = React.useCallback(() => {
+    supabase.from("v_goal_status").select("*").order("metric_key")
+      .then(({ data }) => setRows(data ?? []));
+    supabase.rpc("f_can_manage_goals").then(({ data }) => setMayEdit(data === true));
+  }, []);
+  useEffect(() => { load(); }, [load]);
+
+  async function save(r) {
+    const d = draft[r.metric_key] ?? {};
+    const patch = {};
+    if (d.target !== undefined && d.target !== "") patch.target = Number(d.target);
+    if (d.target_max !== undefined) patch.target_max = d.target_max === "" ? null : Number(d.target_max);
+    if (d.enabled !== undefined) patch.enabled = d.enabled;
+    if (!Object.keys(patch).length) return;
+    setSaving(r.metric_key); setNote("");
+    const { error } = await supabase.from("cultivation_goals").update(patch).eq("metric_key", r.metric_key);
+    setSaving(null);
+    if (error) { setNote(`Could not save ${r.metric_label}: ${error.message}`); return; }
+    setDraft((p) => ({ ...p, [r.metric_key]: {} }));
+    setNote(`Saved ${r.metric_label}.`);
+    load();
+  }
+
+  if (rows === null) return <div className="muted">Loading goals…</div>;
+  if (!rows.length) return <div className="muted">No goals are enabled.</div>;
+
+  return (
+    <div className="goalwrap">
+      {!mayEdit && (
+        <div className="goalnote">
+          You can see every target here. Changing one needs the <b>manage goals</b> permission —
+          an owner, executive, CFO or admin has it, and an admin can grant it to any role.
+        </div>
+      )}
+      {note && <div className="goalnote">{note}</div>}
+      <div className="goaltbl">
+        {rows.map((r) => {
+          const d = draft[r.metric_key] ?? {};
+          const dirty = d.target !== undefined || d.target_max !== undefined || d.enabled !== undefined;
+          return (
+            <div key={r.metric_key} className={`goalrow ${r.status === "off target" ? "off" : r.status === "no data" ? "nodata" : "on"}`}>
+              <div className="goalname">
+                <b>{r.metric_label}</b>
+                <span className="goalunit">{r.unit}</span>
+              </div>
+              <div className="goalfig">
+                <span className="goallbl">actual</span>
+                <span className="goalval">{r.actual == null ? "—" : Number(r.actual).toLocaleString()}</span>
+              </div>
+              <div className="goalfig">
+                <span className="goallbl">target</span>
+                {mayEdit ? (
+                  <input aria-label={`Target for ${r.metric_label}`} className="goalin" type="number" step="any"
+                    value={d.target ?? r.target ?? ""}
+                    onChange={(e) => setDraft((p) => ({ ...p, [r.metric_key]: { ...d, target: e.target.value } }))} />
+                ) : <span className="goalval">{r.target == null ? "—" : Number(r.target).toLocaleString()}</span>}
+              </div>
+              <div className="goalfig">
+                <span className="goallbl">upper</span>
+                {mayEdit ? (
+                  <input aria-label={`Upper bound for ${r.metric_label}`} className="goalin" type="number" step="any"
+                    value={d.target_max ?? r.target_max ?? ""}
+                    onChange={(e) => setDraft((p) => ({ ...p, [r.metric_key]: { ...d, target_max: e.target.value } }))} />
+                ) : <span className="goalval">{r.target_max == null ? "—" : Number(r.target_max).toLocaleString()}</span>}
+              </div>
+              <div className={`goalpill ${r.status === "off target" ? "off" : r.status === "no data" ? "nodata" : "on"}`}>
+                {r.status}
+              </div>
+              {mayEdit && (
+                <div className="goalact">
+                  <label className="goalen">
+                    <input aria-label={`Show ${r.metric_label} on dashboards`} type="checkbox"
+                      checked={d.enabled ?? true}
+                      onChange={(e) => setDraft((p) => ({ ...p, [r.metric_key]: { ...d, enabled: e.target.checked } }))} />
+                    shown
+                  </label>
+                  <button className="btn" disabled={!dirty || saving === r.metric_key} onClick={() => save(r)}>
+                    {saving === r.metric_key ? "Saving…" : "Save"}
+                  </button>
+                </div>
+              )}
+              <div className="goalbasis">
+                <span className="goallbl">how the actual is measured</span> {r.basis}
+                {r.measured_month ? ` · month measured ${r.measured_month}` : ""}
+              </div>
+              {r.benchmark_note && <div className="goalwhy">{r.benchmark_note}</div>}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function ForensicAuditLedger({ go }) {
   const [rows, setRows] = useState(null);
   useEffect(() => {
@@ -9080,6 +9192,16 @@ function DeptDashboard({ viewKey, go, nav, deep, session }) {
       {(dept === "Command" || viewKey === "dept_dash_cfo") && (
         <Section title="FINANCE &amp; TAX · Inventory Forensic Audit — every pound, seed to sale">
           <ForensicAuditLedger go={go} />
+        </Section>
+      )}
+
+      {/* GOALS AND TARGETS. Owner 11 Aug 2026: "USER WITH PERMISSION SETS THIS IN
+          COMMAND DASHBOARD" — so the numbers live in cultivation_goals and are set
+          here by a person, never seeded in code. Cultivation sees it too, because
+          that is the department the targets actually judge. */}
+      {(dept === "Command" || dept === "Cultivation") && (
+        <Section title="Goals and targets — set by you, not by the code">
+          <GoalsEditor />
         </Section>
       )}
 
