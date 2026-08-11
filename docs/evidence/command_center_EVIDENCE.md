@@ -1,0 +1,113 @@
+# Command Center delivery — evidence
+
+Agent: B (Front End) · 11 Aug 2026 · Page package: the consolidated Agent I work order
+of 11 Aug 2026 (four work items + six relayed owner orders). One bundle, owner-approved
+through Agent I. Answers `docs/workflows/FORENSIC_DELIVERY_AUDIT_CHECKLIST.md` line by line.
+
+## Scope
+
+- One owner-approved bundle: Command Center design pass + Goals move + flow-strip stage 6.
+  No schema changes (data rows only, listed below). No dependency changes. No deploy.
+- Files changed, staged BY NAME — nothing swept: `app/web/src/App.jsx`,
+  `app/web/src/patches.css`, `package.json` (one gate registration),
+  `tools/checks/validate-command-center.mjs`, this file. Other agents' uncommitted work
+  (`app/supabase/functions/apex-sync/index.ts`, a migration, brain files, docs/workflows)
+  left untouched and uncommitted.
+- Database rows written (data, not schema): `nav_registry` +1 (`goals_targets`, Command
+  Center → Overview, item_order 5); `nav_role_visibility` and `page_permissions` upserts
+  for `dept_dash_command` — visible/can_view TRUE for owner, executive, admin, cfo; FALSE
+  for the other 20 roles. Widening is a row edit.
+
+## Design fidelity
+
+- Theme gate: `theme-lock: PASS — palette unchanged (100 token declarations); colour
+  literals 331, baseline 331, none added.` Every new style uses existing tokens
+  (`--neon`, `--red`, `--amber`, `--line`, `--panel-2`) or `color-mix` on them.
+- Side menu and top menu code untouched. The one menu change is a `nav_registry` ROW
+  (structure addition, explicitly permitted by the owner's freeze wording).
+- Frozen surfaces: money stacked bar — untouched (see locks below). Stock by Stream —
+  content untouched; its Section header gained the collapse control, which is the owner's
+  own later amendment (chrome only). Seed-to-Sale page (`inventory_locator`) — untouched;
+  the strip was NOT mounted there because its layout is frozen (skipped, per work item 1d).
+  HR — untouched and verified: no HR file references `DateRangeSelect`, `StatusChip`,
+  `useSectionStore`, or any new CSS class (grep evidence in the delivery report).
+  Workspace, Planner, Budz, TG Brain, Settings→General: untouched.
+- Section patterns: six distinct forms (rings, breach banner, yield bars, reports shelf,
+  diagnostic footer, compact strip), sharing only primitives (Section, StatusChip,
+  AssignTask, DrillRow, DocumentChips, RpDocumentButton, DateRangeSelect). No template
+  stamping.
+- Density: professional-dense; nothing under 12px in the additions (smallest new text
+  12px; SVG ring captions are graphics, not body text).
+
+## Honesty of state
+
+- No fabricated data: enforced by `validate-command-center.mjs` (fabricated-series
+  detector, self-test 5 cases both halves) and the existing `no-fabricated-data` gate —
+  both PASS.
+- Empty states explain why and what fills them: in-transit drill, room drill, yield bars,
+  goals summary, reports shelf — each states the condition and the populating event.
+  The breach banner absent = honest (no served breach today).
+- StatusChip vocabulary on unwired/no-data surfaces (goals "no data to judge" chip with
+  the basis pointer). Post-harvest rooms excluded from the board with the reason stated
+  ON the page (J7, see defects).
+- Diagnostic footer separates TILES COMPUTED (served `computed_at`) from live-view sync
+  age — data age, not query time.
+- Plain English beside professional labels throughout the new sections (I3).
+
+## Drill and evidence (C1 / C2 / C3a)
+
+- Flow strip: every stage drills IN PLACE, including new stage 6 "In transit" (before
+  this delivery it fell through to the laboratory list — wrong records). Enforced by the
+  new validator.
+- Drill rows from `v_stock_proof` (Agent I correction honoured). Measured 147 ms per
+  50-tag page against 30.7 s for `v_flow_in_transit` (defect filed).
+- Reconciliation defects found and FILED, not papered over: 434 proof rows behind a
+  429-package tile (duplicate tags across our two licences, mirror trap 13 — disclosed on
+  the panel); `v_stock_proof` 34 vs `v_onhand_by_room_stage` 35 tags in Pre Trim Storage
+  Room (population mismatch, Agent I's lane).
+- Certificate AND manifest openable from every in-transit row (DocumentChips per row,
+  signed link minted at click, never stored) with stated reasons where absent, using the
+  four C3a reason forms. Plants drill states why a standing plant has no certificate.
+- Rooms: ring cards render flower rooms only, labelled with department; post-harvest
+  rooms withheld until `v_room_board` carries department (requirement filed) — a room is
+  never shown without its department. Sublocation stated as unknown on drill rows.
+- C6a: no new surface frames third-party failed material as loss; origin column renders
+  neutrally on drill rows.
+
+## Security
+
+- No key, token or credential added (secret-scan PASS, 8 shapes).
+- No new auth path: gate rows in existing `nav_role_visibility` + `page_permissions`;
+  the front-end door sign reads those rows and fails closed with a stated reason.
+- View-as: rendering-level only (visibility rows swap; session, queries, row-level
+  security unchanged); persistent red banner with one-click exit and the honest RLS
+  limit stated in the banner; every activation/exit inserted into `audit_events` BEFORE
+  the lens activates — if the log write fails, the preview does not start.
+
+## Validation
+
+- Own validator: `tools/checks/validate-command-center.mjs`, registered as
+  `check:command-center` in the package.json chain (after `check:tile-drills`), self-test
+  5 cases both halves. PASS.
+- Gates run, by name and number: theme-lock PASS (331/331 literals, 100 tokens) ·
+  parse-check PASS · validate-command-center PASS · tile-drills PASS (8/8) ·
+  no-fabricated-data PASS (4 patterns, 2 files) · silent-failures PASS (117/117 unbound
+  reads at limit; 263/263 nullish-array occurrences at limit — my 16 additions reduced to
+  one documented helper, and two pre-existing unbound reads in GoalsEditor now bind
+  error) · ui-language PASS (12 abbreviations, none user-facing) · routing PASS ·
+  error-boundaries PASS · trend-sentiment PASS · dead-controls PASS (0/351 inert) ·
+  accessibility PASS (125/125 baseline, nothing new unlabelled) · no-hardcoded-numbers
+  PASS · secret-scan PASS. `untracked-source` red on OTHER agents' uncommitted files —
+  not mine to commit.
+- Build: `vite build` clean (94 modules). Production bundle boots: sign-in page renders,
+  zero console errors (vite preview, 11 Aug 2026).
+- Screenshots of signed-in surfaces: NOT TAKEN — no credentials in this session.
+  Deploy stays gated on a signed-in review (F2). Committed, not deployed.
+
+## Deferred (named, per Agent I's "land vs defer")
+
+Global command bar (nav-only stub) · governance control-plane page · faceted filter grid
+· db_policy rule banners · site-wide StatusChip retrofit · Cultivation dashboard patterns
+2–5 · date-bar mount audit beyond the shared control's existing mounts · dry-time
+discipline section (needs a %-in-window-by-month view — requirement filed, not computed
+in the front end).

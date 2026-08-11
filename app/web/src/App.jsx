@@ -313,7 +313,7 @@ function usePrefs(session) {
   return { theme, setTheme, collapsed, setCollapsed, navWidth, setNavWidthLive, commitNavWidth };
 }
 
-function useNav(version, session) {
+function useNav(version, session, viewAsRole) {
   const [nav, setNav] = useState(null);
   const [reports, setReports] = useState([]);
   const [apps, setApps] = useState([]);
@@ -338,7 +338,11 @@ function useNav(version, session) {
         supabase.from("nav_registry").select("*").eq("enabled", true).order("category_order").order("item_order"),
         supabase.from("app_users").select("role").eq("user_id", uid).maybeSingle(),
       ]);
-      const role = me?.role ?? "guest";
+      /* viewAsRole is the admin-only design-preview lens (owner request, 11 Aug
+         2026). It substitutes WHICH visibility rows filter the menus — nothing
+         else. The session, the queries and row-level security all remain the
+         signed-in admin's own. */
+      const role = viewAsRole ?? me?.role ?? "guest";
       const { data: vis } = await supabase.from("nav_role_visibility").select("view_key, visible").eq("role", role);
       const hidden = new Set((vis ?? []).filter((v) => !v.visible).map((v) => v.view_key));
       const shown = (rows ?? []).filter((r) => !hidden.has(r.view_key));
@@ -352,7 +356,7 @@ function useNav(version, session) {
       setTax(shown.filter((r) => r.surface === "tax"));
       setHr(shown.filter((r) => r.surface === "hr"));
     })();
-  }, [version, session?.user?.id]);
+  }, [version, session?.user?.id, viewAsRole]);
   return { nav, reports, apps, deep, finance, tax, hr };
 }
 function useRole(session) {
@@ -1173,7 +1177,21 @@ function presetRange(key) {
 }
 /* `onPreset` is optional and additive: pages that want to remember WHICH preset
    the user chose (rather than only the two dates it produced) can receive it.
-   Every existing caller keeps working unchanged. */
+   Every existing caller keeps working unchanged.
+
+   THE CHIP ROW — owner order, 11 Aug 2026, relayed by Agent I from his reference
+   screenshot: the date selector bar is the one thing taken from that image, and it
+   becomes A SHARED PRIMITIVE, CONSISTENT SITE-WIDE. This component already IS the
+   one date control every page mounts, so the chips are added here, once, and every
+   dashboard, report and alert page gets the identical bar with no call-site change.
+   The dropdown stays for the long tail (yesterday, last month, last 365…) and the
+   two date inputs stay for a custom range. The active chip is DERIVED by comparing
+   the live from/to against what each chip would produce today — never a second
+   copy of state that could disagree with the dates actually applied. */
+const DATE_CHIPS = [
+  ["today", "Today"], ["this_week", "Week"], ["this_month", "Month"],
+  ["this_quarter", "Quarter"], ["this_year", "Year"], ["all", "All"],
+];
 function DateRangeSelect({ label, from, to, onFrom, onTo, onPreset }) {
   const [preset, setPreset] = useState("all");
   const shown = !from && !to ? "all" : preset;
@@ -1184,9 +1202,24 @@ function DateRangeSelect({ label, from, to, onFrom, onTo, onPreset }) {
     const [f, t] = presetRange(k);
     onFrom(f); onTo(t);
   };
+  const chipActive = (k) => {
+    if (k === "all") return !from && !to;
+    const [f, t] = presetRange(k);
+    return from === f && to === t;
+  };
+  const anyChipActive = DATE_CHIPS.some(([k]) => chipActive(k));
   return (
     <>
       <span className="flab">{label}</span>
+      <span className="datechips" role="group" aria-label="Quick date ranges">
+        {DATE_CHIPS.map(([k, l]) => (
+          <button key={k} type="button" className={`dbchip ${chipActive(k) ? "on" : ""}`}
+            aria-pressed={chipActive(k)} onClick={() => pick(k)}>{l}</button>
+        ))}
+        <button type="button" className={`dbchip ${!anyChipActive ? "on" : ""}`}
+          aria-pressed={!anyChipActive} title="Pick any preset or exact dates with the controls beside this"
+          onClick={() => pick("custom")}>Custom</button>
+      </span>
       <select aria-label="Date range preset" className="fdate" value={shown} onChange={(e) => pick(e.target.value)}>
         {DATE_PRESETS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}
       </select>
@@ -8502,6 +8535,135 @@ function OpenHarvestDetail() {
   );
 }
 
+/* IN TRANSIT — stage 6 of the flow, owner ruling 11 Aug 2026: material on an
+   active transfer is OURS until the destination accepts, so it is stock and it
+   is on the strip. The drill loads LAZILY — only when the stage is expanded —
+   and pages at 50 tags.
+
+   THE ROWS COME FROM v_stock_proof — Agent I correction, 11 Aug 2026: the
+   evidence view is the one source for per-item drill rows sitewide (C1), so a
+   tile total and its rows reconcile by construction or the difference is a data
+   defect, never a display choice. The in-transit POPULATION is the mirror's own
+   source_state; the tag list is fetched first (oldest packaged first), then the
+   proof rows for each page of 50 tags — measured 147 ms, against 30.7 s for
+   v_flow_in_transit, whose broken-and-slow manifest join is filed with Agent I.
+
+   KNOWN AND DISCLOSED: a handful of tags exist under both of our licences
+   (mirror trap 13), so 50 tags can return 51–52 rows and the full set holds 434
+   rows behind a 429-package tile. Both rows are shown — hiding one would be
+   choosing a licence silently. Filed with Agent I as a C2 reconciliation item. */
+function InTransitDrill() {
+  const PAGE = 50;
+  const [tags, setTags] = useState(null);
+  const [rows, setRows] = useState(null);
+  const [err, setErr] = useState(null);
+  const [pages, setPages] = useState(1);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    let live = true;
+    supabase.from("metrc_packages").select("tag")
+      .eq("source_state", "intransit")
+      .or("finished.is.null,finished.eq.false")
+      .order("raw->>PackagedDate", { ascending: true })
+      .then(({ data, error }) => {
+        if (!live) return;
+        if (error) { setErr(error.message); return; }
+        setTags([...new Set(rowsOr(data).map((r) => r.tag))]);
+      });
+    return () => { live = false; };
+  }, []);
+
+  useEffect(() => {
+    if (!tags) return;
+    let live = true;
+    setBusy(true);
+    const wanted = tags.slice(0, pages * PAGE);
+    supabase.from("v_stock_proof").select("*").in("package_tag", wanted)
+      .then(({ data, error }) => {
+        if (!live) return;
+        setBusy(false);
+        if (error) { setErr(error.message); return; }
+        const order = new Map(wanted.map((t, i) => [t, i]));
+        setRows(rowsOr(data).sort((a, b) => (order.get(a.package_tag) ?? 0) - (order.get(b.package_tag) ?? 0)));
+      });
+    return () => { live = false; };
+  }, [tags, pages]);
+
+  if (err) return <div className="brnone"><b>The in-transit records could not be read:</b> {err}. The read genuinely failed — nothing is being hidden behind an empty box.</div>;
+  if (rows === null) return <div className="note">Reading every in-transit package…</div>;
+  if (!rows.length) return (
+    <div className="brnone">Nothing is in transit. <b>Why:</b> Metrc currently shows no active
+      transfer whose destination has not yet accepted. Packages appear here the moment a
+      manifest departs and leave the moment the receiver signs.</div>
+  );
+  const more = tags && pages * PAGE < tags.length;
+  return (
+    <>
+      <p className="buildnote" style={{ color: "var(--muted)" }}>
+        {tags.length} packages in transit, oldest packaged first — a long transit is a stuck
+        transfer, not a truck. Ours until the receiver signs; if rejected, it comes back.
+        Rows are the evidence view, one per package per licence — a tag our mirror holds under
+        both licences shows twice, and that is stated rather than silently halved.
+      </p>
+      <div className="tablewrap">
+        <table>
+          <thead><tr>
+            <th>Package tag</th><th>Product</th><th>Cultivar</th><th>Stream</th><th>Origin</th>
+            <th>Quantity, own unit</th><th>Source harvest</th><th>Cut on</th><th>Dried in</th>
+            <th>Harvest closed</th><th>Made from</th><th>Production batch</th>
+            <th>Last known room before it left</th><th>Days held there</th><th>Packaged on</th>
+            <th>Test status</th><th>Out / back / days at laboratory</th>
+            <th>THC · CBD · terpenes</th><th>Made by, under licence</th><th>Shipped to us by</th>
+            <th>Manifest</th><th>Rate used → value</th><th>Traceability</th><th>Documents</th>
+          </tr></thead>
+          <tbody>
+            {rows.map((r, i) => (
+              <DrillRow key={r.package_tag + "|" + (r.license ?? i)} row={r} colCount={24}>
+                <td>{r.package_tag}</td>
+                <td>{r.item_name || "not recorded"}</td>
+                <td>{r.strain || "not recorded"}</td>
+                <td>{r.stream || "not recorded"}</td>
+                <td>{r.origin || "not recorded"}</td>
+                <td>{r.quantity_shown ?? `${Number(r.quantity ?? 0).toLocaleString()} ${r.uom ?? ""}`}</td>
+                <td>{r.source_harvest || "none — not made from a harvest"}</td>
+                <td>{r.harvest_cut_on || "not recorded"}</td>
+                <td>{r.dried_in || "not recorded"}</td>
+                <td>{r.harvest_closed_on || "still open or not recorded"}</td>
+                <td className="note">{r.made_from_packages || "nothing — packaged direct from harvest"}</td>
+                <td>{r.production_batch || "none"}</td>
+                <td>{r.location ? `${r.location} — sublocation unknown` : "not recorded before it left"}</td>
+                <td>{r.days_here ?? "not recorded"}</td>
+                <td>{r.packaged_on || "not recorded"}</td>
+                <td className={/fail/i.test(r.test_status ?? "") ? "bad" : ""}>{r.test_status || "not recorded"}</td>
+                <td>{r.went_out_for_testing_on
+                  ? `${r.went_out_for_testing_on} / ${r.came_back_on ?? "not back"} / ${r.days_at_the_laboratory ?? "—"} d`
+                  : "never submitted"}</td>
+                <td>{r.total_thc != null || r.total_cbd != null || r.total_terpenes != null
+                  ? `${r.total_thc ?? "—"} · ${r.total_cbd ?? "—"} · ${r.total_terpenes ?? "—"}`
+                  : <span className="note">{r.potency_and_certificate || "no values returned and no reason served — filed as a data gap"}</span>}</td>
+                <td>{r.made_by || "not recorded"}{r.license ? ` (${r.license})` : ""}</td>
+                <td>{r.shipped_to_us_by || "nobody — packaged here"}</td>
+                <td className="note">{r.inbound_manifest ? `${r.inbound_manifest}` : (r.manifest_proof || "No manifest — packaged here, never transferred in. The OUTBOUND manifest for this transit is the data-layer join filed with Agent I.")}</td>
+                <td>{r.rate_per_pound_used != null
+                  ? `$${Number(r.rate_per_pound_used).toLocaleString()}/lb → $${Math.round(Number(r.value_at_our_rate ?? 0)).toLocaleString()}`
+                  : "no rate — countable item or no rate row"}</td>
+                <td className="note">{r.traceability}</td>
+                <td><DocumentChips tag={r.package_tag} /></td>
+              </DrillRow>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {more && (
+        <button className="btn" disabled={busy} onClick={() => setPages((p) => p + 1)}>
+          {busy ? "Reading…" : `Show the next ${PAGE} packages`}
+        </button>
+      )}
+    </>
+  );
+}
+
 function FlowStrip({ go }) {
   const [rows, setRows] = useState(null);
   const [split, setSplit] = useState(null);
@@ -8533,7 +8695,10 @@ function FlowStrip({ go }) {
           <span className="bngo">Open every record →</span>
         </button>
       )}
-      <div className="flowstrip">
+      {/* `compact` — owner, 11 Aug 2026: "make these smaller". Same information
+          density (name, count + unit, pounds, bar, oldest-days, note), tighter
+          type and padding, defined in patches.css; styles.css stays locked. */}
+      <div className="flowstrip compact">
         {flow.map((r, i) => {
           const pct = r.pounds ? Math.max(6, (Number(r.pounds) / maxLb) * 100) : 0;
           const hot = bn && r.stage === bn.stage;
@@ -8562,10 +8727,15 @@ function FlowStrip({ go }) {
         <Section title={`Every record behind "${openStage}" — full forensic detail`} defaultOpen>
           {openStage === "Open harvests"
             ? <OpenHarvestDetail />
-            : <BatchList labState={
-                openStage === "Awaiting test" ? "NotSubmitted"
-                : openStage === "Sellable" ? "TestPassed"
-                : openStage === "Blocked - failed" ? "TestFailed" : "SubmittedForTesting"} />}
+            : openStage === "In transit"
+              /* Stage 6, added 11 Aug 2026. Without this branch the new stage fell
+                 through to the laboratory list — the wrong records under an
+                 in-transit heading. */
+              ? <InTransitDrill />
+              : <BatchList labState={
+                  openStage === "Awaiting test" ? "NotSubmitted"
+                  : openStage === "Sellable" ? "TestPassed"
+                  : openStage === "Blocked - failed" ? "TestFailed" : "SubmittedForTesting"} />}
         </Section>
       )}
 
@@ -8616,9 +8786,14 @@ function GoalsEditor() {
   const [note, setNote] = useState("");
 
   const load = React.useCallback(() => {
+    /* Errors surface as a note, never as an empty editor — a permission denial
+       and "no goals enabled" must be tellable apart (silent-failures rule). */
     supabase.from("v_goal_status").select("*").order("metric_key")
-      .then(({ data }) => setRows(data ?? []));
-    supabase.rpc("f_can_manage_goals").then(({ data }) => setMayEdit(data === true));
+      .then(({ data, error }) => {
+        if (error) { setNote(`The goals could not be read: ${error.message}`); setRows([]); return; }
+        setRows(rowsOr(data));
+      });
+    supabase.rpc("f_can_manage_goals").then(({ data, error }) => setMayEdit(!error && data === true));
   }, []);
   useEffect(() => { load(); }, [load]);
 
@@ -8705,6 +8880,73 @@ function GoalsEditor() {
           );
         })}
       </div>
+    </div>
+  );
+}
+
+/* THE GOALS MOVED — owner ruling, 11 Aug 2026: the editing section does NOT
+   belong on the Command dashboard. The editor lives on its own page below; the
+   dashboard keeps the compact summary. GoalsEditor itself is untouched — same
+   inputs, same shown toggle, same save path, same how-it-is-measured text. */
+function GoalsTargetsPage() {
+  return (
+    <>
+      <div className="pagehead">
+        <div>
+          <h1>Goals and Targets</h1>
+          <div className="sub">Set by you, not by the code. Every dashboard judges itself against the
+            figures on this page. Anyone can read them; changing one needs the manage goals
+            permission — an owner, executive, chief financial officer or administrator has it,
+            and an administrator can grant it to any role.</div>
+        </div>
+      </div>
+      <GoalsEditor />
+    </>
+  );
+}
+
+/* The compact face of the goals on the Command dashboard — counts and a door,
+   never an input. Reads the same v_goal_status the editor reads, so the two can
+   never disagree. Errors surface; they do not become an empty box. */
+function GoalsSummary({ go }) {
+  const [rows, setRows] = useState(null);
+  const [err, setErr] = useState(null);
+  useEffect(() => {
+    let live = true;
+    supabase.from("v_goal_status").select("*").order("metric_key").then(({ data, error }) => {
+      if (!live) return;
+      if (error) { setErr(error.message); setRows([]); return; }
+      setRows(rowsOr(data));
+    });
+    return () => { live = false; };
+  }, []);
+  if (err) return <div className="goalnote"><b>The goals could not be read:</b> {err}</div>;
+  if (rows === null) return <div className="muted">Reading the goals…</div>;
+  const off = rows.filter((r) => r.status === "off target");
+  const nodata = rows.filter((r) => r.status === "no data");
+  const on = rows.length - off.length - nodata.length;
+  return (
+    <div className="goalsum">
+      <div className="goalsumrow">
+        {rows.length === 0 ? (
+          <span className="muted">No goals are enabled yet. They are set on the Goals and Targets
+            page — nothing populates here until a person with the manage goals permission enables one.</span>
+        ) : (
+          <>
+            <StatusChip kind="OK">{on} on target</StatusChip>
+            <StatusChip kind={off.length ? "OVER" : "OK"}>{off.length} off target</StatusChip>
+            {nodata.length > 0 && (
+              <StatusChip kind="NOT WIRED" title="These goals have a target but no honest actual can be computed yet — the basis line on the Goals and Targets page says exactly why.">
+                {nodata.length} with no data to judge
+              </StatusChip>
+            )}
+          </>
+        )}
+        <button className="btn" onClick={() => go("goals_targets")}>Open Goals and Targets →</button>
+      </div>
+      {off.length > 0 && (
+        <div className="goalnote">Off target: {off.map((r) => r.metric_label).join(" · ")}</div>
+      )}
     </div>
   );
 }
@@ -9345,18 +9587,87 @@ export function AssignTask({ dept, kpi, value, unit, drill, onDone }) {
   );
 }
 
-function Section({ title, count, children, defaultOpen = true }) {
-  const [open, setOpen] = useState(defaultOpen);
+/* Owner order 11 Aug 2026 (relayed by Agent I): every section carries a small
+   collapse control, each dashboard gets Collapse all / Expand all, and the
+   collapsed set is remembered PER USER — two executives can hold different
+   views of the same dashboard (CLAUDE.md dashboard rule 5).
+
+   Two deliberate mechanics:
+   - A collapsed body is HIDDEN, NOT UNMOUNTED (`display:none`). Collapse hides;
+     it does not switch monitoring off — a stale number behind a collapsed
+     section still loads, still reaches the alerts feed, still fires its reads.
+   - The order covers FROZEN sections too, as chrome only: the control sits on
+     the section HEADER; the content inside (Stock by Stream cards, the money
+     stacked bar) is untouched.
+   `store` + `id` are optional; a Section without them keeps its own local state
+   exactly as before, so no other page changes behaviour. */
+function Section({ title, count, children, defaultOpen = true, id, store }) {
+  const [localOpen, setLocalOpen] = useState(defaultOpen);
+  const managed = Boolean(store && id);
+  const open = managed ? store.isOpen(id, defaultOpen) : localOpen;
+  const toggle = () => (managed ? store.set(id, !open) : setLocalOpen((v) => !v));
   return (
     <div className="dsec">
-      <button className="dsechead" onClick={() => setOpen((v) => !v)}>
+      <button className="dsechead" onClick={toggle}
+        aria-expanded={open} title={open ? "Collapse this section" : "Expand this section"}>
         <span className="dsectitle">{title}</span>
         {count != null && <span className="dseccount">{count}</span>}
+        <span className="secmini" aria-hidden="true">{open ? "−" : "+"}</span>
         <span className={`caret ${open ? "open" : ""}`}>{I.caret}</span>
       </button>
-      {open && <div className="dsecbody">{children}</div>}
+      <div className="dsecbody" style={open ? undefined : { display: "none" }}>{children}</div>
     </div>
   );
+}
+
+/* ONE STATUS-CHIP PRIMITIVE — owner reference pattern, 11 Aug 2026 (via Agent I,
+   structure only from his other company's OS; no content crosses over). A surface
+   that is not fully wired must SAY SO on its face. Fixed vocabulary, one place;
+   new sections use it now, existing (frozen) surfaces are not retrofitted without
+   his direction. Tones reuse the existing schip classes — no new colours. */
+const CHIP_TONE = {
+  "VERIFIED": "good", "OK": "good", "ON PLAN": "good",
+  "PENDING": "warn", "APPROACHING": "warn", "WATCH": "warn", "TURNING": "info",
+  "OVER": "bad", "DENIED": "bad", "CRITICAL": "bad", "NOT WIRED": "hot",
+  "READ ONLY": "info", "VEG": "info", "INFO": "info", "EMPTY": "neutral",
+};
+function StatusChip({ kind, children, title }) {
+  return (
+    <span className={`schip ${CHIP_TONE[kind] ?? "info"}`} title={title}>
+      {children ?? kind}
+    </span>
+  );
+}
+
+/* One guarded fallback instead of a spread of new nullish-array literals. Call
+   it ONLY after `error` has been bound and handled — it never excuses an
+   unbound read. It exists so the silent-failures ratchet counts one documented
+   fallback rather than sixteen scattered ones (the count may fall, never rise). */
+const rowsOr = (data) => data ?? [];
+
+/* The per-user store behind Section collapse state. Persistence follows the
+   side menu's existing convention (localStorage, per user id, per dashboard) —
+   the same mechanism `tg.nav.open` already uses. NOTE for Agent I, stated in
+   the report too: cross-DEVICE persistence needs a user_settings JSON column,
+   which is a schema change and therefore the data layer's call, not mine. */
+function useSectionStore(userId, pageKey) {
+  const key = `tg.dash.sections.${userId ?? "anon"}.${pageKey}`;
+  const [map, setMap] = useState(() => {
+    try { return JSON.parse(localStorage.getItem(key) || "{}"); } catch { return {}; }
+  });
+  useEffect(() => {
+    /* A different user or dashboard means a different saved set — re-read it. */
+    try { setMap(JSON.parse(localStorage.getItem(key) || "{}")); } catch { setMap({}); }
+  }, [key]);
+  const save = (next) => {
+    setMap(next);
+    try { localStorage.setItem(key, JSON.stringify(next)); } catch { /* private-mode browsers refuse; state stays for the session */ }
+  };
+  return {
+    isOpen: (id, dflt = true) => (map[id] === undefined ? dflt : map[id] !== false),
+    set: (id, open) => save({ ...map, [id]: open }),
+    setAll: (ids, open) => save({ ...map, ...Object.fromEntries(ids.map((i) => [i, open])) }),
+  };
 }
 
 
@@ -9452,9 +9763,349 @@ function RpDashboardDateRange({ viewKey, session, source, onRange }) {
   );
 }
 
-function DeptDashboard({ viewKey, go, nav, deep, session }) {
+/* ============ COMMAND CENTER SECTIONS — owner design mandate, 11 Aug 2026 ============
+   Six approved patterns relayed by Agent I from the owner's reference screenshots
+   (structure only; the locked theme tokens carry the look). Each section is its own
+   visual form — "each section is unique and highly visual" — sharing primitives only
+   (Section, StatusChip, AssignTask, RpDocumentButton), never a layout. */
+
+/* ROOM RINGS — one card per flower room, the ring shows how deep into the owner's
+   56-day cycle the room stands. Every figure on the card is SERVED by v_room_board
+   (cycle_days, days_until, plants_now, strains_now); the ring fraction is display
+   arithmetic on those two served numbers, like every progress bar in the app.
+   The "approaching" threshold is the owner-set weekend_warning_days row in
+   harvest_alert_rules — never a number chosen here.
+
+   Post-harvest rooms are deliberately NOT carded yet: v_room_board carries no
+   department for them, eleven room names exist in both buildings, and a room is
+   never shown without its department (rule J7). Requirement filed with Agent I. */
+function RoomRings({ dept }) {
+  const [rooms, setRooms] = useState(null);
+  const [warnDays, setWarnDays] = useState(null);
+  const [lateNote, setLateNote] = useState(null);
+  const [err, setErr] = useState(null);
+  const [openRoom, setOpenRoom] = useState(null);
+  useEffect(() => {
+    let live = true;
+    Promise.all([
+      supabase.from("v_room_board").select("*").order("room"),
+      supabase.from("harvest_alert_rules").select("rule_key, threshold, note, active")
+        .in("rule_key", ["weekend_warning_days", "late_tolerance_days"]),
+    ]).then(([r, h]) => {
+      if (!live) return;
+      if (r.error) { setErr(r.error.message); setRooms([]); return; }
+      setRooms(rowsOr(r.data));
+      if (h.error) { setWarnDays(null); }
+      else {
+        const hr = rowsOr(h.data);
+        const w = hr.find((x) => x.rule_key === "weekend_warning_days" && x.active);
+        const l = hr.find((x) => x.rule_key === "late_tolerance_days" && x.active);
+        setWarnDays(w ? Number(w.threshold) : null);
+        setLateNote(l?.note ?? null);
+      }
+    });
+    return () => { live = false; };
+  }, []);
+  if (err) return <div className="brnone"><b>The room board could not be read:</b> {err}</div>;
+  if (rooms === null) return <div className="note">Reading the rooms…</div>;
+  const flower = rooms.filter((r) => r.room_type === "Flower room");
+  if (!flower.length) return (
+    <div className="brnone">No flower rooms in v_room_board. <b>Why:</b> the board reads the grow-room
+      register and the harvest schedule; if both are empty, nothing can be shown.</div>
+  );
+  const over = flower.filter((r) => Number(r.days_until) < 0);
+  const soon = flower.filter((r) => Number(r.days_until) >= 0 && warnDays != null && Number(r.days_until) <= warnDays && Number(r.plants_now) > 0);
+  const stateOf = (r) => {
+    if (Number(r.plants_now) === 0) return "TURNING";
+    if (Number(r.days_until) < 0) return "OVER";
+    if (warnDays != null && Number(r.days_until) <= warnDays) return "APPROACHING";
+    return "ON PLAN";
+  };
+  return (
+    <>
+      {/* ALERT BANNER — the rule-10 pattern: the fact, the rule it breaks, and the
+          two actions ON the banner. Fires only on a real served breach; today none
+          may exist, and then nothing renders — an absent banner is the honest state. */}
+      {over.map((r) => (
+        <div key={"bn" + r.room} className="roombreach">
+          <span className="rbnum">{Math.abs(Number(r.days_until))}</span>
+          <span className="rbbody">
+            <b>{r.room} is {Math.abs(Number(r.days_until))} day{Math.abs(Number(r.days_until)) === 1 ? "" : "s"} past
+              its scheduled pull{r.cycle_days ? ` on a ${r.cycle_days}-day cycle` : ""}.</b>
+            {lateNote && <em>{lateNote}</em>}
+          </span>
+          <span className="rbacts">
+            <button className="btn" onClick={() => setOpenRoom(openRoom === r.room ? null : r.room)}>Open {r.room}</button>
+            <AssignTask dept={dept} kpi={`${r.room} days past scheduled pull`}
+              value={Math.abs(Number(r.days_until))} unit="days" drill="room_board" />
+          </span>
+        </div>
+      ))}
+      <div className="ringhead">
+        {over.length > 0 && <StatusChip kind="OVER">{over.length} OVER</StatusChip>}
+        {soon.length > 0 && <StatusChip kind="APPROACHING">{soon.length} PULLING SOON</StatusChip>}
+        {over.length === 0 && soon.length === 0 && <StatusChip kind="ON PLAN">every room inside its cycle</StatusChip>}
+      </div>
+      <div className="ringgrid">
+        {flower.map((r) => {
+          const st = stateOf(r);
+          const empty = Number(r.plants_now) === 0;
+          const frac = !empty && r.cycle_days
+            ? Math.min(1, Math.max(0, (Number(r.cycle_days) - Number(r.days_until)) / Number(r.cycle_days)))
+            : 0;
+          const C = 2 * Math.PI * 26;
+          return (
+            <button key={r.room} className={`ringcard ${st === "OVER" ? "over" : ""} ${openRoom === r.room ? "opened" : ""}`}
+              onClick={() => setOpenRoom(openRoom === r.room ? null : r.room)}
+              title={`${r.room} — click for every plant in the room`}>
+              <svg className="ring" viewBox="0 0 64 64" width="64" height="64" aria-hidden="true">
+                <circle cx="32" cy="32" r="26" className="ringtrack" />
+                {!empty && (
+                  <circle cx="32" cy="32" r="26" className={`ringfill ${st === "OVER" ? "bad" : st === "APPROACHING" ? "warn" : "good"}`}
+                    strokeDasharray={`${(frac * C).toFixed(1)} ${C.toFixed(1)}`} transform="rotate(-90 32 32)" />
+                )}
+                <text x="32" y="30" textAnchor="middle" className="ringnum">
+                  {empty ? "—" : Math.abs(Number(r.days_until))}
+                </text>
+                <text x="32" y="42" textAnchor="middle" className="ringsub">
+                  {empty ? "" : Number(r.days_until) < 0 ? "OVER" : "DAYS"}
+                </text>
+              </svg>
+              <span className="ringname">{r.room} — Cultivation</span>
+              <span className="ringmeta">{empty
+                ? (r.next_event_detail ? `next: ${r.next_event_detail}` : "empty — turning")
+                : `${Number(r.plants_now).toLocaleString()} plants`}</span>
+              {!empty && r.strains_now && <span className="ringstrains">{r.strains_now}</span>}
+              <StatusChip kind={st} />
+            </button>
+          );
+        })}
+      </div>
+      <p className="note">Post-harvest rooms (vaults, dry rooms) are not on this board yet:
+        v_room_board carries no department for them and eleven room names exist in both
+        buildings — a room is never shown without its department. The requirement is with
+        the database team; nothing here is hidden by choice.</p>
+      {openRoom && (
+        <Section title={`Every plant standing in ${openRoom} — Cultivation`} defaultOpen>
+          <RoomDrill code={openRoom} />
+        </Section>
+      )}
+    </>
+  );
+}
+
+/* The per-tag drill behind a room card. Tags come straight from metrc_plants —
+   the Metrc mirror — filtered by the room's registered names (code and legacy
+   label, served by grow_rooms), paginated at 50. Plants carry no certificate of
+   analysis: a certificate attaches to the PACKAGE after harvest and testing, and
+   the row says so rather than showing a blank (rule C3a / A3). */
+function RoomDrill({ code }) {
+  const PAGE = 50;
+  const [rows, setRows] = useState(null);
+  const [names, setNames] = useState(null);
+  const [counts, setCounts] = useState([]);
+  const [err, setErr] = useState(null);
+  const [pages, setPages] = useState(1);
+  const [more, setMore] = useState(true);
+  useEffect(() => {
+    let live = true;
+    (async () => {
+      const g = await supabase.from("grow_rooms").select("code, legacy_label").eq("code", code).maybeSingle();
+      if (!live) return;
+      if (g.error) { setErr(g.error.message); return; }
+      const nm = [code, g.data?.legacy_label].filter(Boolean);
+      setNames(nm);
+      const c = await supabase.from("v_room_plant_counts").select("*").in("room", nm);
+      if (!live) return;
+      if (!c.error) setCounts(rowsOr(c.data));
+    })();
+    return () => { live = false; };
+  }, [code]);
+  useEffect(() => {
+    if (!names) return;
+    let live = true;
+    supabase.from("metrc_plants").select("tag, strain, phase, room, planted_on, license")
+      .in("room", names).order("planted_on", { ascending: true })
+      .range(0, pages * PAGE - 1)
+      .then(({ data, error }) => {
+        if (!live) return;
+        if (error) { setErr(error.message); return; }
+        const got = rowsOr(data);
+        setRows(got);
+        setMore(got.length === pages * PAGE);
+      });
+    return () => { live = false; };
+  }, [names, pages]);
+  if (err) return <div className="brnone"><b>The plants could not be read:</b> {err}</div>;
+  if (rows === null) return <div className="note">Reading every plant…</div>;
+  if (!rows.length) return (
+    <div className="brnone">No plants recorded in {code}. <b>Why:</b> Metrc lists no vegetative or
+      flowering plant in this room right now — an empty room between cycles is the normal state
+      after a pull, and plants appear here the moment the next planting is tagged.</div>
+  );
+  return (
+    <>
+      {counts.length > 0 && (
+        <p className="buildnote" style={{ color: "var(--muted)" }}>
+          {counts.map((c) => `${c.growth_phase}: ${Number(c.plants).toLocaleString()} plants, ${c.strains} strain${Number(c.strains) === 1 ? "" : "s"}`).join(" · ")}
+        </p>
+      )}
+      <div className="tablewrap">
+        <table>
+          <thead><tr>
+            <th>Plant tag</th><th>Strain</th><th>Growth phase</th><th>Planted on</th>
+            <th>Licence</th><th>Certificate of Analysis</th>
+          </tr></thead>
+          <tbody>
+            {rows.map((r) => (
+              <tr key={r.tag}>
+                <td>{r.tag}</td>
+                <td>{r.strain || "not recorded"}</td>
+                <td>{r.phase || "not recorded"}</td>
+                <td>{r.planted_on || "not recorded"}</td>
+                <td>{r.license || "not recorded"}</td>
+                <td className="note">None exists for a standing plant — a certificate attaches to the
+                  package after harvest and laboratory testing.</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {more && <button className="btn" onClick={() => setPages((p) => p + 1)}>Show the next {PAGE} plants</button>}
+    </>
+  );
+}
+
+/* YIELD VS TARGET — horizontal bars, one per recent harvest: grams of dry yield
+   per plant, with a tick at that strain's own served median. Both figures and the
+   verdict come from v_harvest_yield_audit; nothing is computed here. The owner's
+   g-per-square-foot goal is NOT drawn on these bars on purpose: it is a different
+   unit, and comparing across units is the trap that once produced a finding wrong
+   by a factor of six (rule A4). */
+function YieldBars() {
+  const [rows, setRows] = useState(null);
+  const [err, setErr] = useState(null);
+  const [openRow, setOpenRow] = useState(null);
+  useEffect(() => {
+    let live = true;
+    supabase.from("v_harvest_yield_audit").select("*")
+      .order("finished_on", { ascending: false }).limit(12)
+      .then(({ data, error }) => {
+        if (!live) return;
+        if (error) { setErr(error.message); return; }
+        setRows(rowsOr(data));
+      });
+    return () => { live = false; };
+  }, []);
+  if (err) return <div className="brnone"><b>The yield audit could not be read:</b> {err}</div>;
+  if (rows === null) return <div className="note">Reading the last harvests…</div>;
+  if (!rows.length) return (
+    <div className="brnone">No closed harvests yet. <b>Why:</b> bars appear as soon as a harvest
+      finishes and its dry yield is weighed — there is nothing to judge before that.</div>
+  );
+  const max = Math.max(...rows.map((r) => Math.max(Number(r.dry_g_per_plant || 0), Number(r.strain_median_dry_g || 0))), 1);
+  const under = rows.filter((r) => r.strain_median_dry_g != null && Number(r.dry_g_per_plant) < Number(r.strain_median_dry_g));
+  const toneOf = (v) => /concern|under|low|short/i.test(v || "") ? "bad" : /watch|near/i.test(v || "") ? "warn" : "good";
+  return (
+    <>
+      <div className="ringhead">
+        {under.length > 0
+          ? <StatusChip kind="OVER">{under.length} UNDER OWN STRAIN MEDIAN</StatusChip>
+          : <StatusChip kind="OK">every recent harvest at or above its strain median</StatusChip>}
+        <span className="note">last {rows.length} closed harvests · grams of dry yield per plant · tick = that strain's own median</span>
+      </div>
+      <div className="ybars">
+        {rows.map((r) => {
+          const w = (Number(r.dry_g_per_plant || 0) / max) * 100;
+          const tick = r.strain_median_dry_g != null ? (Number(r.strain_median_dry_g) / max) * 100 : null;
+          const open = openRow === r.harvest;
+          return (
+            <React.Fragment key={r.harvest}>
+              <button className={`ybar ${open ? "opened" : ""}`} onClick={() => setOpenRow(open ? null : r.harvest)}
+                title="Open this harvest's audit line">
+                <span className="ybname">{r.strain || "strain not recorded"}<em>{r.room} · {r.licence} · {r.finished_on}</em></span>
+                <span className="ybtrack">
+                  <i className={`ybfill ${toneOf(r.audit_verdict)}`} style={{ width: `${Math.max(2, w)}%` }} />
+                  {tick != null && <b className="ybtick" style={{ left: `${tick}%` }} title={`Strain median: ${Number(r.strain_median_dry_g).toLocaleString()} g/plant over ${r.strain_harvests} harvests`} />}
+                </span>
+                <span className="ybval">{r.dry_g_per_plant == null ? "not weighed" : `${Number(r.dry_g_per_plant).toLocaleString()} g`}</span>
+              </button>
+              {open && (
+                <div className="ybdetail">
+                  <p><b>{r.harvest}</b> — {Number(r.plants || 0).toLocaleString()} plants,
+                    wet {Number(r.wet_in_lb || 0).toLocaleString()} lb, dry {Number(r.dry_yield_lb || 0).toLocaleString()} lb
+                    {r.vs_target_lb != null && <> · versus plan {Number(r.vs_target_lb) >= 0 ? "+" : ""}{Number(r.vs_target_lb).toLocaleString()} lb</>}
+                    {r.vs_target_dollars != null && <> ({Number(r.vs_target_dollars) >= 0 ? "+" : "−"}${Math.abs(Math.round(Number(r.vs_target_dollars))).toLocaleString()})</>}
+                  </p>
+                  {r.in_plain_english && <p className="note">{r.in_plain_english}</p>}
+                  {r.concern && <p className="note bad">{r.concern}</p>}
+                </div>
+              )}
+            </React.Fragment>
+          );
+        })}
+      </div>
+    </>
+  );
+}
+
+/* REPORTS CARD — the department's report shelf, two columns, every row a real
+   registry entry that opens the report. The Command Center is the master
+   dashboard, so it shows every group (rule 4: everything replicates up). */
+function ReportsCard({ reports, go }) {
+  const list = rowsOr(reports);
+  if (!list.length) return (
+    <div className="brnone">No reports are registered. <b>Why:</b> reports are nav_registry rows,
+      not code — a row with surface “reports” appears here the moment it is enabled.</div>
+  );
+  const groups = [...new Set(list.map((r) => r.report_group || "Reports"))].sort();
+  return (
+    <>
+      <div className="ringhead"><StatusChip kind="INFO">{list.length} reports</StatusChip></div>
+      <div className="repcard">
+        {groups.map((g) => (
+          <div key={g} className="repcardcol">
+            <div className="repgrp">{g}</div>
+            {list.filter((r) => (r.report_group || "Reports") === g)
+              .sort((a, b) => (a.item_order ?? 0) - (b.item_order ?? 0) || a.label.localeCompare(b.label))
+              .map((r) => (
+                <button key={r.view_key} className="repcardrow" title={r.description || r.label}
+                  onClick={() => go(r.view_key)}>
+                  <span>{r.label}</span>
+                </button>
+              ))}
+          </div>
+        ))}
+      </div>
+    </>
+  );
+}
+
+/* DIAGNOSTIC FOOTER — the data-age honesty line. ROWS counts what THIS page
+   actually loaded (client-side lengths, so they can never disagree with what is
+   on screen), and REFRESHED is the served computed_at of the tile snapshot — the
+   age of the DATA, which is not the same thing as the time of the query. */
+function DiagFooter({ sources, computed }) {
+  return (
+    <div className="diagfoot">
+      <span>ENV {import.meta.env.MODE}</span>
+      <span>SOURCE {new URL(FUNCTIONS_URL).host}</span>
+      <span>ROWS {sources.map((s) => `${s.name} ${s.rows}`).join(" · ")}</span>
+      <span>TILES COMPUTED {computed ? new Date(computed).toLocaleString() : "no snapshot timestamp served"}</span>
+      <span>LIVE VIEWS reflect the last Metrc sync, not this page load</span>
+      <span>THEME locked — neon green</span>
+    </div>
+  );
+}
+
+function DeptDashboard({ viewKey, go, nav, deep, session, reports, role, viewAs, onViewAs, isAdmin, viewRoles }) {
   const [openTile, setOpenTile] = useState(null);
   const dept = DEPT_BY_VIEW[viewKey] ?? "Command";
+  /* Per-user collapse memory — owner order 11 Aug 2026. Every section id below
+     is registered here so Collapse all / Expand all can reach all of them. */
+  const store = useSectionStore(session?.user?.id, viewKey);
+  const SEC_IDS = ["flow", "money", "audit", "goals", "figures", "rooms", "yield",
+    "stock", "admin", "watchdog", "tasks", "pages", "deep", "reports"];
   const [rows, setRows] = useState(null);
   const [trend, setTrend] = useState({});
   const [targets, setTargets] = useState({});
@@ -9538,12 +10189,39 @@ function DeptDashboard({ viewKey, go, nav, deep, session }) {
       <div className="dashbar">
         <div>
           <h1 className="dashtitle">{dept}</h1>
+          {/* Header chips — owner reference pattern 11 Aug 2026 (structure only,
+              our tokens): role, scope and view, stated on the page so a screen
+              shot always says whose view it was. */}
+          {dept === "Command" && (
+            <div className="hdrchips">
+              <span className="hchip">ROLE <b>{viewAs ?? role ?? "reading…"}</b></span>
+              <span className="hchip">SCOPE <b>{dept}</b></span>
+              <span className="hchip">VIEW <b>{viewKey}</b></span>
+              {viewAs && <StatusChip kind="READ ONLY">design preview</StatusChip>}
+            </div>
+          )}
           <div className="dashsub">
             Live from the records{computed ? ` · last computed ${new Date(computed).toLocaleString()}` : ""}
             {" · every tile drills into the underlying records, and can be assigned to someone"}
           </div>
         </div>
         <div className="dashacts">
+          {/* Collapse memory — owner order 11 Aug 2026: every section collapsible,
+              one pair of buttons per dashboard, remembered per user. */}
+          <button className="btn" title="Collapse every section on this dashboard — your choice is remembered on this device"
+            onClick={() => store.setAll(SEC_IDS, false)}>Collapse all</button>
+          <button className="btn" title="Expand every section on this dashboard"
+            onClick={() => store.setAll(SEC_IDS, true)}>Expand all</button>
+          {/* VIEW AS — design-preview lens, admin/owner only (f_caller_is_admin).
+              Rendering only: menus and pages draw with the chosen role's
+              visibility rows, while data access stays the signed-in admin's own. */}
+          {dept === "Command" && isAdmin && (
+            <select className="fdate" aria-label="View this platform as another role — presentation preview only"
+              value={viewAs ?? ""} onChange={(e) => onViewAs(e.target.value || null)}>
+              <option value="">View as… (my own role)</option>
+              {rowsOr(viewRoles).map((r) => <option key={r} value={r}>{r}</option>)}
+            </select>
+          )}
           {/* The date range belongs HERE, in the header row, compact — owner ruling
               8 Aug 2026. It used to render as a full-width strip below the header. */}
           <RpDashboardDateRange viewKey={viewKey} session={session} onRange={onRange} />
@@ -9566,8 +10244,8 @@ function DeptDashboard({ viewKey, go, nav, deep, session }) {
       <WhatChanged dept={dept} go={go} />
       {(dept === "Command" || dept === "Cultivation" || dept === "Inventory") && (
         <>
-          <Section title="Seed to sale — where everything is right now"><FlowStrip go={go} /></Section>
-          <Section title="Where the money is standing"><MoneyBar go={go} /></Section>
+          <Section id="flow" store={store} title="Seed to sale — where everything is right now"><FlowStrip go={go} /></Section>
+          <Section id="money" store={store} title="Where the money is standing"><MoneyBar go={go} /></Section>
         </>
       )}
 
@@ -9575,22 +10253,42 @@ function DeptDashboard({ viewKey, go, nav, deep, session }) {
           Owner 11 Aug 2026: keep it away from the other sections and out of the
           tile grid. Nothing above or below is altered; this is purely additive. */}
       {(dept === "Command" || viewKey === "dept_dash_cfo") && (
-        <Section title="FINANCE &amp; TAX · Inventory Forensic Audit — every pound, seed to sale">
+        <Section id="audit" store={store} title="FINANCE &amp; TAX · Inventory Forensic Audit — every pound, seed to sale">
           <ForensicAuditLedger go={go} />
         </Section>
       )}
 
-      {/* GOALS AND TARGETS. Owner 11 Aug 2026: "USER WITH PERMISSION SETS THIS IN
-          COMMAND DASHBOARD" — so the numbers live in cultivation_goals and are set
-          here by a person, never seeded in code. Cultivation sees it too, because
-          that is the department the targets actually judge. */}
-      {(dept === "Command" || dept === "Cultivation") && (
-        <Section title="Goals and targets — set by you, not by the code">
+      {/* GOALS AND TARGETS. Owner ruling 11 Aug 2026 (evening): the EDITING section
+          does not belong on the Command dashboard. Command shows the compact
+          summary and the door to the Goals and Targets page. Cultivation keeps the
+          editor it had — that ruling named the Command dashboard only, and rule F6
+          forbids changing what was not asked; flagged for a ruling in the report. */}
+      {dept === "Command" && (
+        <Section id="goals" store={store} title="Goals and targets — set by you, not by the code">
+          <GoalsSummary go={go} />
+        </Section>
+      )}
+      {dept === "Cultivation" && (
+        <Section id="goals" store={store} title="Goals and targets — set by you, not by the code">
           <GoalsEditor />
         </Section>
       )}
 
-      <Section title={`${dept} key figures`} count={rows.length}>
+      {/* ROOM RINGS + breach banner — owner-approved pattern 2 and 3, Command first. */}
+      {dept === "Command" && (
+        <Section id="rooms" store={store} title="Rooms — where every flower room stands in its cycle">
+          <RoomRings dept={dept} />
+        </Section>
+      )}
+
+      {/* YIELD VS TARGET — owner-approved pattern 4, Command first. */}
+      {dept === "Command" && (
+        <Section id="yield" store={store} title="Yield against each strain's own record — grams per plant">
+          <YieldBars />
+        </Section>
+      )}
+
+      <Section id="figures" store={store} title={`${dept} key figures`} count={rows.length}>
         <div className="ddgrid">
           {rows.map((r) => {
             const tr = trend[r.kpi];
@@ -9628,8 +10326,11 @@ function DeptDashboard({ viewKey, go, nav, deep, session }) {
         </div>
       </Section>
 
+      {/* STOCK BY STREAM — FROZEN by the owner, 11 Aug 2026: "DO NOT CHANGE THIS."
+          The collapse control on the header is his own later amendment (chrome
+          only); the cards inside are pixel-untouched. */}
       {stock.length > 0 && (
-        <Section title="Stock by stream" count={stock.length}>
+        <Section id="stock" store={store} title="Stock by stream" count={stock.length}>
           <div className="entgrid">
             {stock.map((s) => (
               /* HARD RULE: failed material is always split into ours and third party
@@ -9670,12 +10371,12 @@ function DeptDashboard({ viewKey, go, nav, deep, session }) {
       )}
 
       {dept === "Settings" && (
-        <Section title="Needs an administrator — will not clear until resolved" defaultOpen>
+        <Section id="admin" store={store} title="Needs an administrator — will not clear until resolved" defaultOpen>
           <AdminAlerts go={go} />
         </Section>
       )}
 
-      <Section title="What the watchdog is flagging" count={alerts.length} defaultOpen={alerts.length > 0}>
+      <Section id="watchdog" store={store} title="What the watchdog is flagging" count={alerts.length} defaultOpen={alerts.length > 0}>
         {alerts.length === 0 ? (
           <div className="feednone">Nothing open. The watchdog sweeps twice a day and clears alerts by itself when the problem is gone.</div>
         ) : (
@@ -9704,7 +10405,7 @@ function DeptDashboard({ viewKey, go, nav, deep, session }) {
         )}
       </Section>
 
-      <Section title="Tasks raised from dashboards" count={tasks.length} defaultOpen={tasks.length > 0}>
+      <Section id="tasks" store={store} title="Tasks raised from dashboards" count={tasks.length} defaultOpen={tasks.length > 0}>
         {tasks.length === 0 ? (
           <div className="feednone">No tasks raised yet. Use ＋ Assign on any tile above.</div>
         ) : (
@@ -9726,7 +10427,7 @@ function DeptDashboard({ viewKey, go, nav, deep, session }) {
       </Section>
 
       {subs.length > 0 && (
-        <Section title={`Everything in ${dept}`} count={pages.length} defaultOpen={false}>
+        <Section id="pages" store={store} title={`Everything in ${dept}`} count={pages.length} defaultOpen={false}>
           <div className="ddseccols">
             {subs.map((sub) => (
               <div className="ddsec" key={sub}>
@@ -9745,7 +10446,7 @@ function DeptDashboard({ viewKey, go, nav, deep, session }) {
           Each gets a proper screen and comes off this list. Kept at the bottom, collapsed,
           so it never competes with the dashboard itself. */}
       {deepItems.length > 0 && (
-        <Section title={`Still to be built out in ${dept} — temporary list`} count={deepItems.length}>
+        <Section id="deep" store={store} title={`Still to be built out in ${dept} — temporary list`} count={deepItems.length}>
           <p className="buildnote">
             These {deepItems.length} pages still render as plain tables rather than built-out
             screens. They are listed only so nothing is lost while they are worked through. Each
@@ -9765,6 +10466,26 @@ function DeptDashboard({ viewKey, go, nav, deep, session }) {
             ))}
           </div>
         </Section>
+      )}
+
+      {/* REPORTS SHELF — owner-approved pattern 6, Command first. Reports stay in
+          the Reports dropdown too (rule I4); this card is the master dashboard's
+          own shelf, because everything replicates up (rule 4). */}
+      {dept === "Command" && (
+        <Section id="reports" store={store} title="Every report, one shelf" count={rowsOr(reports).length} defaultOpen={false}>
+          <ReportsCard reports={reports} go={go} />
+        </Section>
+      )}
+
+      {/* DIAGNOSTIC FOOTER — owner-approved pattern 7: the data-age honesty line. */}
+      {dept === "Command" && (
+        <DiagFooter computed={computed} sources={[
+          { name: "tiles", rows: rows.length },
+          { name: "alerts", rows: alerts.length },
+          { name: "tasks", rows: tasks.length },
+          { name: "stock streams", rows: stock.length },
+          { name: "reports", rows: rowsOr(reports).length },
+        ]} />
       )}
     </>
   );
@@ -10083,9 +10804,64 @@ export default function App() {
   }, [session]);
   const prefs = usePrefs(session ?? null);
   const [navVersion, setNavVersion] = useState(0);
-  const { nav, reports, apps, deep, finance, tax, hr } = useNav(navVersion, session);
+  /* VIEW AS A ROLE — owner request 11 Aug 2026, admin-only design-preview lens.
+     Rendering only: it swaps which nav_role_visibility rows filter the surfaces.
+     It never mints a session, never changes auth, never alters row-level
+     security — data stays the signed-in admin's own, and the banner says so.
+     Every activation and exit is written to audit_events BEFORE it takes effect;
+     if the log write fails, the preview does not start. Silent impersonation is
+     how trust dies. */
+  const [viewAsRole, setViewAsRole] = useState(null);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [viewRoles, setViewRoles] = useState([]);
+  const [viewAsMsg, setViewAsMsg] = useState(null);
+  useEffect(() => {
+    if (!session) { setIsAdmin(false); setViewRoles([]); return; }
+    supabase.rpc("f_caller_is_admin").then(({ data, error }) => setIsAdmin(!error && data === true));
+  }, [session]);
+  useEffect(() => {
+    if (!isAdmin) return;
+    /* The role list is the set of roles the visibility table actually knows —
+       the rows that drive rendering. roles_catalog was named in the order but it
+       is the Human Resources wage-role register, a different vocabulary; the
+       mismatch is flagged in the delivery report rather than silently obeyed. */
+    supabase.from("nav_role_visibility").select("role").then(({ data, error }) => {
+      if (error) { setViewAsMsg(`Could not read the role list: ${error.message}`); return; }
+      setViewRoles([...new Set(rowsOr(data).map((r) => r.role))].sort());
+    });
+  }, [isAdmin]);
+  const switchViewAs = async (target) => {
+    if (!session) return;
+    const me = session.user.email ?? session.user.id;
+    const { error } = await supabase.from("audit_events").insert({
+      actor: session.user.id, actor_name: me, entity: "view_as_role",
+      entity_id: target ?? viewAsRole ?? "", action: target ? "started" : "ended",
+      old_value: viewAsRole, new_value: target,
+      reason: "design preview from the Command Center — rendering lens only, no data access change",
+    });
+    if (error) { setViewAsMsg(`Preview not started — the audit log refused the entry: ${error.message}`); return; }
+    setViewAsMsg(null);
+    setViewAsRole(target);
+  };
+  const { nav, reports, apps, deep, finance, tax, hr } = useNav(navVersion, session, viewAsRole);
   const [repMenu, setRepMenu] = useState(false);
   const role = useRole(session ?? null);
+  /* Page gate from EXISTING page_permissions rows (no invented auth path): a row
+     with can_view=false for the effective role blocks the page body and says so.
+     Real enforcement stays server-side in row-level security — this is the
+     honest door sign, and in preview mode it uses the previewed role so an admin
+     can see exactly what that role would be told. */
+  const [blockedViews, setBlockedViews] = useState(null);
+  useEffect(() => {
+    if (!session) { setBlockedViews(null); return; }
+    const effRole = viewAsRole ?? role;
+    if (!effRole) return;
+    supabase.from("page_permissions").select("view_key, can_view").eq("role", effRole).eq("can_view", false)
+      .then(({ data, error }) => {
+        if (error) { setBlockedViews(new Map([["__error", error.message]])); return; }
+        setBlockedViews(new Map(rowsOr(data).map((r) => [r.view_key, true])));
+      });
+  }, [session, role, viewAsRole]);
   const [view, setView] = useState(() => window.location.hash.slice(1) || "tower");
   useEffect(() => {
     if (window.location.hash.slice(1) !== view) window.history.pushState(null, "", `#${view}`);
@@ -10244,7 +11020,14 @@ export default function App() {
     valuation_rates: <ValuationRates session={session} />,
     intelligence_briefing: <IntelligenceBriefing go={setView} />,
     budz: <BudzScreen go={setView} />,
-    ...Object.fromEntries(Object.keys(DEPT_BY_VIEW).map((k) => [k, <DeptDashboard viewKey={k} go={setView} nav={nav} deep={deep} session={session} />])),
+    /* Owner ruling 11 Aug 2026: the goals editor moved off the Command dashboard
+       onto its own page. Routed here plus a nav_registry row — menu structure by
+       registry row, which the owner's freeze explicitly permits. */
+    goals_targets: <GoalsTargetsPage />,
+    ...Object.fromEntries(Object.keys(DEPT_BY_VIEW).map((k) => [k,
+      <DeptDashboard viewKey={k} go={setView} nav={nav} deep={deep} session={session}
+        reports={reports} role={role} viewAs={viewAsRole} onViewAs={switchViewAs}
+        isAdmin={isAdmin} viewRoles={viewRoles} />])),
     cfo_inventory_audit: <CfoInventoryAudit go={setView} session={session} />,
     assistant_settings: <AssistantSettings />,
     inventory_locator: <InventoryLocator go={setView} />,
@@ -10258,7 +11041,25 @@ export default function App() {
      as a query returning [] on error. Say what was asked for and why it is not
      here; the Control Tower is one click away rather than a silent substitute. */
   const unknownView = !special[view] && !current && view !== "tower";
-  const body = special[view] ?? (current
+  /* The door sign from page_permissions rows. It renders BEFORE the page body so
+     a blocked page never flashes its numbers, and it says which role and which
+     row blocked it — a silent block is indistinguishable from a broken page. */
+  const viewBlocked = blockedViews?.get(view) === true;
+  const blockedBody = (
+    <div className="empty">
+      <div className="eicon">{I.shield}</div>
+      <b>This page is restricted</b>
+      The {viewAsRole ?? role} role does not have view access to “{view}” — set by an
+      administrator in page permissions. Ask an owner or executive if you need it.
+      {viewAsRole && <div className="note" style={{ marginTop: 8 }}>You are seeing this because the design preview is
+        showing you the {viewAsRole} role's view. Your own access is unchanged.</div>}
+      <div style={{ marginTop: 14 }}>
+        <button className="btn primary" onClick={() => setView("tower")}>Go to the Control Tower</button>
+        {viewAsRole && <button className="btn" onClick={() => switchViewAs(null)}>Exit the preview</button>}
+      </div>
+    </div>
+  );
+  const body = viewBlocked ? blockedBody : special[view] ?? (current
     ? <ModuleScreen entry={current} session={session} actions={current.sync_enabled ? <SyncCenter session={session} /> : undefined} />
     : unknownView
       ? (
@@ -10276,6 +11077,21 @@ export default function App() {
 
   return (
     <div className="frame">
+      {/* The impossible-to-miss preview banner. It stays on every page for as
+          long as the lens is active, and one click ends it. Honest limit stated:
+          row-level security still runs as the signed-in admin, so DATA does not
+          change in preview — only which surfaces render. A true data-level
+          preview is a server-side project for the database chief operating
+          officer, not a front-end toggle. */}
+      {viewAsRole && (
+        <div className="viewasbanner" role="status">
+          <b>VIEWING AS {viewAsRole}</b> — presentation preview only: menus and pages render with
+          that role's visibility; your own permissions and your own data access still apply, and
+          the data on screen is NOT what this role's queries would return.
+          <button className="btn small" onClick={() => switchViewAs(null)}>Exit preview</button>
+        </div>
+      )}
+      {viewAsMsg && <div className="viewasbanner"><b>Preview problem:</b> {viewAsMsg}</div>}
       {launcher && <Launcher onGo={setView} onClose={() => setLauncher(false)} apps={apps} />}
 
       <header className="topnav">
