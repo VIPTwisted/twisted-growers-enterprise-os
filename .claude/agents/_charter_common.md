@@ -463,3 +463,39 @@ The short version, and none of it is optional:
 **A feature is not done until a GUARD EXISTS THAT FAILS when any of it stops being
 true.** Every rule above has been written down before and broken anyway. A rule with
 no guard is a diary entry.
+
+## 13. QUERY THE DATABASE BEFORE YOU ASK FOR A FILE
+
+**Run `select * from v_data_inventory` FIRST. Every time.**
+
+Owner, 11 August 2026: *"I already shared reports over and over at least 20x... agents
+not pulling from supa database where our data should be clean."*
+
+He was right, and the premise was worse than he thought. **The data was already
+there.** 15,595 plants, 39,431 lab results, 19,256 package transfers, 7,266 location
+snapshots, 4,396 waste, 3,773 destroyed, 1,187 items, 209 strains. 103 report files
+sat in his Downloads folder and the substance of them was already loaded.
+
+He was not resharing because the database was empty. **He was resharing because agents
+kept asking instead of querying**, and he had no way to prove us wrong without doing
+it himself.
+
+**So:**
+
+- **Never ask for a report file until you have queried `v_data_inventory` and can
+  name what is missing.** "Please send me X" is only acceptable after "X returns 0
+  rows and here is the query I ran."
+- **Never re-import a report that is already loaded.** Check `imported_at` first. A
+  duplicate import is not free - it is a second version of the truth.
+- **ONE INTERPRETATION PER FACT, and it is the one in the mandate.** Owner: *"agents
+  can't keep running around wild cowboy uploading data and interpreting it 100
+  different ways."* Moisture comes from `metrc_rpt_harvest_moisture` and nowhere else.
+  Sales come from Apex. Inventory comes from Metrc. If you find yourself computing a
+  figure a new way, you are almost certainly producing a second answer to a question
+  that already has one - stop and go and read `brain/SEED_TO_SALE_MANDATE.md`.
+- **Import through the shared path, never a one-off script.** An importer written for
+  one file interprets that file its own way, and the next agent writes a different
+  one. Uniform mapping or none.
+
+**A figure derived a new way is a NEW FIGURE, not a confirmation.** It has to be
+reconciled against the existing one before either is published.
