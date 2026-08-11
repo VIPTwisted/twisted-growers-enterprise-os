@@ -131,15 +131,31 @@ expected — it just has to carry its reason.
 **If coverage is 94%, report 94% and name the 6%.** A 100% nobody can trust is worth
 less than an honest 94%.
 
-**The join is EXACT, so this is achievable, not aspirational:** Apex order lines
-carry `metrc_package_label` — the 24-character Metrc tag. Orders carry
-`manifest_number` and `buyer_state_license`. **There is no excuse for name-matching
-anywhere in this system.**
+**RECONCILE AT THE MANIFEST.** Metrc's manifest is the inventory record — it holds
+the packages, the tags, the weights, the destination licence, what shipped and what
+was received. Apex holds the order, price, discount, invoice, terms and transporter.
+Join the two on keys **both sides actually hold**:
+
+| | Metrc side | Apex side |
+|---|---|---|
+| customer | `destination_licence` | `buyer_state_license` |
+| transporter | `MX` licence on the manifest | `transporters[].facility_license` |
+| when | `created_on` / `received_on` | `order_date` / `delivery_date` |
+| how much | packages, shipped/received weight | line quantities |
+
+**⚠ DO NOT JOIN ON `metrc_package_label`.** An earlier version of this document said
+Apex lines carry it and the join was therefore exact. **That is true of Apex's
+specification and false of the live data** — it is populated on 8 of 13,135 lines,
+and `manifest_number` on 0 of 1,739 orders. Apex was never meant to carry Metrc
+identifiers. A reconciliation built on that field will report 0.06% coverage and be
+correct to do so.
 
 **⚠ ORDERS SPLIT.** `split_from_order_id` / `split_chain`: one order becomes several
-and several ride one manifest. **Reconcile at LINE level on the package tag, then
-roll up.** One-to-one order↔manifest matching fails on every split and reads as a
-discrepancy that is not one.
+and several ride one manifest. **Reconcile at LINE level, then roll up.** One-to-one
+order↔manifest matching fails on every split and reads as a discrepancy that is not
+one.
+
+**Names are still never a key.** Licence numbers do not drift; company names do.
 
 ---
 
