@@ -690,3 +690,66 @@ Reconciliation · Forensic Position · Sold by Tag · Room Census · Yield Stand
 Brand Tier* · Pre-Roll Formulation* · Cost Rates* · Material Drawn* · Provisional
 Figures* · Standard Overrides* · Labor & Packaging Tracking* · Packaging Reorder ·
 Packaging Catalogue · Consumption Rules* · Restock Due.  (* = admin only)
+
+---
+
+## 20 · CORRECTION — the 6,511 lb conversion-loss figure is withdrawn
+
+I measured conversion loss per parent package and reported **6,511 lb**. It is wrong.
+It was also internally impossible, and I should have caught that before reporting it.
+
+**The closed-system constraint I failed to apply first.** The package system has
+exactly four ways out:
+
+```
+17,084.1 in  −  11,346.6 sold  −  540.4 waste  −  2,548.4 on hand  =  2,648.7 lb
+```
+
+Conversion loss **cannot exceed 2,648.7 lb**. A 6,511 lb figure implies only 10,573 lb
+was ever available to ship, against 11,346.6 lb actually shipped — you cannot ship
+more than existed.
+
+**Outbound was tested, not assumed.** 14,345 tags shipped exactly once (11,228.5 lb);
+78 tags with two legs (77.0 lb); 34 tags whose parent was also shipped (7.9 lb). No
+double counting. Sales stand, so the loss figure is what breaks.
+
+**Where the overstatement lives.** Bucketing parents by how much of their mass their
+children account for:
+
+| Coverage by children | Parents | In lb | Booked as loss |
+|---|---:|---:|---:|
+| 75–102% (normal) | 815 | 12,860.6 | **122.1** |
+| **under 25%** | 207 | 6,380.7 | **6,039.1** |
+| no children captured at all | 384 | 1,211.6 | 1,211.6 |
+| output *exceeds* input (impossible) | 339 | 1,093.7 | −620.9 |
+
+815 well-formed chains lose **1%**. A single bucket of 207 parents produces essentially
+the whole figure. Those parents' `SourcePackageLabels` do not name all their children,
+so mass that went into a child we cannot see is booked as though it vanished. **That
+is a linkage gap in the data, not physical loss.**
+
+The 339 parents whose output exceeds input prove the pro-rata split mis-attributes:
+a child with several parents credits each an equal share regardless of actual
+contribution. This is also why third-party Buds showed a 106.6% yield.
+
+### What is defensible
+
+- **2,648.7 lb** — total unexplained, from five independent sources. This is the only
+  conversion-loss figure that survives the closed-system check.
+- **Yield percentages are NOT measurable** from Metrc per-parent data, in either
+  direction. Both my 9.8% and my 53.4% figures are withdrawn.
+
+### What would settle it
+
+The owner's stated plan: humans capture **actual fresh frozen, trim and flower input
+weights** per run into manufacturing. That is the missing measurement — Metrc's own
+`Processing Loss` adjustment reason holds **534 events totalling 0.5 lb**, so the field
+that should carry extraction loss is empty. Once real input weights are entered,
+yield becomes measured rather than derived, and the 2,648.7 lb can be attributed
+instead of merely bounded.
+
+### Rule this establishes
+
+**Check the closed-system constraint BEFORE reporting any derived component.** A part
+cannot exceed the whole. Both my wrong figures — 9.8% and 6,511 lb — would have been
+caught in one line of arithmetic.
