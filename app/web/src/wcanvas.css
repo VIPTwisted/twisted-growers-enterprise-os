@@ -1,0 +1,417 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   WCANVAS — the movable-panel canvas. Scoped stylesheet.
+   Agent B, 12 Aug 2026, for Agent I. Owner: "SIMILAR TO TRADING PLATFORM i CAN
+   MOVE AND RESIZE EACH AS I WANT" · "SO CAN WE DRAG AND DROP; AND RESIZE ANYWAY
+   WE WANT" · "IF IT IS YEAR END I MAY WANT TO SET UP DASH MORE FOR FINANCE…
+   VERY VERY FLEXIBLE."
+
+   SCOPE. Everything here is nested under .tgwc and nothing declares a colour of
+   its own. The design lane proved that PREFIXING IS NOT SCOPING — .cc-* rules
+   leaked outside .ccpage and rendered borderless because the TOKENS were not in
+   scope. So this file takes its tokens from the platform's global :root block in
+   styles.css (--surface, --line, --ink, --neon, --red, --amber, --gold, --blue,
+   --thead, --input-bg, --shadow-md), which is present on every page in both
+   themes. That is why this component renders correctly WHEREVER it is mounted:
+   it needs .tgwc on its own root and nothing else. It does NOT require .ccpage
+   and it does not import commandcenter.css.
+
+   ZERO COLOUR VALUES OF ITS OWN. Every colour below resolves through an existing
+   token or a color-mix of one. No hex, no rgb, no hsl, anywhere in this file.
+
+   NO FONT FAMILY. A second typeface is an open owner ruling. Nothing here sets
+   font-family — everything inherits Figtree from body. Where digits need to line
+   up, font-variant-numeric: tabular-nums does the job without a second face.
+
+   DDC SCALE, MEASURED, NOT ADJECTIVAL.
+     chrome (chips, buttons, field labels)  9–11px
+     prose / body                           12px  ← the accessibility floor
+     KPI number                             22px  ← HARD CAP, nothing larger
+     padding                                ≤ 10px anywhere (cap is 16px)
+     table row height                       26px
+     border radius                          ≤ 2px
+     borders                                1px hairline
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.tgwc {
+  /* ── elevation ─────────────────────────────────────────────────────────── */
+  --wc-bg:      var(--surface);
+  --wc-bg2:     var(--surface-2);
+  --wc-head:    var(--thead);
+  --wc-line:    var(--line);
+  --wc-input:   var(--input-bg);
+  --wc-shadow:  var(--shadow-md);
+  /* ── text ladder ───────────────────────────────────────────────────────── */
+  --wc-ink:     var(--ink);
+  --wc-ink2:    var(--ink-2);
+  --wc-mute:    var(--muted);
+  /* ── status vocabulary, one word each, taken from the brand palette ────── */
+  --wc-ok:      var(--neon);
+  --wc-warn:    var(--amber);
+  --wc-attn:    var(--gold);
+  --wc-crit:    var(--red);
+  --wc-info:    var(--blue);
+  --wc-ok-soft:   color-mix(in srgb, var(--neon) 12%, transparent);
+  --wc-crit-soft: color-mix(in srgb, var(--red) 14%, transparent);
+  --wc-attn-soft: color-mix(in srgb, var(--gold) 14%, transparent);
+  --wc-info-soft: color-mix(in srgb, var(--blue) 12%, transparent);
+  /* ── geometry ──────────────────────────────────────────────────────────── */
+  --wc-gap: 6px;
+  --wc-row: 52px;          /* one grid row; h=2 renders 110px tall */
+  --wc-r: 2px;             /* radius cap */
+
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  color: var(--wc-ink);
+  font-size: 12px;
+  line-height: 1.45;
+  min-width: 0;
+}
+
+/* ── the way out is always visible while a drill is open ──────────────────── */
+.tgwc.drilling { padding-bottom: 8px; }
+
+/* ═══════════ chrome: buttons, chips, fields ═══════════ */
+
+.tgwc-btn {
+  height: 22px;
+  display: inline-flex; align-items: center; gap: 4px;
+  background: transparent;
+  color: var(--wc-mute);
+  border: 1px solid var(--wc-line);
+  border-radius: var(--wc-r);
+  padding: 0 8px;
+  font: inherit; font-size: 11px; font-weight: 600;
+  cursor: pointer; white-space: nowrap;
+}
+.tgwc-btn:hover:not(:disabled) { color: var(--wc-ink); border-color: var(--wc-ok); }
+.tgwc-btn:disabled { opacity: 0.5; cursor: default; }
+.tgwc-btn.on { color: var(--wc-ok); border-color: var(--wc-ok); background: var(--wc-ok-soft); }
+.tgwc-btn.danger:hover:not(:disabled) { color: var(--wc-crit); border-color: var(--wc-crit); }
+.tgwc-btn.wide { width: 100%; justify-content: flex-start; height: auto; min-height: 22px; padding: 4px 8px; white-space: normal; text-align: left; }
+
+.tgwc-in,
+.tgwc-sel {
+  height: 22px;
+  background: var(--wc-input);
+  color: var(--wc-ink);
+  border: 1px solid var(--wc-line);
+  border-radius: var(--wc-r);
+  padding: 0 6px;
+  font: inherit; font-size: 11px;
+  min-width: 0;
+}
+.tgwc-in:focus, .tgwc-sel:focus { outline: none; border-color: var(--wc-ok); }
+
+/* Every interactive thing shows where the keyboard is. A canvas you can only
+   drive with a mouse fails the accessibility gate outright. */
+.tgwc :focus-visible {
+  outline: 2px solid var(--wc-ok);
+  outline-offset: 1px;
+}
+
+.tgwc-chip {
+  display: inline-flex; align-items: center; gap: 3px;
+  font-size: 10px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase;
+  color: var(--wc-mute);
+  border: 1px solid var(--wc-line);
+  border-radius: var(--wc-r);
+  padding: 1px 6px; white-space: nowrap;
+}
+.tgwc-chip.ok   { color: var(--wc-ok);   border-color: var(--wc-ok); }
+.tgwc-chip.crit { color: var(--wc-crit); border-color: var(--wc-crit); }
+.tgwc-chip.attn { color: var(--wc-attn); border-color: var(--wc-attn); }
+.tgwc-chip.info { color: var(--wc-info); border-color: var(--wc-info); }
+
+/* Prose. 12px is the floor and this is the only prose class — it cannot drift
+   into the chrome band because nothing else sets a size on running text. */
+.tgwc-say { font-size: 12px; color: var(--wc-mute); }
+.tgwc-say.tight { margin: 0; }
+.tgwc-say b { color: var(--wc-ink2); font-weight: 600; }
+
+.tgwc-err {
+  font-size: 12px;
+  color: var(--wc-crit);
+  border: 1px solid var(--wc-crit);
+  background: var(--wc-crit-soft);
+  border-radius: var(--wc-r);
+  padding: 6px 8px;
+}
+.tgwc-err b { font-weight: 700; }
+
+/* ═══════════ header and toolbar ═══════════ */
+
+.tgwc-bar {
+  display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+  border: 1px solid var(--wc-line);
+  background: var(--wc-bg);
+  border-radius: var(--wc-r);
+  padding: 5px 8px;
+  min-height: 32px;
+}
+.tgwc-bar .spacer { flex: 1 1 auto; min-width: 8px; }
+.tgwc-bar-title { font-size: 12px; font-weight: 700; color: var(--wc-ink); }
+.tgwc-fieldlabel {
+  font-size: 10px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase;
+  color: var(--wc-mute);
+}
+
+/* ═══════════ the grid ═══════════ */
+
+.tgwc-grid {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  grid-auto-rows: var(--wc-row);
+  gap: var(--wc-gap);
+  align-content: start;
+  min-width: 0;
+}
+/* Under 900px twelve columns are unreadable, so every panel goes full width and
+   keeps its saved order. Nothing is cut off and the page never scrolls sideways
+   (rule F5). The saved x/y are untouched — this is presentation only. */
+@media (max-width: 900px) {
+  .tgwc-grid { grid-template-columns: minmax(0, 1fr); grid-auto-rows: auto; }
+  .tgwc-panel { grid-column: 1 / -1 !important; grid-row: auto !important; min-height: 96px; }
+  .tgwc-grip, .tgwc-grip-e, .tgwc-grip-s { display: none; }
+}
+
+.tgwc-panel {
+  position: relative;
+  display: flex; flex-direction: column;
+  border: 1px solid var(--wc-line);
+  background: var(--wc-bg);
+  border-radius: var(--wc-r);
+  min-width: 0; min-height: 0;
+  overflow: hidden;
+}
+.tgwc-panel.hot   { border-color: var(--wc-crit); }
+.tgwc-panel.moving { border-color: var(--wc-ok); box-shadow: var(--wc-shadow); z-index: 3; }
+.tgwc-panel.arranging { border-style: dashed; }
+
+.tgwc-phead {
+  display: flex; align-items: center; gap: 4px;
+  background: var(--wc-head);
+  border-bottom: 1px solid var(--wc-line);
+  padding: 0 4px 0 0;
+  min-height: 22px;
+  flex: 0 0 auto;
+}
+.tgwc-ptitle {
+  font-size: 11px; font-weight: 700; color: var(--wc-ink);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  min-width: 0; flex: 1 1 auto;
+}
+.tgwc-picon { font-size: 11px; line-height: 1; flex: 0 0 auto; }
+
+/* The drag handle is a real button: reachable by Tab, operable by arrow keys,
+   and it announces what it does. A <div> with onPointerDown would be invisible
+   to a keyboard and silent to a screen reader. */
+.tgwc-grip {
+  flex: 0 0 auto;
+  height: 20px; width: 18px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: transparent; border: 0; border-right: 1px solid var(--wc-line);
+  color: var(--wc-mute); cursor: grab;
+  font-size: 11px; padding: 0;
+}
+.tgwc-grip:hover { color: var(--wc-ok); }
+.tgwc-grip:active { cursor: grabbing; }
+.tgwc-grip.held { color: var(--wc-ok); background: var(--wc-ok-soft); }
+
+.tgwc-pbody {
+  flex: 1 1 auto; min-height: 0;
+  overflow: auto;
+  padding: 6px 8px;
+  display: flex; flex-direction: column; gap: 4px;
+}
+
+/* Resize grips. Corner resizes both axes, edges resize one. */
+.tgwc-grip-e, .tgwc-grip-s, .tgwc-grip-se {
+  position: absolute; background: transparent; border: 0; padding: 0;
+}
+.tgwc-grip-e  { top: 22px; right: 0; bottom: 8px; width: 6px; cursor: ew-resize; }
+.tgwc-grip-s  { left: 8px; right: 8px; bottom: 0; height: 6px; cursor: ns-resize; }
+.tgwc-grip-se { right: 0; bottom: 0; width: 12px; height: 12px; cursor: nwse-resize; }
+.tgwc-grip-se::after {
+  content: ""; position: absolute; right: 2px; bottom: 2px; width: 6px; height: 6px;
+  border-right: 2px solid var(--wc-mute); border-bottom: 2px solid var(--wc-mute);
+}
+.tgwc-panel:hover .tgwc-grip-se::after { border-color: var(--wc-ok); }
+
+/* ═══════════ metric tile ═══════════ */
+
+.tgwc-kpi {
+  font-size: 22px;              /* HARD CAP — nothing on this canvas is larger */
+  line-height: 1.05;
+  font-weight: 700;
+  color: var(--wc-ink);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+  word-break: break-word;
+}
+.tgwc-kpi.crit { color: var(--wc-crit); }
+.tgwc-kpi.ok   { color: var(--wc-ok); }
+.tgwc-kpirow { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; }
+.tgwc-rail {
+  height: 3px; border-radius: var(--wc-r);
+  background: var(--wc-line);
+  flex: 0 0 auto; width: 100%;
+}
+.tgwc-rail.ok   { background: var(--wc-ok); }
+.tgwc-rail.crit { background: var(--wc-crit); }
+.tgwc-rail.warn { background: var(--wc-warn); }
+/* Chips, not sentences. Everything a tile has to SAY in prose lives behind the
+   question mark: a KPI face that needs a paragraph to be honest is the wrong
+   figure, and a caveat paragraph under a tile reads as a wall of text. */
+.tgwc-facts { display: flex; flex-wrap: wrap; gap: 3px; align-items: center; }
+.tgwc-why {
+  margin-left: auto; flex: 0 0 auto;
+  width: 16px; height: 16px; padding: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: transparent; color: var(--wc-mute);
+  border: 1px solid var(--wc-line); border-radius: var(--wc-r);
+  font: inherit; font-size: 10px; font-weight: 700; cursor: pointer;
+}
+.tgwc-why:hover, .tgwc-why[aria-expanded="true"] { color: var(--wc-ok); border-color: var(--wc-ok); }
+.tgwc-whybox {
+  display: flex; flex-direction: column; gap: 4px;
+  border-top: 1px solid var(--wc-line);
+  padding-top: 5px; margin-top: 2px;
+}
+.tgwc-spark { flex: 0 0 auto; }
+.tgwc-spark path { fill: none; stroke: var(--wc-mute); stroke-width: 1; }
+.tgwc-spark.good path { stroke: var(--wc-ok); }
+.tgwc-spark.bad  path { stroke: var(--wc-crit); }
+.tgwc-spark circle { fill: currentColor; }
+
+/* ═══════════ lists inside panels (calendar, schedule, alerts, tasks) ═══════ */
+
+.tgwc-rows { display: flex; flex-direction: column; min-width: 0; }
+.tgwc-row {
+  display: flex; align-items: center; gap: 6px;
+  min-height: 26px;                     /* the DDC row height */
+  padding: 2px 0;
+  border-bottom: 1px solid var(--wc-line);
+  font-size: 12px;
+  min-width: 0;
+}
+.tgwc-row:last-child { border-bottom: 0; }
+.tgwc-row .when {
+  flex: 0 0 auto; font-size: 11px; font-weight: 600; color: var(--wc-ink2);
+  font-variant-numeric: tabular-nums; min-width: 58px;
+}
+.tgwc-row .what { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
+.tgwc-row .side { flex: 0 0 auto; font-size: 11px; color: var(--wc-mute); }
+.tgwc-row.crit .when { color: var(--wc-crit); }
+.tgwc-daygroup {
+  font-size: 10px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--wc-mute); padding-top: 4px;
+}
+
+/* ═══════════ settings panel, picker, dialogs ═══════════ */
+
+.tgwc-pop {
+  border: 1px solid var(--wc-line);
+  background: var(--wc-bg);
+  border-radius: var(--wc-r);
+  padding: 8px;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.tgwc-fields { display: flex; flex-wrap: wrap; gap: 8px; }
+.tgwc-field { display: flex; flex-direction: column; gap: 2px; min-width: 130px; }
+.tgwc-field.check { flex-direction: row; align-items: center; gap: 5px; min-width: 0; }
+.tgwc-field label {
+  font-size: 10px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase;
+  color: var(--wc-mute);
+}
+.tgwc-field.check label { text-transform: none; letter-spacing: 0; font-size: 12px; color: var(--wc-ink2); }
+
+.tgwc-cats { display: flex; flex-direction: column; gap: 8px; max-height: 320px; overflow: auto; }
+.tgwc-cat-h {
+  font-size: 10px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--wc-ok); border-bottom: 1px solid var(--wc-line); padding-bottom: 2px;
+}
+.tgwc-cat-g { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 4px; }
+
+.tgwc-tpl { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 6px; }
+.tgwc-tplcard {
+  display: flex; flex-direction: column; gap: 3px; text-align: left;
+  border: 1px solid var(--wc-line); background: var(--wc-bg2);
+  border-radius: var(--wc-r); padding: 8px; cursor: pointer; color: var(--wc-ink);
+  font: inherit; font-size: 12px;
+}
+.tgwc-tplcard:hover { border-color: var(--wc-ok); }
+.tgwc-tplcard .n { font-size: 12px; font-weight: 700; }
+.tgwc-tplcard .p { font-size: 12px; color: var(--wc-mute); }
+.tgwc-tplcard .c { font-size: 10px; color: var(--wc-ok); letter-spacing: 0.04em; text-transform: uppercase; }
+
+/* ═══════════ the drill — opens in place, closes in place ═══════════ */
+
+.tgwc-drill {
+  border: 1px solid var(--wc-ok);
+  background: var(--wc-bg);
+  border-radius: var(--wc-r);
+  display: flex; flex-direction: column; min-width: 0;
+}
+.tgwc-drill-h {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  background: var(--wc-head);
+  border-bottom: 1px solid var(--wc-line);
+  padding: 5px 8px;
+  position: sticky; top: 0; z-index: 2;
+}
+.tgwc-drill-h .t { font-size: 12px; font-weight: 700; }
+.tgwc-drill-b { padding: 8px; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.tgwc-tablewrap { overflow: auto; max-height: 460px; border: 1px solid var(--wc-line); border-radius: var(--wc-r); }
+.tgwc-table { border-collapse: collapse; width: 100%; font-size: 12px; }
+.tgwc-table th {
+  position: sticky; top: 0; z-index: 1;
+  background: var(--wc-head);
+  border-bottom: 1px solid var(--wc-line);
+  text-align: left; font-size: 10px; font-weight: 700;
+  letter-spacing: 0.04em; text-transform: uppercase; color: var(--wc-mute);
+  padding: 4px 6px; white-space: nowrap;
+}
+.tgwc-table td {
+  border-bottom: 1px solid var(--wc-line);
+  padding: 3px 6px; vertical-align: top;
+  height: 26px;
+  overflow-wrap: anywhere;     /* wrap, never clip — rule F3 */
+  max-width: 320px;
+}
+.tgwc-table tr:last-child td { border-bottom: 0; }
+.tgwc-table td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.tgwc-blob summary { cursor: pointer; color: var(--wc-info); font-size: 11px; }
+.tgwc-blob pre { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 11px; margin-top: 3px; }
+
+.tgwc-ev { display: flex; flex-wrap: wrap; gap: 3px; align-items: center; }
+.tgwc-evdoc {
+  font: inherit; font-size: 10px; font-weight: 600;
+  color: var(--wc-ok); background: transparent;
+  border: 1px solid var(--wc-ok); border-radius: var(--wc-r);
+  padding: 0 5px; cursor: pointer; white-space: nowrap;
+}
+.tgwc-evdoc:hover { background: var(--wc-ok-soft); }
+.tgwc-evwhy { font-size: 11px; color: var(--wc-mute); overflow-wrap: anywhere; }
+.tgwc-evwhy.attn { color: var(--wc-attn); }
+
+/* ═══════════ empty and gap states ═══════════ */
+
+.tgwc-empty {
+  display: flex; flex-direction: column; gap: 5px; align-items: flex-start;
+  font-size: 12px; color: var(--wc-mute);
+  border: 1px dashed var(--wc-line);
+  border-radius: var(--wc-r);
+  padding: 8px;
+}
+.tgwc-empty .why { color: var(--wc-ink2); font-weight: 600; }
+.tgwc-empty.gap { border-color: var(--wc-attn); background: var(--wc-attn-soft); }
+.tgwc-empty.gap .why { color: var(--wc-attn); }
+
+/* The live region that announces a keyboard move. Present for screen readers,
+   out of the visual flow — never display:none, which silences it. */
+.tgwc-live {
+  position: absolute; width: 1px; height: 1px;
+  margin: -1px; padding: 0; border: 0;
+  clip-path: inset(50%); overflow: hidden; white-space: nowrap;
+}
