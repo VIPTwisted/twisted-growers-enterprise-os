@@ -26,7 +26,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(here, "../..");
 
 /* Files the user actually reads text from. */
-const UI_FILES = ["app/web/src/App.jsx", "app/web/src/budz.jsx"];
+const UI_FILES = ["app/web/src/App.jsx", "app/web/src/budz.jsx", "app/web/src/commandcenter.jsx"];
 
 /* Banned abbreviation -> what it must say instead. From rule F4's own example outward. */
 const BANNED = {

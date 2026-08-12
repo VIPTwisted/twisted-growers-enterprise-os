@@ -52,7 +52,7 @@ try {
   process.exit(1);
 }
 
-const FILES = ["src/App.jsx", "src/budz.jsx", "src/main.jsx", "src/lib/supabase.js"];
+const FILES = ["src/App.jsx", "src/budz.jsx", "src/commandcenter.jsx", "src/main.jsx", "src/lib/supabase.js"];
 let failed = 0;
 
 for (const rel of FILES) {

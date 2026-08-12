@@ -18,6 +18,11 @@ import { supabase, FUNCTIONS_URL } from "./lib/supabase.js";
 import { BudzScreen, CeoDashboard, AssistantSettings, BudzPet, useBudzPet, RedGreen,
          askBudzFull, useChatFiles, ChatFiles, Thinking,
          useVoice, VoiceButtons } from "./budz.jsx";
+/* Clean-slate Command Center (owner pivot, 12 Aug 2026): a new tree in its own
+   module, mounted at dept_dash_command below. It imports shared primitives and
+   the frozen keep-list components back from this file — the import cycle is
+   deliberate and safe because every binding is used at render time only. */
+import CommandCenter from "./commandcenter.jsx";
 
 // Laws: live numbers (2) · no fake data (3) · nothing hardwired (4) — navigation itself is DB rows.
 
@@ -1199,7 +1204,7 @@ const DATE_CHIPS = [
    selection state, and the custom chip shows the exact dates when a custom
    range is applied. Nothing lost: every preset and exact-date capability is
    still here, one click deeper. */
-function DateRangeSelect({ label, from, to, onFrom, onTo, onPreset }) {
+export function DateRangeSelect({ label, from, to, onFrom, onTo, onPreset }) {
   const [preset, setPreset] = useState("all");
   const [openCustom, setOpenCustom] = useState(false);
   const shown = !from && !to ? "all" : preset;
@@ -4564,7 +4569,7 @@ function AdminAlerts({ go }) {
 /* Every batch behind a tile or an alert. A number on a card is a claim; this is the
    evidence for it — each package with its harvest, its dates, where it is and where
    it came from. Nothing is summarised away. */
-function BatchList({ stream, origin, labState }) {
+export function BatchList({ stream, origin, labState }) {
   const [rows, setRows] = useState(null);
   useEffect(() => {
     let live = true;
@@ -8492,7 +8497,7 @@ const TELL_YOUR_AI = [
    rendered empty. It looked alive because FlowStrip and MoneyBar still showed, and
    the failure was invisible because the query swallowed its result with `?? []`.
    Verified 7 Aug 2026 against: select distinct department from mv_department_dashboard. */
-const DEPT_BY_VIEW = {
+export const DEPT_BY_VIEW = {
   dept_dash_command: "Command",
   /* The CFO dashboard reuses the Finance figures and adds the Inventory Forensic
      Audit. Owner 11 Aug 2026: "ADD A TAB THAT EVEN BRINGS USER TO CFO DASHBOARD". */
@@ -8511,7 +8516,7 @@ const DEPT_BY_VIEW = {
 
 /* Open harvests, one row each, with the arithmetic that corrects the wet weight to
    a dry-equivalent shown on the row itself so nobody has to take the figure on trust. */
-function OpenHarvestDetail() {
+export function OpenHarvestDetail() {
   const [rows, setRows] = useState(null);
   useEffect(() => {
     supabase.from("v_harvest_still_in_room").select("*").then(({ data }) => setRows(data ?? []));
@@ -8568,7 +8573,7 @@ function OpenHarvestDetail() {
    (mirror trap 13), so 50 tags can return 51–52 rows and the full set holds 434
    rows behind a 429-package tile. Both rows are shown — hiding one would be
    choosing a licence silently. Filed with Agent I as a C2 reconciliation item. */
-function InTransitDrill() {
+export function InTransitDrill() {
   const PAGE = 50;
   const [tags, setTags] = useState(null);
   const [rows, setRows] = useState(null);
@@ -8692,7 +8697,7 @@ function StockProofTable({ rows, locationLabel = "Where it is" }) {
 
 /* Per-room per-tag drill — the evidence rows for one room under one licence.
    The filter is licence + room name, which is room identity (J7). */
-function RoomStockDrill({ licence, room, department }) {
+export function RoomStockDrill({ licence, room, department }) {
   const PAGE = 50;
   const [rows, setRows] = useState(null);
   const [err, setErr] = useState(null);
@@ -8970,62 +8975,6 @@ function GoalsTargetsPage() {
       </div>
       <GoalsEditor />
     </>
-  );
-}
-
-/* The compact face of the goals on the Command dashboard — counts as chips IN
-   THE SECTION HEADER (owner layout doctrine point 5, 12 Aug 2026), a one-line
-   body, and a quiet door to the editor page. Reads the same v_goal_status the
-   editor reads, so the two can never disagree. Errors surface; they do not
-   become an empty box. Owns its own Section so the chips can live on the
-   header line without a second fetch. */
-function GoalsSection({ store, go }) {
-  const [rows, setRows] = useState(null);
-  const [err, setErr] = useState(null);
-  useEffect(() => {
-    let live = true;
-    supabase.from("v_goal_status").select("*").order("metric_key").then(({ data, error }) => {
-      if (!live) return;
-      if (error) { setErr(error.message); setRows([]); return; }
-      setRows(rowsOr(data));
-    });
-    return () => { live = false; };
-  }, []);
-  const off = rowsOr(rows).filter((r) => r.status === "off target");
-  const nodata = rowsOr(rows).filter((r) => r.status === "no data");
-  const on = rowsOr(rows).length - off.length - nodata.length;
-  const chips = rows === null || err ? null : rows.length === 0 ? (
-    <StatusChip kind="EMPTY">none enabled</StatusChip>
-  ) : (
-    <>
-      <StatusChip kind="OK">{on} on target</StatusChip>
-      <StatusChip kind={off.length ? "OVER" : "OK"}>{off.length} off</StatusChip>
-      {nodata.length > 0 && (
-        <StatusChip kind="NOT WIRED" title="These goals have a target but no honest actual can be computed yet — the basis line on the Goals and Targets page says exactly why.">
-          {nodata.length} no data
-        </StatusChip>
-      )}
-    </>
-  );
-  return (
-    <Section id="goals" store={store} title="Goals and targets" chips={chips}>
-      {err ? (
-        <div className="goalnote"><b>The goals could not be read:</b> {err}</div>
-      ) : rows === null ? (
-        <div className="muted">Reading the goals…</div>
-      ) : (
-        <div className="goalsumrow">
-          {rows.length === 0 && (
-            <span className="muted">Nothing populates until a person with the manage goals
-              permission enables a goal on the Goals and Targets page.</span>
-          )}
-          {off.length > 0 && (
-            <span className="goalnote" style={{ margin: 0 }}>Off target: {off.map((r) => r.metric_label).join(" · ")}</span>
-          )}
-          <button className="btn quiet" onClick={() => go("goals_targets")}>Open Goals and Targets →</button>
-        </div>
-      )}
-    </Section>
   );
 }
 
@@ -9414,7 +9363,7 @@ function CfoInventoryAudit({ go, session }) {
   );
 }
 
-function ForensicAuditLedger({ go }) {
+export function ForensicAuditLedger({ go }) {
   const [rows, setRows] = useState(null);
   useEffect(() => {
     supabase.from("v_forensic_audit_panel").select("*").order("ord")
@@ -9497,7 +9446,7 @@ function ForensicAuditLedger({ go }) {
   );
 }
 
-function MoneyBar({ go }) {
+export function MoneyBar({ go }) {
   const [rows, setRows] = useState(null);
   useEffect(() => {
     supabase.from("v_money_position").select("*").order("ord").then(({ data }) => setRows(data ?? []));
@@ -9567,7 +9516,7 @@ function WhatChanged({ dept, go }) {
    Rising is bad for 'at_most' and good for 'at_least'. With no target there is
    no verdict to give, and 36 of 43 tiles have no target — so most render
    neutral. That is correct: it shows the gap instead of inventing a judgement. */
-function movementVerdict(rising, direction) {
+export function movementVerdict(rising, direction) {
   if (rising === null || rising === undefined) return "neutral";   // flat, or no data
   if (direction === "at_most") return rising ? "bad" : "good";
   if (direction === "at_least") return rising ? "good" : "bad";
@@ -9724,14 +9673,14 @@ function StatusChip({ kind, children, title }) {
    it ONLY after `error` has been bound and handled — it never excuses an
    unbound read. It exists so the silent-failures ratchet counts one documented
    fallback rather than sixteen scattered ones (the count may fall, never rise). */
-const rowsOr = (data) => data ?? [];
+export const rowsOr = (data) => data ?? [];
 
 /* The per-user store behind Section collapse state. Persistence follows the
    side menu's existing convention (localStorage, per user id, per dashboard) —
    the same mechanism `tg.nav.open` already uses. NOTE for Agent I, stated in
    the report too: cross-DEVICE persistence needs a user_settings JSON column,
    which is a schema change and therefore the data layer's call, not mine. */
-function useSectionStore(userId, pageKey) {
+export function useSectionStore(userId, pageKey) {
   const key = `tg.dash.sections.${userId ?? "anon"}.${pageKey}`;
   const [map, setMap] = useState(() => {
     try { return JSON.parse(localStorage.getItem(key) || "{}"); } catch { return {}; }
@@ -9843,303 +9792,18 @@ function RpDashboardDateRange({ viewKey, session, source, onRange }) {
   );
 }
 
-/* ═══ ONE GLOBAL MANAGEMENT VIEW — owner order, 12 Aug 2026 ═══
-   Command is the roll-up of everything: one compact entity card per department,
-   tone-spined, drilling to that department's own dashboard. Data spine is
-   v_global_management — rendered as served (Agent I). Rows that match no
-   department dashboard are the UNROUTED pile and render as a distinct red
-   group, deliberately the loudest thing on the board: work nobody owns is the
-   most dangerous kind. Two notes filed with Agent I rather than papered over:
-   is_the_unrouted_pile serves false on ALL rows today (an inert flag), so the
-   split below uses the app's own dashboard registry until the curated
-   finding-class mapping lands; and 'Sales & Cash' carries its gap_note, which
-   renders VERBATIM as the card body per the honest-state doctrine. */
-const NAV_BY_DEPT = (() => {
-  const m = {};
-  for (const [k, v] of Object.entries(DEPT_BY_VIEW)) if (!m[v]) m[v] = k;
-  return m;
-})();
-function GlobalManagement({ go }) {
-  const [rows, setRows] = useState(null);
-  const [err, setErr] = useState(null);
-  useEffect(() => {
-    let live = true;
-    supabase.from("v_global_management").select("*").then(({ data, error }) => {
-      if (!live) return;
-      if (error) { setErr(error.message); setRows([]); return; }
-      setRows(rowsOr(data));
-    });
-    return () => { live = false; };
-  }, []);
-  if (err) return <div className="brnone"><b>The global view could not be read:</b> {err}</div>;
-  if (rows === null) return <div className="note">Reading every department…</div>;
-  if (!rows.length) return <div className="brnone">v_global_management returned no rows. <b>Why:</b> the view is live but empty — that itself is a data-layer finding.</div>;
-  const isRouted = (r) => r.is_the_unrouted_pile !== true && (NAV_BY_DEPT[r.department] || r.gap_note);
-  const routed = rows.filter(isRouted);
-  const unrouted = rows.filter((r) => !isRouted(r));
-  const card = (r) => {
-    const dest = NAV_BY_DEPT[r.department];
-    return (
-      <button key={r.department} className={`gmcard ${r.tone}`}
-        onClick={() => dest ? go(dest) : go("agent_findings")}
-        title={dest ? `Open the ${r.department} dashboard` : `${r.department}: open the findings behind this`}>
-        <span className="gmname">{r.department}</span>
-        {r.gap_note ? (
-          <span className="gmgap">{r.gap_note}</span>
-        ) : (
-          <>
-            <span className="gmline">
-              {Number(r.tiles) > 0
-                ? <>{r.tiles} tiles{Number(r.tiles_bad) > 0 && <b className="bad"> · {r.tiles_bad} bad</b>}{Number(r.tiles_null) > 0 && <> · {r.tiles_null} empty</>}</>
-                : <>no tiles published</>}
-            </span>
-            <span className="gmline">
-              {Number(r.open_findings) > 0
-                ? <>{r.open_findings} findings{Number(r.critical_findings) > 0 && <b className="bad"> · {r.critical_findings} critical</b>}</>
-                : <>no open findings</>}
-              {Number(r.open_orders) > 0 && <> · {r.open_orders} orders{Number(r.orders_overdue) > 0 && <b className="bad"> · {r.orders_overdue} overdue</b>}</>}
-            </span>
-            {r.oldest_finding && <span className="gmline dim">oldest {r.oldest_finding}</span>}
-          </>
-        )}
-      </button>
-    );
-  };
-  return (
-    <>
-      <div className="gmgrid">{routed.map(card)}</div>
-      {unrouted.length > 0 && (
-        <>
-          <div className="gmownhead">
-            NOBODY OWNS THESE — {unrouted.length} finding classes with no department dashboard to land on,
-            {" "}{unrouted.reduce((a, r) => a + Number(r.open_findings || 0), 0).toLocaleString()} open findings
-          </div>
-          <div className="gmgrid">{unrouted.map(card)}</div>
-        </>
-      )}
-    </>
-  );
-}
-
 /* ============ COMMAND CENTER SECTIONS — owner design mandate, 11 Aug 2026 ============
    Six approved patterns relayed by Agent I from the owner's reference screenshots
    (structure only; the locked theme tokens carry the look). Each section is its own
    visual form — "each section is unique and highly visual" — sharing primitives only
    (Section, StatusChip, AssignTask, RpDocumentButton), never a layout. */
 
-/* ROOM RINGS — one card per flower room, the ring shows how deep into the owner's
-   56-day cycle the room stands. Every figure on the card is SERVED by v_room_board
-   (cycle_days, days_until, plants_now, strains_now); the ring fraction is display
-   arithmetic on those two served numbers, like every progress bar in the app.
-   The "approaching" threshold is the owner-set weekend_warning_days row in
-   harvest_alert_rules — never a number chosen here.
-
-   Post-harvest rooms are deliberately NOT carded yet: v_room_board carries no
-   department for them, eleven room names exist in both buildings, and a room is
-   never shown without its department (rule J7). Requirement filed with Agent I. */
-function RoomRings({ dept }) {
-  const [rooms, setRooms] = useState(null);
-  const [stockRooms, setStockRooms] = useState(null);
-  const [stockErr, setStockErr] = useState(null);
-  const [warnDays, setWarnDays] = useState(null);
-  const [lateNote, setLateNote] = useState(null);
-  const [err, setErr] = useState(null);
-  const [openRoom, setOpenRoom] = useState(null);
-  const [openStock, setOpenStock] = useState(null);
-  useEffect(() => {
-    let live = true;
-    Promise.all([
-      supabase.from("v_room_board").select("*").order("room"),
-      supabase.from("harvest_alert_rules").select("rule_key, threshold, note, active")
-        .in("rule_key", ["weekend_warning_days", "late_tolerance_days"]),
-      /* Post-harvest cards UNBLOCKED — Agent I, 12 Aug 2026: this view carries
-         department and licence for every room holding packages, vaults included. */
-      supabase.from("v_stock_by_department").select("*"),
-    ]).then(([r, h, s]) => {
-      if (!live) return;
-      if (r.error) { setErr(r.error.message); setRooms([]); return; }
-      setRooms(rowsOr(r.data));
-      if (h.error) { setWarnDays(null); }
-      else {
-        const hr = rowsOr(h.data);
-        const w = hr.find((x) => x.rule_key === "weekend_warning_days" && x.active);
-        const l = hr.find((x) => x.rule_key === "late_tolerance_days" && x.active);
-        setWarnDays(w ? Number(w.threshold) : null);
-        setLateNote(l?.note ?? null);
-      }
-      if (s.error) { setStockErr(s.error.message); setStockRooms([]); }
-      else setStockRooms(rowsOr(s.data));
-    });
-    return () => { live = false; };
-  }, []);
-  if (err) return <div className="brnone"><b>The room board could not be read:</b> {err}</div>;
-  if (rooms === null) return <div className="note">Reading the rooms…</div>;
-  const flower = rooms.filter((r) => r.room_type === "Flower room");
-  if (!flower.length) return (
-    <div className="brnone">No flower rooms in v_room_board. <b>Why:</b> the board reads the grow-room
-      register and the harvest schedule; if both are empty, nothing can be shown.</div>
-  );
-  const over = flower.filter((r) => Number(r.days_until) < 0);
-  const soon = flower.filter((r) => Number(r.days_until) >= 0 && warnDays != null && Number(r.days_until) <= warnDays && Number(r.plants_now) > 0);
-  const stateOf = (r) => {
-    if (Number(r.plants_now) === 0) return "TURNING";
-    if (Number(r.days_until) < 0) return "OVER";
-    if (warnDays != null && Number(r.days_until) <= warnDays) return "APPROACHING";
-    return "ON PLAN";
-  };
-  return (
-    <>
-      {/* ALERT BANNER — the rule-10 pattern: the fact, the rule it breaks, and the
-          two actions ON the banner. Fires only on a real served breach; today none
-          may exist, and then nothing renders — an absent banner is the honest state. */}
-      {over.map((r) => {
-        /* J7: a room is never rendered bare. Department is a display label until
-           v_room_board serves it — requirement already filed with Agent I. */
-        const roomQualified = r.room + " — Cultivation";
-        return (
-          <div key={"bn" + r.room} className="roombreach">
-            <span className="rbnum">{Math.abs(Number(r.days_until))}</span>
-            <span className="rbbody">
-              <b>{roomQualified} is {Math.abs(Number(r.days_until))} day{Math.abs(Number(r.days_until)) === 1 ? "" : "s"} past
-                its scheduled pull{r.cycle_days ? ` on a ${r.cycle_days}-day cycle` : ""}.</b>
-              {lateNote && <em>{lateNote}</em>}
-            </span>
-            <span className="rbacts">
-              <button className="btn" onClick={() => setOpenRoom(openRoom === r.room ? null : r.room)}>Open {roomQualified}</button>
-              <AssignTask dept={dept} kpi={roomQualified + ", days past scheduled pull"}
-                value={Math.abs(Number(r.days_until))} unit="days" drill="room_board" />
-            </span>
-          </div>
-        );
-      })}
-      <div className="ringhead">
-        {over.length > 0 && <StatusChip kind="OVER">{over.length} OVER</StatusChip>}
-        {soon.length > 0 && <StatusChip kind="APPROACHING">{soon.length} PULLING SOON</StatusChip>}
-        {over.length === 0 && soon.length === 0 && <StatusChip kind="ON PLAN">every room inside its cycle</StatusChip>}
-      </div>
-      <div className="ringgrid">
-        {flower.map((r) => {
-          const st = stateOf(r);
-          const empty = Number(r.plants_now) === 0;
-          /* J7: qualified name composed once, rendered everywhere. */
-          const roomQualified = r.room + " — Cultivation";
-          const frac = !empty && r.cycle_days
-            ? Math.min(1, Math.max(0, (Number(r.cycle_days) - Number(r.days_until)) / Number(r.cycle_days)))
-            : 0;
-          const C = 2 * Math.PI * 26;
-          return (
-            <button key={r.room} className={`ringcard ${st === "OVER" ? "over" : ""} ${openRoom === r.room ? "opened" : ""}`}
-              onClick={() => setOpenRoom(openRoom === r.room ? null : r.room)}
-              title={roomQualified + ". Click for every plant in the room."}>
-              <svg className="ring" viewBox="0 0 64 64" width="64" height="64" aria-hidden="true">
-                <circle cx="32" cy="32" r="26" className="ringtrack" />
-                {!empty && (
-                  <circle cx="32" cy="32" r="26" className={`ringfill ${st === "OVER" ? "bad" : st === "APPROACHING" ? "warn" : "good"}`}
-                    strokeDasharray={`${(frac * C).toFixed(1)} ${C.toFixed(1)}`} transform="rotate(-90 32 32)" />
-                )}
-                <text x="32" y="30" textAnchor="middle" className="ringnum">
-                  {empty ? "—" : Math.abs(Number(r.days_until))}
-                </text>
-                <text x="32" y="42" textAnchor="middle" className="ringsub">
-                  {empty ? "" : Number(r.days_until) < 0 ? "OVER" : "DAYS"}
-                </text>
-              </svg>
-              <span className="ringname">{roomQualified}</span>
-              <span className="ringmeta">{empty
-                ? (r.next_event_detail ? `next: ${r.next_event_detail}` : "empty — turning")
-                : `${Number(r.plants_now).toLocaleString()} plants`}</span>
-              {/* Density without omission: the count on the face, the full served
-                  list one hover away (doctrine point 6 — chips, not paragraphs). */}
-              {!empty && r.strains_now && (
-                <span className="ringmeta" title={r.strains_now}>
-                  {r.strains_now.split(",").length} strain{r.strains_now.split(",").length === 1 ? "" : "s"} ⓘ
-                </span>
-              )}
-              <StatusChip kind={st} />
-            </button>
-          );
-        })}
-      </div>
-      {openRoom && (
-        <Section title={`Every plant standing in ${openRoom} — Cultivation`} defaultOpen>
-          <RoomDrill code={openRoom} />
-        </Section>
-      )}
-
-      {/* POST-HARVEST AND STORAGE ROOMS — unblocked 12 Aug 2026: the stock view
-          serves department and licence for every room holding packages, so each
-          card is department-qualified (J7). Card figures roll up the view's own
-          category rows; the drill lists the evidence rows behind them. */}
-      {stockErr && <div className="brnone"><b>Stock rooms not shown, and why:</b> {stockErr}</div>}
-      {stockRooms && stockRooms.length > 0 && (() => {
-        const byRoom = new Map();
-        for (const s of stockRooms) {
-          const k = s.licence + "|" + s.room;
-          const g = byRoom.get(k) ?? { licence: s.licence, department: s.department, room: s.room,
-            stage: s.stage, total_lb: 0, ours_lb: 0, third_party_lb: 0, tags: 0, units: 0, failed: 0, no_coa: 0 };
-          g.total_lb += Number(s.total_lb ?? 0); g.ours_lb += Number(s.ours_lb ?? 0);
-          g.third_party_lb += Number(s.third_party_lb ?? 0); g.tags += Number(s.tags ?? 0);
-          g.units += Number(s.units ?? 0); g.failed += Number(s.failed ?? 0); g.no_coa += Number(s.no_coa ?? 0);
-          byRoom.set(k, g);
-        }
-        const cards = [...byRoom.values()].sort((a, b) => b.total_lb - a.total_lb);
-        return (
-          <>
-            <div className="ringhead" style={{ marginTop: 12 }}>
-              <StatusChip kind="INFO">{cards.length} rooms holding stock</StatusChip>
-              <StatusChip kind="WATCH"
-                title="Dry-deadline and cycle tracking on this board covers flower rooms only for now: the harvest schedule view does not yet carry the department for post-harvest rooms, and eleven room names exist in both buildings. The requirement is with the database team.">
-                deadline tracking: flower rooms only ⓘ
-              </StatusChip>
-            </div>
-            <div className="stockroomgrid">
-              {cards.map((g) => {
-                const qualified = g.room + " — " + g.department;
-                const k = g.licence + "|" + g.room;
-                return (
-                  <button key={k} className={`stockroomcard ${openStock === k ? "opened" : ""}`}
-                    onClick={() => setOpenStock(openStock === k ? null : k)}
-                    title={qualified + ". Click for every package in the room."}>
-                    <span className="srname">{qualified}</span>
-                    <span className="srbig">{g.total_lb > 0
-                      ? <>{g.total_lb.toLocaleString(undefined, { maximumFractionDigits: 1 })}<em> lb</em></>
-                      : <>{g.units.toLocaleString()}<em> units</em></>}</span>
-                    <span className="srline">{g.tags.toLocaleString()} tags
-                      · ours {g.ours_lb.toLocaleString(undefined, { maximumFractionDigits: 1 })} lb
-                      · third party {g.third_party_lb.toLocaleString(undefined, { maximumFractionDigits: 1 })} lb</span>
-                    <span className="srchips">
-                      {g.failed > 0 && <StatusChip kind="OVER">{g.failed} failed</StatusChip>}
-                      {g.no_coa > 0 && <StatusChip kind="PENDING" title="Packages with no certificate of analysis on file — the reason per package is on its row in the drill.">{g.no_coa} no certificate</StatusChip>}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-            {openStock && (() => {
-              const g = byRoom.get(openStock);
-              if (!g) return null;
-              /* J7: composed once; no bare room accessor reaches a render. */
-              const drillTitle = "Every package in " + g.room + " — " + g.department + " (licence " + g.licence + ")";
-              const rm = g.room;
-              return (
-                <Section title={drillTitle} defaultOpen>
-                  <RoomStockDrill licence={g.licence} room={rm} department={g.department} />
-                </Section>
-              );
-            })()}
-          </>
-        );
-      })()}
-    </>
-  );
-}
-
 /* The per-tag drill behind a room card. Tags come straight from metrc_plants —
    the Metrc mirror — filtered by the room's registered names (code and legacy
    label, served by grow_rooms), paginated at 50. Plants carry no certificate of
    analysis: a certificate attaches to the PACKAGE after harvest and testing, and
    the row says so rather than showing a blank (rule C3a / A3). */
-function RoomDrill({ code }) {
+export function RoomDrill({ code }) {
   const PAGE = 50;
   const [rows, setRows] = useState(null);
   const [names, setNames] = useState(null);
@@ -10213,130 +9877,6 @@ function RoomDrill({ code }) {
       </div>
       {more && <button className="btn" onClick={() => setPages((p) => p + 1)}>Show the next {PAGE} plants</button>}
     </>
-  );
-}
-
-/* YIELD VS TARGET — horizontal bars, one per recent harvest: grams of dry yield
-   per plant, with a tick at that strain's own served median. Both figures and the
-   verdict come from v_harvest_yield_audit; nothing is computed here. The owner's
-   g-per-square-foot goal is NOT drawn on these bars on purpose: it is a different
-   unit, and comparing across units is the trap that once produced a finding wrong
-   by a factor of six (rule A4). */
-function YieldBars() {
-  const [rows, setRows] = useState(null);
-  const [err, setErr] = useState(null);
-  const [openRow, setOpenRow] = useState(null);
-  useEffect(() => {
-    let live = true;
-    supabase.from("v_harvest_yield_audit").select("*")
-      .order("finished_on", { ascending: false }).limit(12)
-      .then(({ data, error }) => {
-        if (!live) return;
-        if (error) { setErr(error.message); return; }
-        setRows(rowsOr(data));
-      });
-    return () => { live = false; };
-  }, []);
-  if (err) return <div className="brnone"><b>The yield audit could not be read:</b> {err}</div>;
-  if (rows === null) return <div className="note">Reading the last harvests…</div>;
-  if (!rows.length) return (
-    <div className="brnone">No closed harvests yet. <b>Why:</b> bars appear as soon as a harvest
-      finishes and its dry yield is weighed — there is nothing to judge before that.</div>
-  );
-  const max = Math.max(...rows.map((r) => Math.max(Number(r.dry_g_per_plant || 0), Number(r.strain_median_dry_g || 0))), 1);
-  const under = rows.filter((r) => r.strain_median_dry_g != null && Number(r.dry_g_per_plant) < Number(r.strain_median_dry_g));
-  const toneOf = (v) => /concern|under|low|short/i.test(v || "") ? "bad" : /watch|near/i.test(v || "") ? "warn" : "good";
-  return (
-    <>
-      <div className="ringhead">
-        {under.length > 0
-          ? <StatusChip kind="OVER">{under.length} UNDER OWN STRAIN MEDIAN</StatusChip>
-          : <StatusChip kind="OK">every recent harvest at or above its strain median</StatusChip>}
-        <span className="note">last {rows.length} closed harvests · grams of dry yield per plant · tick = that strain&rsquo;s own median</span>
-      </div>
-      <div className="ybars">
-        {rows.map((r) => {
-          const w = (Number(r.dry_g_per_plant || 0) / max) * 100;
-          const tick = r.strain_median_dry_g != null ? (Number(r.strain_median_dry_g) / max) * 100 : null;
-          const open = openRow === r.harvest;
-          /* J7: room identity is licence + name, and this view serves the licence. */
-          const roomQualified = (r.room ?? "room not recorded") + " — licence " + (r.licence ?? "not recorded");
-          return (
-            <React.Fragment key={r.harvest}>
-              <button className={`ybar ${open ? "opened" : ""}`} onClick={() => setOpenRow(open ? null : r.harvest)}
-                title="Open this harvest's audit line">
-                <span className="ybname">{r.strain || "strain not recorded"}<em>{roomQualified} · {r.finished_on}</em></span>
-                <span className="ybtrack">
-                  <i className={`ybfill ${toneOf(r.audit_verdict)}`} style={{ width: `${Math.max(2, w)}%` }} />
-                  {tick != null && <b className="ybtick" style={{ left: `${tick}%` }} title={`Strain median: ${Number(r.strain_median_dry_g).toLocaleString()} g/plant over ${r.strain_harvests} harvests`} />}
-                </span>
-                <span className="ybval">{r.dry_g_per_plant == null ? "not weighed" : `${Number(r.dry_g_per_plant).toLocaleString()} g`}</span>
-              </button>
-              {open && (
-                <div className="ybdetail">
-                  <p><b>{r.harvest}</b> — {Number(r.plants || 0).toLocaleString()} plants,
-                    wet {Number(r.wet_in_lb || 0).toLocaleString()} lb, dry {Number(r.dry_yield_lb || 0).toLocaleString()} lb
-                    {r.vs_target_lb != null && <> · versus plan {Number(r.vs_target_lb) >= 0 ? "+" : ""}{Number(r.vs_target_lb).toLocaleString()} lb</>}
-                    {r.vs_target_dollars != null && <> ({Number(r.vs_target_dollars) >= 0 ? "+" : "−"}${Math.abs(Math.round(Number(r.vs_target_dollars))).toLocaleString()})</>}
-                  </p>
-                  {r.in_plain_english && <p className="note">{r.in_plain_english}</p>}
-                  {r.concern && <p className="note bad">{r.concern}</p>}
-                </div>
-              )}
-            </React.Fragment>
-          );
-        })}
-      </div>
-    </>
-  );
-}
-
-/* REPORTS CARD — the department's report shelf, two columns, every row a real
-   registry entry that opens the report. The Command Center is the master
-   dashboard, so it shows every group (rule 4: everything replicates up). */
-function ReportsCard({ reports, go }) {
-  const list = rowsOr(reports);
-  if (!list.length) return (
-    <div className="brnone">No reports are registered. <b>Why:</b> reports are nav_registry rows,
-      not code — a row with surface “reports” appears here the moment it is enabled.</div>
-  );
-  const groups = [...new Set(list.map((r) => r.report_group || "Reports"))].sort();
-  return (
-    <>
-      <div className="ringhead"><StatusChip kind="INFO">{list.length} reports</StatusChip></div>
-      <div className="repcard">
-        {groups.map((g) => (
-          <div key={g} className="repcardcol">
-            <div className="repgrp">{g}</div>
-            {list.filter((r) => (r.report_group || "Reports") === g)
-              .sort((a, b) => (a.item_order ?? 0) - (b.item_order ?? 0) || a.label.localeCompare(b.label))
-              .map((r) => (
-                <button key={r.view_key} className="repcardrow" title={r.description || r.label}
-                  onClick={() => go(r.view_key)}>
-                  <span>{r.label}</span>
-                </button>
-              ))}
-          </div>
-        ))}
-      </div>
-    </>
-  );
-}
-
-/* DIAGNOSTIC FOOTER — the data-age honesty line. ROWS counts what THIS page
-   actually loaded (client-side lengths, so they can never disagree with what is
-   on screen), and REFRESHED is the served computed_at of the tile snapshot — the
-   age of the DATA, which is not the same thing as the time of the query. */
-function DiagFooter({ sources, computed }) {
-  return (
-    <div className="diagfoot">
-      <span>ENV {import.meta.env.MODE}</span>
-      <span>SOURCE {new URL(FUNCTIONS_URL).host}</span>
-      <span>ROWS {sources.map((s) => `${s.name} ${s.rows}`).join(" · ")}</span>
-      <span>TILES COMPUTED {computed ? new Date(computed).toLocaleString() : "no snapshot timestamp served"}</span>
-      <span>LIVE VIEWS reflect the last Metrc sync, not this page load</span>
-      <span>THEME locked — neon green</span>
-    </div>
   );
 }
 
@@ -10536,6 +10076,55 @@ function DashNarratives({ dept, range, role, session, go }) {
   );
 }
 
+/* STOCK BY STREAM CARDS — the owner's frozen keep-list surface ("DO NOT CHANGE
+   THIS", 11 Aug 2026). The JSX below was MOVED verbatim from DeptDashboard on
+   12 Aug 2026 so the clean-slate Command Center can mount the identical markup
+   from one source — extraction only, not an edit: every class, label and figure
+   is byte-for-byte what the owner approved. KNOWN AND FILED, not fixed: the
+   "Open every package" control toggles its label and renders no drill — a C1
+   defect that predates the freeze and sits inside it, so it ships as-is until
+   the owner rules. */
+export function StockByStreamCards({ stock, openTile, setOpenTile }) {
+  return (
+    <div className="entgrid">
+      {stock.map((s) => (
+        /* HARD RULE: failed material is always split into ours and third party
+           on the face of the tile. Never make the user drill to find out whose
+           failure it was. */
+        <div key={s.origin + "|" + s.stream} className="entcard">
+          <div className="enthead">
+            <span className="entname">{s.stream}</span>
+            <span className="entpill">{s.packages} packages</span>
+          </div>
+          <div className="entorigin">{s.origin}</div>
+          {/* Vapes and edibles are counted in units, not weighed. Showing a pound
+              figure for them invented a number that meant nothing. */}
+          <div className="entbig">
+            {s.sold_by_weight === false
+              ? <>{Number(s.units ?? 0).toLocaleString()}<em> {s.unit_of_measure || "units"}</em></>
+              : <>{Number(s.total_lb ?? 0).toLocaleString()}<em> lb</em></>}
+          </div>
+          <div className="entrows">
+            <div><span>Sellable</span><b className="ok">{Number(s.sellable_lb ?? 0).toLocaleString()}</b></div>
+            <div><span>Failed — ours</span><b className={Number(s.failed_ours_lb) > 0 ? "bad" : ""}>{Number(s.failed_ours_lb ?? 0).toLocaleString()}</b></div>
+            <div><span>Failed — third party</span><b className={Number(s.failed_third_party_lb) > 0 ? "bad" : ""}>{Number(s.failed_third_party_lb ?? 0).toLocaleString()}</b></div>
+            {Number(s.failed_third_party_lb) > 0 && (
+              <div className="entwho"><span>Whose it was</span><b>{s.failed_third_party_suppliers}</b></div>
+            )}
+            <div><span>Out for testing</span><b>{Number(s.out_for_testing_lb ?? 0).toLocaleString()}</b></div>
+            <div><span>Untested</span><b className={Number(s.untested_lb) > 0 ? "bad" : ""}>{Number(s.untested_lb ?? 0).toLocaleString()}</b></div>
+            <div><span>Oldest</span><b className={Number(s.oldest_days) > 180 ? "warn" : ""}>{s.oldest_days} days</b></div>
+          </div>
+          <button className="entgo"
+            onClick={() => setOpenTile(openTile === s.origin + s.stream ? null : s.origin + s.stream)}>
+            🔍 {openTile === s.origin + s.stream ? "Hide" : "Open"} every package
+          </button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function DeptDashboard({ viewKey, go, nav, deep, session, reports, role, viewAs, onViewAs, isAdmin, viewRoles }) {
   const [openTile, setOpenTile] = useState(null);
   const dept = DEPT_BY_VIEW[viewKey] ?? "Command";
@@ -10686,14 +10275,12 @@ function DeptDashboard({ viewKey, go, nav, deep, session, reports, role, viewAs,
 
       <WhatChanged dept={dept} go={go} />
 
-      {/* ONE GLOBAL MANAGEMENT VIEW — owner order 12 Aug 2026: THE first band on
-          Command. Every department dumps in; the unrouted pile is the loudest
-          thing on the board on purpose. */}
-      {dept === "Command" && (
-        <Section id="global" store={store} title="Global management — every department, one view">
-          <GlobalManagement go={go} />
-        </Section>
-      )}
+      {/* The Command-only bands (global management, goals+yield pair, room
+          rings, reports shelf, diagnostic footer) were RETIRED from this
+          component on 12 Aug 2026: the owner ordered the Command Center rebuilt
+          clean-slate, and it now renders from commandcenter.jsx — this
+          component never receives dept === "Command" again. Nothing another
+          department renders was touched. */}
 
       {/* NARRATIVE COMMENTARY — owner-approved 11 Aug 2026: the period story
           (rewrites with the date bar), the standing platform story, and signed
@@ -10718,31 +10305,9 @@ function DeptDashboard({ viewKey, go, nav, deep, session, reports, role, viewAs,
         </Section>
       )}
 
-      {/* GOALS AND TARGETS. Owner ruling 11 Aug 2026 (evening): the EDITING section
-          does not belong on the Command dashboard. Command shows the compact
-          summary and the door to the Goals and Targets page. Cultivation keeps the
-          editor it had — that ruling named the Command dashboard only, and rule F6
-          forbids changing what was not asked; flagged for a ruling in the report. */}
-      {/* Doctrine point 5: narrow sections share a 12-column row instead of each
-          spending a full-width band — goals (one line) beside the yield bars. */}
-      {dept === "Command" && (
-        <div className="secpair">
-          <GoalsSection store={store} go={go} />
-          <Section id="yield" store={store} title="Yield — grams per plant, tick = own strain median">
-            <YieldBars />
-          </Section>
-        </div>
-      )}
       {dept === "Cultivation" && (
         <Section id="goals" store={store} title="Goals and targets — set by you, not by the code">
           <GoalsEditor />
-        </Section>
-      )}
-
-      {/* ROOM RINGS + breach banner + post-harvest cards — patterns 2 and 3. */}
-      {dept === "Command" && (
-        <Section id="rooms" store={store} title="Rooms — every room, department-qualified">
-          <RoomRings dept={dept} />
         </Section>
       )}
 
@@ -10786,45 +10351,12 @@ function DeptDashboard({ viewKey, go, nav, deep, session, reports, role, viewAs,
 
       {/* STOCK BY STREAM — FROZEN by the owner, 11 Aug 2026: "DO NOT CHANGE THIS."
           The collapse control on the header is his own later amendment (chrome
-          only); the cards inside are pixel-untouched. */}
+          only); the cards inside are pixel-untouched, extracted verbatim into
+          StockByStreamCards so the clean-slate Command Center mounts the SAME
+          markup from the same source (owner keep-list, 12 Aug 2026). */}
       {stock.length > 0 && (
         <Section id="stock" store={store} title="Stock by stream" count={stock.length}>
-          <div className="entgrid">
-            {stock.map((s) => (
-              /* HARD RULE: failed material is always split into ours and third party
-                 on the face of the tile. Never make the user drill to find out whose
-                 failure it was. */
-              <div key={s.origin + "|" + s.stream} className="entcard">
-                <div className="enthead">
-                  <span className="entname">{s.stream}</span>
-                  <span className="entpill">{s.packages} packages</span>
-                </div>
-                <div className="entorigin">{s.origin}</div>
-                {/* Vapes and edibles are counted in units, not weighed. Showing a pound
-                    figure for them invented a number that meant nothing. */}
-                <div className="entbig">
-                  {s.sold_by_weight === false
-                    ? <>{Number(s.units ?? 0).toLocaleString()}<em> {s.unit_of_measure || "units"}</em></>
-                    : <>{Number(s.total_lb ?? 0).toLocaleString()}<em> lb</em></>}
-                </div>
-                <div className="entrows">
-                  <div><span>Sellable</span><b className="ok">{Number(s.sellable_lb ?? 0).toLocaleString()}</b></div>
-                  <div><span>Failed — ours</span><b className={Number(s.failed_ours_lb) > 0 ? "bad" : ""}>{Number(s.failed_ours_lb ?? 0).toLocaleString()}</b></div>
-                  <div><span>Failed — third party</span><b className={Number(s.failed_third_party_lb) > 0 ? "bad" : ""}>{Number(s.failed_third_party_lb ?? 0).toLocaleString()}</b></div>
-                  {Number(s.failed_third_party_lb) > 0 && (
-                    <div className="entwho"><span>Whose it was</span><b>{s.failed_third_party_suppliers}</b></div>
-                  )}
-                  <div><span>Out for testing</span><b>{Number(s.out_for_testing_lb ?? 0).toLocaleString()}</b></div>
-                  <div><span>Untested</span><b className={Number(s.untested_lb) > 0 ? "bad" : ""}>{Number(s.untested_lb ?? 0).toLocaleString()}</b></div>
-                  <div><span>Oldest</span><b className={Number(s.oldest_days) > 180 ? "warn" : ""}>{s.oldest_days} days</b></div>
-                </div>
-                <button className="entgo"
-                  onClick={() => setOpenTile(openTile === s.origin + s.stream ? null : s.origin + s.stream)}>
-                  🔍 {openTile === s.origin + s.stream ? "Hide" : "Open"} every package
-                </button>
-              </div>
-            ))}
-          </div>
+          <StockByStreamCards stock={stock} openTile={openTile} setOpenTile={setOpenTile} />
         </Section>
       )}
 
@@ -10926,25 +10458,6 @@ function DeptDashboard({ viewKey, go, nav, deep, session, reports, role, viewAs,
         </Section>
       )}
 
-      {/* REPORTS SHELF — owner-approved pattern 6, Command first. Reports stay in
-          the Reports dropdown too (rule I4); this card is the master dashboard's
-          own shelf, because everything replicates up (rule 4). */}
-      {dept === "Command" && (
-        <Section id="reports" store={store} title="Every report, one shelf" count={rowsOr(reports).length} defaultOpen={false}>
-          <ReportsCard reports={reports} go={go} />
-        </Section>
-      )}
-
-      {/* DIAGNOSTIC FOOTER — owner-approved pattern 7: the data-age honesty line. */}
-      {dept === "Command" && (
-        <DiagFooter computed={computed} sources={[
-          { name: "tiles", rows: rows.length },
-          { name: "alerts", rows: alerts.length },
-          { name: "tasks", rows: tasks.length },
-          { name: "stock streams", rows: stock.length },
-          { name: "reports", rows: rowsOr(reports).length },
-        ]} />
-      )}
     </>
   );
 }
@@ -11486,6 +10999,12 @@ export default function App() {
       <DeptDashboard viewKey={k} go={setView} nav={nav} deep={deep} session={session}
         reports={reports} role={role} viewAs={viewAsRole} onViewAs={switchViewAs}
         isAdmin={isAdmin} viewRoles={viewRoles} />])),
+    /* CLEAN-SLATE COMMAND CENTER — owner pivot, 12 Aug 2026. This override sits
+       AFTER the spread on purpose: dept_dash_command routes to the new tree and
+       the old DeptDashboard rendering for Command is retired from the path. */
+    dept_dash_command: <CommandCenter go={setView} session={session} reports={reports}
+      role={role} viewAs={viewAsRole} onViewAs={switchViewAs}
+      isAdmin={isAdmin} viewRoles={viewRoles} />,
     cfo_inventory_audit: <CfoInventoryAudit go={setView} session={session} />,
     assistant_settings: <AssistantSettings />,
     inventory_locator: <InventoryLocator go={setView} />,

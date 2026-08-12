@@ -1,0 +1,389 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   COMMAND CENTER — scoped stylesheet for the clean-slate tree. Agent B, 12 Aug 2026.
+
+   SCALE: measured from the owner's own DDC stylesheet (his reference platform):
+   chrome 9–11px (clamped at 10px here — the accessibility floor holds), body
+   12px, page title 16px, KPI numbers 22px hard cap, paddings never above 16px,
+   hairline 1px borders, square corners, bars ≤ 8px, rings 44px, rows 26px.
+
+   COLOURS AND FONT FAMILY ARE THE LOCKED TG THEME. This file maps the DDC
+   status VOCABULARY (ok / warn / attn / crit / info + glow halos) onto OUR
+   tokens. Zero colour literals — the theme-lock ratchet forbids them and
+   nothing here needs one.
+
+   SCOPE: every token lives on .ccpage and every rule is .cc-* prefixed, so
+   NOTHING cascades into the owner's hands-off chrome: the side menu, the top
+   menu, the Stock by Stream cards, the Where the Money Is Standing bar (both
+   render inside this page with their own locked classes), or any other page.
+   No document-root token rule may appear in this file — the page validator
+   refuses the selector that would put one there.
+   ═══════════════════════════════════════════════════════════════════════════ */
+.ccpage {
+  /* elevation ladder → TG tokens */
+  --cc0: var(--canvas);
+  --cc1: var(--surface);
+  --cc2: var(--surface-2);
+  --cc3: var(--thead);
+  --ccline: var(--line);
+  --ccline2: color-mix(in srgb, var(--ink) 18%, var(--line));
+  /* text ladder */
+  --cct0: var(--ink);
+  --cct1: var(--ink-2);
+  --cct2: var(--muted);
+  /* status vocabulary → TG tokens, glows derived from the same tokens */
+  --ccok: var(--neon);
+  --ccwarn: var(--amber);
+  --ccattn: var(--gold);
+  --cccrit: var(--red);
+  --ccinfo: var(--blue);
+  --ccok-glow: color-mix(in srgb, var(--neon) 20%, transparent);
+  --ccwarn-glow: color-mix(in srgb, var(--amber) 22%, transparent);
+  --ccattn-glow: color-mix(in srgb, var(--gold) 22%, transparent);
+  --cccrit-glow: color-mix(in srgb, var(--red) 26%, transparent);
+  --ccinfo-glow: color-mix(in srgb, var(--blue) 20%, transparent);
+  --ccmono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  display: flex; flex-direction: column; gap: 10px; padding-bottom: 24px;
+}
+
+/* ── order 1 · header: one line, ≤40px ─────────────────────────────────── */
+.cc-head { display: flex; align-items: baseline; gap: 8px; min-height: 28px; max-height: 40px; flex-wrap: nowrap; overflow: hidden; }
+.cc-title { margin: 0; font-size: 16px; font-weight: 700; letter-spacing: 0.02em; white-space: nowrap; }
+.cc-hchip {
+  font-family: var(--ccmono); font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--cct2); border: 1px solid var(--ccline); padding: 1px 7px; white-space: nowrap;
+}
+.cc-hchip b { color: var(--cct0); font-weight: 700; margin-left: 4px; }
+.cc-stamp {
+  margin-left: auto; cursor: help; white-space: nowrap;
+  font-family: var(--ccmono); font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--cct2); border: 1px solid var(--ccline); padding: 2px 8px; background: var(--cc2);
+}
+
+/* ── order 2 · toolbar: one 32px row, identical control heights ────────── */
+.cc-tools {
+  display: flex; align-items: center; gap: 8px; height: 32px;
+  border: 1px solid var(--ccline); background: var(--cc1); padding: 0 8px;
+}
+.cc-tools-l, .cc-tools-c, .cc-tools-r { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.cc-tools-c { flex: 1; justify-content: center; }
+.cc-btn {
+  height: 22px; display: inline-flex; align-items: center; gap: 4px;
+  background: transparent; color: var(--cct2); border: 1px solid var(--ccline);
+  padding: 0 8px; font-family: inherit; font-size: 11px; font-weight: 600;
+  cursor: pointer; white-space: nowrap; border-radius: 2px;
+}
+.cc-btn:hover:not(:disabled) { color: var(--cct0); border-color: var(--ccok); }
+.cc-btn:disabled { opacity: 0.5; cursor: default; }
+.cc-btn.primary { color: var(--ccok); border-color: var(--ccok); box-shadow: 0 0 10px var(--ccok-glow); }
+.cc-input {
+  height: 22px; background: var(--cc2); color: var(--cct0); border: 1px solid var(--ccline);
+  padding: 0 7px; font-family: inherit; font-size: 11px; border-radius: 2px;
+}
+.cc-input:focus { outline: none; border-color: var(--ccok); }
+textarea.cc-input { height: auto; padding: 6px 8px; font-size: 12px; line-height: 1.5; width: 100%; resize: vertical; }
+.cc-viewsel { max-width: 140px; }
+/* The shared date control mounts inside the toolbar; align its chrome to the
+   32px row without touching its component. These classes are patches-layer
+   dashboard chrome, not frozen surfaces. */
+.cc-tools-c .filterbar, .cc-tools-c .datebar { margin: 0; padding: 0; }
+.cc-tools-c .dbchip { font-size: 10.5px; padding: 2px 8px; }
+
+/* ── shared chrome ─────────────────────────────────────────────────────── */
+.cc-panel { border: 1px solid var(--ccline); background: var(--cc1); }
+.cc-panel-head {
+  width: 100%; display: flex; align-items: center; gap: 8px;
+  background: var(--cc2); border: 0; border-bottom: 1px solid var(--ccline);
+  padding: 6px 12px; min-height: 28px; cursor: pointer; text-align: left; color: var(--cct1);
+}
+.cc-panel-title {
+  font-family: var(--ccmono); font-size: 10.5px; font-weight: 600;
+  letter-spacing: 0.12em; text-transform: uppercase; color: var(--cct1); white-space: nowrap;
+}
+.cc-panel-chips { display: inline-flex; gap: 5px; align-items: center; flex-wrap: wrap; min-width: 0; }
+.cc-panel-caret { margin-left: auto; font-size: 12px; color: var(--cct2); }
+.cc-panel-body { padding: 8px 12px 10px; }
+
+.cc-tag {
+  display: inline-flex; align-items: center; padding: 1px 7px;
+  background: var(--cc3); border: 1px solid var(--ccline);
+  font-family: var(--ccmono); font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--cct1); white-space: nowrap;
+}
+.cc-tag.ok   { color: var(--ccok);   border-color: var(--ccok);   box-shadow: 0 0 10px var(--ccok-glow); }
+.cc-tag.warn { color: var(--ccwarn); border-color: var(--ccwarn); box-shadow: 0 0 10px var(--ccwarn-glow); }
+.cc-tag.attn { color: var(--ccattn); border-color: var(--ccattn); box-shadow: 0 0 12px var(--ccattn-glow); }
+.cc-tag.crit { color: var(--cccrit); border-color: var(--cccrit); box-shadow: 0 0 14px var(--cccrit-glow); }
+.cc-tag.info { color: var(--ccinfo); border-color: var(--ccinfo); box-shadow: 0 0 10px var(--ccinfo-glow); }
+.cc-tag.neutral { color: var(--cct2); }
+
+.cc-err {
+  padding: 6px 10px; font-size: 12px; line-height: 1.5; color: var(--cct1);
+  border-left: 3px solid var(--cccrit); background: color-mix(in srgb, var(--red) 7%, transparent);
+}
+.cc-err b { color: var(--cccrit); }
+.cc-fine { font-size: 11px; color: var(--cct2); line-height: 1.5; }
+.cc-fine.crit { color: var(--cccrit); }
+.cc-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.cc-check { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; color: var(--cct2); }
+
+.cc-striphead { display: flex; align-items: center; gap: 8px; padding: 2px 0; }
+.cc-substriphead { display: flex; align-items: center; gap: 8px; padding: 6px 0 4px; }
+.cc-striplabel {
+  font-family: var(--ccmono); font-size: 10.5px; font-weight: 600;
+  letter-spacing: 0.12em; text-transform: uppercase; color: var(--cct1); white-space: nowrap;
+}
+
+.cc-drill { border: 1px solid var(--ccline2); background: var(--cc0); margin-top: 6px; }
+.cc-drill-head {
+  font-family: var(--ccmono); font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--cct2); padding: 5px 10px; border-bottom: 1px solid var(--ccline); background: var(--cc2);
+}
+/* Evidence tables inside this page read at the DDC scale. Scoped to .ccpage,
+   so the same drill rendered on any other dashboard is untouched. */
+.ccpage .tablewrap table { font-size: 12px; }
+.ccpage .tablewrap th { font-size: 10px; padding: 5px 10px; letter-spacing: 0.08em; }
+.ccpage .tablewrap td { padding: 4px 10px; line-height: 1.4; }
+
+/* ── order 9 · KPI strip, ≤120px ───────────────────────────────────────── */
+.cc-kpiwrap { display: flex; flex-direction: column; gap: 4px; }
+.cc-kpi-strip {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 1px; background: var(--ccline); border: 1px solid var(--ccline);
+}
+.cc-kpi { position: relative; background: var(--cc1); }
+.cc-kpi-open {
+  display: flex; flex-direction: column; gap: 2px; width: 100%;
+  background: transparent; border: 0; color: inherit; text-align: left;
+  padding: 8px 10px; cursor: pointer; font-family: inherit;
+}
+.cc-kpi-open:hover { background: var(--cc2); }
+.cc-kpi-lbl {
+  font-family: var(--ccmono); font-size: 10px; letter-spacing: 0.08em;
+  text-transform: uppercase; color: var(--cct2); line-height: 1.3;
+}
+.cc-kpi-line { display: flex; align-items: baseline; gap: 5px; flex-wrap: wrap; }
+.cc-kpi-val { font-size: 22px; font-weight: 700; line-height: 1.05; font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
+.cc-kpi-val.plain { color: var(--cct0); }
+.cc-kpi-val.ok { color: var(--ccok); }
+.cc-kpi-val.warn { color: var(--ccwarn); }
+.cc-kpi-val.crit { color: var(--cccrit); }
+.cc-kpi-unit { font-style: normal; font-size: 11px; color: var(--cct2); }
+.cc-kpi-delta { font-size: 10px; color: var(--cct2); }
+.cc-kpi-delta.good { color: var(--ccok); }
+.cc-kpi-delta.bad { color: var(--cccrit); }
+.cc-kpi-target { font-size: 10px; color: var(--cct2); line-height: 1.3; }
+.cc-kpi-target.crit { color: var(--cccrit); font-weight: 700; }
+.cc-kpi-ctx { font-size: 10px; color: var(--cct2); line-height: 1.3; }
+.cc-spark { flex: none; align-self: center; }
+.cc-spark-line { fill: none; stroke-width: 1.2; stroke: var(--cct2); }
+.cc-spark-dot { fill: var(--cct2); }
+.cc-spark.good .cc-spark-line { stroke: var(--ccok); }
+.cc-spark.good .cc-spark-dot { fill: var(--ccok); }
+.cc-spark.bad .cc-spark-line { stroke: var(--cccrit); }
+.cc-spark.bad .cc-spark-dot { fill: var(--cccrit); }
+.cc-kpi-assign { position: absolute; top: 4px; right: 4px; opacity: 0; }
+.cc-kpi:hover .cc-kpi-assign, .cc-kpi:focus-within .cc-kpi-assign { opacity: 1; }
+.cc-kpi-assign .tileact {
+  font-size: 10px; padding: 1px 6px; background: var(--cc2);
+  border: 1px solid var(--ccline); color: var(--cct2); cursor: pointer; border-radius: 2px;
+}
+.cc-kpi-assign .tileact:hover { color: var(--ccok); border-color: var(--ccok); }
+
+/* ── seed-to-sale strip ────────────────────────────────────────────────── */
+.cc-flow {
+  display: grid; grid-auto-flow: column; grid-auto-columns: 1fr;
+  gap: 1px; background: var(--ccline); border: 1px solid var(--ccline);
+}
+.cc-stage {
+  display: flex; flex-direction: column; gap: 2px; padding: 7px 9px;
+  background: var(--cc1); border: 0; color: inherit; text-align: left;
+  cursor: pointer; font-family: inherit; min-width: 0;
+}
+.cc-stage:hover { background: var(--cc2); }
+.cc-stage.on { box-shadow: inset 0 -2px 0 var(--ccok); }
+.cc-stage.hot { box-shadow: inset 3px 0 0 var(--ccwarn); }
+.cc-stage-lbl {
+  font-family: var(--ccmono); font-size: 10px; letter-spacing: 0.08em;
+  text-transform: uppercase; color: var(--cct2); white-space: nowrap;
+}
+.cc-stage-n { font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.cc-stage-n em { font-style: normal; font-size: 10px; font-weight: 400; color: var(--cct2); }
+.cc-stage-lb { font-size: 11px; color: var(--cct1); font-variant-numeric: tabular-nums; }
+.cc-stage-bar { height: 5px; background: var(--cc3); border: 1px solid var(--ccline); overflow: hidden; }
+.cc-stage-bar i { display: block; height: 100%; background: var(--ccok); }
+.cc-stage-bar i.hot { background: var(--ccwarn); }
+.cc-stage-age { font-size: 10px; color: var(--cct2); }
+.cc-stage-age.warn { color: var(--ccwarn); }
+.cc-stage-age.crit { color: var(--cccrit); }
+.cc-flow-blocked {
+  margin-top: 4px; width: 100%; text-align: left; padding: 6px 10px;
+  font-size: 12px; line-height: 1.45; color: var(--cct1); cursor: pointer; font-family: inherit;
+  background: color-mix(in srgb, var(--red) 6%, transparent);
+  border: 1px solid var(--ccline); border-left: 3px solid var(--cccrit);
+}
+.cc-flow-blocked b { color: var(--cccrit); }
+
+/* ── in plain words ────────────────────────────────────────────────────── */
+.cc-words { display: flex; flex-direction: column; gap: 5px; }
+.cc-word {
+  display: flex; flex-direction: column; gap: 2px; width: 100%; text-align: left;
+  padding: 6px 10px; background: var(--cc2); color: inherit; cursor: pointer; font-family: inherit;
+  border: 0; border-left: 3px solid var(--ccline);
+}
+.cc-word.good { border-left-color: var(--ccok); }
+.cc-word.warn { border-left-color: var(--ccwarn); }
+.cc-word.bad { border-left-color: var(--cccrit); }
+.cc-word.info { border-left-color: var(--ccinfo); }
+.cc-word.human { background: transparent; border: 1px dashed var(--ccline); border-left: 3px dashed var(--ccline2); }
+.cc-word-text { font-size: 12px; line-height: 1.5; color: var(--cct1); font-style: italic; }
+.cc-word.human .cc-word-text { font-style: normal; }
+.cc-word-by { font-family: var(--ccmono); font-size: 10px; letter-spacing: 0.04em; color: var(--cct2); }
+.cc-word-note { display: flex; align-items: flex-start; gap: 6px; }
+.cc-word-note > .cc-word { flex: 1; }
+.cc-note-add { display: inline-flex; align-items: center; gap: 6px; }
+.cc-note-form { display: flex; flex-direction: column; gap: 6px; padding: 8px; border: 1px dashed var(--ccline); }
+
+/* ── global management ─────────────────────────────────────────────────── */
+.cc-gm-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 1px; background: var(--ccline); border: 1px solid var(--ccline); }
+.cc-gm {
+  display: flex; flex-direction: column; gap: 2px; padding: 7px 9px; text-align: left;
+  background: var(--cc1); border: 0; box-shadow: inset 3px 0 0 var(--ccline);
+  color: inherit; cursor: pointer; font-family: inherit; min-width: 0;
+}
+.cc-gm:hover { background: var(--cc2); }
+.cc-gm.good { box-shadow: inset 3px 0 0 var(--ccok); }
+.cc-gm.watch { box-shadow: inset 3px 0 0 var(--ccwarn); }
+.cc-gm.bad { box-shadow: inset 3px 0 0 var(--cccrit); }
+.cc-gm-name { font-size: 12px; font-weight: 700; line-height: 1.25; }
+.cc-gm-line { font-size: 11px; color: var(--cct1); line-height: 1.35; }
+.cc-gm-line.dim { color: var(--cct2); }
+.cc-gm-line b.crit, .cc-inst-line b.crit { color: var(--cccrit); }
+.cc-gm-gap { font-size: 11px; color: var(--cccrit); font-weight: 600; line-height: 1.4; }
+.cc-gm-orphan {
+  margin: 6px 0 4px; padding: 5px 10px;
+  border: 1px solid var(--cccrit); border-left-width: 4px;
+  background: color-mix(in srgb, var(--red) 8%, transparent);
+  color: var(--cccrit); font-family: var(--ccmono); font-size: 11px; font-weight: 700; letter-spacing: 0.04em;
+}
+
+/* ── work queue ────────────────────────────────────────────────────────── */
+.cc-queue { display: flex; flex-direction: column; }
+.cc-qrow { display: flex; align-items: center; gap: 8px; border-bottom: 1px solid var(--ccline); }
+.cc-qrow:last-child { border-bottom: 0; }
+.cc-qrow.on { background: var(--cc2); }
+.cc-qmain {
+  flex: 1; display: flex; align-items: center; gap: 8px; min-width: 0; height: 26px;
+  background: transparent; border: 0; color: inherit; text-align: left;
+  cursor: pointer; font-family: inherit; padding: 0 2px;
+}
+.cc-qmain:hover { background: var(--cc2); }
+.cc-dot { width: 8px; height: 8px; border-radius: 50%; flex: none; background: var(--cct2); }
+.cc-dot.crit { background: var(--cccrit); box-shadow: 0 0 8px var(--cccrit-glow); }
+.cc-dot.warn { background: var(--ccwarn); box-shadow: 0 0 8px var(--ccwarn-glow); }
+.cc-dot.attn { background: var(--ccattn); }
+.cc-dot.info { background: var(--ccinfo); }
+.cc-qcount {
+  flex: none; min-width: 26px; text-align: center; font-size: 11px; font-weight: 700;
+  font-variant-numeric: tabular-nums; background: var(--cc3); border: 1px solid var(--ccline);
+  padding: 0 4px; font-family: var(--ccmono);
+}
+.cc-qcause { flex: 1; min-width: 0; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cc-qnums { flex: none; display: inline-flex; gap: 8px; font-size: 11px; color: var(--cct1); font-variant-numeric: tabular-nums; }
+.cc-qage { flex: none; font-size: 10px; color: var(--cct2); font-variant-numeric: tabular-nums; }
+.cc-qopen { padding: 6px 10px 8px 26px; border-bottom: 1px solid var(--ccline); background: var(--cc0); }
+.cc-assign { display: inline-flex; align-items: center; gap: 4px; flex-wrap: wrap; padding: 2px 0; }
+.cc-inst-list { display: flex; flex-direction: column; gap: 6px; }
+.cc-inst { padding: 6px 9px; border: 1px solid var(--ccline); border-left: 3px solid var(--cct2); background: var(--cc1); }
+.cc-inst.crit { border-left-color: var(--cccrit); }
+.cc-inst.warn { border-left-color: var(--ccwarn); }
+.cc-inst.attn { border-left-color: var(--ccattn); }
+.cc-inst.info { border-left-color: var(--ccinfo); }
+.cc-inst-what { font-size: 12px; font-weight: 600; line-height: 1.4; }
+.cc-inst-line { font-size: 11px; line-height: 1.45; color: var(--cct1); }
+.cc-inst-line.dim { color: var(--cct2); font-family: var(--ccmono); font-size: 10px; }
+.cc-inst-line b { color: var(--cct2); font-weight: 700; }
+.cc-inst-meta { display: flex; gap: 10px; align-items: center; margin-top: 3px; font-size: 10px; color: var(--cct2); font-variant-numeric: tabular-nums; }
+
+/* ── goals strip ───────────────────────────────────────────────────────── */
+.cc-goals {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-height: 30px;
+  border: 1px solid var(--ccline); background: var(--cc1); padding: 3px 10px;
+}
+.cc-goals-off { font-size: 11px; color: var(--cccrit); min-width: 0; }
+.cc-goals-go { margin-left: auto; }
+
+/* ── yield rows ────────────────────────────────────────────────────────── */
+.cc-yield { display: flex; flex-direction: column; }
+.cc-yrow {
+  display: grid; grid-template-columns: minmax(130px, 20%) 1fr 84px;
+  gap: 10px; align-items: center; height: 26px; padding: 0 4px;
+  background: transparent; border: 0; border-bottom: 1px solid var(--ccline);
+  color: inherit; cursor: pointer; font-family: inherit; text-align: left;
+}
+.cc-yrow:last-of-type { border-bottom: 0; }
+.cc-yrow:hover, .cc-yrow.on { background: var(--cc2); }
+.cc-yname { font-size: 12px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cc-ytrack { position: relative; height: 6px; background: var(--cc3); border: 1px solid var(--ccline); }
+.cc-yfill { position: absolute; inset: 0 auto 0 0; display: block; }
+.cc-yfill.ok { background: var(--ccok); }
+.cc-yfill.crit { background: var(--cccrit); }
+.cc-yfill.plain { background: var(--cct2); }
+.cc-ytick { position: absolute; top: -3px; bottom: -3px; width: 2px; background: var(--cct0); opacity: 0.85; }
+.cc-yval { font-size: 12px; font-variant-numeric: tabular-nums; text-align: right; }
+.cc-yopen { padding: 6px 10px; border-bottom: 1px solid var(--ccline); background: var(--cc0); font-size: 12px; line-height: 1.5; }
+.cc-yopen p { margin: 0 0 4px; }
+
+/* ── rooms ─────────────────────────────────────────────────────────────── */
+.cc-breach {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  padding: 6px 10px; margin-bottom: 6px; font-size: 12px; line-height: 1.4;
+  border: 1px solid var(--cccrit); border-left-width: 4px;
+  background: color-mix(in srgb, var(--red) 7%, transparent);
+}
+.cc-breach b { color: var(--cccrit); }
+.cc-breach em { font-style: normal; color: var(--cct2); font-size: 11px; }
+.cc-breach-acts { margin-left: auto; display: inline-flex; gap: 6px; align-items: center; }
+.cc-ringrow { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 1px; background: var(--ccline); border: 1px solid var(--ccline); }
+.cc-ringcard {
+  display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 8px 6px;
+  background: var(--cc1); border: 0; color: inherit; cursor: pointer; font-family: inherit; text-align: center;
+}
+.cc-ringcard:hover { background: var(--cc2); }
+.cc-ringcard.on { box-shadow: inset 0 -2px 0 var(--ccok); }
+.cc-ring-track { fill: none; stroke: var(--cc3); stroke-width: 4; }
+.cc-ring-fill { fill: none; stroke-width: 4; stroke-linecap: butt; }
+.cc-ring-fill.ok { stroke: var(--ccok); }
+.cc-ring-fill.warn { stroke: var(--ccwarn); }
+.cc-ring-fill.crit { stroke: var(--cccrit); }
+.cc-ring-num { font-size: 13px; font-weight: 700; fill: currentColor; font-variant-numeric: tabular-nums; }
+.cc-ring-name { font-size: 11px; font-weight: 700; line-height: 1.25; overflow-wrap: anywhere; }
+.cc-ring-meta { font-size: 10px; color: var(--cct2); line-height: 1.3; }
+.cc-stockrooms { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 1px; background: var(--ccline); border: 1px solid var(--ccline); }
+.cc-stockroom {
+  display: flex; flex-direction: column; gap: 2px; padding: 7px 9px; text-align: left;
+  background: var(--cc1); border: 0; color: inherit; cursor: pointer; font-family: inherit; min-width: 0;
+}
+.cc-stockroom:hover { background: var(--cc2); }
+.cc-stockroom.on { box-shadow: inset 0 -2px 0 var(--ccok); }
+.cc-sr-name { font-size: 11px; font-weight: 700; line-height: 1.3; overflow-wrap: anywhere; }
+.cc-sr-big { font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.cc-sr-big em { font-style: normal; font-size: 10px; font-weight: 400; color: var(--cct2); }
+.cc-sr-line { font-size: 10px; color: var(--cct2); line-height: 1.35; }
+.cc-sr-chips { display: flex; gap: 4px; flex-wrap: wrap; }
+
+/* ── report groups ─────────────────────────────────────────────────────── */
+.cc-repcols { display: grid; grid-template-columns: 1fr 1fr; gap: 0 14px; }
+.cc-repcol { display: flex; flex-direction: column; min-width: 0; }
+.cc-reprow {
+  display: flex; align-items: center; gap: 8px; height: 26px; min-width: 0;
+  background: transparent; border: 0; border-bottom: 1px solid var(--ccline);
+  color: inherit; cursor: pointer; font-family: inherit; text-align: left; padding: 0 4px;
+}
+.cc-reprow:last-child { border-bottom: 0; }
+.cc-reprow:hover { background: var(--cc2); }
+.cc-rep-name { flex: none; font-size: 12px; font-weight: 600; white-space: nowrap; }
+.cc-rep-preview { flex: 1; min-width: 0; font-size: 10px; color: var(--cct2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+@media (max-width: 900px) { .cc-repcols { grid-template-columns: 1fr; } }
+
+/* ── print: the page is the report; the controls are not ───────────────── */
+@media print { .cc-tools, .cc-kpi-assign, .cc-breach-acts { display: none; } }

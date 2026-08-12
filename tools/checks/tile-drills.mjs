@@ -27,7 +27,7 @@ import { fileURLToPath } from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(here, "../..");
-const UI_FILES = ["app/web/src/App.jsx", "app/web/src/budz.jsx"];
+const UI_FILES = ["app/web/src/App.jsx", "app/web/src/budz.jsx", "app/web/src/commandcenter.jsx"];
 
 /* An object literal handed to a list the user will read. */
 const PUSH = /\.push\(\s*\{([\s\S]{0,500}?)\}\s*\)/g;
