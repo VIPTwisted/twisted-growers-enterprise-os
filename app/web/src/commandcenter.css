@@ -63,6 +63,9 @@
 .cc-tools {
   display: flex; align-items: center; gap: 8px; height: 32px;
   border: 1px solid var(--ccline); background: var(--cc1); padding: 0 8px;
+  /* The toolbar sits tight under the one-line header: orders 1 and 2 budget
+     40px + 32px for the whole chrome, which leaves no room for the page gap. */
+  margin-top: -8px;
 }
 .cc-tools-l, .cc-tools-c, .cc-tools-r { display: flex; align-items: center; gap: 6px; min-width: 0; }
 .cc-tools-c { flex: 1; justify-content: center; }
