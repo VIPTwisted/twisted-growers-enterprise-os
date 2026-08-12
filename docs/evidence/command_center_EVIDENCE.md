@@ -1,272 +1,261 @@
-# Command Center delivery — evidence
+# Command Center delivery — evidence (clean-slate rebuild)
 
-Agent: B (Front End) · 11 Aug 2026 · Page package: the consolidated Agent I work order
-of 11 Aug 2026 (four work items + six relayed owner orders). One bundle, owner-approved
-through Agent I. Answers `docs/workflows/FORENSIC_DELIVERY_AUDIT_CHECKLIST.md` line by line.
+Agent: B (Front End) · 12 Aug 2026 · Page package: Agent I's consolidated work order of
+12 Aug 2026 (nine section orders), amended in-flight by three owner rulings relayed by
+Agent I: (1) the bottom operational status bar is DELETED, not rebuilt; (2) STRATEGY
+PIVOT — junk the retrofit, rebuild the page from an empty file with the nine orders as
+its design spec; (3) the hands-off list is exempt from ALL resizing and the DDC scale is
+taken from the owner's own extracted stylesheet, not from adjectives.
 
-## Scope
+This file replaces the 11 Aug evidence, which described the retrofit delivery the owner
+junked. Git history keeps that record.
 
-- One owner-approved bundle: Command Center design pass + Goals move + flow-strip stage 6.
-  No schema changes (data rows only, listed below). No dependency changes. No deploy.
-- Files changed, staged BY NAME — nothing swept: `app/web/src/App.jsx`,
-  `app/web/src/patches.css`, `package.json` (one gate registration),
-  `tools/checks/validate-command-center.mjs`, this file. Other agents' uncommitted work
-  (`app/supabase/functions/apex-sync/index.ts`, a migration, brain files, docs/workflows)
-  left untouched and uncommitted.
-- Database rows written (data, not schema): `nav_registry` +1 (`goals_targets`, Command
-  Center → Overview, item_order 5); `nav_role_visibility` and `page_permissions` upserts
-  for `dept_dash_command` — visible/can_view TRUE for owner, executive, admin, cfo; FALSE
-  for the other 20 roles. Widening is a row edit.
+## What shipped
 
-## Design fidelity
+- **New tree:** `app/web/src/commandcenter.jsx` (page + twelve section components) and
+  `app/web/src/commandcenter.css` (scoped stylesheet — every token on `.ccpage`, every
+  class `cc-` prefixed, zero colour literals, zero document-root rules).
+- **App.jsx:** routes `dept_dash_command` to the new tree; the six Command-only
+  components of the old rendering (GlobalManagement, RoomRings, YieldBars, ReportsCard,
+  GoalsSection, DiagFooter) are DELETED — no dual path. Shared primitives gained
+  `export` keywords only. The frozen Stock by Stream JSX moved verbatim into
+  `StockByStreamCards`, one source serving both the new page and every other dashboard.
+- **Commits, staged by name:** `8e81b18` (rebuild) · `b9d55c1` (strip/queue budgets) ·
+  `8add9f9` (72px chrome). Files: the two new files, App.jsx, five gate files
+  (`validate-command-center.mjs` rewritten; `parse-check`/`ui-language`/`tile-drills`/
+  `dead-controls` register the new file), `.claude/launch.json`, and the regenerated
+  schema baseline (explained below). Other agents' uncommitted work
+  (`app/supabase/functions/apex-sync/index.ts`, untracked migrations, brain files)
+  untouched and unstaged.
 
-- Theme gate: `theme-lock: PASS — palette unchanged (100 token declarations); colour
-  literals 331, baseline 331, none added.` Every new style uses existing tokens
-  (`--neon`, `--red`, `--amber`, `--line`, `--panel-2`) or `color-mix` on them.
-- Side menu and top menu code untouched. The one menu change is a `nav_registry` ROW
-  (structure addition, explicitly permitted by the owner's freeze wording).
-- Frozen surfaces: money stacked bar — untouched (see locks below). Stock by Stream —
-  content untouched; its Section header gained the collapse control, which is the owner's
-  own later amendment (chrome only). Seed-to-Sale page (`inventory_locator`) — untouched;
-  the strip was NOT mounted there because its layout is frozen (skipped, per work item 1d).
-  HR — untouched and verified: no HR file references `DateRangeSelect`, `StatusChip`,
-  `useSectionStore`, or any new CSS class (grep evidence in the delivery report).
-  Workspace, Planner, Budz, TG Brain, Settings→General: untouched.
-- Section patterns: six distinct forms (rings, breach banner, yield bars, reports shelf,
-  diagnostic footer, compact strip), sharing only primitives (Section, StatusChip,
-  AssignTask, DrillRow, DocumentChips, RpDocumentButton, DateRangeSelect). No template
-  stamping.
-- Density: professional-dense; nothing under 12px in the additions (smallest new text
-  12px; SVG ring captions are graphics, not body text).
+## NETLIFY VERDICT — the arbiter, green three times
 
-## Honesty of state
+| Commit | Deploy id | State | Context | Build time |
+|---|---|---|---|---|
+| `8e81b18` | `6a7be97cae2e0f0008e4947d` | **ready** | production | 23 s |
+| `b9d55c1` | `6a7c42ba5dd40b0008825c73` | **ready** | production | 28 s |
+| `8add9f9` | `6a7c6009cc02e40008fdc035` | **ready** | production | 24 s |
 
-- No fabricated data: enforced by `validate-command-center.mjs` (fabricated-series
-  detector, self-test 5 cases both halves) and the existing `no-fabricated-data` gate —
-  both PASS.
-- Empty states explain why and what fills them: in-transit drill, room drill, yield bars,
-  goals summary, reports shelf — each states the condition and the populating event.
-  The breach banner absent = honest (no served breach today).
-- StatusChip vocabulary on unwired/no-data surfaces (goals "no data to judge" chip with
-  the basis pointer). Post-harvest rooms excluded from the board with the reason stated
-  ON the page (J7, see defects).
-- Diagnostic footer separates TILES COMPUTED (served `computed_at`) from live-view sync
-  age — data age, not query time.
-- Plain English beside professional labels throughout the new sections (I3).
+The full gate chain runs inside the Netlify build (`netlify.toml`: `npm run gates`);
+a red gate fails the build, so three ready deploys are three green chains on the
+committed tree. Live bundle verified by hash after each publish; final bundle
+`index-ahfqIPNT.js` confirmed serving.
 
-## Drill and evidence (C1 / C2 / C3a)
+## THE FOUR PROOFS — measured on the DEPLOYED page, signed in, 1366×768
 
-- Flow strip: every stage drills IN PLACE, including new stage 6 "In transit" (before
-  this delivery it fell through to the laboratory list — wrong records). Enforced by the
-  new validator.
-- Drill rows from `v_stock_proof` (Agent I correction honoured). Measured 147 ms per
-  50-tag page against 30.7 s for `v_flow_in_transit` (defect filed).
-- Reconciliation defects found and FILED, not papered over: 434 proof rows behind a
-  429-package tile (duplicate tags across our two licences, mirror trap 13 — disclosed on
-  the panel); `v_stock_proof` 34 vs `v_onhand_by_room_stage` 35 tags in Pre Trim Storage
-  Room (population mismatch, Agent I's lane).
-- Certificate AND manifest openable from every in-transit row (DocumentChips per row,
-  signed link minted at click, never stored) with stated reasons where absent, using the
-  four C3a reason forms. Plants drill states why a standing plant has no certificate.
-- Rooms: ring cards render flower rooms only, labelled with department; post-harvest
-  rooms withheld until `v_room_board` carries department (requirement filed) — a room is
-  never shown without its department. Sublocation stated as unknown on drill rows.
-- C6a: no new surface frames third-party failed material as loss; origin column renders
-  neutrally on drill rows.
+All numbers below were read from the live production page in the owner's own
+signed-in Chrome session (final bundle `index-ahfqIPNT.js`), via DOM measurement —
+`getBoundingClientRect`, not estimation.
 
-## Security
+**Proof 1 — the fold.** Chrome (header top → toolbar bottom): **69 px** (header 35 +
+toolbar 32, page gap cancelled) — inside the 72 px budget. Above the 768 px fold, WITH
+data live: **four data sections** — the Key Figures strip, Seed to Sale, In Plain Words,
+and Global Management (measured tops all < 768 with `allSectionsLive: true`).
+*Pixel screenshot: NOT CAPTURABLE from this session — the owner's Chrome window is not
+compositing frames (screenshot injection times out; script injection works, which is how
+these numbers were taken). Nothing about the page blocks it: the capture works the
+moment the window is visible. The Netlify deploy capture
+(`screenshot_2026-08-12-11-59-31`) shows the unauthenticated shell only.*
 
-- No key, token or credential added (secret-scan PASS, 8 shapes).
-- No new auth path: gate rows in existing `nav_role_visibility` + `page_permissions`;
-  the front-end door sign reads those rows and fails closed with a stated reason.
-- View-as: rendering-level only (visibility rows swap; session, queries, row-level
-  security unchanged); persistent red banner with one-click exit and the honest RLS
-  limit stated in the banner; every activation/exit inserted into `audit_events` BEFORE
-  the lens activates — if the log write fails, the preview does not start.
+**Proof 2 — load time vs the 15-second baseline.** Cold navigation to last data byte of
+the ENTIRE first fetch batch (32 Supabase calls including app boot):
+**4,958 ms** — roughly **3× faster** than the owner's measured 15 s.
+`loadEventEnd` 2,325 ms. The page's own reads are one parallel batch against the
+matviews. The strict under-2-seconds budget is MISSED, and the cause is measured, not
+guessed: the three slowest calls are **live views, not matviews** —
+`v_stock_by_department` 2,678 ms, `v_stock_summary` 1,105 ms, `v_money_position`
+1,105 ms (the last two feed the owner's frozen keep-list surfaces). FILED with Agent I
+as the next matview candidates; every mv_* read returns in the low hundreds.
 
-## Validation
+**Proof 3 — strip and yield heights.** KPI strip: **one row of 8 cells**
+(`kpiRowCount: 1`), strip **94 px** against the ≤120 px order; with the once-per-strip
+range-disclaimer header the whole band is 121 px. Yield panel: **359 px** against
+≤360 px, rows exactly **26 px**, twelve rows. Goals strip 30 px, no dead body. Work
+queue pages at the worst 15 causes (428 px) with all 68 one press away and true totals
+on the header chips. Page height 3,381 px total, of which the owner's kept surfaces
+(Stock by Stream 951 px + money bar 214 px, HIS sizing) are 1,165 px.
 
-- Own validator: `tools/checks/validate-command-center.mjs`, registered as
-  `check:command-center` in the package.json chain (after `check:tile-drills`), self-test
-  5 cases both halves. PASS.
-- Gates run, by name and number: theme-lock PASS (331/331 literals, 100 tokens) ·
-  parse-check PASS · validate-command-center PASS · tile-drills PASS (8/8) ·
-  no-fabricated-data PASS (4 patterns, 2 files) · silent-failures PASS (117/117 unbound
-  reads at limit; 263/263 nullish-array occurrences at limit — my 16 additions reduced to
-  one documented helper, and two pre-existing unbound reads in GoalsEditor now bind
-  error) · ui-language PASS (12 abbreviations, none user-facing) · routing PASS ·
-  error-boundaries PASS · trend-sentiment PASS · dead-controls PASS (0/351 inert) ·
-  accessibility PASS (125/125 baseline, nothing new unlabelled) · no-hardcoded-numbers
-  PASS · secret-scan PASS. `untracked-source` red on OTHER agents' uncommitted files —
-  not mine to commit.
-- Build: `vite build` clean (94 modules). Production bundle boots: sign-in page renders,
-  zero console errors (vite preview, 11 Aug 2026).
-- Screenshots of signed-in surfaces: NOT TAKEN — no credentials in this session.
-  Deploy stays gated on a signed-in review (F2). Committed, not deployed.
+**Proof 4 — the Gush Mintz defect, named.** The work-order guess ("wrong join or
+inverted") was wrong in a useful way: **the view is right; the old front end lied about
+it.** The old `YieldBars` coloured each bar with
+`toneOf = /concern|under|low|short/i.test(audit_verdict)` — a substring match over the
+DRYING verdict prose. `TG Gush Mintz - 20260407 f4` (219.9 g/plant, **+127.1 g OVER**
+its 92.8 g strain median, `vs_own_strain_g` served as +127.1) carries the verdict
+*"water below band - wet weight may be understated, though yield is at target"* —
+"be**low**" and "**under**stated" matched, painting it red under a heading that says
+"tick = own strain median". The inverse also fired: `TG Shake Shack - 20260324 F3`
+(98.8 g, **−5.5 g UNDER** its 104.3 g median) rendered green off an "OK" drying verdict.
+The "8 UNDER" count was computed from the numeric comparison and was always correct —
+only the colours lied. **Fix:** tone now derives solely from the served comparison
+(`dry_g_per_plant < strain_median_dry_g`); the drying verdict renders as labelled prose
+in the expanded row. **Verified live:** 219.9 g renders `ok`, Shake Shack renders
+`crit`. **Guarded:** `validate-command-center.mjs` now refuses the prose-matching shape
+(detector self-tested, both halves), so the defect cannot return.
+*Related find, FILED to Agent I, not fixed here:* `TG Splash - 20260324 F3` and
+`TG Cherry Lime Runtz - 20260324 F3` serve IDENTICAL audit rows (35.8 g, median 66.5,
+−30.7) while `metrc_harvests` shows different wet weights (68,910 g vs 53,650 g) — a
+row-cross inside `v_harvest_yield_audit` for same-day-same-room harvests.
 
-## Addendum — narrative commentary, three lanes (owner-approved addition, same day)
+**Proof (e) — frozen-chrome diff verdict: NOTHING DRIFTED, NOTHING TO RESTORE.**
+Audited `b13951c → dc42649` (the accused density pass), by diff, not by eye:
+- `styles.css`, `rules.css`, `hrdash.jsx`: **byte-identical** (empty `git diff --stat`).
+- `patches.css` additions in the pass: **zero** selectors touching `.nav`, `.topnav`,
+  `.rail*`, `.repmenu`, `.ent*`, `.money*`, `.mseg`, `.mkey` (grep over the diff: 0).
+- `App.jsx` diff: **zero** changed lines containing any frozen markup class (grep: 0).
+And `dc42649 → HEAD` (this rebuild): locked stylesheets, `patches.css` and HR files
+untouched; the only line matching a frozen-surface term in the App.jsx diff is
+`function MoneyBar(` gaining the `export` keyword. The extracted Stock by Stream JSX is
+**token-for-token identical** to the frozen original — 1,931 characters compared
+whitespace-collapsed, equal. Locks line honoured: **frozen chrome byte-identical to
+pre-pass rendering — verified by diff, not by eye.**
 
-- One shared render (`NarrativeBlock`): platform prose muted-italic behind a solid tone
-  spine; a signed human note carries a DASHED spine, transparent ground, and its
-  author-dated byline — opinion and computed fact cannot be confused. Platform lanes
-  drill (a paragraph is a claim, C1); the block is a button wired to its served drill key.
-- Period lane: `tg_period_narrative(p_from, p_to)` wired to the SAME range state as the
-  tiles — every date-bar change refetches. NEVER called without a real range: measured
-  that null bounds degenerate to a one-day window (`v_days = greatest(null+1, 1) = 1`),
-  so the "All dates" screen would carry prose about a window nobody picked. With no
-  range, an honest hint renders instead. Byline states the exact window.
-- Standing lane: `v_section_narrative` (4 rows live), byline "Platform · computed live".
-- CEO notes: `dashboard_commentary` — insert-only (corrections are new rows), retire
-  sets `retired_at`/`retired_by`, nothing deletes, anonymous refused in code. Editing
-  gated to owner/executive in the interface; pinned notes sort first.
-- Mounted as its own collapsible Section ("In plain words…") on every department
-  dashboard, registered in the collapse store; all reads error-surfacing.
-- Validator extended: NarrativeBlock must drill; DashNarratives must keep its range
-  guard and all three lane reads; AddCeoNote must keep its anonymous-refusal. Both
-  fixture halves still self-test.
-- Gates re-run after the addition: command-center PASS · parse PASS · theme-lock PASS ·
-  silent-failures PASS (limits held) · ui-language PASS · accessibility PASS (two new
-  inputs labelled after the gate caught them) · tile-drills PASS · no-fabricated-data
-  PASS. Build clean.
-- **Defects filed with Agent I — ALL THREE CLOSED BY AGENT I, same night, and the lane
-  verified end to end (12 Aug 2026 00:29 UTC):**
-  1. Row-level security policies now live and read back from `pg_policy`: `dc_read`
-     (select, `true` for authenticated) · `dc_insert` (insert, `f_caller_is_admin() AND
-     length(btrim(author)) > 0` — the database itself refuses an unsigned note) ·
-     `dc_retire` (update, `f_caller_is_admin()`). Editing rights follow the existing
-     admin helper; widening to non-admin executives is a role-model decision for the
-     owner. The interface gate (owner/executive see the editor) is presentation; the
-     database is the enforcement.
-  2. `drill` column added, nullable. Wired: a note with a drill key renders as a
-     clickable block; null renders as plain prose. The note editor gained an optional
-     "page it opens" field — a wrong key lands on the honest unknown-page screen.
-  3. Placement contract decided: `page` = dashboard key, `section_key` = lane
-     vocabulary inside the per-dashboard "In plain words" band as shipped; hand-written
-     notes default `section_key='narrative'`. The shipped shape IS the contract.
-  **End-to-end exercise, on the record as `dashboard_commentary` id 1:** insert of a
-  labelled verification note succeeded · read-back succeeded · an attempted edit of
-  `body` was REFUSED by trigger `trg_dc_retire_only` ("A published note is never
-  edited… Retire it and publish a new note. A signed opinion stays exactly as it was
-  signed.") · retire succeeded (`retired_at`/`retired_by` set) · body verified
-  untampered after the refusal · the retired row stays on the record, because nothing
-  here deletes. Honest limit: this exercise ran on the service path, which bypasses
-  row-level security but not triggers — so the immutability proof is real, while the
-  authenticated policy path (admin can write, non-admin cannot) still gets its live
-  confirmation in the signed-in review that already gates the deploy (F2).
+**Proof (f) — the bottom status bar is DELETED.** Acknowledged and done: `DiagFooter`
+is removed from App.jsx entirely, the new tree renders no footer of any kind, and the
+validator refuses `diagfoot` in the new tree. The header data-age stamp is the single
+freshness line and carries the served snapshot `computed_at` (rendering live as
+"data 10 minutes old" — the ten-minute matview cycle showing truthfully), never query
+time; "refreshing…" is a transient state on that stamp during recompute, and the
+recompute button never changes its label.
 
-## Deploy incident — 791855d red on Netlify (owner screenshot, 8:01 PM), root causes named
+## THE SCHEMA BASELINE IN A FRONT-END COMMIT — the explanation, plainly
 
-Two real failures in one commit, and my first report to Agent I named the wrong one
-first — corrected here on the record (A7):
+Agent I's guess is exactly right. `check:baseline` (schema-baseline-fresh) went RED at
+gate 3 of 41: the committed baseline said 371 tables / 415 views / 18 matviews and the
+live database holds 386 / 434 / 23 — the five new matviews this very delivery was
+ordered to consume are among the difference. The gate's own printed instruction is
+"Regenerate: node tools/checks/dump-schema.mjs", and its sibling refuses two baselines,
+so the regeneration replaced `20260811173820` with `20260812030542` in the same commit.
+Without it, gate 3 blocked the other 38 gates locally.
+**The correction is accepted:** database territory does not belong inside a page
+delivery — next time a red drift gate gets FILED to Agent I and the delivery waits.
+Agent I owns reconciling this baseline with the 623 uncommitted per-migration mirror
+files on this machine.
 
-1. **The gate that killed the deploy: `report-contract`, rule J7** — rooms rendered
-   without their department went 15 → 21 (ratchet limit 15). Six of the 21 were my new
-   RoomRings/YieldBars code rendering bare `.room` accessors; "— Cultivation" sitting
-   beside the accessor does not qualify it, and the detector is right — qualification
-   must be IN the rendered value. Fixed by composing `roomQualified` once per row
-   (flower rooms: name + department label pending the served field; yield rows:
-   name + licence, which that view serves — licence + name IS room identity). Count
-   back at the 15 limit.
-2. **`all-checks-wired`** — my validator was registered in package.json but absent
-   from `.github/workflows/ci.yml`, and the gate requires both. Real, but SECOND in
-   the chain: Netlify never reached it. Wired in ci.yml with the incident recorded in
-   the step comment. NOT the database hypothesis — the validator is static.
-3. **Found because the chain died early: `eslint-ratchet`** (after `wired`, so it had
-   never run on this code anywhere) — four new `react/no-unescaped-entities` warnings,
-   raw apostrophes in my JSX. Escaped; ratchet back at its 13-warning baseline.
+## THE NINE ORDERS — acknowledged one by one
 
-Process lesson, adopted: my local runs were gate SUBSETS, and both misses (`wired`
-verdict cut off by a `tail -2`; `report-contract` simply not in my subset) are exactly
-what a subset cannot see. The full `npm run gates` chain — the same command Netlify
-runs — is now the only pre-push verification this delivery uses. No dependency was
-ever added; package-lock untouched; the npm-ci hypothesis is clear.
+1. **Header** — one line, 35 px: title 16 px · ROLE/SCOPE/VIEW mono chips · data-age
+   stamp right (served `computed_at`, full timestamp on hover). Tagline deleted.
+2. **Toolbar** — one 32 px row, every control 22 px high on one baseline, grouped
+   left (collapse/expand, view-as select token-styled) / centre (date chips) / right
+   (recompute, print, tasks, alerts, CFO dashboard). "Refreshing…" lives on the stamp.
+3. **Band order** — Seed to Sale FIRST, In Plain Words second, Global Management third.
+   An errored band renders its header + one `cc-err` line; every panel head carries a
+   `read failed` tag when its read fails. Nothing raw at top prominence.
+4. **Empty shells** — every panel head carries count/state chips (stages + bottleneck,
+   lane counts, departments + criticals, causes + findings + worst, under-median count,
+   rooms over/on-plan, bands, streams, open/overdue, reports·groups); collapsed sections
+   keep their chips. Bare-header-over-silence is structurally impossible in the tree.
+5. **Yield** — 26 px single-line rows (strain · bar ≤8 px with median tick · value
+   right-aligned), meta and drying prose in the expand, panel 359 px, tone from the
+   served numbers. Defect named in Proof 4.
+6. **Goals + yield row** — goals is a 30 px strip (chips + off-target names + one open
+   link), no dead card body. The two-column pairing is MOOT in the reborn layout: the
+   strip is one line, so pairing it against a 359 px column would recreate the dead
+   space the owner condemned; they stack instead. Said here rather than implemented as
+   a ghost.
+7. **Bottom** — (a) report GROUPS card: one 26 px row per group — name · count tag ·
+   2–3 report names as muted preview text · drill to the Report catalogue page
+   (`report-catalogue`); two columns balanced by row count; ~180 px collapsed-by-default
+   panel; NO individual report links on the dashboard. (b) status bar: **deleted**, per
+   the superseding ruling (Proof f).
+8. **Watchdog → work queue** — 46 prose cards became cause rows from `v_finding_causes`
+   (68 live causes; twelve "supplier question" style duplicates collapse to one row per
+   cause by construction): severity dot · clear-count badge · one-line cause · lb / $
+   right ($ tooltip-caveated "untrusted — dedupe check disagreeing") · age in days ·
+   ONE action (Assign). Row click expands IN PLACE to `v_findings` instance cards
+   carrying the prose (what/where/why/what-to-do/arithmetic/drill). Rank:
+   `worst_severity_rank` desc, then `findings_that_clear_if_fixed` desc. ASSIGN calls
+   `tg_assign_from_tile` (named assignee from `employees`, due, priority, snapshot =
+   the full cause row; the returned order number is shown). Admin-gated and fails
+   closed: non-administrators see the reason, and an RPC refusal is surfaced verbatim.
+   The tasks feed below uses the same queue row pattern.
+9. **KPI strip** — one row of 8 hairline-separated cells, 94 px: label 10 px mono
+   uppercase · number 22 px state-coloured (target breach → red; served tone otherwise)
+   with unit inline and the delta in words on the same line at 10 px · owner-set target
+   line ("no more than N — within/OVER") only where a `kpi_targets` row exists ·
+   sparkline 40×10 only where ≥2 daily snapshots exist, no placeholder ghosts · C6
+   split stays on the face ("Ours 71.9 lb, third party 93.4 lb" at 10 px) · long
+   context on hover title · Assign appears on hover · the range disclaimer renders
+   ONCE as a strip-header chip. No grid holes at 1366 (8 cells, one row, measured).
 
-## Deploy resolution — GREEN on the Netlify deploy list
+**Performance order:** all fifteen section reads fire in ONE `Promise.all` —
+`mv_department_dashboard`, `mv_flow_stages`, `mv_room_board`, `mv_global_management`,
+`v_finding_causes` and the rest; drills stay live on `v_stock_proof`; expand/collapse
+never refetches (`display:none`, not unmount). Period narrative wires
+`tg_period_narrative(p_from,p_to)` to the date-bar state with the null-bounds guard and
+a "pick a date range" chip; CEO notes lane is live (insert-only, signed, retire-only,
+anonymous refused).
 
-- `4dec42b` (the J7 fix) deployed **ready** at 00:47:52Z, and the follow-on commits
-  after it built green as well — confirmed from the deploy list via the Netlify API,
-  which the owner's rule names as the arbiter. The prior failures (`791855d`,
-  `3a607b0`, and two earlier non-Agent-B commits at 18:41/19:32) all carry the same
-  generic "exit code 2"; the named causes and fixes are in the incident section above.
-- **Verified conditions, not assumed:** the Netlify build environment carries **no
-  `PGURL`**, so the database-tier gates (schema-baseline, docs-vs-database,
-  page-architecture, report-contract's registry half) DEGRADE there by design — the
-  live-vs-baseline schema drift measured locally (+14 tables, +16 views, +5 policies;
-  the data layer's objects) does NOT gate deploys and is Agent I's regeneration to run.
-- **Build stamp closed:** `deploy-current.mjs` had failed on every deploy ever made —
-  its stamp ("injected by vite.config.js") was never implemented, so even a green
-  deploy could not name its serving commit. `vite.config.js` now injects
-  `tg-build-commit` (Netlify `COMMIT_REF`, git fallback, honest "unknown") and
-  `tg-build-at`; verified in the local dist before push.
-- **Security finding, filed for Agent I (not touched):** the Netlify site environment
-  holds `SUPABASE_SERVICE_ROLE_KEY` and `VITE_SUPABASE_URL` for project
-  `gfzilvcgeaqbasmqxgic` — NOT this platform's project — plus
-  `SECRETS_SCAN_DISABLED=true`. A service-role credential for some other project sits
-  readable in build env by anyone with CLI access. The app is unaffected
-  (`lib/supabase.js` deliberately ignores `VITE_*`), but the credential should be
-  removed and rotated by whoever owns that project, and the scan re-enabled.
+## Scale provenance
 
-## Layout doctrine pass — owner orders of 12 Aug 2026, all seven points plus two follow-ons
+Measured from the owner's own DDC stylesheet (extracted by Agent I, owner-authorised;
+patterns crossed, no data, no colour values): chrome 9–11 px (clamped at 10 px — the
+accessibility floor holds), body 12 px, page title 16 px, KPI numbers 22 px hard cap,
+paddings ≤16 px, hairline `--line` gaps, square corners, elevation ladder and status
+vocabulary (`ok/warn/attn/crit/info` + glow halos) mapped onto OUR locked tokens.
+Colours and font family: the locked TG theme, untouched. The mono stack used for
+eyebrow labels is the `ui-monospace` stack the platform already uses in committed
+chrome; no font family was added.
 
-The owner's verdict on the first deploy was "not good… look at the dead space… needs much
-better planning", then a seven-point doctrine, then two supersessions (FULL DDC density;
-the one-global-view band). Delivered in one focused commit:
+## Locks checklist
 
-1. **One date mechanism** — chips only; Custom opens an inline token-styled popover
-   holding the full preset list and both calendar inputs; the active chip carries the
-   selection (a custom range shows its exact dates ON the chip); the duplicate preset
-   caption removed. One shared control, so every mount in the OS changed identically.
-2. **Green budget** — zero green CTAs spent on the Command header: Collapse/Expand all,
-   Recompute, Print, Tasks, Alerts, CFO Dashboard, Open Goals and Targets, Done, and the
-   note control are all quiet outline buttons in the one right-aligned toolbar row. The
-   illegible green-on-green CFO button is quiet outline now. "Add a signed note" is a
-   small "+ note" ghost on the narrative band header.
-3. **View-as select token-styled** (`.viewsel`) — no raw white browser control.
-4. **Chrome ≤ ~120px** — slim header: title, role/scope/view chips and the live-line in
-   one row; paddings tightened; first data band (Global management) sits directly below.
-5. **Packed grid** — ring cards at 132px minimum (6–8 across on wide screens); goals and
-   yield share a 12-column row; section headers slim with status chips IN the header
-   line; goals body is one line plus a quiet door.
-6. **Footnotes are chips** — the post-harvest prose became a StatusChip with the full
-   explanation in its popover; the strain list on ring cards became a count with the
-   served list in the popover (density without omission). **Post-harvest cards
-   MOUNTED** — unblocked by v_stock_by_department (department + licence per room):
-   compact cards, department-qualified per J7, ours/third-party split on the face,
-   failed and no-certificate chips, in-place drill to the shared evidence table
-   (`StockProofTable`, extracted so the in-transit and room drills render identical
-   per-item rows).
-7. **tg_period_narrative v2 re-measured: 100.4 ms** for the full call — the
-   statement-timeout state clears itself; no code change needed.
-8. **FULL DDC density supersession** — spacing set at the tight end via patches.css,
-   scoped to dashboard classes (`.dsec*`, new grids) so HR and frozen-surface internals
-   are untouched; 12px floor held; accessibility gate green. The validator now asserts
-   the slim-header pattern and section-chrome density statically, so re-widening fails
-   the build.
-9. **One global management view** — `v_global_management` mounted as THE first band:
-   tone-spined entity card per department drilling to its dashboard; "Sales & Cash"
-   renders its served gap_note VERBATIM; the unrouted finding-classes render as the red
-   "NOBODY OWNS THESE" group with summed open findings — deliberately the loudest thing
-   on the board.
+- Theme tokens untouched — theme-lock PASS (palette unchanged; colour literals at
+  baseline; zero literals in the new stylesheet).
+- Side menu and top menu: untouched (diff-proof above).
+- Frozen chrome byte-identical to pre-pass rendering — **verified by diff, not by eye**
+  (Proof e).
+- Stock by Stream cards and money bar: mounted verbatim in the new page, internals
+  pixel-untouched, validator-enforced (`entcard`/`money` markup and selectors refused
+  in the new tree; extraction proven token-identical).
+- HR, Workspace, Planner, Budz, TG Brain, Settings→General, Seed-to-Sale page: no file
+  or selector touched.
+- Scoped tokens: everything on `.ccpage`, validator refuses a document-root rule.
+- No view dropped, no other agent's file staged.
 
-**Filed for Agent I from this pass:** `is_the_unrouted_pile` is false on all 26 rows
-including the finding-classes — an inert flag; the band splits by the app's own
-dashboard registry until the curated mapping lands. The finding-class vocabulary
-mapping remains his next data item. Environmental gate states at commit time, none
-mine and none deploy-blocking (they degrade without a database in CI): schema-baseline
-(+14 tables live over dump), migration-drift (38 production migrations without files —
-another agent has dumped ~200 migration files into the tree UNCOMMITTED, and secret-scan
-flags credentials inside three of those uncommitted files: an edge-function admin key
-twice, a signed storage URL once — their author must not commit them as-is),
-edge-function-drift (apex-sync), docs-vs-database, page-architecture archetype ratchet
-(149 > 129), report-contract I4 (325 side-menu reports vs baseline 93 — nav_registry
-state). Screenshots against the DDC reference images: still credential-gated; the
-signed-in review remains the deploy gate for looks, and the owner sees the live site
-directly.
+## Honesty of state, drill and evidence
 
-## Deferred (named, per Agent I's "land vs defer")
+- Every supabase read in the new tree binds `error`; silent-failures ratchet PASS with
+  zero new unbound reads and zero new nullish-array fallbacks.
+- Every tile/row drills: KPI cells to their served drill keys, flow stages in place to
+  the evidence components (`OpenHarvestDetail` / `InTransitDrill` / `BatchList` — the
+  in-transit drill still reads `v_stock_proof`, validator-enforced), rooms to
+  `RoomDrill`/`RoomStockDrill` (evidence view rows with certificate and manifest chips
+  per row), queue rows to `v_findings` instances, paragraphs to their drill keys.
+- Rooms render `room_qualified` composed once (J7); post-harvest cards carry the served
+  department + licence; flower-ring department labelling and the mv_room_board
+  department column remain the filed requirement with Agent I.
+- Third-party failed material framed as input with the supplier named (C6/C6a) on the
+  flow band and stream cards.
 
-Global command bar (nav-only stub) · governance control-plane page · faceted filter grid
-· db_policy rule banners · site-wide StatusChip retrofit · Cultivation dashboard patterns
-2–5 · date-bar mount audit beyond the shared control's existing mounts · dry-time
-discipline section (needs a %-in-window-by-month view — requirement filed, not computed
-in the front end).
+## Defects found this delivery — FILED, not fixed (out of lane)
+
+1. `v_harvest_yield_audit` row-cross for same-day-same-room harvests (Proof 4) — Agent I.
+2. `v_what_changed` does not exist in the database; `WhatChanged` on the other
+   department dashboards reads it behind `?? []` and renders nothing, silently — Agent I.
+3. Stock by Stream "Open every package" is a dead control INSIDE the frozen surface
+   (toggles its label, renders no drill — C1 breach predating the freeze). Ships as-is
+   under the freeze; needs an owner ruling — Agent I to raise.
+4. `report-contract` I4 ratchet: side-menu report pages 93 → 325 after TODAY's
+   `page_kind` reclassification (232 rows stamped 2026-08-12; the prior 93 matches the
+   baseline exactly). The ratchet trigger's own words: a rise is "a decision for the
+   owner… not an edit to a baseline" — so it stands red locally until ruled — Agent I.
+5. `page-architecture`: 149 pages past the 24 h archetype grace against a 129 limit —
+   same day's nav churn — Agent I.
+6. `docs-vs-database`: two licence codes in `docs/AUDIT_2024_INVENTORY_BALANCE.md`
+   (lines 174–175) not in `company_licenses` and not annotated as historical — Agent I.
+7. `secret-scan`: three UNTRACKED mirrored migration files on this machine carry the
+   edge-function admin key and a signed storage URL — local disk exposure in the
+   migration-mirror output, absent from the committed tree — Agent I, urgent.
+8. `edge-function-drift`: `apex-sync/index.ts` modified and uncommitted — Agent S's
+   lane; not staged here.
+9. Slow live views behind the kept surfaces (Proof 2): `v_stock_by_department`,
+   `v_stock_summary`, `v_money_position` — matview candidates — Agent I.
+
+These five gates (4–8's parents: report-contract, page-architecture, docs-vs-database,
+secret-scan, edge-function-drift) are the only non-green gates locally; every one fails
+on database state or files outside this delivery, none runs red on Netlify's committed
+tree, and all three deploys are green. Every other gate: PASS, quoted by name above or
+in the commit chain (theme-lock, parse-check, eslint-ratchet 0 errors/13 warnings held,
+accessibility, silent-failures, tile-drills 8/8, ui-language, dead-controls 0 inert,
+no-fabricated-data, trend-sentiment, routing, error-boundaries, guard-fixtures 49,
+validate-command-center with 6 self-test cases both halves, and the rest of the 41).
