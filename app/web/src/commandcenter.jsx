@@ -536,9 +536,16 @@ function CcQueueInstances({ row, go }) {
 
 function CcQueue({ causes, isAdmin, go }) {
   const [openRow, setOpenRow] = useState(null);
+  /* Paged like every honest feed on the platform (the in-transit drill set the
+     pattern): the first page renders, the header chips carry the TRUE totals,
+     and one press shows the rest. Nothing is summarised away — every cause is
+     one press from the screen. */
+  const PAGE = 15;
+  const [showAll, setShowAll] = useState(false);
+  const visible = showAll ? causes : causes.slice(0, PAGE);
   return (
     <div className="cc-queue">
-      {causes.map((r) => {
+      {visible.map((r) => {
         const key = r.source + "|" + r.pattern_key;
         const open = openRow === key;
         const cause = r.pattern_key.includes(":") ? r.pattern_key.slice(r.pattern_key.indexOf(":") + 1) : r.pattern_key;
@@ -564,6 +571,11 @@ function CcQueue({ causes, isAdmin, go }) {
           </React.Fragment>
         );
       })}
+      {causes.length > PAGE && (
+        <button className="cc-btn cc-qmore" onClick={() => setShowAll((v) => !v)}>
+          {showAll ? "Show the worst 15 causes only" : `Show all ${causes.length} causes (${causes.length - PAGE} more)`}
+        </button>
+      )}
     </div>
   );
 }

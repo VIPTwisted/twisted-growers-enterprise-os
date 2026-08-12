@@ -152,9 +152,9 @@ textarea.cc-input { height: auto; padding: 6px 8px; font-size: 12px; line-height
 }
 .cc-kpi { position: relative; background: var(--cc1); }
 .cc-kpi-open {
-  display: flex; flex-direction: column; gap: 2px; width: 100%;
+  display: flex; flex-direction: column; gap: 1px; width: 100%;
   background: transparent; border: 0; color: inherit; text-align: left;
-  padding: 8px 10px; cursor: pointer; font-family: inherit;
+  padding: 6px 10px; cursor: pointer; font-family: inherit;
 }
 .cc-kpi-open:hover { background: var(--cc2); }
 .cc-kpi-lbl {
@@ -173,7 +173,9 @@ textarea.cc-input { height: auto; padding: 6px 8px; font-size: 12px; line-height
 .cc-kpi-delta.bad { color: var(--cccrit); }
 .cc-kpi-target { font-size: 10px; color: var(--cct2); line-height: 1.3; }
 .cc-kpi-target.crit { color: var(--cccrit); font-weight: 700; }
-.cc-kpi-ctx { font-size: 10px; color: var(--cct2); line-height: 1.3; }
+/* One line; the FULL context always rides the cell tooltip (order 9: long
+   context lives on hover — the ellipsis is visible, never a silent cut). */
+.cc-kpi-ctx { font-size: 10px; color: var(--cct2); line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
 .cc-spark { flex: none; align-self: center; }
 .cc-spark-line { fill: none; stroke-width: 1.2; stroke: var(--cct2); }
 .cc-spark-dot { fill: var(--cct2); }
@@ -291,6 +293,7 @@ textarea.cc-input { height: auto; padding: 6px 8px; font-size: 12px; line-height
 .cc-qnums { flex: none; display: inline-flex; gap: 8px; font-size: 11px; color: var(--cct1); font-variant-numeric: tabular-nums; }
 .cc-qage { flex: none; font-size: 10px; color: var(--cct2); font-variant-numeric: tabular-nums; }
 .cc-qopen { padding: 6px 10px 8px 26px; border-bottom: 1px solid var(--ccline); background: var(--cc0); }
+.cc-qmore { align-self: flex-start; margin-top: 6px; }
 .cc-assign { display: inline-flex; align-items: center; gap: 4px; flex-wrap: wrap; padding: 2px 0; }
 .cc-inst-list { display: flex; flex-direction: column; gap: 6px; }
 .cc-inst { padding: 6px 9px; border: 1px solid var(--ccline); border-left: 3px solid var(--cct2); background: var(--cc1); }
