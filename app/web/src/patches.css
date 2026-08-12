@@ -1430,3 +1430,122 @@ button.narrblock:hover { outline: 1px solid var(--line); }
 .narrnotewrap > .narrblock { flex: 1; }
 .narradd { display: flex; flex-direction: column; gap: 8px; padding: 10px;
   border: 1px dashed var(--line); border-radius: 10px; }
+
+/* ── Layout doctrine pass — owner order, 12 Aug 2026 ───────────────────────
+   His verdict on the first deploy: "look at the dead space... needs much
+   better planning." Seven points; everything below is layout and density.
+   Colours stay the locked tokens — green is spent ONLY on primary actions,
+   and this pass spends none of it. */
+
+/* 1 · One date mechanism: chips; Custom opens an inline popover. */
+.datebar { position: relative; display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.datecustom {
+  position: absolute; top: calc(100% + 6px); right: 0; z-index: 60;
+  display: flex; align-items: center; gap: 6px; padding: 8px 10px;
+  background: var(--bg); border: 1px solid var(--line); border-radius: 10px;
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--line) 45%, transparent);
+  white-space: nowrap;
+}
+.datecustom select.fdate, .datecustom input.fdate {
+  background: var(--panel-2); color: inherit; border: 1px solid var(--line);
+  border-radius: 7px; padding: 4px 7px; font-size: 12px;
+}
+
+/* 2 · The green budget: quiet outline buttons for everything that is not THE
+   primary action of the view. */
+.btn.quiet {
+  background: transparent; color: var(--muted);
+  border: 1px solid var(--line); box-shadow: none;
+  padding: 4px 10px; font-size: 12px; font-weight: 500;
+}
+.btn.quiet:hover:not(:disabled) { color: inherit; border-color: var(--neon); background: transparent; }
+.btn.quiet:disabled { opacity: .5; }
+
+/* 3 · The view-as select, token-styled — no raw white browser control. */
+.viewsel {
+  background: var(--panel-2); color: inherit; border: 1px solid var(--line);
+  border-radius: 7px; padding: 4px 8px; font-size: 12px; max-width: 150px;
+}
+
+/* 4 · Header ≤ ~120px: one slim meta row, tight paddings. */
+.dashbar.slim { margin-bottom: 8px; padding: 0; align-items: flex-start; gap: 10px; }
+.dashbar.slim .dashtitle { font-size: 20px; margin: 0; line-height: 1.2; }
+.dashheadmain { min-width: 0; }
+.dashmeta { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 2px; }
+.dashsub.slim { font-size: 11.5px; opacity: .6; margin: 0; }
+.dashacts.slim { display: flex; align-items: center; justify-content: flex-end; gap: 6px; flex-wrap: wrap; margin-left: auto; }
+
+/* 5 · Pack the grid. */
+.dsechead { padding-top: 7px; padding-bottom: 7px; }
+.dsecchips { display: inline-flex; gap: 5px; align-items: center; margin-left: 10px; }
+.secpair { display: grid; grid-template-columns: 5fr 7fr; gap: 12px; align-items: start; }
+.secpair > * { min-width: 0; }
+@media (max-width: 1100px) { .secpair { grid-template-columns: 1fr; } }
+.ringgrid { grid-template-columns: repeat(auto-fill, minmax(132px, 1fr)); gap: 8px; }
+.ringcard { padding: 8px 6px; gap: 3px; }
+.ringname { font-size: 12px; }
+.ringmeta { font-size: 11.5px; }
+.ringcard[title] .ringname { overflow-wrap: anywhere; }
+
+/* 6 · Post-harvest and storage room cards — compact, department-qualified. */
+.stockroomgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 8px; }
+.stockroomcard {
+  display: flex; flex-direction: column; gap: 3px; padding: 8px 10px; text-align: left;
+  border: 1px solid var(--line); border-radius: 9px; background: var(--panel-2);
+  color: inherit; cursor: pointer;
+}
+.stockroomcard:hover { border-color: var(--neon); }
+.stockroomcard.opened { outline: 2px solid var(--neon); }
+.srname { font-size: 12px; font-weight: 700; line-height: 1.3; overflow-wrap: anywhere; }
+.srbig { font-size: 17px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.srbig em { font-style: normal; font-size: 11px; font-weight: 400; color: var(--muted); }
+.srline { font-size: 11.5px; opacity: .65; line-height: 1.35; }
+.srchips { display: flex; gap: 4px; flex-wrap: wrap; }
+
+/* Narrative band header: lane chips + the small note control, one row. */
+.narrhead { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.narraddwrap { margin-left: auto; display: inline-flex; align-items: center; }
+.narradd { flex-basis: 100%; }
+
+/* ── Global management band + FULL DDC density — owner orders, 12 Aug 2026 ──
+   "tighten site like the images and NO wasted space!" — density at the tight
+   end, 12px floor held, locked tokens only. Scoped to dashboard classes
+   (.dsec*) so HR and the frozen surfaces' internals are untouched. */
+
+/* The global entity cards. */
+.gmgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(158px, 1fr)); gap: 6px; }
+.gmcard {
+  display: flex; flex-direction: column; gap: 2px; padding: 7px 9px; text-align: left;
+  border: 1px solid var(--line); border-left-width: 3px; border-radius: 8px;
+  background: var(--panel-2); color: inherit; cursor: pointer;
+}
+.gmcard:hover { border-color: var(--neon); }
+.gmcard.good { border-left-color: var(--neon); }
+.gmcard.watch { border-left-color: var(--amber); }
+.gmcard.bad { border-left-color: var(--red); }
+.gmname { font-size: 12.5px; font-weight: 700; line-height: 1.25; }
+.gmline { font-size: 12px; opacity: .8; line-height: 1.35; }
+.gmline b.bad { color: var(--red); font-weight: 700; }
+.gmline.dim { opacity: .5; }
+.gmgap { font-size: 12px; color: var(--red); font-weight: 600; line-height: 1.4; }
+.gmownhead {
+  margin: 8px 0 6px; padding: 6px 10px; border: 1px solid var(--red); border-left-width: 5px;
+  border-radius: 7px; background: color-mix(in srgb, var(--red) 9%, var(--panel-2));
+  color: var(--red); font-size: 12.5px; font-weight: 800; letter-spacing: .03em;
+}
+
+/* Density: section chrome at the tight end. */
+.dsec { margin: 6px 0; }
+.dsechead { padding-top: 5px; padding-bottom: 5px; }
+.dsectitle { font-size: 12.5px; letter-spacing: .04em; }
+.dsecbody { padding-top: 4px; padding-bottom: 6px; }
+.dsecbody table td, .dsecbody table th { padding: 3px 8px; font-size: 12px; line-height: 1.35; }
+.dsecbody .buildnote { margin: 2px 0 6px; font-size: 12px; }
+.dsecbody .feed.compact .feedrow { padding: 5px 8px; }
+.dsecbody .ddgrid { gap: 8px; }
+.chgwrap { margin: 4px 0; }
+.secpair { gap: 8px; }
+.ringgrid, .stockroomgrid, .gmgrid { margin-top: 2px; }
+.narrband { gap: 6px; }
+.narrblock { padding: 6px 11px; }
+.diagfoot { margin-top: 10px; padding: 5px 10px; }

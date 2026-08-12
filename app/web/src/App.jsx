@@ -1192,8 +1192,16 @@ const DATE_CHIPS = [
   ["today", "Today"], ["this_week", "Week"], ["this_month", "Month"],
   ["this_quarter", "Quarter"], ["this_year", "Year"], ["all", "All"],
 ];
+/* ONE DATE MECHANISM — owner layout doctrine, 12 Aug 2026, point 1: the page
+   showed three (chips, a dropdown, two always-visible calendar inputs). The
+   chips are the mechanism. Custom expands an inline popover holding the full
+   preset list and the two calendar inputs; the active chip itself carries the
+   selection state, and the custom chip shows the exact dates when a custom
+   range is applied. Nothing lost: every preset and exact-date capability is
+   still here, one click deeper. */
 function DateRangeSelect({ label, from, to, onFrom, onTo, onPreset }) {
   const [preset, setPreset] = useState("all");
+  const [openCustom, setOpenCustom] = useState(false);
   const shown = !from && !to ? "all" : preset;
   const pick = (k) => {
     setPreset(k);
@@ -1201,6 +1209,7 @@ function DateRangeSelect({ label, from, to, onFrom, onTo, onPreset }) {
     if (k === "custom") return;
     const [f, t] = presetRange(k);
     onFrom(f); onTo(t);
+    setOpenCustom(false);
   };
   const chipActive = (k) => {
     if (k === "all") return !from && !to;
@@ -1208,8 +1217,9 @@ function DateRangeSelect({ label, from, to, onFrom, onTo, onPreset }) {
     return from === f && to === t;
   };
   const anyChipActive = DATE_CHIPS.some(([k]) => chipActive(k));
+  const customLabel = !anyChipActive && (from || to) ? `${from || "…"} → ${to || "…"}` : "Custom";
   return (
-    <>
+    <span className="datebar">
       <span className="flab">{label}</span>
       <span className="datechips" role="group" aria-label="Quick date ranges">
         {DATE_CHIPS.map(([k, l]) => (
@@ -1217,16 +1227,22 @@ function DateRangeSelect({ label, from, to, onFrom, onTo, onPreset }) {
             aria-pressed={chipActive(k)} onClick={() => pick(k)}>{l}</button>
         ))}
         <button type="button" className={`dbchip ${!anyChipActive ? "on" : ""}`}
-          aria-pressed={!anyChipActive} title="Pick any preset or exact dates with the controls beside this"
-          onClick={() => pick("custom")}>Custom</button>
+          aria-pressed={!anyChipActive} aria-expanded={openCustom}
+          title="Every preset, and exact from and to dates"
+          onClick={() => setOpenCustom((v) => !v)}>{customLabel}</button>
       </span>
-      <select aria-label="Date range preset" className="fdate" value={shown} onChange={(e) => pick(e.target.value)}>
-        {DATE_PRESETS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}
-      </select>
-      <input aria-label="From date" type="date" className="fdate" value={from} onChange={(e) => { setPreset("custom"); onFrom(e.target.value); }} />
-      <span className="flab">to</span>
-      <input aria-label="To date" type="date" className="fdate" value={to} onChange={(e) => { setPreset("custom"); onTo(e.target.value); }} />
-    </>
+      {openCustom && (
+        <span className="datecustom">
+          <select aria-label="Date range preset" className="fdate" value={shown} onChange={(e) => pick(e.target.value)}>
+            {DATE_PRESETS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+          </select>
+          <input aria-label="From date" type="date" className="fdate" value={from} onChange={(e) => { setPreset("custom"); onFrom(e.target.value); }} />
+          <span className="flab">to</span>
+          <input aria-label="To date" type="date" className="fdate" value={to} onChange={(e) => { setPreset("custom"); onTo(e.target.value); }} />
+          <button type="button" className="btn small quiet" onClick={() => setOpenCustom(false)}>Done</button>
+        </span>
+      )}
+    </span>
   );
 }
 /* ==================================================================
@@ -8606,60 +8622,112 @@ function InTransitDrill() {
         Rows are the evidence view, one per package per licence — a tag our mirror holds under
         both licences shows twice, and that is stated rather than silently halved.
       </p>
-      <div className="tablewrap">
-        <table>
-          <thead><tr>
-            <th>Package tag</th><th>Product</th><th>Cultivar</th><th>Stream</th><th>Origin</th>
-            <th>Quantity, own unit</th><th>Source harvest</th><th>Cut on</th><th>Dried in</th>
-            <th>Harvest closed</th><th>Made from</th><th>Production batch</th>
-            <th>Last known room before it left</th><th>Days held there</th><th>Packaged on</th>
-            <th>Test status</th><th>Out / back / days at laboratory</th>
-            <th>THC · CBD · terpenes</th><th>Made by, under licence</th><th>Shipped to us by</th>
-            <th>Manifest</th><th>Rate used → value</th><th>Traceability</th><th>Documents</th>
-          </tr></thead>
-          <tbody>
-            {rows.map((r, i) => (
-              <DrillRow key={r.package_tag + "|" + (r.license ?? i)} row={r} colCount={24}>
-                <td>{r.package_tag}</td>
-                <td>{r.item_name || "not recorded"}</td>
-                <td>{r.strain || "not recorded"}</td>
-                <td>{r.stream || "not recorded"}</td>
-                <td>{r.origin || "not recorded"}</td>
-                <td>{r.quantity_shown ?? `${Number(r.quantity ?? 0).toLocaleString()} ${r.uom ?? ""}`}</td>
-                <td>{r.source_harvest || "none — not made from a harvest"}</td>
-                <td>{r.harvest_cut_on || "not recorded"}</td>
-                <td>{r.dried_in || "not recorded"}</td>
-                <td>{r.harvest_closed_on || "still open or not recorded"}</td>
-                <td className="note">{r.made_from_packages || "nothing — packaged direct from harvest"}</td>
-                <td>{r.production_batch || "none"}</td>
-                <td>{r.location ? `${r.location} — sublocation unknown` : "not recorded before it left"}</td>
-                <td>{r.days_here ?? "not recorded"}</td>
-                <td>{r.packaged_on || "not recorded"}</td>
-                <td className={/fail/i.test(r.test_status ?? "") ? "bad" : ""}>{r.test_status || "not recorded"}</td>
-                <td>{r.went_out_for_testing_on
-                  ? `${r.went_out_for_testing_on} / ${r.came_back_on ?? "not back"} / ${r.days_at_the_laboratory ?? "—"} d`
-                  : "never submitted"}</td>
-                <td>{r.total_thc != null || r.total_cbd != null || r.total_terpenes != null
-                  ? `${r.total_thc ?? "—"} · ${r.total_cbd ?? "—"} · ${r.total_terpenes ?? "—"}`
-                  : <span className="note">{r.potency_and_certificate || "no values returned and no reason served — filed as a data gap"}</span>}</td>
-                <td>{r.made_by || "not recorded"}{r.license ? ` (${r.license})` : ""}</td>
-                <td>{r.shipped_to_us_by || "nobody — packaged here"}</td>
-                <td className="note">{r.inbound_manifest ? `${r.inbound_manifest}` : (r.manifest_proof || "No manifest — packaged here, never transferred in. The OUTBOUND manifest for this transit is the data-layer join filed with Agent I.")}</td>
-                <td>{r.rate_per_pound_used != null
-                  ? `$${Number(r.rate_per_pound_used).toLocaleString()}/lb → $${Math.round(Number(r.value_at_our_rate ?? 0)).toLocaleString()}`
-                  : "no rate — countable item or no rate row"}</td>
-                <td className="note">{r.traceability}</td>
-                <td><DocumentChips tag={r.package_tag} /></td>
-              </DrillRow>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <StockProofTable rows={rows} locationLabel="Last known room before it left" />
       {more && (
-        <button className="btn" disabled={busy} onClick={() => setPages((p) => p + 1)}>
+        <button className="btn quiet" disabled={busy} onClick={() => setPages((p) => p + 1)}>
           {busy ? "Reading…" : `Show the next ${PAGE} packages`}
         </button>
       )}
+    </>
+  );
+}
+
+/* THE EVIDENCE TABLE — one shared render for v_stock_proof rows, used by the
+   in-transit drill and the per-room drills. One primitive, so a per-item row can
+   never carry different columns on different pages (share primitives, never
+   layouts — this is a row renderer, not a page). */
+function StockProofTable({ rows, locationLabel = "Where it is" }) {
+  return (
+    <div className="tablewrap">
+      <table>
+        <thead><tr>
+          <th>Package tag</th><th>Product</th><th>Cultivar</th><th>Stream</th><th>Origin</th>
+          <th>Quantity, own unit</th><th>Source harvest</th><th>Cut on</th><th>Dried in</th>
+          <th>Harvest closed</th><th>Made from</th><th>Production batch</th>
+          <th>{locationLabel}</th><th>Days held there</th><th>Packaged on</th>
+          <th>Test status</th><th>Out / back / days at laboratory</th>
+          <th>THC · CBD · terpenes</th><th>Made by, under licence</th><th>Shipped to us by</th>
+          <th>Manifest</th><th>Rate used → value</th><th>Traceability</th><th>Documents</th>
+        </tr></thead>
+        <tbody>
+          {rows.map((r, i) => (
+            <DrillRow key={r.package_tag + "|" + (r.license ?? i)} row={r} colCount={24}>
+              <td>{r.package_tag}</td>
+              <td>{r.item_name || "not recorded"}</td>
+              <td>{r.strain || "not recorded"}</td>
+              <td>{r.stream || "not recorded"}</td>
+              <td>{r.origin || "not recorded"}</td>
+              <td>{r.quantity_shown ?? `${Number(r.quantity ?? 0).toLocaleString()} ${r.uom ?? ""}`}</td>
+              <td>{r.source_harvest || "none — not made from a harvest"}</td>
+              <td>{r.harvest_cut_on || "not recorded"}</td>
+              <td>{r.dried_in || "not recorded"}</td>
+              <td>{r.harvest_closed_on || "still open or not recorded"}</td>
+              <td className="note">{r.made_from_packages || "nothing — packaged direct from harvest"}</td>
+              <td>{r.production_batch || "none"}</td>
+              <td>{r.location ? `${r.location} — sublocation unknown` : "not recorded"}</td>
+              <td>{r.days_here ?? "not recorded"}</td>
+              <td>{r.packaged_on || "not recorded"}</td>
+              <td className={/fail/i.test(r.test_status ?? "") ? "bad" : ""}>{r.test_status || "not recorded"}</td>
+              <td>{r.went_out_for_testing_on
+                ? `${r.went_out_for_testing_on} / ${r.came_back_on ?? "not back"} / ${r.days_at_the_laboratory ?? "—"} d`
+                : "never submitted"}</td>
+              <td>{r.total_thc != null || r.total_cbd != null || r.total_terpenes != null
+                ? `${r.total_thc ?? "—"} · ${r.total_cbd ?? "—"} · ${r.total_terpenes ?? "—"}`
+                : <span className="note">{r.potency_and_certificate || "no values returned and no reason served — filed as a data gap"}</span>}</td>
+              <td>{r.made_by || "not recorded"}{r.license ? ` (${r.license})` : ""}</td>
+              <td>{r.shipped_to_us_by || "nobody — packaged here"}</td>
+              <td className="note">{r.inbound_manifest ? `${r.inbound_manifest}` : (r.manifest_proof || "No manifest — packaged here, never transferred.")}</td>
+              <td>{r.rate_per_pound_used != null
+                ? `$${Number(r.rate_per_pound_used).toLocaleString()}/lb → $${Math.round(Number(r.value_at_our_rate ?? 0)).toLocaleString()}`
+                : "no rate — countable item or no rate row"}</td>
+              <td className="note">{r.traceability}</td>
+              <td><DocumentChips tag={r.package_tag} /></td>
+            </DrillRow>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+/* Per-room per-tag drill — the evidence rows for one room under one licence.
+   The filter is licence + room name, which is room identity (J7). */
+function RoomStockDrill({ licence, room, department }) {
+  const PAGE = 50;
+  const [rows, setRows] = useState(null);
+  const [err, setErr] = useState(null);
+  const [pages, setPages] = useState(1);
+  const [more, setMore] = useState(true);
+  useEffect(() => {
+    let live = true;
+    supabase.from("v_stock_proof").select("*")
+      .eq("license", licence).eq("location", room)
+      .order("packaged_on", { ascending: true })
+      .range(0, pages * PAGE - 1)
+      .then(({ data, error }) => {
+        if (!live) return;
+        if (error) { setErr(error.message); return; }
+        const got = rowsOr(data);
+        setRows(got);
+        setMore(got.length === pages * PAGE);
+      });
+    return () => { live = false; };
+  }, [licence, room, pages]);
+  if (err) return <div className="brnone"><b>The packages could not be read:</b> {err}</div>;
+  if (rows === null) return <div className="note">Reading every package in the room…</div>;
+  if (!rows.length) return (
+    <div className="brnone">No packages in {room} — {department}. <b>Why:</b> the Metrc mirror lists
+      no active package in this room under licence {licence} right now.</div>
+  );
+  return (
+    <>
+      <p className="buildnote" style={{ color: "var(--muted)" }}>
+        {rows.length}{more ? "+" : ""} package{rows.length === 1 ? "" : "s"} in {room} — {department},
+        oldest packaged first. Card totals come from the stock-by-department view; a known
+        one-package count gap between it and these evidence rows is filed with the database team.
+      </p>
+      <StockProofTable rows={rows} locationLabel="Room" />
+      {more && <button className="btn quiet" onClick={() => setPages((p) => p + 1)}>Show the next {PAGE} packages</button>}
     </>
   );
 }
@@ -8905,10 +8973,13 @@ function GoalsTargetsPage() {
   );
 }
 
-/* The compact face of the goals on the Command dashboard — counts and a door,
-   never an input. Reads the same v_goal_status the editor reads, so the two can
-   never disagree. Errors surface; they do not become an empty box. */
-function GoalsSummary({ go }) {
+/* The compact face of the goals on the Command dashboard — counts as chips IN
+   THE SECTION HEADER (owner layout doctrine point 5, 12 Aug 2026), a one-line
+   body, and a quiet door to the editor page. Reads the same v_goal_status the
+   editor reads, so the two can never disagree. Errors surface; they do not
+   become an empty box. Owns its own Section so the chips can live on the
+   header line without a second fetch. */
+function GoalsSection({ store, go }) {
   const [rows, setRows] = useState(null);
   const [err, setErr] = useState(null);
   useEffect(() => {
@@ -8920,34 +8991,41 @@ function GoalsSummary({ go }) {
     });
     return () => { live = false; };
   }, []);
-  if (err) return <div className="goalnote"><b>The goals could not be read:</b> {err}</div>;
-  if (rows === null) return <div className="muted">Reading the goals…</div>;
-  const off = rows.filter((r) => r.status === "off target");
-  const nodata = rows.filter((r) => r.status === "no data");
-  const on = rows.length - off.length - nodata.length;
-  return (
-    <div className="goalsum">
-      <div className="goalsumrow">
-        {rows.length === 0 ? (
-          <span className="muted">No goals are enabled yet. They are set on the Goals and Targets
-            page — nothing populates here until a person with the manage goals permission enables one.</span>
-        ) : (
-          <>
-            <StatusChip kind="OK">{on} on target</StatusChip>
-            <StatusChip kind={off.length ? "OVER" : "OK"}>{off.length} off target</StatusChip>
-            {nodata.length > 0 && (
-              <StatusChip kind="NOT WIRED" title="These goals have a target but no honest actual can be computed yet — the basis line on the Goals and Targets page says exactly why.">
-                {nodata.length} with no data to judge
-              </StatusChip>
-            )}
-          </>
-        )}
-        <button className="btn" onClick={() => go("goals_targets")}>Open Goals and Targets →</button>
-      </div>
-      {off.length > 0 && (
-        <div className="goalnote">Off target: {off.map((r) => r.metric_label).join(" · ")}</div>
+  const off = rowsOr(rows).filter((r) => r.status === "off target");
+  const nodata = rowsOr(rows).filter((r) => r.status === "no data");
+  const on = rowsOr(rows).length - off.length - nodata.length;
+  const chips = rows === null || err ? null : rows.length === 0 ? (
+    <StatusChip kind="EMPTY">none enabled</StatusChip>
+  ) : (
+    <>
+      <StatusChip kind="OK">{on} on target</StatusChip>
+      <StatusChip kind={off.length ? "OVER" : "OK"}>{off.length} off</StatusChip>
+      {nodata.length > 0 && (
+        <StatusChip kind="NOT WIRED" title="These goals have a target but no honest actual can be computed yet — the basis line on the Goals and Targets page says exactly why.">
+          {nodata.length} no data
+        </StatusChip>
       )}
-    </div>
+    </>
+  );
+  return (
+    <Section id="goals" store={store} title="Goals and targets" chips={chips}>
+      {err ? (
+        <div className="goalnote"><b>The goals could not be read:</b> {err}</div>
+      ) : rows === null ? (
+        <div className="muted">Reading the goals…</div>
+      ) : (
+        <div className="goalsumrow">
+          {rows.length === 0 && (
+            <span className="muted">Nothing populates until a person with the manage goals
+              permission enables a goal on the Goals and Targets page.</span>
+          )}
+          {off.length > 0 && (
+            <span className="goalnote" style={{ margin: 0 }}>Off target: {off.map((r) => r.metric_label).join(" · ")}</span>
+          )}
+          <button className="btn quiet" onClick={() => go("goals_targets")}>Open Goals and Targets →</button>
+        </div>
+      )}
+    </Section>
   );
 }
 
@@ -9601,7 +9679,7 @@ export function AssignTask({ dept, kpi, value, unit, drill, onDone }) {
      stacked bar) is untouched.
    `store` + `id` are optional; a Section without them keeps its own local state
    exactly as before, so no other page changes behaviour. */
-function Section({ title, count, children, defaultOpen = true, id, store }) {
+function Section({ title, count, children, defaultOpen = true, id, store, chips }) {
   const [localOpen, setLocalOpen] = useState(defaultOpen);
   const managed = Boolean(store && id);
   const open = managed ? store.isOpen(id, defaultOpen) : localOpen;
@@ -9612,6 +9690,9 @@ function Section({ title, count, children, defaultOpen = true, id, store }) {
         aria-expanded={open} title={open ? "Collapse this section" : "Expand this section"}>
         <span className="dsectitle">{title}</span>
         {count != null && <span className="dseccount">{count}</span>}
+        {/* Doctrine point 5, 12 Aug 2026: a section's status lives in its header
+            line as chips, so the body can be almost nothing. */}
+        {chips && <span className="dsecchips">{chips}</span>}
         <span className="secmini" aria-hidden="true">{open ? "−" : "+"}</span>
         <span className={`caret ${open ? "open" : ""}`}>{I.caret}</span>
       </button>
@@ -9740,10 +9821,9 @@ function RpDashboardDateRange({ viewKey, session, source, onRange }) {
                gap: 4, margin: 0, padding: "2px 6px", fontSize: "0.72rem",
                whiteSpace: "nowrap" }}
     >
+      {/* The preset caption that used to sit here folded into the active chip —
+          owner layout doctrine point 1: one date mechanism, no duplicate labels. */}
       <DateRangeSelect label="Dates" from={from} to={to} onFrom={setFrom} onTo={setTo} />
-      <span className="note" style={{ fontSize: "0.72rem", opacity: 0.7 }}>
-        {(def?.preset_key ?? "all").replaceAll("_", " ")}
-      </span>
       {ignoresRange && (
         /* A3: the caveat is not dropped, only made to fit. The title carries the
            whole of what the red block used to say, so nothing is lost. */
@@ -9760,6 +9840,84 @@ function RpDashboardDateRange({ viewKey, session, source, onRange }) {
         </span>
       )}
     </div>
+  );
+}
+
+/* ═══ ONE GLOBAL MANAGEMENT VIEW — owner order, 12 Aug 2026 ═══
+   Command is the roll-up of everything: one compact entity card per department,
+   tone-spined, drilling to that department's own dashboard. Data spine is
+   v_global_management — rendered as served (Agent I). Rows that match no
+   department dashboard are the UNROUTED pile and render as a distinct red
+   group, deliberately the loudest thing on the board: work nobody owns is the
+   most dangerous kind. Two notes filed with Agent I rather than papered over:
+   is_the_unrouted_pile serves false on ALL rows today (an inert flag), so the
+   split below uses the app's own dashboard registry until the curated
+   finding-class mapping lands; and 'Sales & Cash' carries its gap_note, which
+   renders VERBATIM as the card body per the honest-state doctrine. */
+const NAV_BY_DEPT = (() => {
+  const m = {};
+  for (const [k, v] of Object.entries(DEPT_BY_VIEW)) if (!m[v]) m[v] = k;
+  return m;
+})();
+function GlobalManagement({ go }) {
+  const [rows, setRows] = useState(null);
+  const [err, setErr] = useState(null);
+  useEffect(() => {
+    let live = true;
+    supabase.from("v_global_management").select("*").then(({ data, error }) => {
+      if (!live) return;
+      if (error) { setErr(error.message); setRows([]); return; }
+      setRows(rowsOr(data));
+    });
+    return () => { live = false; };
+  }, []);
+  if (err) return <div className="brnone"><b>The global view could not be read:</b> {err}</div>;
+  if (rows === null) return <div className="note">Reading every department…</div>;
+  if (!rows.length) return <div className="brnone">v_global_management returned no rows. <b>Why:</b> the view is live but empty — that itself is a data-layer finding.</div>;
+  const isRouted = (r) => r.is_the_unrouted_pile !== true && (NAV_BY_DEPT[r.department] || r.gap_note);
+  const routed = rows.filter(isRouted);
+  const unrouted = rows.filter((r) => !isRouted(r));
+  const card = (r) => {
+    const dest = NAV_BY_DEPT[r.department];
+    return (
+      <button key={r.department} className={`gmcard ${r.tone}`}
+        onClick={() => dest ? go(dest) : go("agent_findings")}
+        title={dest ? `Open the ${r.department} dashboard` : `${r.department}: open the findings behind this`}>
+        <span className="gmname">{r.department}</span>
+        {r.gap_note ? (
+          <span className="gmgap">{r.gap_note}</span>
+        ) : (
+          <>
+            <span className="gmline">
+              {Number(r.tiles) > 0
+                ? <>{r.tiles} tiles{Number(r.tiles_bad) > 0 && <b className="bad"> · {r.tiles_bad} bad</b>}{Number(r.tiles_null) > 0 && <> · {r.tiles_null} empty</>}</>
+                : <>no tiles published</>}
+            </span>
+            <span className="gmline">
+              {Number(r.open_findings) > 0
+                ? <>{r.open_findings} findings{Number(r.critical_findings) > 0 && <b className="bad"> · {r.critical_findings} critical</b>}</>
+                : <>no open findings</>}
+              {Number(r.open_orders) > 0 && <> · {r.open_orders} orders{Number(r.orders_overdue) > 0 && <b className="bad"> · {r.orders_overdue} overdue</b>}</>}
+            </span>
+            {r.oldest_finding && <span className="gmline dim">oldest {r.oldest_finding}</span>}
+          </>
+        )}
+      </button>
+    );
+  };
+  return (
+    <>
+      <div className="gmgrid">{routed.map(card)}</div>
+      {unrouted.length > 0 && (
+        <>
+          <div className="gmownhead">
+            NOBODY OWNS THESE — {unrouted.length} finding classes with no department dashboard to land on,
+            {" "}{unrouted.reduce((a, r) => a + Number(r.open_findings || 0), 0).toLocaleString()} open findings
+          </div>
+          <div className="gmgrid">{unrouted.map(card)}</div>
+        </>
+      )}
+    </>
   );
 }
 
@@ -9781,17 +9939,23 @@ function RpDashboardDateRange({ viewKey, session, source, onRange }) {
    never shown without its department (rule J7). Requirement filed with Agent I. */
 function RoomRings({ dept }) {
   const [rooms, setRooms] = useState(null);
+  const [stockRooms, setStockRooms] = useState(null);
+  const [stockErr, setStockErr] = useState(null);
   const [warnDays, setWarnDays] = useState(null);
   const [lateNote, setLateNote] = useState(null);
   const [err, setErr] = useState(null);
   const [openRoom, setOpenRoom] = useState(null);
+  const [openStock, setOpenStock] = useState(null);
   useEffect(() => {
     let live = true;
     Promise.all([
       supabase.from("v_room_board").select("*").order("room"),
       supabase.from("harvest_alert_rules").select("rule_key, threshold, note, active")
         .in("rule_key", ["weekend_warning_days", "late_tolerance_days"]),
-    ]).then(([r, h]) => {
+      /* Post-harvest cards UNBLOCKED — Agent I, 12 Aug 2026: this view carries
+         department and licence for every room holding packages, vaults included. */
+      supabase.from("v_stock_by_department").select("*"),
+    ]).then(([r, h, s]) => {
       if (!live) return;
       if (r.error) { setErr(r.error.message); setRooms([]); return; }
       setRooms(rowsOr(r.data));
@@ -9803,6 +9967,8 @@ function RoomRings({ dept }) {
         setWarnDays(w ? Number(w.threshold) : null);
         setLateNote(l?.note ?? null);
       }
+      if (s.error) { setStockErr(s.error.message); setStockRooms([]); }
+      else setStockRooms(rowsOr(s.data));
     });
     return () => { live = false; };
   }, []);
@@ -9882,21 +10048,88 @@ function RoomRings({ dept }) {
               <span className="ringmeta">{empty
                 ? (r.next_event_detail ? `next: ${r.next_event_detail}` : "empty — turning")
                 : `${Number(r.plants_now).toLocaleString()} plants`}</span>
-              {!empty && r.strains_now && <span className="ringstrains">{r.strains_now}</span>}
+              {/* Density without omission: the count on the face, the full served
+                  list one hover away (doctrine point 6 — chips, not paragraphs). */}
+              {!empty && r.strains_now && (
+                <span className="ringmeta" title={r.strains_now}>
+                  {r.strains_now.split(",").length} strain{r.strains_now.split(",").length === 1 ? "" : "s"} ⓘ
+                </span>
+              )}
               <StatusChip kind={st} />
             </button>
           );
         })}
       </div>
-      <p className="note">Post-harvest rooms (vaults, dry rooms) are not on this board yet:
-        v_room_board carries no department for them and eleven room names exist in both
-        buildings — a room is never shown without its department. The requirement is with
-        the database team; nothing here is hidden by choice.</p>
       {openRoom && (
         <Section title={`Every plant standing in ${openRoom} — Cultivation`} defaultOpen>
           <RoomDrill code={openRoom} />
         </Section>
       )}
+
+      {/* POST-HARVEST AND STORAGE ROOMS — unblocked 12 Aug 2026: the stock view
+          serves department and licence for every room holding packages, so each
+          card is department-qualified (J7). Card figures roll up the view's own
+          category rows; the drill lists the evidence rows behind them. */}
+      {stockErr && <div className="brnone"><b>Stock rooms not shown, and why:</b> {stockErr}</div>}
+      {stockRooms && stockRooms.length > 0 && (() => {
+        const byRoom = new Map();
+        for (const s of stockRooms) {
+          const k = s.licence + "|" + s.room;
+          const g = byRoom.get(k) ?? { licence: s.licence, department: s.department, room: s.room,
+            stage: s.stage, total_lb: 0, ours_lb: 0, third_party_lb: 0, tags: 0, units: 0, failed: 0, no_coa: 0 };
+          g.total_lb += Number(s.total_lb ?? 0); g.ours_lb += Number(s.ours_lb ?? 0);
+          g.third_party_lb += Number(s.third_party_lb ?? 0); g.tags += Number(s.tags ?? 0);
+          g.units += Number(s.units ?? 0); g.failed += Number(s.failed ?? 0); g.no_coa += Number(s.no_coa ?? 0);
+          byRoom.set(k, g);
+        }
+        const cards = [...byRoom.values()].sort((a, b) => b.total_lb - a.total_lb);
+        return (
+          <>
+            <div className="ringhead" style={{ marginTop: 12 }}>
+              <StatusChip kind="INFO">{cards.length} rooms holding stock</StatusChip>
+              <StatusChip kind="WATCH"
+                title="Dry-deadline and cycle tracking on this board covers flower rooms only for now: the harvest schedule view does not yet carry the department for post-harvest rooms, and eleven room names exist in both buildings. The requirement is with the database team.">
+                deadline tracking: flower rooms only ⓘ
+              </StatusChip>
+            </div>
+            <div className="stockroomgrid">
+              {cards.map((g) => {
+                const qualified = g.room + " — " + g.department;
+                const k = g.licence + "|" + g.room;
+                return (
+                  <button key={k} className={`stockroomcard ${openStock === k ? "opened" : ""}`}
+                    onClick={() => setOpenStock(openStock === k ? null : k)}
+                    title={qualified + ". Click for every package in the room."}>
+                    <span className="srname">{qualified}</span>
+                    <span className="srbig">{g.total_lb > 0
+                      ? <>{g.total_lb.toLocaleString(undefined, { maximumFractionDigits: 1 })}<em> lb</em></>
+                      : <>{g.units.toLocaleString()}<em> units</em></>}</span>
+                    <span className="srline">{g.tags.toLocaleString()} tags
+                      · ours {g.ours_lb.toLocaleString(undefined, { maximumFractionDigits: 1 })} lb
+                      · third party {g.third_party_lb.toLocaleString(undefined, { maximumFractionDigits: 1 })} lb</span>
+                    <span className="srchips">
+                      {g.failed > 0 && <StatusChip kind="OVER">{g.failed} failed</StatusChip>}
+                      {g.no_coa > 0 && <StatusChip kind="PENDING" title="Packages with no certificate of analysis on file — the reason per package is on its row in the drill.">{g.no_coa} no certificate</StatusChip>}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+            {openStock && (() => {
+              const g = byRoom.get(openStock);
+              if (!g) return null;
+              /* J7: composed once; no bare room accessor reaches a render. */
+              const drillTitle = "Every package in " + g.room + " — " + g.department + " (licence " + g.licence + ")";
+              const rm = g.room;
+              return (
+                <Section title={drillTitle} defaultOpen>
+                  <RoomStockDrill licence={g.licence} room={rm} department={g.department} />
+                </Section>
+              );
+            })()}
+          </>
+        );
+      })()}
     </>
   );
 }
@@ -10161,10 +10394,12 @@ function AddCeoNote({ pageKey, session, role, onDone }) {
     onDone();
   };
   if (!open) return (
-    <div>
-      <button className="btn" onClick={() => setOpen(true)}>Add a signed note</button>
+    <span className="narraddwrap">
+      {/* Doctrine point 2, 12 Aug 2026: a small ghost control on the band
+          header, not a full-width row. */}
+      <button className="btn small quiet" onClick={() => setOpen(true)}>+ note</button>
       {msg && <span className="note" style={{ marginLeft: 8 }}>{msg}</span>}
-    </div>
+    </span>
   );
   return (
     <div className="narradd">
@@ -10252,14 +10487,25 @@ function DashNarratives({ dept, range, role, session, go }) {
   );
   return (
     <div className="narrband">
+      {/* Doctrine point 6: footnotes are chips with popovers, not paragraphs.
+          The band header carries the lane state and the small note control. */}
+      <div className="narrhead">
+        {!ranged && (
+          <StatusChip kind="INFO"
+            title="The period story describes your window against the one before it and rewrites itself every time the range changes. Pick any date chip above to read it.">
+            pick a date range for the period story ⓘ
+          </StatusChip>
+        )}
+        {ranged && period.length === 0 && !errs.length && (
+          <StatusChip kind="EMPTY" title={`No period story is computed for this page over ${range.from} to ${range.to}.`}>
+            no period story for this window ⓘ
+          </StatusChip>
+        )}
+        {standing.length > 0 && <StatusChip kind="INFO">{standing.length} platform</StatusChip>}
+        {notes.length > 0 && <StatusChip kind="INFO">{notes.length} signed</StatusChip>}
+        {mayWrite && <AddCeoNote pageKey={pageKey} session={session} role={role} onDone={() => setVer((v) => v + 1)} />}
+      </div>
       {errs.map((e) => <div key={e} className="brnone"><b>Not shown, and why:</b> {e}</div>)}
-      {!ranged && (
-        <div className="note">Pick a date range above to read the period story — it describes your
-          window against the one before it, and rewrites itself every time the range changes.</div>
-      )}
-      {ranged && period.length === 0 && !errs.length && (
-        <div className="note">No period story is computed for this page over {range.from} to {range.to}.</div>
-      )}
       {period.map((n) => (
         <NarrativeBlock key={"p" + n.section_key} tone={n.tone} drill={n.drill} go={go}
           byline={`Period · computed live for ${range.from} to ${range.to}`}>
@@ -10286,7 +10532,6 @@ function DashNarratives({ dept, range, role, session, go }) {
           )}
         </div>
       ))}
-      {mayWrite && <AddCeoNote pageKey={pageKey} session={session} role={role} onDone={() => setVer((v) => v + 1)} />}
     </div>
   );
 }
@@ -10297,7 +10542,7 @@ function DeptDashboard({ viewKey, go, nav, deep, session, reports, role, viewAs,
   /* Per-user collapse memory — owner order 11 Aug 2026. Every section id below
      is registered here so Collapse all / Expand all can reach all of them. */
   const store = useSectionStore(session?.user?.id, viewKey);
-  const SEC_IDS = ["narrative", "flow", "money", "audit", "goals", "figures", "rooms", "yield",
+  const SEC_IDS = ["global", "narrative", "flow", "money", "audit", "goals", "figures", "rooms", "yield",
     "stock", "admin", "watchdog", "tasks", "pages", "deep", "reports"];
   const [rows, setRows] = useState(null);
   const [trend, setTrend] = useState({});
@@ -10379,54 +10624,59 @@ function DeptDashboard({ viewKey, go, nav, deep, session, reports, role, viewAs,
 
   return (
     <>
-      <div className="dashbar">
-        <div>
+      {/* HEADER — owner layout doctrine, 12 Aug 2026, point 4: header plus every
+          control spends at most ~120px; the role/scope/view chips and the live
+          line share ONE slim row; the first data section is visible without
+          scrolling on a 1080p display. Point 2: green is the primary-action
+          colour and this view spends none of it here — every control below is a
+          quiet outline in one compact right-aligned toolbar. */}
+      <div className="dashbar slim">
+        <div className="dashheadmain">
           <h1 className="dashtitle">{dept}</h1>
-          {/* Header chips — owner reference pattern 11 Aug 2026 (structure only,
-              our tokens): role, scope and view, stated on the page so a screen
-              shot always says whose view it was. */}
-          {dept === "Command" && (
-            <div className="hdrchips">
-              <span className="hchip">ROLE <b>{viewAs ?? role ?? "reading…"}</b></span>
-              <span className="hchip">SCOPE <b>{dept}</b></span>
-              <span className="hchip">VIEW <b>{viewKey}</b></span>
-              {viewAs && <StatusChip kind="READ ONLY">design preview</StatusChip>}
-            </div>
-          )}
-          <div className="dashsub">
-            Live from the records{computed ? ` · last computed ${new Date(computed).toLocaleString()}` : ""}
-            {" · every tile drills into the underlying records, and can be assigned to someone"}
+          <div className="dashmeta">
+            {dept === "Command" && (
+              <>
+                <span className="hchip">ROLE <b>{viewAs ?? role ?? "reading…"}</b></span>
+                <span className="hchip">SCOPE <b>{dept}</b></span>
+                <span className="hchip">VIEW <b>{viewKey}</b></span>
+                {viewAs && <StatusChip kind="READ ONLY">design preview</StatusChip>}
+              </>
+            )}
+            <span className="dashsub slim">
+              Live from the records{computed ? ` · computed ${new Date(computed).toLocaleString()}` : ""} · every tile drills to its records
+            </span>
           </div>
         </div>
-        <div className="dashacts">
-          {/* Collapse memory — owner order 11 Aug 2026: every section collapsible,
-              one pair of buttons per dashboard, remembered per user. */}
-          <button className="btn" title="Collapse every section on this dashboard — your choice is remembered on this device"
-            onClick={() => store.setAll(SEC_IDS, false)}>Collapse all</button>
-          <button className="btn" title="Expand every section on this dashboard"
-            onClick={() => store.setAll(SEC_IDS, true)}>Expand all</button>
+        <div className="dashacts slim">
+          <button className="btn quiet" title="Collapse every section on this dashboard — your choice is remembered on this device"
+            onClick={() => store.setAll(SEC_IDS, false)}>− Collapse all</button>
+          <button className="btn quiet" title="Expand every section on this dashboard"
+            onClick={() => store.setAll(SEC_IDS, true)}>+ Expand all</button>
           {/* VIEW AS — design-preview lens, admin/owner only (f_caller_is_admin).
               Rendering only: menus and pages draw with the chosen role's
-              visibility rows, while data access stays the signed-in admin's own. */}
+              visibility rows, while data access stays the signed-in admin's own.
+              Token-styled (doctrine point 3): a raw white browser dropdown does
+              not belong inside the theme. */}
           {dept === "Command" && isAdmin && (
-            <select className="fdate" aria-label="View this platform as another role — presentation preview only"
+            <select className="viewsel" aria-label="View this platform as another role — presentation preview only"
               value={viewAs ?? ""} onChange={(e) => onViewAs(e.target.value || null)}>
-              <option value="">View as… (my own role)</option>
+              <option value="">View as…</option>
               {rowsOr(viewRoles).map((r) => <option key={r} value={r}>{r}</option>)}
             </select>
           )}
           {/* The date range belongs HERE, in the header row, compact — owner ruling
               8 Aug 2026. It used to render as a full-width strip below the header. */}
           <RpDashboardDateRange viewKey={viewKey} session={session} onRange={onRange} />
-          <button className="btn" onClick={refreshNow} disabled={busy}>{busy ? "Refreshing…" : "↻ Recompute now"}</button>
-          <button className="btn" onClick={() => window.print()}>🖨 Print</button>
-          <button className="btn" onClick={() => go("dashboard_tasks")}>Tasks</button>
-          <button className="btn" onClick={() => go("inventory_alerts")}>Alerts</button>
+          <button className="btn quiet" onClick={refreshNow} disabled={busy}>{busy ? "Refreshing…" : "↻ Recompute"}</button>
+          <button className="btn quiet" onClick={() => window.print()}>🖨 Print</button>
+          <button className="btn quiet" onClick={() => go("dashboard_tasks")}>☑ Tasks</button>
+          <button className="btn quiet" onClick={() => go("inventory_alerts")}>⚠ Alerts</button>
           {/* Owner 11 Aug 2026: "ADD A TAB THAT EVEN BRINGS USER TO CFO DASHBOARD ...
               ADD TO THE RIGHT OF SCREEN". Sits last in the header actions, so it is
               the right-most control on the row. */}
+          {/* Was green-on-green and illegible — doctrine point 2: quiet outline. */}
           {dept === "Command" && (
-            <button className="btn cfobtn" onClick={() => go("dept_dash_cfo")}
+            <button className="btn quiet" onClick={() => go("dept_dash_cfo")}
               title="Value of stock, the money position, and the full inventory forensic audit">
               CFO Dashboard →
             </button>
@@ -10435,6 +10685,15 @@ function DeptDashboard({ viewKey, go, nav, deep, session, reports, role, viewAs,
       </div>
 
       <WhatChanged dept={dept} go={go} />
+
+      {/* ONE GLOBAL MANAGEMENT VIEW — owner order 12 Aug 2026: THE first band on
+          Command. Every department dumps in; the unrouted pile is the loudest
+          thing on the board on purpose. */}
+      {dept === "Command" && (
+        <Section id="global" store={store} title="Global management — every department, one view">
+          <GlobalManagement go={go} />
+        </Section>
+      )}
 
       {/* NARRATIVE COMMENTARY — owner-approved 11 Aug 2026: the period story
           (rewrites with the date bar), the standing platform story, and signed
@@ -10464,10 +10723,15 @@ function DeptDashboard({ viewKey, go, nav, deep, session, reports, role, viewAs,
           summary and the door to the Goals and Targets page. Cultivation keeps the
           editor it had — that ruling named the Command dashboard only, and rule F6
           forbids changing what was not asked; flagged for a ruling in the report. */}
+      {/* Doctrine point 5: narrow sections share a 12-column row instead of each
+          spending a full-width band — goals (one line) beside the yield bars. */}
       {dept === "Command" && (
-        <Section id="goals" store={store} title="Goals and targets — set by you, not by the code">
-          <GoalsSummary go={go} />
-        </Section>
+        <div className="secpair">
+          <GoalsSection store={store} go={go} />
+          <Section id="yield" store={store} title="Yield — grams per plant, tick = own strain median">
+            <YieldBars />
+          </Section>
+        </div>
       )}
       {dept === "Cultivation" && (
         <Section id="goals" store={store} title="Goals and targets — set by you, not by the code">
@@ -10475,17 +10739,10 @@ function DeptDashboard({ viewKey, go, nav, deep, session, reports, role, viewAs,
         </Section>
       )}
 
-      {/* ROOM RINGS + breach banner — owner-approved pattern 2 and 3, Command first. */}
+      {/* ROOM RINGS + breach banner + post-harvest cards — patterns 2 and 3. */}
       {dept === "Command" && (
-        <Section id="rooms" store={store} title="Rooms — where every flower room stands in its cycle">
+        <Section id="rooms" store={store} title="Rooms — every room, department-qualified">
           <RoomRings dept={dept} />
-        </Section>
-      )}
-
-      {/* YIELD VS TARGET — owner-approved pattern 4, Command first. */}
-      {dept === "Command" && (
-        <Section id="yield" store={store} title="Yield against each strain's own record — grams per plant">
-          <YieldBars />
         </Section>
       )}
 

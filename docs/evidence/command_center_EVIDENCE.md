@@ -181,6 +181,88 @@ what a subset cannot see. The full `npm run gates` chain — the same command Ne
 runs — is now the only pre-push verification this delivery uses. No dependency was
 ever added; package-lock untouched; the npm-ci hypothesis is clear.
 
+## Deploy resolution — GREEN on the Netlify deploy list
+
+- `4dec42b` (the J7 fix) deployed **ready** at 00:47:52Z, and the follow-on commits
+  after it built green as well — confirmed from the deploy list via the Netlify API,
+  which the owner's rule names as the arbiter. The prior failures (`791855d`,
+  `3a607b0`, and two earlier non-Agent-B commits at 18:41/19:32) all carry the same
+  generic "exit code 2"; the named causes and fixes are in the incident section above.
+- **Verified conditions, not assumed:** the Netlify build environment carries **no
+  `PGURL`**, so the database-tier gates (schema-baseline, docs-vs-database,
+  page-architecture, report-contract's registry half) DEGRADE there by design — the
+  live-vs-baseline schema drift measured locally (+14 tables, +16 views, +5 policies;
+  the data layer's objects) does NOT gate deploys and is Agent I's regeneration to run.
+- **Build stamp closed:** `deploy-current.mjs` had failed on every deploy ever made —
+  its stamp ("injected by vite.config.js") was never implemented, so even a green
+  deploy could not name its serving commit. `vite.config.js` now injects
+  `tg-build-commit` (Netlify `COMMIT_REF`, git fallback, honest "unknown") and
+  `tg-build-at`; verified in the local dist before push.
+- **Security finding, filed for Agent I (not touched):** the Netlify site environment
+  holds `SUPABASE_SERVICE_ROLE_KEY` and `VITE_SUPABASE_URL` for project
+  `gfzilvcgeaqbasmqxgic` — NOT this platform's project — plus
+  `SECRETS_SCAN_DISABLED=true`. A service-role credential for some other project sits
+  readable in build env by anyone with CLI access. The app is unaffected
+  (`lib/supabase.js` deliberately ignores `VITE_*`), but the credential should be
+  removed and rotated by whoever owns that project, and the scan re-enabled.
+
+## Layout doctrine pass — owner orders of 12 Aug 2026, all seven points plus two follow-ons
+
+The owner's verdict on the first deploy was "not good… look at the dead space… needs much
+better planning", then a seven-point doctrine, then two supersessions (FULL DDC density;
+the one-global-view band). Delivered in one focused commit:
+
+1. **One date mechanism** — chips only; Custom opens an inline token-styled popover
+   holding the full preset list and both calendar inputs; the active chip carries the
+   selection (a custom range shows its exact dates ON the chip); the duplicate preset
+   caption removed. One shared control, so every mount in the OS changed identically.
+2. **Green budget** — zero green CTAs spent on the Command header: Collapse/Expand all,
+   Recompute, Print, Tasks, Alerts, CFO Dashboard, Open Goals and Targets, Done, and the
+   note control are all quiet outline buttons in the one right-aligned toolbar row. The
+   illegible green-on-green CFO button is quiet outline now. "Add a signed note" is a
+   small "+ note" ghost on the narrative band header.
+3. **View-as select token-styled** (`.viewsel`) — no raw white browser control.
+4. **Chrome ≤ ~120px** — slim header: title, role/scope/view chips and the live-line in
+   one row; paddings tightened; first data band (Global management) sits directly below.
+5. **Packed grid** — ring cards at 132px minimum (6–8 across on wide screens); goals and
+   yield share a 12-column row; section headers slim with status chips IN the header
+   line; goals body is one line plus a quiet door.
+6. **Footnotes are chips** — the post-harvest prose became a StatusChip with the full
+   explanation in its popover; the strain list on ring cards became a count with the
+   served list in the popover (density without omission). **Post-harvest cards
+   MOUNTED** — unblocked by v_stock_by_department (department + licence per room):
+   compact cards, department-qualified per J7, ours/third-party split on the face,
+   failed and no-certificate chips, in-place drill to the shared evidence table
+   (`StockProofTable`, extracted so the in-transit and room drills render identical
+   per-item rows).
+7. **tg_period_narrative v2 re-measured: 100.4 ms** for the full call — the
+   statement-timeout state clears itself; no code change needed.
+8. **FULL DDC density supersession** — spacing set at the tight end via patches.css,
+   scoped to dashboard classes (`.dsec*`, new grids) so HR and frozen-surface internals
+   are untouched; 12px floor held; accessibility gate green. The validator now asserts
+   the slim-header pattern and section-chrome density statically, so re-widening fails
+   the build.
+9. **One global management view** — `v_global_management` mounted as THE first band:
+   tone-spined entity card per department drilling to its dashboard; "Sales & Cash"
+   renders its served gap_note VERBATIM; the unrouted finding-classes render as the red
+   "NOBODY OWNS THESE" group with summed open findings — deliberately the loudest thing
+   on the board.
+
+**Filed for Agent I from this pass:** `is_the_unrouted_pile` is false on all 26 rows
+including the finding-classes — an inert flag; the band splits by the app's own
+dashboard registry until the curated mapping lands. The finding-class vocabulary
+mapping remains his next data item. Environmental gate states at commit time, none
+mine and none deploy-blocking (they degrade without a database in CI): schema-baseline
+(+14 tables live over dump), migration-drift (38 production migrations without files —
+another agent has dumped ~200 migration files into the tree UNCOMMITTED, and secret-scan
+flags credentials inside three of those uncommitted files: an edge-function admin key
+twice, a signed storage URL once — their author must not commit them as-is),
+edge-function-drift (apex-sync), docs-vs-database, page-architecture archetype ratchet
+(149 > 129), report-contract I4 (325 side-menu reports vs baseline 93 — nav_registry
+state). Screenshots against the DDC reference images: still credential-gated; the
+signed-in review remains the deploy gate for looks, and the owner sees the live site
+directly.
+
 ## Deferred (named, per Agent I's "land vs defer")
 
 Global command bar (nav-only stub) · governance control-plane page · faceted filter grid

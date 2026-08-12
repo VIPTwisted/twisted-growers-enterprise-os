@@ -120,13 +120,43 @@ for (const name of ["RoomRings", "RoomDrill", "YieldBars", "GoalsSummary", "InTr
     errors.push(`${name} contains a literal numeric series — fabricated data reads as live and must not ship (A1).`);
   }
 }
-const goals = componentBody(src, "GoalsSummary") ?? "";
-if (!/StatusChip/.test(goals) || !/no data/i.test(goals)) {
-  errors.push("GoalsSummary lost its StatusChip no-data honesty — an unwired figure must say so on its face.");
+const goals = componentBody(src, "GoalsSection") ?? "";
+if (!goals) {
+  errors.push("GoalsSection is missing — the goals summary lost its section (renamed again without updating this gate?).");
+} else if (!/StatusChip/.test(goals) || !/no data/i.test(goals)) {
+  errors.push("GoalsSection lost its StatusChip no-data honesty — an unwired figure must say so on its face.");
 }
 const rings = componentBody(src, "RoomRings") ?? "";
-if (rings && !/never shown without its department|room_qualified/i.test(rings)) {
-  errors.push("RoomRings lost its room-qualification honesty note (J7: a room is never shown without its department).");
+if (rings && !/roomQualified/.test(rings)) {
+  errors.push("RoomRings lost its composed roomQualified value (J7: a room is never rendered without its department).");
+}
+
+/* 5 — the global management band (owner order, 12 Aug 2026): reads the served
+ *     view, renders the gap_note verbatim, and keeps the unrouted pile loud. */
+const gm = componentBody(src, "GlobalManagement") ?? "";
+if (!gm) {
+  errors.push("GlobalManagement is missing — Command lost its one-global-view band (owner order, 12 Aug 2026).");
+} else {
+  if (!gm.includes('from("v_global_management")')) errors.push("GlobalManagement no longer reads v_global_management.");
+  if (!/gap_note/.test(gm)) errors.push("GlobalManagement no longer renders gap_note — the honest-state doctrine requires the served gap text verbatim.");
+  if (!/NOBODY OWNS THESE/.test(gm)) errors.push("GlobalManagement lost its unrouted pile — work nobody owns must be the loudest thing on the board.");
+}
+
+/* 6 — the wasted-space assertion (owner supersession, 12 Aug 2026: FULL DDC
+ *     density, "NO wasted space"). Chrome is measured at the tight end: the
+ *     slim header pattern must exist and be used, and the section chrome
+ *     overrides must be present in patches.css. Static and blunt on purpose —
+ *     a regression here is somebody re-widening the chrome. */
+const css = readFileSync(join(ROOT, "app/web/src/patches.css"), "utf8");
+for (const [needle, why] of [
+  [".dashbar.slim", "the ≤120px slim header pattern was removed from patches.css"],
+  [".dsechead { padding-top: 5px", "section header density was re-widened (doctrine: slim headers)"],
+  ['className="dashbar slim"', null],
+]) {
+  const hay = needle.startsWith("className") ? src : css;
+  if (!hay.includes(needle)) {
+    errors.push(why ?? "DeptDashboard stopped using the slim header — the ~120px chrome budget is unenforced.");
+  }
 }
 
 /* 4 — narrative lanes (owner addition, 11 Aug 2026): paragraphs are claims and
