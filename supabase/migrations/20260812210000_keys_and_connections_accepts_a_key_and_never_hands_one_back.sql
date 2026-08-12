@@ -282,6 +282,27 @@ update public.nav_registry
 -- consulted before any archetype.
 update public.nav_registry set archetype = 'rules_editor' where view_key = 'app_secrets';
 
+-- RETIRE THE RAW BROWSER OVER THE SAME TABLE. This is not tidying, it is the consequence of
+-- section 4a and I would be leaving a broken page if I skipped it.
+--
+-- nav_registry row `app-secrets` ("App Secrets") is a data_browser whose table_ref is the raw
+-- app_secrets table, and ReportScreen probes every table with `select *` (App.jsx line 2161).
+-- Once `value` is no longer granted to `authenticated`, that star expands to a column the
+-- caller cannot read and the page renders a permission error. It also means the page's ONLY
+-- distinguishing feature over Keys & Connections was that it displayed the secret.
+--
+-- Two pages over one table where the poorer one is the one that leaks: `hold_the_ddc_discipline`
+-- says delete one, do not improve both. The owner's 11 Aug freeze on the side menu permits
+-- rename, consolidate, add and remove of menu ENTRIES, which is what this is. Reversible in one
+-- statement: set enabled = true.
+update public.nav_registry
+   set enabled = false,
+       description = 'Retired 12 Aug 2026. It browsed the raw app_secrets table, including the '
+                     'value column, which is no longer readable from a browser by anyone. Use '
+                     'Settings → Keys & Connections, which shows what is set, its last four '
+                     'characters, and when and by whom — and lets you paste a new one.'
+ where view_key = 'app-secrets';
+
 -- The description promised a capability the page did not have. It has it now, so the sentence
 -- can stay -- but "can never be read back into a browser" was NOT true when it was written and
 -- is only true from this migration onwards.
