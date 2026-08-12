@@ -39,6 +39,30 @@ import { supabase } from "./lib/supabase.js";
 const CHROME = 11;   /* DDC scale: chrome 9–11px */
 const BODY = 12;     /* 12px floor for prose, and prose never goes below it */
 
+/* AT MOST FOUR CHARACTERS, WHATEVER THE VIEW HANDS OVER. Until migration 20260812210000 is
+   applied, v_secret_status.masked is `left(value,7) || '…' || right(value,4)` — eleven
+   characters of the secret, including its leading seven, which for most token formats is the
+   structurally identifying part. Rendering whatever arrives would have shipped that to the
+   screen. Taking the tail here makes the page's promise true under BOTH shapes of the view,
+   and it stays true if some future view widens the mask again without anyone reading this. */
+function tail4(masked) {
+  const s = String(masked ?? "").replace(/[^A-Za-z0-9_-]/g, "");
+  return s.length ? s.slice(-4) : null;
+}
+
+/* An error a person can act on. PostgREST answers a call to a function that does not exist
+   with "Could not find the function ... in the schema cache", which reads like a bug in this
+   page. Until migration 20260812210000 is applied, Remove and Add really are unavailable, and
+   saying which step is missing is the difference between a defect and a queue. */
+function plainError(error) {
+  const m = String(error?.message ?? "");
+  if (/Could not find the function|does not exist/i.test(m)) {
+    return "That control is not live yet — migration 20260812210000 has not been applied to the database. Nothing was changed.";
+  }
+  if (/Only an owner or an executive/i.test(m)) return m;
+  return m || "The database refused the change and gave no reason.";
+}
+
 function when(ts) {
   if (!ts) return null;
   const d = new Date(ts);
@@ -61,11 +85,20 @@ export default function KeysConnections({ session }) {
 
   useEffect(() => () => { live.current = false; setDraft({}); }, []);
 
+  /* TWO SHAPES OF THE SAME VIEW, ON PURPOSE. `last_set_at` and `last_set_by` arrive with
+     migration 20260812210000. This page is committed before that migration is applied, and a
+     select naming a column the view does not have yet fails the WHOLE request — the list
+     would render as "could not be read" on a page whose entire job is to tell you what is
+     configured. So: ask for the richer shape, and on failure fall back to the six columns
+     that exist today. Both paths bind `error`. When the migration lands the fallback simply
+     stops being reached; nothing needs editing for it to start showing who set the key. */
+  const BASE = "key,label,help,status,masked,updated_at";
   const load = useCallback(async () => {
-    const { data, error } = await supabase
-      .from("v_secret_status")
-      .select("key,label,help,status,masked,updated_at,last_set_at,last_set_by")
-      .order("key");
+    let { data, error } = await supabase
+      .from("v_secret_status").select(`${BASE},last_set_at,last_set_by`).order("key");
+    if (error) {
+      ({ data, error } = await supabase.from("v_secret_status").select(BASE).order("key"));
+    }
     if (!live.current) return;
     if (error) { setLoadErr(error.message); setRows([]); return; }
     setLoadErr(null);
@@ -90,7 +123,7 @@ export default function KeysConnections({ session }) {
     setDraft((d) => ({ ...d, [key]: "" }));
     setBusy(null);
     if (error) {
-      setSaid((s) => ({ ...s, [key]: { ok: false, text: error.message } }));
+      setSaid((s) => ({ ...s, [key]: { ok: false, text: plainError(error) } }));
       return;
     }
     /* Say nothing about success until the registry itself has been re-read. A screen that
@@ -105,7 +138,7 @@ export default function KeysConnections({ session }) {
     const { error } = await supabase.rpc("tg_secret_forget", { p_key: key, p_drop_registration: false });
     setBusy(null);
     setConfirmRemove(null);
-    if (error) { setSaid((s) => ({ ...s, [key]: { ok: false, text: error.message } })); return; }
+    if (error) { setSaid((s) => ({ ...s, [key]: { ok: false, text: plainError(error) } })); return; }
     await load();
     if (live.current) setSaid((s) => ({ ...s, [key]: { ok: true, text: "Removed. The name stays so you can set it again." } }));
   }
@@ -116,7 +149,7 @@ export default function KeysConnections({ session }) {
     setBusy("__new");
     const { error } = await supabase.rpc("tg_secret_register", { p_key: k, p_label: null, p_help: null });
     setBusy(null);
-    if (error) { setSaid((s) => ({ ...s, __new: { ok: false, text: error.message } })); return; }
+    if (error) { setSaid((s) => ({ ...s, __new: { ok: false, text: plainError(error) } })); return; }
     setNewKey(""); setAdding(false);
     await load();
   }
@@ -169,8 +202,8 @@ export default function KeysConnections({ session }) {
                 {set ? "Set" : "Not set"}
               </span>
               <code style={{ fontSize: CHROME, color: "var(--ink-2)" }}>{r.key}</code>
-              {set && r.masked && (
-                <span style={{ fontSize: CHROME, color: "var(--ink-2)" }}>ends {r.masked}</span>
+              {set && tail4(r.masked) && (
+                <span style={{ fontSize: CHROME, color: "var(--ink-2)" }}>ends ••••{tail4(r.masked)}</span>
               )}
             </div>
 
