@@ -315,14 +315,22 @@ select
 
   -- Severity escalates with DURATION, never by resending the same line. A feed one
   -- interval late is not the same event as a feed six days dark, and treating them
-  -- the same is how 239 alerts went unread.
+  -- the same is how a queue of unread alerts is built.
+  --
+  -- BUT DURATION CANNOT OVERRULE IMPORTANCE. Caught by running this logic against
+  -- live data before it shipped: the ClickUp workspace mirror has 8 runs and 0
+  -- successes, and an earlier version of this ladder escalated it to CRITICAL on the
+  -- strength of never having worked. ClickUp is the owner's sandbox and nothing
+  -- operational depends on it. A critical alert for a sandbox is how somebody learns
+  -- to skim the critical ones. severity_floor is the declared importance band and
+  -- duration escalates only WITHIN it.
   case
     when s.state in ('CURRENT','IN FLIGHT','RETIRED') then null
-    when s.state = 'NEVER DELIVERED'                  then 'critical'
-    when s.state = 'CANNOT MEASURE'                   then 'elevated'
-    when s.dark_for > s.threshold * 3                 then 'critical'
-    when s.severity_floor = 'critical'                then 'critical'
     when s.severity_floor = 'watch'                   then 'watch'
+    when s.severity_floor = 'critical'                then 'critical'
+    when s.state = 'CANNOT MEASURE'                   then 'elevated'
+    when s.state = 'NEVER DELIVERED'                  then 'critical'
+    when s.dark_for > s.threshold * 3                 then 'critical'
     else 'elevated'
   end as severity,
 

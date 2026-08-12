@@ -49,6 +49,17 @@ revoke all on feed_watch_run from public, anon;
 
 create index if not exists feed_watch_run_ran_at_idx on feed_watch_run (ran_at desc);
 
+-- Stamp the install moment so feeds.the-watcher-is-alive does not go red in the gap
+-- between this migration being applied and the first scheduled run. The note says
+-- exactly what this row is: it records an installation, not an execution. A seed row
+-- pretending to be a run would be the lie this whole file exists to prevent, so it
+-- says so in its own text and the clock starts ticking from here — if the real cron
+-- has not stamped within 90 minutes, the check goes red on schedule.
+insert into feed_watch_run (findings, note)
+values (0, 'INSTALLED, NOT RUN. This row records when the feed watcher was installed '
+        || 'so the liveness check has a starting point. The first real run replaces it '
+        || 'as the most recent stamp within the hour, at 25 past.');
+
 -- ---------------------------------------------------------------------------
 -- 2. HOW OFTEN A FEED ALERT MAY REPEAT. Escalation by duration, not repetition.
 -- ---------------------------------------------------------------------------

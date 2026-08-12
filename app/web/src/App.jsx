@@ -33,6 +33,7 @@ const StaffForms = lazy(() => import("./staffforms.jsx"));
 const PayRuns = lazy(() => import("./payruns.jsx"));
 const MySchedule = lazy(() => import("./myschedule.jsx"));
 const SyncItems = lazy(() => import("./syncitems.jsx"));
+const KeysConnections = lazy(() => import("./keysconnections.jsx"));
 import jsQR from "jsqr";
 import { supabase, FUNCTIONS_URL } from "./lib/supabase.js";
 import { BudzScreen, CeoDashboard, AssistantSettings, BudzPet, useBudzPet, RedGreen,
@@ -11128,6 +11129,13 @@ export default function App() {
     my_availability: <MySchedule mode="availability" go={setView} />,
     my_swap: <MySchedule mode="swap" go={setView} />,
     integrations: <Integrations session={session} />,
+    /* A credential vault is not a report. Routed through the report archetype this page
+       inherited a search box, an export row and a date range defaulted to THIS MONTH, so a
+       key set in July read as not set — on the one screen where that conclusion makes
+       somebody paste a second credential. Owner, 12 Aug 2026, looking at it: "you need to
+       add way for me to add key and secrets here right now i cant". Its own layout, shared
+       primitives only. `hold_the_ddc_discipline`. */
+    app_secrets: <KeysConnections session={session} />,
     settings: <Settings session={session} prefs={prefs} />,
     help: <Help />,
     metrc_mirror: <MetrcMirror />,
