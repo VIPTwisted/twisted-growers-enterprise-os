@@ -128,15 +128,31 @@ through Agent I. Answers `docs/workflows/FORENSIC_DELIVERY_AUDIT_CHECKLIST.md` l
   silent-failures PASS (limits held) · ui-language PASS · accessibility PASS (two new
   inputs labelled after the gate caught them) · tile-drills PASS · no-fabricated-data
   PASS. Build clean.
-- **Defects filed with Agent I:** (1) `dashboard_commentary` has row-level security
-  ENABLED with ZERO policies — every authenticated read and write is denied, so the CEO
-  lane shows its error honestly but cannot work until read/insert/retire policies land
-  (insert/retire for owner+executive, read for authenticated). (2) The table has no
-  `drill` column although the order says both lanes drill — add it or confirm notes do
-  not. (3) `section_key` is NOT NULL; notes written from the band use `section_key =
-  'narrative'` — confirm or supply the intended vocabulary, and supply the
-  section_key ↔ dashboard-section placement contract if paragraphs should sit under
-  specific section headers rather than the narrative band.
+- **Defects filed with Agent I — ALL THREE CLOSED BY AGENT I, same night, and the lane
+  verified end to end (12 Aug 2026 00:29 UTC):**
+  1. Row-level security policies now live and read back from `pg_policy`: `dc_read`
+     (select, `true` for authenticated) · `dc_insert` (insert, `f_caller_is_admin() AND
+     length(btrim(author)) > 0` — the database itself refuses an unsigned note) ·
+     `dc_retire` (update, `f_caller_is_admin()`). Editing rights follow the existing
+     admin helper; widening to non-admin executives is a role-model decision for the
+     owner. The interface gate (owner/executive see the editor) is presentation; the
+     database is the enforcement.
+  2. `drill` column added, nullable. Wired: a note with a drill key renders as a
+     clickable block; null renders as plain prose. The note editor gained an optional
+     "page it opens" field — a wrong key lands on the honest unknown-page screen.
+  3. Placement contract decided: `page` = dashboard key, `section_key` = lane
+     vocabulary inside the per-dashboard "In plain words" band as shipped; hand-written
+     notes default `section_key='narrative'`. The shipped shape IS the contract.
+  **End-to-end exercise, on the record as `dashboard_commentary` id 1:** insert of a
+  labelled verification note succeeded · read-back succeeded · an attempted edit of
+  `body` was REFUSED by trigger `trg_dc_retire_only` ("A published note is never
+  edited… Retire it and publish a new note. A signed opinion stays exactly as it was
+  signed.") · retire succeeded (`retired_at`/`retired_by` set) · body verified
+  untampered after the refusal · the retired row stays on the record, because nothing
+  here deletes. Honest limit: this exercise ran on the service path, which bypasses
+  row-level security but not triggers — so the immutability proof is real, while the
+  authenticated policy path (admin can write, non-admin cannot) still gets its live
+  confirmation in the signed-in review that already gates the deploy (F2).
 
 ## Deferred (named, per Agent I's "land vs defer")
 

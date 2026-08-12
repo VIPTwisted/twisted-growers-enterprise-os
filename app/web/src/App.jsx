@@ -10137,6 +10137,7 @@ function AddCeoNote({ pageKey, session, role, onDone }) {
   const [open, setOpen] = useState(false);
   const [body, setBody] = useState("");
   const [pinned, setPinned] = useState(false);
+  const [drill, setDrill] = useState("");
   const [msg, setMsg] = useState("");
   const author = session?.user?.email ?? null;
   const save = async () => {
@@ -10144,9 +10145,10 @@ function AddCeoNote({ pageKey, session, role, onDone }) {
     if (!author) { setMsg("A note must be signed — no signed-in email, no note. Anonymous commentary is not allowed."); return; }
     const { error } = await supabase.from("dashboard_commentary").insert({
       page: pageKey, section_key: "narrative", author, author_role: role, body: body.trim(), pinned,
+      drill: drill.trim() || null,
     });
     if (error) { setMsg(`Not saved: ${error.message}`); return; }
-    setBody(""); setPinned(false); setOpen(false); setMsg("");
+    setBody(""); setPinned(false); setDrill(""); setOpen(false); setMsg("");
     onDone();
   };
   if (!open) return (
@@ -10166,6 +10168,10 @@ function AddCeoNote({ pageKey, session, role, onDone }) {
           <input type="checkbox" aria-label="Pin this note to the top"
             checked={pinned} onChange={(e) => setPinned(e.target.checked)} /> pinned to the top
         </label>
+        <input className="cfoin" aria-label="Optional: the page this note opens when clicked"
+          placeholder="optional: page it opens (view key)" value={drill}
+          onChange={(e) => setDrill(e.target.value)}
+          title="Optional. If set, the published note becomes clickable and opens that page — a wrong key lands on the honest 'no page called this' screen, nothing breaks." />
         <button className="btn primary" onClick={save}>Publish under my name</button>
         <button className="btn" onClick={() => { setOpen(false); setMsg(""); }}>Cancel</button>
         {msg && <span className="note">{msg}</span>}
@@ -10259,7 +10265,9 @@ function DashNarratives({ dept, range, role, session, go }) {
       ))}
       {notes.map((n) => (
         <div key={"n" + n.id} className="narrnotewrap">
-          <NarrativeBlock tone="info" human
+          {/* Contract closed by Agent I, 11 Aug 2026: drill is nullable — a note
+              MAY drill; null renders as no drill. */}
+          <NarrativeBlock tone="info" human drill={n.drill || null} go={go}
             byline={`${n.author}${n.author_role ? " · " + n.author_role : ""} · ${String(n.written_at).slice(0, 10)} · a signed opinion, not a computed figure${n.pinned ? " · pinned" : ""}`}>
             {n.body}
           </NarrativeBlock>
