@@ -1,18 +1,38 @@
-import React, { useEffect, useState, useCallback, useRef, useMemo } from "react";
-import Roster from "./roster.jsx";
-import HrDashboard from "./hrdash.jsx";
-import EmployeeFile from "./empfile.jsx";
-import ScheduleBuilder from "./schedbuild.jsx";
-import Timesheets from "./timesheets.jsx";
-import HrQueue from "./hrqueue.jsx";
-import Terminals from "./terminals.jsx";
-import MyWeek from "./myweek.jsx";
-import DocReader from "./docreader.jsx";
-import Onboard from "./onboard.jsx";
-import StaffForms from "./staffforms.jsx";
-import PayRuns from "./payruns.jsx";
-import MySchedule from "./myschedule.jsx";
-import SyncItems from "./syncitems.jsx";
+import React, { useEffect, useState, useCallback, useRef, useMemo, lazy, Suspense } from "react";
+/* ═══════════════════════════════════════════════════════════════════════════
+   ROUTE-LEVEL CODE SPLITTING — the owner's fifteen-second first paint.
+
+   Measured 12 Aug 2026 before this change: the whole platform shipped as ONE
+   1,294,080-byte JavaScript chunk. There was no React.lazy, no Suspense and no
+   dynamic import anywhere in app/web/src, so signing in downloaded, parsed and
+   evaluated every page in the product — the payroll runs, the document reader,
+   the kiosk, three department dashboards — before the Control Tower could draw
+   its first pixel.
+
+   Every module below is a LEAF: it is imported by nothing except this file and
+   it is mounted by exactly one route. Splitting a leaf is safe in a way that
+   splitting a shared module is not, which is why dashkit, budz and the Command
+   Center's own primitives stay static — this file imports live bindings back
+   out of them at module scope, and a dynamic import cannot satisfy that.
+
+   Suspense sits around the page body, so switching routes shows one honest line
+   while the chunk arrives instead of a white screen. It never wraps the shell:
+   the side menu and the top menu are not lazy and never blank.
+   ═══════════════════════════════════════════════════════════════════════════ */
+const Roster = lazy(() => import("./roster.jsx"));
+const HrDashboard = lazy(() => import("./hrdash.jsx"));
+const EmployeeFile = lazy(() => import("./empfile.jsx"));
+const ScheduleBuilder = lazy(() => import("./schedbuild.jsx"));
+const Timesheets = lazy(() => import("./timesheets.jsx"));
+const HrQueue = lazy(() => import("./hrqueue.jsx"));
+const Terminals = lazy(() => import("./terminals.jsx"));
+const MyWeek = lazy(() => import("./myweek.jsx"));
+const DocReader = lazy(() => import("./docreader.jsx"));
+const Onboard = lazy(() => import("./onboard.jsx"));
+const StaffForms = lazy(() => import("./staffforms.jsx"));
+const PayRuns = lazy(() => import("./payruns.jsx"));
+const MySchedule = lazy(() => import("./myschedule.jsx"));
+const SyncItems = lazy(() => import("./syncitems.jsx"));
 import jsQR from "jsqr";
 import { supabase, FUNCTIONS_URL } from "./lib/supabase.js";
 import { BudzScreen, CeoDashboard, AssistantSettings, BudzPet, useBudzPet, RedGreen,
@@ -22,15 +42,15 @@ import { BudzScreen, CeoDashboard, AssistantSettings, BudzPet, useBudzPet, RedGr
    module, mounted at dept_dash_command below. It imports shared primitives and
    the frozen keep-list components back from this file — the import cycle is
    deliberate and safe because every binding is used at render time only. */
-import CommandCenter from "./commandcenter.jsx";
+const CommandCenter = lazy(() => import("./commandcenter.jsx"));
 /* dashkit — the shared dashboard primitives and the widget/drag framework the
    department dashboards are built from. The evidence cell is imported back
    here so the shared stock-proof drill carries certificate and manifest on
    every row, sitewide (owner hard rule, 12 Aug 2026). Same deliberate,
    render-time-only import cycle as the Command Center above. */
 import { TagEvidence, TagEvidenceProvider } from "./dashkit.jsx";
-import CultivationDashboard from "./dash-cultivation.jsx";
-import InventoryDashboard from "./dash-inventory.jsx";
+const CultivationDashboard = lazy(() => import("./dash-cultivation.jsx"));
+const InventoryDashboard = lazy(() => import("./dash-inventory.jsx"));
 
 // Laws: live numbers (2) · no fake data (3) · nothing hardwired (4) — navigation itself is DB rows.
 
@@ -301,12 +321,20 @@ function usePrefs(session) {
     localStorage.setItem("tg-theme", theme);
   }, [theme]);
   useEffect(() => { localStorage.setItem("tg-nav", collapsed ? "1" : "0"); }, [collapsed]);
+  /* ONE READ OF user_settings, NOT TWO (Agent X). The theme/collapse pair and
+     the sidebar width were fetched by two separate effects against the same
+     table, the same row and the same user, on every sign-in. They are read
+     together and applied together; the width state is declared below and is set
+     from this same response. */
+  const [navWidth, setNavWidthState] = useState(() => Number(localStorage.getItem("tg-navw")) || 246);
   useEffect(() => {
     if (!session) return;
-    supabase.from("user_settings").select("theme, sidebar_collapsed").eq("user_id", session.user.id).maybeSingle()
+    supabase.from("user_settings").select("theme, sidebar_collapsed, sidebar_width")
+      .eq("user_id", session.user.id).maybeSingle()
       .then(({ data }) => {
         if (data?.theme) setThemeState(data.theme);
         if (typeof data?.sidebar_collapsed === "boolean") setCollapsedState(data.sidebar_collapsed);
+        if (data?.sidebar_width) setNavWidthState(data.sidebar_width);
       });
   }, [session]);
   const persist = useCallback((patch) => {
@@ -314,13 +342,7 @@ function usePrefs(session) {
   }, [session]);
   const setTheme = useCallback((t) => { setThemeState(t); persist({ theme: t }); }, [persist]);
   const setCollapsed = useCallback((c) => { setCollapsedState(c); persist({ sidebar_collapsed: c }); }, [persist]);
-  const [navWidth, setNavWidthState] = useState(() => Number(localStorage.getItem("tg-navw")) || 246);
   useEffect(() => { localStorage.setItem("tg-navw", String(navWidth)); }, [navWidth]);
-  useEffect(() => {
-    if (!session) return;
-    supabase.from("user_settings").select("sidebar_width").eq("user_id", session.user.id).maybeSingle()
-      .then(({ data }) => { if (data?.sidebar_width) setNavWidthState(data.sidebar_width); });
-  }, [session]);
   const setNavWidthLive = useCallback((w) => setNavWidthState(Math.min(380, Math.max(170, w))), []);
   const commitNavWidth = useCallback((w) => persist({ sidebar_width: Math.min(380, Math.max(170, Math.round(w))) }), [persist]);
   return { theme, setTheme, collapsed, setCollapsed, navWidth, setNavWidthLive, commitNavWidth };
@@ -9477,11 +9499,33 @@ function CfoInventoryAudit({ go, session }) {
 
 export function ForensicAuditLedger({ go }) {
   const [rows, setRows] = useState(null);
+  /* THE READ BINDS ITS ERROR (Agent X, F2). It did not, and the component then
+     returned null on an empty array — so a failed read and a genuinely empty
+     ledger were the same thing on screen: an empty panel with no explanation.
+     That is the platform's classic silent failure and this is a 7.5-second
+     query, which is exactly the kind that times out. Both cases now say which
+     one they are. */
+  const [err, setErr] = useState(null);
   useEffect(() => {
+    let live = true;
     supabase.from("v_forensic_audit_panel").select("*").order("ord")
-      .then(({ data }) => setRows(data ?? []));
+      .then(({ data, error }) => {
+        if (!live) return;
+        if (error) { setErr(error.message); setRows([]); return; }
+        setRows(rowsOr(data));
+      });
+    return () => { live = false; };
   }, []);
-  if (!rows || !rows.length) return null;
+  if (err) return (
+    <div className="brnone"><b>The inventory forensic audit could not be read:</b> {err} — the read
+      genuinely failed; nothing is hidden behind an empty panel.</div>
+  );
+  if (rows === null) return <div className="note">Reading the inventory forensic audit…</div>;
+  if (!rows.length) return (
+    <div className="brnone"><b>The inventory forensic audit is empty.</b> v_forensic_audit_panel
+      returned no lines. The read succeeded, so this is not a failure — it means no material movement
+      has been posted for the audit to schedule, which is itself worth raising.</div>
+  );
 
   const lb = (v) => v == null ? "—" :
     Number(v).toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 });
@@ -11380,7 +11424,17 @@ export default function App() {
           )}
         </nav>
         <main className="main">
-          <Boundary resetKey={view}>{body}</Boundary>
+          {/* Suspense wraps the PAGE only, never the shell. A lazily loaded
+              route arrives as a separate chunk, and while it is in flight this
+              says so in one honest line — the side menu and the top menu are
+              already on screen and never blank. It sits inside the boundary so
+              a chunk that fails to load is caught and reported like any other
+              page error rather than white-screening the app. */}
+          <Boundary resetKey={view}>
+            <Suspense fallback={<div className="note" style={{ padding: 16 }}>Loading this page…</div>}>
+              {body}
+            </Suspense>
+          </Boundary>
         </main>
       </div>
 

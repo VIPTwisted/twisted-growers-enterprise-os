@@ -147,7 +147,42 @@ export function DrillRoot({ label, children }) {
     return () => window.removeEventListener("keydown", onKey);
   }, [stack]);
   const value = useMemo(() => ({ rootLabel: label, stack, push, pop }), [label, stack, push, pop]);
-  return <DrillStackCtx.Provider value={value}>{children}</DrillStackCtx.Provider>;
+  /* THE ONE-PRESS WAY OUT — owner, 12 Aug 2026: "there has to be fast easy way
+     to get back to main screen" and "once drill down data is not needed by user
+     and they finish reviewing they should be able to close it to see the normal
+     dash again."
+
+     Every drill already carries its own header exit, but that exit scrolls away
+     with the drill: four levels deep and 3,000px down a package list, the way
+     back is off-screen in both directions. This bar is pinned to the bottom of
+     the viewport for exactly as long as something is open, it NAMES what is
+     open, and it offers both moves — leave this level, or leave all of them and
+     be back on the dashboard in one press. It disappears the instant the last
+     level closes, so it is never chrome on a page with nothing open. */
+  const top = stack.length ? stack[stack.length - 1] : null;
+  const closeEverything = useCallback(() => {
+    for (const e of [...stack].reverse()) e.close();
+  }, [stack]);
+  return (
+    <DrillStackCtx.Provider value={value}>
+      {children}
+      {top && (
+        <div className="cc-exitbar" role="status">
+          <span className="cc-exitbar-what">
+            <b>{stack.length === 1 ? "Open:" : `${stack.length} levels open, innermost:`}</b> {top.label}
+          </span>
+          <button className="cc-btn" onClick={() => top.close()}
+            title="Close this level only and go back to the one above it. The Escape key does the same.">
+            Close this level
+          </button>
+          <button className="cc-btn primary" onClick={closeEverything}
+            title={`Close every open drill at once and see ${label} as it normally looks.`}>
+            ✕ Back to {label}
+          </button>
+        </div>
+      )}
+    </DrillStackCtx.Provider>
+  );
 }
 
 /* THE DRILL. One component: registers its level, draws the breadcrumb and the
@@ -609,7 +644,23 @@ export function WidgetBoard({ layout, children }) {
    the tile · sparkline from real snapshots or an honest "no history yet" ·
    change since yesterday in words · forensic drill · assign from the tile.
    ═══════════════════════════════════════════════════════════════════════════ */
-export function DkKpiStrip({ dept, tiles, trend, targets, go, onAssigned }) {
+/* `caveats` is an optional map from KPI label to a SERVED sentence qualifying
+   that tile's figure. It exists for one reason and it is a rule, not a feature:
+   where a published figure is known to be wrong or known to be unsettled, the
+   page may not silently repeat it and may not silently correct it either. The
+   front end changes no figure — the tile keeps showing exactly what
+   mv_department_dashboard published — and the qualifying sentence beside it is
+   the DATABASE'S own words, never this file's.
+
+   The live case, 12 Aug 2026: "Total on hand, dry-equivalent" publishes 2,460.0
+   lb, which adds 418.3 lb of fresh frozen at WET weight into a figure labelled
+   dry-equivalent and overstates the position by 325.3 lb. The owner ruled that
+   the two are split ("AGREE SPLIT THIS"). The split figures are served by
+   v_stock_headline and the caveat is its why_two_figures column, verbatim. The
+   published tile is corrected at SOURCE, not here — a correction proposal is
+   filed against the matview — and until that lands the reader sees the number
+   and the reason it is wrong together, rather than the number alone. */
+export function DkKpiStrip({ dept, tiles, trend, targets, go, onAssigned, caveats }) {
   if (!tiles.length) {
     return (
       <DkEmpty
@@ -686,6 +737,9 @@ export function DkKpiStrip({ dept, tiles, trend, targets, go, onAssigned }) {
                 {!r.drill && <span className="cc-kpi-nodrill">no drill published</span>}
                 {shortCtx && <span className="cc-kpi-ctx">{shortCtx}</span>}
               </button>
+              {caveats && caveats[r.kpi] && (
+                <div className="cc-kpi-caveat" title={caveats[r.kpi]}>{caveats[r.kpi]}</div>
+              )}
               <span className="cc-kpi-assign">
                 <AssignTask dept={dept} kpi={r.kpi} value={r.value} unit={r.unit} drill={r.drill} onDone={onAssigned} />
               </span>
@@ -824,6 +878,7 @@ function DkQueueInstances({ row, go }) {
   const [err, setErr] = useState(null);
   const [pages, setPages] = useState(1);
   const [more, setMore] = useState(false);
+  const [dupes, setDupes] = useState(0);
   useEffect(() => {
     let live = true;
     supabase.from("v_findings")
@@ -836,7 +891,12 @@ function DkQueueInstances({ row, go }) {
         if (error) { setErr(error.message); return; }
         const got = rowsOr(data);
         setMore(got.length === pages * PAGE);
-        setInst(got.filter((r) => r.is_duplicate !== true));
+        const kept = got.filter((r) => r.is_duplicate !== true);
+        /* Counted rather than inferred. The header below states the difference
+           between the cause's own count and this list, and it may only state a
+           reason it actually measured. */
+        setDupes(got.length - kept.length);
+        setInst(kept);
       });
     return () => { live = false; };
   }, [row.pattern_key, row.source, pages]);
@@ -846,10 +906,29 @@ function DkQueueInstances({ row, go }) {
   const claimed = Number(row.findings_that_clear_if_fixed ?? 0);
   return (
     <div className="cc-inst-list">
+      {/* THE HEADER MUST MATCH WHAT IS ACTUALLY BELOW IT (F6, Agent X). It said
+          "press below for the rest" whenever the count differed from the list —
+          including when the list was already exhausted and there was no button
+          below to press. A reader then hunts for a control that does not exist
+          and concludes rows are being withheld. The two cases are now separate
+          sentences, and the second one only claims what was measured: the
+          duplicate rows this list collapsed. Any remainder beyond those is named
+          as unexplained rather than dressed up. */}
       {(more || claimed > inst.length) && (
         <div className="cc-fine">
-          Showing {inst.length.toLocaleString()} of {claimed.toLocaleString()} findings behind this
-          cause, worst first. Nothing is summarised away — press below for the rest.
+          Showing {inst.length.toLocaleString()} of the {claimed.toLocaleString()} findings this
+          cause is counted as clearing, worst first.{" "}
+          {more ? (
+            <>Nothing is summarised away — press <b>Show the next {PAGE}</b> at the bottom for the rest.</>
+          ) : dupes > 0 && claimed - inst.length === dupes ? (
+            <>That is the whole list: the remaining {dupes.toLocaleString()} row{dupes === 1 ? " is a duplicate" : "s are duplicates"} of
+              findings already above, counted once by the cause and listed once here. No page is capped.</>
+          ) : (
+            <>That is the whole list — there is no further page. {dupes > 0 && <>{dupes.toLocaleString()} duplicate
+              row{dupes === 1 ? "" : "s"} were collapsed, which does not account for the whole difference. </>}
+              The remainder is a disagreement between the cause count and the finding rows, and it is filed with the
+              database team rather than hidden behind a button that would do nothing.</>
+          )}
         </div>
       )}
       {inst.map((f, i) => (
@@ -1181,29 +1260,171 @@ export function DkStreamDrill({ origin, stream, renderTable }) {
 /* ═══════════════════════════════════════════════════════════════════════════
    THE ROOM BOARD — every room, department-qualified, from the served view.
 
-   WHY room_role AND NOT is_flower_room. Both columns are served by
-   v_room_board_complete and they disagree. Measured against the plant mirror
-   on 12 Aug 2026, Metrc holds plants in exactly six locations — Flower Room
-   #1-#4, Vegetation Room, Mother Room — and in no vault. The view nonetheless
-   sets is_flower_room = true on four storage rooms and attributes plants to
-   them: Fulfillment Vault 1,577 plants and "OVER — 113 days past its scheduled
-   pull", Cure Vault 1,067, Pre Trim Storage Room 1,020, Dry Room #2 975.
-   Rendering that would put four fabricated pull alarms on a manager's page and
-   send him to turn a finished-goods vault (A1).
+   REBUILT 12 Aug 2026 against Agent I's corrected data layer, on the owner's
+   order: "these four tiles should expand full screen equally. Since we have
+   room if we do so we should add more important details in each tile and still
+   has to drill down to see every tag full per drilldown rule."
 
-   room_role is the view's own classification and it is correct — it names
-   those four "Bulk flower and outbound", "Curing / bulk storage", "Dried,
-   awaiting trim" and "Post-harvest room". So the cycle ring is drawn for
-   room_role = 'Flower room' only, which is the served discriminator rather
-   than a judgement made here, and the other rooms appear under what they HOLD,
-   where their pounds are real. The is_flower_room defect is filed with the
-   database team; nothing is worked around silently.
+   WHAT CHANGED, AND WHY EACH CHANGE EXISTS.
+
+   1. is_flower_room IS NOW THE DISCRIMINATOR AGAIN. It reads from
+      room_alias.holds_plants and is correct: Metrc holds plants in six
+      locations and no vault is one. The earlier note here said to distrust it
+      and use room_role instead, because the old view flagged Fulfillment Vault
+      as a flower room holding 1,577 plants with "OVER — 113 days past its
+      scheduled pull". Both figures were nonsense and both are gone at source.
+      Reading the corrected column is better than keeping a work-around alive:
+      a work-around outlives the defect it was written for and then becomes one.
+
+   2. NO PLANTS IS RENDERED AS NOTHING, NEVER AS A ZERO. Where
+      room_holds_plants is false the view serves plants_now = NULL, because a
+      plant count for a vault is meaningless by definition rather than zero. A
+      "0 plants" on a finished-goods vault reads as an empty grow room. The
+      tile prints no plant figure at all and prints why_no_plants — the view's
+      own sentence, verbatim, never one written here (A3).
+
+   3. THE TILE HANDS metrc_room_name TO THE DRILL. This is the whole of the
+      defect the owner found: a flower-room tile reported a four-figure plant
+      count while its own drill reported no plants in that room at all, because
+      Metrc names that room differently from the way we do and the drill
+      searched for our name. The tile knew the mapping and the drill did not.
+      The drill is now handed the name the tile counted by, so the two cannot
+      disagree — and tile_drill_contract re-derives the count from the drill's
+      own rows to prove it (contract keys cc.room.*.plants). No count is written
+      into this comment: a figure frozen in prose goes stale exactly as fast as
+      one frozen in code, and the frozen-figures gate counts both.
+
+   4. THE FOUR FLOWER TILES FILL THE ROW EQUALLY. The grid was
+      minmax(120px, 1fr) with auto-fill, which packed the four rooms into a
+      fraction of the width and left the rest of the row empty. They now take
+      an equal share of the whole row, and the space that buys is spent on
+      detail that was previously only in a hover title: Metrc's own room name,
+      strains standing, the next event and its date, the cycle length, the
+      licence, and the reason there are no plants where there are none.
 
    J7. The department is whatever the view serves and is never written as a
    literal here. Where the view has no department it says UNASSIGNED, which is
    a marker rather than English, so it is rendered as "department not recorded"
    — the room still never appears without its department, and no department is
    invented to fill the hole. */
+/* ═══════════════════════════════════════════════════════════════════════════
+   EVERY PLANT STANDING IN ONE ROOM — the drill behind a room tile.
+
+   Owner, 12 Aug 2026: the four room tiles "still [have] to drill down to see
+   every tag full per drilldown rule."
+
+   IT READS v_room_plants_drill AND NOTHING ELSE. The view that used to serve
+   this drill queried metrc_plants directly on the room name, and metrc_plants
+   keeps every plant that was EVER in a room: 'Flower Room #1' returns 13,552
+   rows of which 1,022 are standing. source_state is the currency column and a
+   drill that forgets it does not under-report, it over-reports THIRTEEN-FOLD.
+   The filter lives in the view so no page can miss it, which is why this
+   component takes the room name and never composes a query of its own beyond
+   equality on it.
+
+   IT IS KEYED BY OUR ROOM NAME, NOT METRC'S. The tile counts by our name and
+   the view keys by our name, so tile and drill cannot disagree — the defect the
+   owner found was a flower-room tile reporting a four-figure plant count over a
+   drill reporting none in the same room, because Metrc names that room
+   differently from the way we do. Metrc's own name is shown on the rows for
+   cross-reference and is never used as the key.
+
+   NO SILENT TOP-N (C1). The header states the true total from an exact count,
+   not the number of rows fetched, and the pager says how many are still unread.
+   ═══════════════════════════════════════════════════════════════════════════ */
+export function DkRoomPlantDrill({ room, metrcRoomName }) {
+  const PAGE = 100;
+  const [rows, setRows] = useState(null);
+  const [total, setTotal] = useState(null);
+  const [err, setErr] = useState(null);
+  const [pages, setPages] = useState(1);
+  useEffect(() => {
+    let live = true;
+    setRows(null); setErr(null);
+    supabase.from("v_room_plants_drill").select("*", { count: "exact" })
+      .eq("room", room)
+      .order("days_in_flower", { ascending: false, nullsFirst: false })
+      .order("plant_tag", { ascending: true })
+      .range(0, pages * PAGE - 1)
+      .then(({ data, error, count }) => {
+        if (!live) return;
+        if (error) { setErr(error.message); return; }
+        setRows(rowsOr(data));
+        setTotal(count);
+      });
+    return () => { live = false; };
+  }, [room, pages]);
+  if (err) return <DkErr what={`Every plant standing in ${room}`} err={err} />;
+  if (rows === null) return <div className="cc-fine">Reading every plant standing in {room}…</div>;
+  if (!rows.length) {
+    return (
+      <DkEmpty
+        why={`No plant is standing in ${room} right now.`}
+        fills={`The room board counts the same population from the same view, so this is the real position rather than a failed read. ${metrcRoomName ? `Metrc calls this room ${metrcRoomName}; plants that have LEFT it are still in Metrc's history and are deliberately not counted here.` : "No Metrc room name is mapped to this room, so nothing can be counted into it — that mapping gap is filed with the database team."} A room standing empty between cycles is the normal state after a pull.`}
+      />
+    );
+  }
+  const shown = rows.length;
+  const known = total == null ? null : Number(total);
+  const more = known != null && shown < known;
+  return (
+    <>
+      <div className="cc-fine">
+        {known != null
+          ? <>Showing <b>{shown.toLocaleString()}</b> of <b>{known.toLocaleString()}</b> plants standing in {room}
+              {metrcRoomName ? <> (Metrc calls it {metrcRoomName})</> : null}, longest in flower first.</>
+          : <>Showing <b>{shown.toLocaleString()}</b> plants standing in {room}. The database served no exact
+              count with them, so this page cannot promise the list is complete — that gap is filed rather than
+              papered over with the number of rows that happened to arrive.</>}
+        {" "}Every plant is listed individually; nothing is grouped away.
+      </div>
+      <div className="tablewrap">
+        <table>
+          <thead><tr>
+            <th>Plant tag</th><th>Strain</th><th>Growth phase</th><th>State</th>
+            <th>Days in flower</th><th>Planted on</th><th>Into vegetative</th><th>Into flowering</th>
+            <th>Sublocation</th><th>Plant batch</th><th>Holds</th>
+            <th>Last changed in Metrc</th><th>Certificate of Analysis</th>
+          </tr></thead>
+          <tbody>
+            {rows.map((r) => (
+              <tr key={r.plant_tag}>
+                <td>{r.plant_tag}</td>
+                <td>{r.strain || "not recorded"}</td>
+                <td>{r.growth_phase || "not recorded"}</td>
+                <td>{r.state || "not recorded"}</td>
+                <td>{r.days_in_flower == null ? "not in flower yet" : Number(r.days_in_flower).toLocaleString()}</td>
+                <td>{r.planted_on || "not recorded"}</td>
+                <td>{r.vegetative_on || "not recorded"}</td>
+                <td>{r.flowering_on || "not recorded"}</td>
+                <td>{r.sublocation || "no sublocation recorded"}</td>
+                <td>{r.plant_batch || "not recorded"}</td>
+                <td className={r.on_hold || r.on_investigation ? "bad" : ""}>
+                  {r.on_hold && r.on_investigation ? "On hold and under investigation"
+                    : r.on_hold ? "On hold"
+                    : r.on_investigation ? "Under investigation"
+                    : "None"}
+                </td>
+                <td>{r.metrc_last_modified ? String(r.metrc_last_modified).slice(0, 16).replace("T", " ") : "not recorded"}</td>
+                {/* C3a: never a blank and never a dash — the row states WHICH
+                    reason no certificate exists. A standing plant has none by
+                    definition; the certificate attaches to the package. */}
+                <td className="note">No certificate — a Certificate of Analysis attaches to the package
+                  after harvest and laboratory testing, never to a standing plant.</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {more && (
+        <button className="cc-btn" onClick={() => setPages((p) => p + 1)}>
+          Show the next {Math.min(PAGE, known - shown).toLocaleString()} plants ({(known - shown).toLocaleString()} still unread)
+        </button>
+      )}
+    </>
+  );
+}
+
 const DK_UNASSIGNED = "UNASSIGNED";
 export function dkRoomQualified(r) {
   const dept = r.department && r.department !== DK_UNASSIGNED ? r.department : "department not recorded";
@@ -1211,59 +1432,118 @@ export function dkRoomQualified(r) {
 }
 
 export function DkRoomBoard({ rooms, warnDays, renderPlantDrill, renderStockDrill }) {
-  const [openRoom, setOpenRoom] = useState(null);
-  const [openHold, setOpenHold] = useState(null);
-  const cycle = rooms.filter((r) => r.room_role === "Flower room");
-  const holding = rooms.filter((r) => r.room_role !== "Flower room" && Number(r.lb_held ?? 0) > 0);
+  /* ONE OPEN AT A TIME, ACROSS BOTH ROWS (F8, Agent X). These were two
+     independent pieces of state, so a plant drill and a package drill could
+     stand open together — which breaks the promise the tooltips make, pushes
+     the second table below the fold where its own heading is off-screen, and
+     strands a history entry so the browser back button needs pressing twice.
+     One selector, holding which row and which key, makes the invariant
+     structural instead of a thing every call site has to remember. */
+  const [open, setOpen] = useState(null);   // null | { kind: "room" | "hold", key: string }
+  const openRoom = open?.kind === "room" ? open.key : null;
+  const openHold = open?.kind === "hold" ? open.key : null;
+  const setOpenRoom = (k) => setOpen(k ? { kind: "room", key: k } : null);
+  const setOpenHold = (k) => setOpen(k ? { kind: "hold", key: k } : null);
+  const cycle = rooms.filter((r) => r.is_flower_room === true);
+  const holding = rooms.filter((r) => r.is_flower_room !== true && Number(r.lb_held ?? 0) > 0);
   if (!cycle.length && !holding.length) {
     return <DkEmpty why="No room is on the board."
       fills="v_room_board_complete reads the room register, the harvest schedule and the package mirror; with all three empty there is nothing to show." />;
   }
+  /* A room that holds no plants BY DESIGN is not a room standing empty, and the
+     two must never wear the same state. plants_now is NULL for the first and 0
+     for the second, and the view serves the sentence for each. */
+  const holdsPlants = (r) => r.room_holds_plants !== false && r.plants_now != null;
   const stateOf = (r) => {
-    if (Number(r.plants_now ?? 0) === 0) return { tag: "turning", tone: "info" };
+    if (!holdsPlants(r)) return { tag: "no plants by design", tone: "info" };
+    if (Number(r.plants_now) === 0) return { tag: "turning", tone: "info" };
     if (Number(r.days_until) < 0) return { tag: "over", tone: "crit" };
     if (warnDays != null && Number(r.days_until) <= warnDays) return { tag: "approaching", tone: "warn" };
     return { tag: "on plan", tone: "ok" };
   };
+  const openCycleRow = cycle.find((r) => r.room === openRoom) ?? null;
   return (
     <>
       {cycle.length > 0 && (
         <div className="cc-ringrow">
           {cycle.map((r) => {
             const st = stateOf(r);
-            const empty = Number(r.plants_now ?? 0) === 0;
+            const standing = holdsPlants(r) && Number(r.plants_now) > 0;
             const roomQualified = dkRoomQualified(r);
-            const frac = !empty && r.cycle_days
+            const on = openRoom === r.room;
+            const frac = standing && r.cycle_days
               ? Math.min(1, Math.max(0, (Number(r.cycle_days) - Number(r.days_until)) / Number(r.cycle_days)))
               : 0;
             const C = 2 * Math.PI * 18;
             return (
-              <button key={roomQualified} className={`cc-ringcard ${openRoom === r.room ? "on" : ""}`}
-                onClick={() => setOpenRoom(openRoom === r.room ? null : r.room)}
-                aria-expanded={openRoom === r.room}
-                title={`${roomQualified}${r.strains_now ? " · " + r.strains_now : ""}${r.licence ? " · licence " + r.licence : " · no licence recorded against this room"}. ${openRoom === r.room ? "Click again to close." : "Click for every plant standing in it."}`}>
-                <svg className="cc-ring" viewBox="0 0 44 44" width="44" height="44" aria-hidden="true">
-                  <circle cx="22" cy="22" r="18" className="cc-ring-track" />
-                  {!empty && (
-                    <circle cx="22" cy="22" r="18" className={`cc-ring-fill ${st.tone}`}
-                      strokeDasharray={`${(frac * C).toFixed(1)} ${C.toFixed(1)}`} transform="rotate(-90 22 22)" />
+              <button key={roomQualified} className={`cc-ringcard ${on ? "on" : ""}`}
+                onClick={() => setOpenRoom(on ? null : r.room)}
+                aria-expanded={on}
+                title={`${roomQualified}. ${on ? "Click again to close." : "Click for every plant tag standing in it — every one, not a sample."}`}>
+                <span className="cc-ring-top">
+                  <svg className="cc-ring" viewBox="0 0 44 44" width="44" height="44" aria-hidden="true">
+                    <circle cx="22" cy="22" r="18" className="cc-ring-track" />
+                    {standing && (
+                      <circle cx="22" cy="22" r="18" className={`cc-ring-fill ${st.tone}`}
+                        strokeDasharray={`${(frac * C).toFixed(1)} ${C.toFixed(1)}`} transform="rotate(-90 22 22)" />
+                    )}
+                    <text x="22" y="26" textAnchor="middle" className="cc-ring-num">
+                      {standing ? Math.abs(Number(r.days_until)) : "—"}
+                    </text>
+                  </svg>
+                  <span className="cc-ring-head">
+                    <span className="cc-ring-name"><DkCaret open={on} />{roomQualified}</span>
+                    <DkTag tone={st.tone}>{st.tag}</DkTag>
+                  </span>
+                </span>
+
+                {/* The number, or nothing at all. Never a zero standing in for a
+                    figure the room cannot have. */}
+                {standing ? (
+                  <span className="cc-ring-big">
+                    {Number(r.plants_now).toLocaleString()}<em> plants standing</em>
+                  </span>
+                ) : (
+                  <span className="cc-ring-noplants">{r.why_no_plants ?? "No plant figure is served for this room and no reason was given with it — that gap is filed with the database team rather than filled in here."}</span>
+                )}
+
+                <span className="cc-ring-facts">
+                  {standing && r.strains_now != null && (
+                    <span className="cc-ring-fact"><b>{Number(r.strains_now).toLocaleString()}</b> strains standing</span>
                   )}
-                  <text x="22" y="26" textAnchor="middle" className="cc-ring-num">{empty ? "—" : Math.abs(Number(r.days_until))}</text>
-                </svg>
-                <span className="cc-ring-name">{roomQualified}</span>
-                <span className="cc-ring-meta">{empty
-                  ? "empty — turning"
-                  : `${Number(r.plants_now).toLocaleString()} plants · ${Number(r.days_until) < 0 ? "OVER" : "days left"}`}</span>
-                <DkTag tone={st.tone}>{st.tag}</DkTag>
+                  {r.next_event && (
+                    <span className="cc-ring-fact">
+                      <b>{r.next_event}</b> {r.next_event_date ?? "date not scheduled"}
+                      {r.days_until != null && (
+                        <em className={Number(r.days_until) < 0 ? "crit" : ""}>
+                          {Number(r.days_until) < 0
+                            ? ` — ${Math.abs(Number(r.days_until))} days past it`
+                            : ` — ${Number(r.days_until)} days away`}
+                        </em>
+                      )}
+                    </span>
+                  )}
+                  {r.cycle_days != null && <span className="cc-ring-fact"><b>{r.cycle_days}</b> day cycle</span>}
+                  <span className="cc-ring-fact">
+                    licence <b>{r.licence ?? "not recorded against this room"}</b>
+                  </span>
+                  <span className="cc-ring-fact">
+                    Metrc calls it <b>{r.metrc_room_name ?? "— no Metrc name is mapped, so the plant drill cannot be aimed at this room"}</b>
+                  </span>
+                </span>
+
+                <span className="cc-ring-go">
+                  {on ? "Close — the plant tags are below" : "Open every plant tag →"}
+                </span>
               </button>
             );
           })}
         </div>
       )}
       {openRoom && renderPlantDrill && (
-        <DkDrill label={`Every plant standing in ${dkRoomQualified(cycle.find((r) => r.room === openRoom) ?? { room: openRoom })}`}
+        <DkDrill label={`Every plant standing in ${dkRoomQualified(openCycleRow ?? { room: openRoom })}`}
           onClose={() => setOpenRoom(null)}>
-          {renderPlantDrill(openRoom)}
+          {renderPlantDrill(openCycleRow ?? { room: openRoom })}
         </DkDrill>
       )}
       {holding.length > 0 && (

@@ -76,6 +76,12 @@
 .cc-kpi-nohist { font-size: 10px; color: var(--cct2); font-style: normal; white-space: nowrap; }
 .cc-kpi-nodrill { font-size: 10px; color: var(--ccattn); white-space: nowrap; }
 .cc-kpi-open:disabled { cursor: default; }
+/* A figure the database itself qualifies. Wraps in full — a caveat that is
+   truncated is worse than no caveat, because it reads as decoration. */
+.cc-kpi-caveat {
+  font-size: 10px; line-height: 1.45; color: var(--cccrit); overflow-wrap: anywhere;
+  padding: 0 10px 7px; border-left: 3px solid var(--cccrit); margin-left: 0;
+}
 
 /* ── owner-set targets nothing reports against ─────────────────────────── */
 .cc-orphans { display: flex; flex-direction: column; gap: 4px; }
@@ -131,3 +137,119 @@
 /* ── empty states keep their escape action on the same line ────────────── */
 .cc-empty-act { display: inline-flex; margin-left: 8px; vertical-align: middle; }
 .cc-fine.crit { color: var(--cccrit); }
+
+/* ── the one-press way out ─────────────────────────────────────────────────
+   Owner, 12 Aug 2026: "there has to be fast easy way to get back to main
+   screen" and "once drill down data is not needed by user … they should be
+   able to close it to see the normal dash again."
+
+   Pinned to the bottom of the viewport for as long as ANY drill is open, and
+   gone the moment the last one closes. It names what is open so the reader is
+   never guessing what the button will shut, and it offers both moves: leave
+   this level, or leave all of them. It sits above the page and below nothing,
+   and the page reserves space for it via .ccpage's own bottom padding so it can
+   never cover the last row of a table. */
+.cc-exitbar {
+  position: fixed; left: 50%; transform: translateX(-50%); bottom: 12px; z-index: 40;
+  display: flex; align-items: center; gap: 10px; max-width: min(920px, calc(100vw - 32px));
+  padding: 7px 12px; border: 1px solid var(--ccok); background: var(--cc1);
+  /* Both shadows come from existing tokens. The lift under the bar is the page
+     canvas at partial alpha, never a hardcoded black — the theme-lock gate
+     caught a raw colour function here and it was right to. It scans the raw
+     file, so it reads a colour function named in PROSE as one too; that is the
+     same comments-read-as-code shape the silent-failures ratchet has, and the
+     fix is to reword rather than to edit around the gate. */
+  box-shadow: 0 6px 26px var(--ccok-glow), 0 2px 10px color-mix(in srgb, var(--canvas) 72%, transparent);
+}
+.cc-exitbar-what {
+  flex: 1; min-width: 0; font-size: 11px; line-height: 1.4; color: var(--cct1); overflow-wrap: anywhere;
+}
+.cc-exitbar-what b {
+  font-family: var(--ccmono); font-size: 10px; letter-spacing: 0.08em;
+  text-transform: uppercase; color: var(--cct2); margin-right: 5px;
+}
+.cc-exitbar .cc-btn { flex: none; }
+@media print { .cc-exitbar { display: none; } }
+
+/* ── global management: departments left, the CEO and COO column right ─────
+   Owner, 12 Aug 2026, on the empty right-hand area of this band: "DO NOT LEAVE
+   ANY SPACE HERE WE ADD TILES THAT CEO AND COO WOULD WANT TO SEE HERE." The
+   department cards wrap in the left track and the executive tiles occupy the
+   space they were leaving. Under 1100px the column drops below rather than
+   squeezing either side into an unreadable width. */
+.cc-gmwrap { display: grid; grid-template-columns: minmax(0, 1fr) minmax(260px, 340px); gap: 10px; align-items: start; }
+@media (max-width: 1100px) { .cc-gmwrap { grid-template-columns: minmax(0, 1fr); } }
+.cc-gmleft { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.cc-execcol { display: flex; flex-direction: column; gap: 1px; background: var(--ccline); border: 1px solid var(--ccline); min-width: 0; }
+.cc-exechead {
+  background: var(--cc3); padding: 5px 10px;
+  font-family: var(--ccmono); font-size: 10px; letter-spacing: 0.12em;
+  text-transform: uppercase; color: var(--cct1);
+}
+.cc-exec {
+  display: flex; flex-direction: column; gap: 2px; padding: 8px 10px; text-align: left;
+  background: var(--cc1); border: 0; color: inherit; font-family: inherit; min-width: 0;
+}
+button.cc-exec { cursor: pointer; }
+button.cc-exec:hover { background: var(--cc2); }
+.cc-exec.on { background: var(--cc2); box-shadow: inset 0 -2px 0 var(--ccok); }
+.cc-exec-lbl {
+  font-family: var(--ccmono); font-size: 10px; letter-spacing: 0.08em;
+  text-transform: uppercase; color: var(--cct2); line-height: 1.3; overflow-wrap: anywhere;
+}
+.cc-exec-val { font-size: 20px; font-weight: 700; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.cc-exec-val em { font-style: normal; font-size: 11px; font-weight: 400; color: var(--cct2); margin-left: 4px; }
+.cc-exec-val.ok { color: var(--ccok); }
+.cc-exec-val.warn { color: var(--ccwarn); }
+.cc-exec-val.crit { color: var(--cccrit); }
+.cc-exec-sub { font-size: 10.5px; line-height: 1.45; color: var(--cct2); overflow-wrap: anywhere; }
+.cc-exec-sub.crit { color: var(--cccrit); }
+.cc-exec-go {
+  font-family: var(--ccmono); font-size: 9.5px; letter-spacing: 0.06em;
+  text-transform: uppercase; color: var(--cct2); margin-top: 2px;
+}
+button.cc-exec:hover .cc-exec-go { color: var(--ccok); }
+
+/* ── people on today, and the production schedule ──────────────────────── */
+.cc-splitrow { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 10px; align-items: start; }
+.cc-minitiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1px; background: var(--ccline); border: 1px solid var(--ccline); }
+.cc-mini {
+  display: flex; flex-direction: column; gap: 2px; padding: 7px 10px; text-align: left;
+  background: var(--cc1); border: 0; color: inherit; font-family: inherit; min-width: 0;
+}
+button.cc-mini { cursor: pointer; }
+button.cc-mini:hover { background: var(--cc2); }
+.cc-mini.on { background: var(--cc2); box-shadow: inset 0 -2px 0 var(--ccok); }
+.cc-mini-lbl {
+  font-family: var(--ccmono); font-size: 10px; letter-spacing: 0.08em;
+  text-transform: uppercase; color: var(--cct2); line-height: 1.3; overflow-wrap: anywhere;
+}
+.cc-mini-val { font-size: 18px; font-weight: 700; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.cc-mini-val em { font-style: normal; font-size: 10px; font-weight: 400; color: var(--cct2); margin-left: 3px; }
+.cc-mini-val.ok { color: var(--ccok); }
+.cc-mini-val.warn { color: var(--ccwarn); }
+.cc-mini-val.crit { color: var(--cccrit); }
+.cc-mini-sub { font-size: 10px; line-height: 1.45; color: var(--cct2); overflow-wrap: anywhere; }
+.cc-mini-go { font-family: var(--ccmono); font-size: 9.5px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--cct2); margin-top: 2px; }
+button.cc-mini:hover .cc-mini-go { color: var(--ccok); }
+/* The scheduled-harvest rows: a dated list, one line each, nothing clipped. */
+.cc-schedlist { display: flex; flex-direction: column; }
+.cc-schedrow {
+  display: grid; grid-template-columns: 92px minmax(70px, 110px) 1fr 96px 74px;
+  gap: 8px; align-items: center; min-height: 26px; padding: 3px 4px;
+  border-bottom: 1px solid var(--ccline); font-size: 11.5px;
+}
+.cc-schedrow:last-child { border-bottom: 0; }
+.cc-schedrow.soon { box-shadow: inset 3px 0 0 var(--ccwarn); }
+.cc-schedrow.late { box-shadow: inset 3px 0 0 var(--cccrit); }
+.cc-sched-date { font-family: var(--ccmono); font-size: 11px; color: var(--cct1); font-variant-numeric: tabular-nums; }
+.cc-sched-room { font-weight: 700; overflow-wrap: anywhere; }
+.cc-sched-cv { color: var(--cct2); font-size: 11px; overflow-wrap: anywhere; }
+.cc-sched-n { text-align: right; font-variant-numeric: tabular-nums; color: var(--cct1); }
+.cc-sched-when { text-align: right; font-size: 10px; color: var(--cct2); font-variant-numeric: tabular-nums; }
+.cc-sched-when.crit { color: var(--cccrit); }
+.cc-sched-when.warn { color: var(--ccwarn); }
+@media (max-width: 760px) {
+  .cc-schedrow { grid-template-columns: 92px 1fr; row-gap: 2px; }
+  .cc-sched-n, .cc-sched-when { text-align: left; }
+}

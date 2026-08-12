@@ -42,7 +42,10 @@
   --cccrit-glow: color-mix(in srgb, var(--red) 26%, transparent);
   --ccinfo-glow: color-mix(in srgb, var(--blue) 20%, transparent);
   --ccmono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  display: flex; flex-direction: column; gap: 10px; padding-bottom: 24px;
+  /* 64px, not 24px: the pinned way-out bar (.cc-exitbar, dashkit.css) sits
+     12px off the bottom of the viewport while a drill is open, and the last
+     row of a long drill must never end underneath it. */
+  display: flex; flex-direction: column; gap: 10px; padding-bottom: 64px;
 }
 
 /* ── order 1 · header: one line, ≤40px ─────────────────────────────────── */
@@ -349,21 +352,67 @@ textarea.cc-input { height: auto; padding: 6px 8px; font-size: 12px; line-height
 .cc-breach b { color: var(--cccrit); }
 .cc-breach em { font-style: normal; color: var(--cct2); font-size: 11px; }
 .cc-breach-acts { margin-left: auto; display: inline-flex; gap: 6px; align-items: center; }
-.cc-ringrow { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 1px; background: var(--ccline); border: 1px solid var(--ccline); }
+/* THE ROOM TILES FILL THE ROW EQUALLY — owner, 12 Aug 2026: "these four tiles
+   should expand full screen equally. Since we have room if we do so we should
+   add more important details in each tile."
+
+   It was repeat(auto-fill, minmax(120px, 1fr)), which packs as many 120px
+   columns as fit and leaves the remainder of the row empty — on a wide screen
+   the six rooms occupied about a third of the width. grid-auto-flow: column
+   with grid-auto-columns: 1fr gives every room an equal share of the WHOLE row
+   whatever the count, so nothing is hardcoded to six and nothing is left over.
+   The room count is a database fact and this rule never assumes it.
+
+   Under 1080px they stack into two columns and then one, because six equal
+   columns of a narrow viewport clips the room name — and a clipped label is a
+   defect, not a small screen (F5: wrap, never clip). */
+.cc-ringrow {
+  display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr);
+  gap: 1px; background: var(--ccline); border: 1px solid var(--ccline);
+}
+@media (max-width: 1080px) {
+  .cc-ringrow { grid-auto-flow: row; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 620px) {
+  .cc-ringrow { grid-template-columns: minmax(0, 1fr); }
+}
 .cc-ringcard {
-  display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 8px 6px;
-  background: var(--cc1); border: 0; color: inherit; cursor: pointer; font-family: inherit; text-align: center;
+  display: flex; flex-direction: column; align-items: stretch; gap: 5px; padding: 9px 10px;
+  background: var(--cc1); border: 0; color: inherit; cursor: pointer; font-family: inherit;
+  text-align: left; min-width: 0;
 }
 .cc-ringcard:hover { background: var(--cc2); }
-.cc-ringcard.on { box-shadow: inset 0 -2px 0 var(--ccok); }
+.cc-ringcard.on { box-shadow: inset 0 -2px 0 var(--ccok); background: var(--cc2); }
 .cc-ring-track { fill: none; stroke: var(--cc3); stroke-width: 4; }
 .cc-ring-fill { fill: none; stroke-width: 4; stroke-linecap: butt; }
 .cc-ring-fill.ok { stroke: var(--ccok); }
 .cc-ring-fill.warn { stroke: var(--ccwarn); }
 .cc-ring-fill.crit { stroke: var(--cccrit); }
 .cc-ring-num { font-size: 13px; font-weight: 700; fill: currentColor; font-variant-numeric: tabular-nums; }
-.cc-ring-name { font-size: 11px; font-weight: 700; line-height: 1.25; overflow-wrap: anywhere; }
+.cc-ring-name { font-size: 11px; font-weight: 700; line-height: 1.25; overflow-wrap: anywhere; display: block; }
 .cc-ring-meta { font-size: 10px; color: var(--cct2); line-height: 1.3; }
+/* The head: ring on the left, name and state stacked beside it. */
+.cc-ring-top { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.cc-ring-top .cc-ring { flex: none; }
+.cc-ring-head { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; min-width: 0; }
+/* The one big number the tile exists for. */
+.cc-ring-big { font-size: 22px; font-weight: 700; line-height: 1.05; font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
+.cc-ring-big em { font-style: normal; font-size: 11px; font-weight: 400; color: var(--cct2); margin-left: 4px; }
+/* Where there is no number there is the view's own sentence, in full. It wraps;
+   it is never clipped and never replaced by a zero. */
+.cc-ring-noplants { font-size: 11px; line-height: 1.45; color: var(--cct2); overflow-wrap: anywhere; }
+/* The detail the extra width buys — one fact per line, all of it readable
+   without a hover. */
+.cc-ring-facts { display: flex; flex-direction: column; gap: 2px; margin-top: 1px; }
+.cc-ring-fact { font-size: 10.5px; line-height: 1.4; color: var(--cct2); overflow-wrap: anywhere; }
+.cc-ring-fact b { color: var(--cct1); font-weight: 700; }
+.cc-ring-fact em { font-style: normal; color: var(--cct2); }
+.cc-ring-fact em.crit { color: var(--cccrit); font-weight: 700; }
+.cc-ring-go {
+  margin-top: auto; padding-top: 5px; border-top: 1px solid var(--ccline);
+  font-family: var(--ccmono); font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--cct2);
+}
+.cc-ringcard:hover .cc-ring-go, .cc-ringcard.on .cc-ring-go { color: var(--ccok); }
 .cc-stockrooms { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 1px; background: var(--ccline); border: 1px solid var(--ccline); }
 .cc-stockroom {
   display: flex; flex-direction: column; gap: 2px; padding: 7px 9px; text-align: left;

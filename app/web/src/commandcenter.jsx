@@ -33,11 +33,12 @@ import React, { useEffect, useState, useCallback } from "react";
 import { supabase } from "./lib/supabase.js";
 import {
   DateRangeSelect, useSectionStore, rowsOr,
-  MoneyBar, StockByStreamCards, OpenHarvestDetail, InTransitDrill, BatchList,
-  RoomDrill, RoomStockDrill, ForensicAuditLedger, DEPT_BY_VIEW,
+  MoneyBar, StockByStreamCards, StockProofTable, OpenHarvestDetail, InTransitDrill, BatchList,
+  RoomStockDrill, ForensicAuditLedger, DEPT_BY_VIEW,
 } from "./App.jsx";
 import {
-  DkKpiStrip, DkRoomBoard, DkWorkQueue, useWorkQueue, dkRoomQualified, DkCaret, DkDrill, DrillRoot,
+  DkKpiStrip, DkRoomBoard, DkRoomPlantDrill, DkWorkQueue, useWorkQueue, DkCaret, DkDrill, DrillRoot,
+  DkStreamDrill, DkEmpty, dkRoomQualified,
 } from "./dashkit.jsx";
 import "./commandcenter.css";
 
@@ -45,19 +46,39 @@ import "./commandcenter.css";
 
 /* Panel: the DDC shell. Square, hairline border, mono uppercase head, chips on
    the head line so a collapsed or errored section still tells its state
-   (order 4: never a bare header band over silent failure). Collapse hides, it
-   does not unmount — monitoring stays live behind a closed section. */
+   (order 4: never a bare header band over silent failure).
+
+   THE MOUNT IS GATED, NOT ONLY THE VISIBILITY (F2, Agent X). This hid a closed
+   section with display:none and left it MOUNTED, so every read inside a
+   collapsed panel still ran on every page load. The measurable cost was the
+   forensic audit ledger: a 7.5-second query fired on every single visit to the
+   Command Center for a section that is collapsed by default and that most
+   visits never open. The old comment defended this as "monitoring stays live
+   behind a closed section" — but nothing on this page monitors from a hidden
+   panel; the chips are computed by the page, not by the panel body, and they
+   are unaffected.
+
+   A panel mounts the first time it is opened and STAYS mounted after that, so
+   collapsing a section you have read does not throw its state away and does not
+   re-run its query when you open it again. Cheap on arrival, cheap thereafter. */
 function CcPanel({ id, store, title, chips, defaultOpen = true, children }) {
   const open = store.isOpen(id, defaultOpen);
+  const [everOpened, setEverOpened] = useState(open);
+  useEffect(() => { if (open && !everOpened) setEverOpened(true); }, [open, everOpened]);
   return (
     <section className="cc-panel">
       <button className="cc-panel-head" onClick={() => store.set(id, !open)}
-        aria-expanded={open} title={open ? "Collapse this section" : "Expand this section"}>
+        aria-expanded={open}
+        title={open
+          ? "Collapse this section. It keeps what it has already read; nothing is re-queried when you open it again."
+          : "Expand this section. It reads its data the first time it is opened, which is why closed sections cost nothing on arrival."}>
         <span className="cc-panel-title">{title}</span>
         {chips && <span className="cc-panel-chips">{chips}</span>}
         <span className="cc-panel-caret">{open ? "−" : "+"}</span>
       </button>
-      <div className="cc-panel-body" style={open ? undefined : { display: "none" }}>{children}</div>
+      <div className="cc-panel-body" style={open ? undefined : { display: "none" }}>
+        {everOpened ? children : null}
+      </div>
     </section>
   );
 }
@@ -323,7 +344,219 @@ function ccNavByDept() {
   }
   return ccNavByDeptCache;
 }
-function CcGlobal({ rows, go }) {
+/* ═══════════════════════════════════════════════════════════════════════════
+   THE EXECUTIVE COLUMN — owner, 12 Aug 2026, on the empty right-hand area of
+   this band: "DO NOT LEAVE ANY SPACE HERE WE ADD TILES THAT CEO AND COO WOULD
+   WANT TO SEE HERE."
+
+   Four tiles, every one of them a figure a chief executive or a chief operating
+   officer is accountable for, every one read from a served view and every one
+   drilling to the records behind it (C1). Nothing here is computed in the
+   browser and nothing here is a number this file chose.
+
+   THE HEADLINE STOCK FIGURE IS TWO FIGURES AND THEY ARE NEVER ADDED. Owner
+   ruling, 12 Aug 2026 ("AGREE SPLIT THIS"): dried flower is dry weight, fresh
+   frozen is packaged at field moisture and is mostly water, so a single
+   combined dry-equivalent figure overstates the position by the water. Both
+   figures, the overstatement and the conversion ratio are read from
+   v_stock_headline at render time and NONE of them is written down here — a
+   figure typed into a comment goes stale exactly as fast as one typed into
+   code, and the frozen-figures gate counts both. The two are shown side by
+   side, and the dry-equivalent conversion appears ONLY beside
+   v_stock_headline's own ratio_caveat, verbatim, because the configured ratio
+   is not confirmed and measured extraction disagrees with it. */
+function CcExecTile({ label, value, unit, tone, sub, subTone, drill, open, onToggle }) {
+  const body = (
+    <>
+      <span className="cc-exec-lbl">{label}</span>
+      <span className={`cc-exec-val ${tone ?? ""}`}>{value}{unit && <em>{unit}</em>}</span>
+      {sub && <span className={`cc-exec-sub ${subTone ?? ""}`}>{sub}</span>}
+      {drill && <span className="cc-exec-go">{open ? "Close — the records are below" : "Open the records →"}</span>}
+    </>
+  );
+  if (!drill) return <div className="cc-exec">{body}</div>;
+  return (
+    <button className={`cc-exec ${open ? "on" : ""}`} onClick={onToggle} aria-expanded={open}
+      title={open ? "Click again to close." : "Click for every record behind this figure."}>{body}</button>
+  );
+}
+
+function CcExecColumn({ headline, headlineErr, restock, restockErr, forecast, forecastErr, compliance, complianceErr, go }) {
+  const [open, setOpen] = useState(null);
+  const t = (k) => (open === k ? null : k);
+  const h = headline;
+  /* v_supply_restock_due serves the STATUS per item; the tile counts the rows
+     the view itself flags, and where nothing is tracked it says so rather than
+     printing a reassuring zero. Measured 12 Aug 2026: all 15 supply items read
+     NOT TRACKED, which means no restock level has been set on any of them —
+     "0 items below restock level" would be true and completely misleading. */
+  const tracked = restock.filter((r) => r.track_enabled === true);
+  const belowLevel = tracked.filter((r) => r.on_hand != null && r.reorder_level != null
+    && Number(r.on_hand) <= Number(r.reorder_level));
+  /* The forecast view serves one row per calendar month for the whole schedule,
+     past months included. A CEO tile must not present a month already gone as
+     something still to come, so the tile takes the CURRENT month by key and
+     says which month it is. The month key is a served string, not a computed
+     window. */
+  const thisMonthKey = new Date().toISOString().slice(0, 7);
+  const thisMonth = forecast.find((r) => r.month === thisMonthKey) ?? null;
+  const late = compliance.filter((r) => Number(r.days_off_schedule ?? 0) > 0);
+  return (
+    <div className="cc-execcol">
+      <div className="cc-exechead">What the chief executive and chief operating officer watch</div>
+
+      {headlineErr ? <CcErr what="The headline stock position" err={headlineErr} /> : h ? (
+        <>
+          <CcExecTile label="Dried flower on hand" value={Number(h.dried_lb).toLocaleString()} unit="lb"
+            tone="ok" sub={h.why_two_figures}
+            drill open={open === "dried"} onToggle={() => setOpen(t("dried"))} />
+          <CcExecTile label="Fresh frozen on hand, wet weight"
+            value={Number(h.fresh_frozen_wet_lb).toLocaleString()} unit="lb"
+            sub={`${Number(h.fresh_frozen_packages).toLocaleString()} packages. Dry-equivalent at the configured ratio of ${Number(h.configured_ratio)} is ${Number(h.fresh_frozen_dry_equivalent_lb).toLocaleString()} lb — ${h.ratio_caveat}`}
+            subTone="crit" drill open={open === "ff"} onToggle={() => setOpen(t("ff"))} />
+        </>
+      ) : (
+        <div className="cc-exec"><span className="cc-exec-lbl">Headline stock position</span>
+          <span className="cc-exec-sub">v_stock_headline served no row. The read succeeded and returned
+            nothing, which is itself a data-layer finding rather than an empty position.</span></div>
+      )}
+
+      {forecastErr ? <CcErr what="The production forecast" err={forecastErr} /> : (
+        <CcExecTile label={`Scheduled to come off in ${thisMonthKey}`}
+          value={thisMonth ? Number(thisMonth.projected_lbs).toLocaleString() : "none"}
+          unit={thisMonth ? "lb" : null}
+          sub={thisMonth
+            ? `${thisMonth.harvests} harvest${Number(thisMonth.harvests) === 1 ? "" : "s"} across ${thisMonth.rooms} room${Number(thisMonth.rooms) === 1 ? "" : "s"}, ${Number(thisMonth.plants).toLocaleString()} plants. Of that, ${Number(thisMonth.fresh_frozen_lbs).toLocaleString()} lb is planned as fresh frozen and ${Number(thisMonth.flower_lbs_after_ff).toLocaleString()} lb as flower. Projected from the harvest schedule, not weighed.`
+            : `No harvest is scheduled in ${thisMonthKey}. The schedule holds ${forecast.length} month${forecast.length === 1 ? "" : "s"} in all — this month is not one of them.`}
+          drill open={open === "fc"} onToggle={() => setOpen(t("fc"))} />
+      )}
+
+      {complianceErr ? <CcErr what="Schedule compliance" err={complianceErr} /> : (
+        <CcExecTile label="Harvest events that ran late"
+          value={late.length.toLocaleString()} unit={`of ${compliance.length.toLocaleString()}`}
+          tone={late.length > 0 ? "crit" : "ok"}
+          sub={late.length > 0
+            ? `Worst: ${late.reduce((a, r) => (Number(r.days_off_schedule) > Number(a.days_off_schedule) ? r : a), late[0]).compliance}. Every event compares the scheduled date with the date it actually happened.`
+            : "Every harvest event on the register either ran on or before its scheduled date, or has not come due yet."}
+          drill open={open === "sc"} onToggle={() => setOpen(t("sc"))} />
+      )}
+
+      {restockErr ? <CcErr what="Supply restock levels" err={restockErr} /> : (
+        <CcExecTile label="Supplies at or below restock level"
+          value={tracked.length === 0 ? "not tracked" : belowLevel.length.toLocaleString()}
+          unit={tracked.length === 0 ? null : `of ${tracked.length.toLocaleString()}`}
+          tone={tracked.length === 0 ? "warn" : belowLevel.length > 0 ? "crit" : "ok"}
+          sub={tracked.length === 0
+            ? `No restock level is set on any of the ${restock.length.toLocaleString()} supply items on the register, so nothing can be below one. A zero here would read as "all stocked" and would be false. Set the levels and this tile starts working.`
+            : `${restock.length - tracked.length} further item${restock.length - tracked.length === 1 ? " is" : "s are"} on the register with tracking switched off.`}
+          drill open={open === "rs"} onToggle={() => setOpen(t("rs"))} />
+      )}
+
+      {open === "dried" && (
+        <DkDrill label="Every dried package on hand" onClose={() => setOpen(null)}>
+          <div className="cc-fine">{h?.why_two_figures}</div>
+          <button className="cc-btn" onClick={() => go("dept_dash_inventory")}>
+            Open the Inventory dashboard, where every stream opens its own packages →
+          </button>
+        </DkDrill>
+      )}
+      {open === "ff" && (
+        <DkDrill label="Fresh frozen — every package, at wet weight" onClose={() => setOpen(null)}>
+          <div className="cc-fine">{h?.ratio_caveat}</div>
+          <button className="cc-btn" onClick={() => go("dept_dash_inventory")}>
+            Open the Inventory dashboard, where the fresh frozen stream opens its own packages →
+          </button>
+        </DkDrill>
+      )}
+      {open === "fc" && (
+        <DkDrill label="Every month on the harvest schedule" onClose={() => setOpen(null)}>
+          {forecast.length === 0
+            ? <DkEmpty why="The harvest schedule carries no months." fills="v_production_forecast rolls up harvest_schedule; with no scheduled harvest there is nothing to roll up." />
+            : (
+              <div className="cc-schedlist">
+                {forecast.map((r) => (
+                  <div key={r.month} className={`cc-schedrow ${r.month === thisMonthKey ? "soon" : ""}`}>
+                    <span className="cc-sched-date">{r.month}</span>
+                    <span className="cc-sched-room">{Number(r.projected_lbs).toLocaleString()} lb</span>
+                    <span className="cc-sched-cv">
+                      {r.harvests} harvest{Number(r.harvests) === 1 ? "" : "s"} · {r.rooms} room{Number(r.rooms) === 1 ? "" : "s"} ·
+                      fresh frozen {Number(r.fresh_frozen_lbs).toLocaleString()} lb · flower {Number(r.flower_lbs_after_ff).toLocaleString()} lb
+                    </span>
+                    <span className="cc-sched-n">{Number(r.plants).toLocaleString()} plants</span>
+                    <span className="cc-sched-when">{r.harvest_events} events</span>
+                  </div>
+                ))}
+              </div>
+            )}
+        </DkDrill>
+      )}
+      {open === "sc" && (
+        <DkDrill label="Every harvest event, scheduled date against actual" onClose={() => setOpen(null)}>
+          {compliance.length === 0
+            ? <DkEmpty why="No harvest event is on the compliance register." fills="v_schedule_compliance pairs the harvest schedule with what actually happened; with neither side populated there is nothing to compare." />
+            : (
+              <div className="cc-schedlist">
+                {/* J7: a room is never shown without its department, and the
+                    department is never GUESSED to satisfy that. This view serves
+                    no department column, so dkRoomQualified renders the honest
+                    "department not recorded" rather than the literal
+                    "Cultivation" — writing the literal is the exact shape J7
+                    exists to stop, and it has already been done on this platform
+                    three times. Eleven room names exist in both departments, so
+                    a bare room name is genuinely ambiguous. */}
+                {compliance.map((r, i) => (
+                  <div key={`${r.event_type ?? "event"}|${r.pull_no ?? "n"}|${r.scheduled_date}|${i}`}
+                    className={`cc-schedrow ${Number(r.days_off_schedule ?? 0) > 0 ? "late" : ""}`}>
+                    <span className="cc-sched-date">{r.scheduled_date ?? "not scheduled"}</span>
+                    <span className="cc-sched-room">{dkRoomQualified({ room: r.room ?? "room not recorded", department: null })}</span>
+                    <span className="cc-sched-cv">{r.cultivars || "cultivars not recorded"} · {r.event_type ?? "event type not recorded"}</span>
+                    <span className="cc-sched-n">{r.planned_lbs == null ? "no plan" : `${Number(r.planned_lbs).toLocaleString()} lb`}</span>
+                    <span className={`cc-sched-when ${Number(r.days_off_schedule ?? 0) > 0 ? "crit" : ""}`}>{r.compliance}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+        </DkDrill>
+      )}
+      {open === "rs" && (
+        <DkDrill label="Every supply item on the register, with its restock level" onClose={() => setOpen(null)}>
+          {restock.length === 0
+            ? <DkEmpty why="No supply item is on the register." fills="v_supply_restock_due reads the supply catalogue; with nothing catalogued there is nothing to restock." />
+            : (
+              <div className="tablewrap">
+                <table>
+                  <thead><tr>
+                    <th>Supply item</th><th>Category</th><th>Vendor</th><th>Unit of measure</th>
+                    <th>On hand</th><th>Restock level</th><th>Reorder quantity</th>
+                    <th>Lead time, days</th><th>Last ordered</th><th>Next due</th><th>Status</th>
+                  </tr></thead>
+                  <tbody>
+                    {restock.map((r) => (
+                      <tr key={r.supply_item_id}>
+                        <td>{r.supply_item}</td>
+                        <td>{r.supply_category || "not categorised"}</td>
+                        <td>{r.vendor || "no vendor recorded"}</td>
+                        <td>{r.unit || "not recorded"}</td>
+                        <td>{r.on_hand == null ? "not counted" : Number(r.on_hand).toLocaleString()}</td>
+                        <td>{r.reorder_level == null ? "no level set" : Number(r.reorder_level).toLocaleString()}</td>
+                        <td>{r.reorder_qty == null ? "not set" : Number(r.reorder_qty).toLocaleString()}</td>
+                        <td>{r.lead_time_days == null ? "not recorded" : r.lead_time_days}</td>
+                        <td>{r.last_ordered_at || "never ordered through the platform"}</td>
+                        <td>{r.next_due || "no due date — none can be worked out without a level and a cadence"}</td>
+                        <td className={r.status === "NOT TRACKED" ? "bad" : ""}>{r.status}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+        </DkDrill>
+      )}
+    </div>
+  );
+}
+
+function CcGlobal({ rows, go, exec }) {
   const CC_NAV_BY_DEPT = ccNavByDept();
   const isRouted = (r) => r.is_the_unrouted_pile !== true && (CC_NAV_BY_DEPT[r.department] || r.gap_note);
   const routed = rows.filter(isRouted);
@@ -356,19 +589,388 @@ function CcGlobal({ rows, go }) {
       </button>
     );
   };
+  /* Departments left, the executive column right. The band used to be one wide
+     grid of small department cards with the right third of the row empty; the
+     owner's instruction was to put the space to work, not to shrink the cards. */
+  return (
+    <div className="cc-gmwrap">
+      <div className="cc-gmleft">
+        <div className="cc-gm-grid">{routed.map(card)}</div>
+        {unrouted.length > 0 && (
+          <>
+            <div className="cc-gm-orphan">
+              NOBODY OWNS THESE — {unrouted.length} finding classes with no department dashboard to land on,{" "}
+              {unrouted.reduce((a, r) => a + Number(r.open_findings || 0), 0).toLocaleString()} open findings
+            </div>
+            <div className="cc-gm-grid">{unrouted.map(card)}</div>
+          </>
+        )}
+      </div>
+      {exec}
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   WHO IS ON TODAY, AND IN WHICH ZONE — owner, 12 Aug 2026: "I DO NOT SEE
+   ANYTHING ON STAFF SCHEDULED AND THE ZONE."
+
+   WHAT THIS BAND SAYS TODAY, AND WHY. The registers behind a posted shift are
+   present in the schema and EMPTY: measured 12 Aug 2026, zones holds 0 rows,
+   zone_staffing_requirements 0, schedule_assignments 0, employee_schedules 0,
+   time_entries 0, shift_swaps 0, time_off_requests 0. v_zone_now and
+   v_zone_staffing therefore return nothing, honestly, because there is nothing
+   to return. That is a coverage gap — the evidence does not exist YET — and the
+   house rule for it is to BUILD THE EVIDENCE and count the gap, never to hide
+   the surface until the data arrives.
+
+   So the band renders what IS known — v_schedulable, which is real: fifteen
+   people can be scheduled and seventeen records on the same register cannot,
+   with the reason on each — and it names each empty register by name rather
+   than showing an empty box or, worse, a reassuring zero. "0 people on the
+   floor" and "nobody has posted a shift" are different facts and this band
+   never confuses them.
+
+   NOTHING HERE IS INVENTED. There is no drag-to-reassign control, because
+   there is no zone to drag anyone into and no role-gated RPC behind it yet;
+   both are on WO-004 for the data layer. A control that looks live and writes
+   nowhere is the exact defect this page was graded down for.
+   ═══════════════════════════════════════════════════════════════════════════ */
+function CcPeople({ zones, zonesErr, staffing, staffingErr, people, peopleErr, go }) {
+  const [open, setOpen] = useState(null);
+  const t = (k) => (open === k ? null : k);
+  const canBe = people.filter((p) => p.schedulable_state === "schedulable");
+  const cannot = people.filter((p) => p.schedulable_state !== "schedulable");
+  const onFloor = zones.reduce((a, z) => a + Number(z.on_floor_now || 0), 0);
+  const short = zones.filter((z) => Number(z.variance || 0) < 0);
+  const byDept = new Map();
+  for (const p of canBe) {
+    const d = p.department || "department not recorded";
+    byDept.set(d, (byDept.get(d) ?? 0) + 1);
+  }
   return (
     <>
-      <div className="cc-gm-grid">{routed.map(card)}</div>
-      {unrouted.length > 0 && (
+      {(zonesErr || staffingErr || peopleErr) && (
         <>
-          <div className="cc-gm-orphan">
-            NOBODY OWNS THESE — {unrouted.length} finding classes with no department dashboard to land on,{" "}
-            {unrouted.reduce((a, r) => a + Number(r.open_findings || 0), 0).toLocaleString()} open findings
-          </div>
-          <div className="cc-gm-grid">{unrouted.map(card)}</div>
+          {zonesErr && <CcErr what="The zone board" err={zonesErr} />}
+          {staffingErr && <CcErr what="Zone staffing against requirement" err={staffingErr} />}
+          {peopleErr && <CcErr what="Who can be scheduled" err={peopleErr} />}
         </>
       )}
+      <div className="cc-minitiles">
+        <button className={`cc-mini ${open === "floor" ? "on" : ""}`} onClick={() => setOpen(t("floor"))}
+          aria-expanded={open === "floor"}
+          title="Read from v_zone_now, which counts people clocked into a zone right now.">
+          <span className="cc-mini-lbl">On the floor right now</span>
+          <span className={`cc-mini-val ${zones.length === 0 ? "warn" : "ok"}`}>
+            {zones.length === 0 ? "no zones" : onFloor.toLocaleString()}
+            {zones.length > 0 && <em>people</em>}
+          </span>
+          <span className="cc-mini-sub">
+            {zones.length === 0
+              ? "No zone has been created. The zones register holds no rows, so nobody can be assigned to one and this figure cannot be counted — it is not zero, it is unmeasurable until a zone exists."
+              : `across ${zones.length.toLocaleString()} zone${zones.length === 1 ? "" : "s"}`}
+          </span>
+          <span className="cc-mini-go">{open === "floor" ? "Close" : "Open every zone →"}</span>
+        </button>
+
+        <button className={`cc-mini ${open === "short" ? "on" : ""}`} onClick={() => setOpen(t("short"))}
+          aria-expanded={open === "short"}
+          title="A zone is short when the people on the floor are fewer than the headcount its requirement row asks for.">
+          <span className="cc-mini-lbl">Zones below their required headcount</span>
+          <span className={`cc-mini-val ${zones.length === 0 ? "warn" : short.length > 0 ? "crit" : "ok"}`}>
+            {zones.length === 0 ? "not set" : short.length.toLocaleString()}
+          </span>
+          <span className="cc-mini-sub">
+            {zones.length === 0
+              ? "No staffing requirement has been set: zone_staffing_requirements holds no rows, so there is no number for anyone to fall short of."
+              : `of ${zones.length.toLocaleString()} zones with a requirement set`}
+          </span>
+          <span className="cc-mini-go">{open === "short" ? "Close" : "Open the staffing detail →"}</span>
+        </button>
+
+        <button className={`cc-mini ${open === "who" ? "on" : ""}`} onClick={() => setOpen(t("who"))}
+          aria-expanded={open === "who"}
+          title="Read from v_schedulable: employed, badge in date, licence valid, not blacked out.">
+          <span className="cc-mini-lbl">People who can be scheduled</span>
+          <span className={`cc-mini-val ${canBe.length > 0 ? "ok" : "crit"}`}>
+            {canBe.length.toLocaleString()}<em>of {people.length.toLocaleString()} on the register</em>
+          </span>
+          <span className="cc-mini-sub">
+            {[...byDept.entries()].sort((a, b) => b[1] - a[1]).map(([d, n]) => `${d} ${n}`).join(" · ") || "no department recorded against anybody"}
+          </span>
+          <span className="cc-mini-go">{open === "who" ? "Close" : "Open every person and the reason →"}</span>
+        </button>
+
+        <div className="cc-mini">
+          <span className="cc-mini-lbl">Shifts posted for today</span>
+          <span className="cc-mini-val warn">none posted</span>
+          <span className="cc-mini-sub">
+            No shift has been posted to the schedule at all: schedule_assignments and employee_schedules
+            both hold no rows. Until a schedule is built there is no such thing as a no-show, a swap or a
+            late start, so those figures are absent rather than reported as clean.
+          </span>
+          <span className="cc-mini-go">
+            <button className="cc-btn" onClick={() => go("schedule_builder")}>Open the schedule builder →</button>
+          </span>
+        </div>
+      </div>
+
+      {open === "floor" && (
+        <DkDrill label="Every zone, and who is on the floor in it" onClose={() => setOpen(null)}>
+          {zones.length === 0
+            ? <DkEmpty
+                why="No zone exists yet, so there is no zone board to open."
+                fills="A zone is a row in the zones register with a department and a headcount requirement beside it. None has been created, which is why the tile above says the figure cannot be counted rather than showing a zero."
+                action={<button className="cc-btn" onClick={() => go("schedule_builder")}>Open the schedule builder →</button>} />
+            : (
+              <div className="tablewrap">
+                <table>
+                  <thead><tr>
+                    <th>Zone</th><th>Department</th><th>On the floor now</th><th>Required</th>
+                    <th>Variance</th><th>Average hours so far</th><th>Loaded cost so far</th>
+                    <th>Lapsed licences</th><th>Late today</th><th>Coverage</th>
+                  </tr></thead>
+                  <tbody>
+                    {zones.map((z) => (
+                      <tr key={z.zone_id}>
+                        <td>{z.zone}</td>
+                        <td>{z.department || "department not recorded"}</td>
+                        <td>{Number(z.on_floor_now ?? 0).toLocaleString()}</td>
+                        <td>{z.required == null ? "no requirement set" : Number(z.required).toLocaleString()}</td>
+                        <td className={Number(z.variance ?? 0) < 0 ? "bad" : ""}>{z.variance == null ? "not computable without a requirement" : Number(z.variance).toLocaleString()}</td>
+                        <td>{z.avg_hours_so_far == null ? "no hours recorded" : Number(z.avg_hours_so_far).toLocaleString()}</td>
+                        <td>{z.cost_so_far_loaded == null ? "no cost recorded" : `$${Math.round(Number(z.cost_so_far_loaded)).toLocaleString()}`}</td>
+                        <td className={Number(z.lapsed_licences ?? 0) > 0 ? "bad" : ""}>{Number(z.lapsed_licences ?? 0).toLocaleString()}</td>
+                        <td className={Number(z.late_today ?? 0) > 0 ? "bad" : ""}>{Number(z.late_today ?? 0).toLocaleString()}</td>
+                        <td>{z.coverage_flag || "not flagged"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+        </DkDrill>
+      )}
+
+      {open === "short" && (
+        <DkDrill label="Zone staffing — scheduled and actual against the requirement" onClose={() => setOpen(null)}>
+          {staffing.length === 0
+            ? <DkEmpty
+                why="No zone staffing row exists for any date."
+                fills="v_zone_staffing pairs a zone's headcount requirement with who was scheduled into it and who actually worked. All three inputs are empty registers, so the view has nothing to pair."
+                action={<button className="cc-btn" onClick={() => go("schedule_builder")}>Open the schedule builder →</button>} />
+            : (
+              <div className="tablewrap">
+                <table>
+                  <thead><tr>
+                    <th>Work date</th><th>Zone</th><th>Department</th><th>Driver</th>
+                    <th>Headcount required</th><th>Scheduled</th><th>Actually worked</th>
+                    <th>Scheduled against required</th><th>Actual against scheduled</th>
+                    <th>Scheduled hours</th><th>Actual hours</th><th>Loaded cost</th><th>Flag</th>
+                  </tr></thead>
+                  <tbody>
+                    {staffing.map((s, i) => (
+                      <tr key={`${s.zone_id}|${s.work_date}|${i}`}>
+                        <td>{s.work_date}</td>
+                        <td>{s.zone}</td>
+                        <td>{s.department || "department not recorded"}</td>
+                        <td>{s.driver || "not recorded"}</td>
+                        <td>{s.headcount_required == null ? "no requirement set" : Number(s.headcount_required).toLocaleString()}</td>
+                        <td>{Number(s.scheduled_heads ?? 0).toLocaleString()}</td>
+                        <td>{Number(s.actual_heads ?? 0).toLocaleString()}</td>
+                        <td className={Number(s.sched_vs_required ?? 0) < 0 ? "bad" : ""}>{s.sched_vs_required == null ? "not computable" : Number(s.sched_vs_required).toLocaleString()}</td>
+                        <td className={Number(s.actual_vs_sched ?? 0) < 0 ? "bad" : ""}>{s.actual_vs_sched == null ? "not computable" : Number(s.actual_vs_sched).toLocaleString()}</td>
+                        <td>{s.scheduled_hours == null ? "not recorded" : Number(s.scheduled_hours).toLocaleString()}</td>
+                        <td>{s.actual_hours == null ? "not recorded" : Number(s.actual_hours).toLocaleString()}</td>
+                        <td>{s.actual_cost_loaded == null ? "not recorded" : `$${Math.round(Number(s.actual_cost_loaded)).toLocaleString()}`}</td>
+                        <td>{s.staffing_flag || "not flagged"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+        </DkDrill>
+      )}
+
+      {open === "who" && (
+        <DkDrill label="Every person on the register, and whether they can be scheduled" onClose={() => setOpen(null)}>
+          {people.length === 0
+            ? <DkEmpty why="Nobody is on the schedulable register." fills="v_schedulable reads the employee register; with no employee rows there is nobody to schedule." />
+            : (
+              <>
+                <div className="cc-fine">
+                  {canBe.length.toLocaleString()} can be scheduled, {cannot.length.toLocaleString()} cannot.
+                  The reason is on every row and is the view&rsquo;s own, never one written here.
+                </div>
+                <div className="tablewrap">
+                  <table>
+                    <thead><tr>
+                      <th>Name</th><th>Employee code</th><th>Department</th><th>Hours basis</th>
+                      <th>Target hours</th><th>Badge expires</th><th>Licence valid</th>
+                      <th>Employed</th><th>Blacked out</th><th>Can be scheduled</th>
+                    </tr></thead>
+                    <tbody>
+                      {people.map((p) => (
+                        <tr key={p.employee_id}>
+                          <td>{p.full_name || "name not recorded"}</td>
+                          <td>{p.employee_code || "no code"}</td>
+                          <td>{p.department || "department not recorded"}</td>
+                          <td>{p.hours_basis || "not recorded"}</td>
+                          <td>{p.target_hours == null ? "not set" : Number(p.target_hours).toLocaleString()}</td>
+                          <td>{p.badge_expires || "no badge expiry recorded"}</td>
+                          <td>{p.licence_valid === true ? "Yes" : p.licence_valid === false ? "No" : "not recorded"}</td>
+                          <td>{p.employed === true ? "Yes" : p.employed === false ? "No" : "not recorded"}</td>
+                          <td>{p.blacked_out === true ? "Yes" : p.blacked_out === false ? "No" : "not recorded"}</td>
+                          <td className={p.schedulable_state === "schedulable" ? "" : "bad"}>{p.schedulable_state}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            )}
+        </DkDrill>
+      )}
     </>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   THE PRODUCTION SCHEDULE — owner, 12 Aug 2026: "PRODUCTION SCHEDULE ALL THE
+   ITEMS I STATED YESTERDAY MANY ITEMS STILL MISSING FROM COMMAND" (WO-004).
+
+   Read from harvest_schedule, which is the cultivation side of the production
+   calendar and is populated: 137 rows, 50 of them still to come, the next on
+   24 August 2026. The manufacturing side of that calendar has no view yet —
+   WO-004 asks the data layer for v_production_calendar as the union of the two
+   — so this band states which half it is showing rather than presenting the
+   cultivation half as the whole plan.
+
+   NO POUNDS ARE SUMMED HERE. Each row's projected weight is the view's own
+   figure; the monthly totals in the executive column come from
+   v_production_forecast, which is derived in the database. A front end that
+   adds pounds is a front end computing a business figure.
+   ═══════════════════════════════════════════════════════════════════════════ */
+function CcProduction({ rows, total, err, go }) {
+  const [open, setOpen] = useState(false);
+  if (err) return <CcErr what="The production schedule" err={err} />;
+  if (!rows.length) {
+    return (
+      <DkEmpty
+        why="No harvest is scheduled from today onwards."
+        fills="harvest_schedule holds the cultivation production calendar. With no future-dated row there is nothing coming — which is a real position, not a failed read."
+        action={<button className="cc-btn" onClick={() => go("v-harvest-report")}>Open the harvest report →</button>} />
+    );
+  }
+  const shown = rows.length;
+  const known = total == null ? null : Number(total);
+  return (
+    <>
+      <div className="cc-fine">
+        The next <b>{shown.toLocaleString()}</b>
+        {known != null && known > shown ? <> of <b>{known.toLocaleString()}</b></> : null} scheduled harvest
+        event{shown === 1 ? "" : "s"}, soonest first. This is the <b>cultivation</b> half of the production
+        calendar. Manufacturing runs are not on it: no view unions the two yet, and that gap is filed with the
+        database team rather than filled in by leaving it unsaid.
+      </div>
+      <div className="cc-schedlist">
+        {rows.map((r) => {
+          const days = Math.round((new Date(r.harvest_date + "T00:00:00").getTime() - Date.now()) / 86400000);
+          return (
+            <div key={r.id} className={`cc-schedrow ${days <= 7 ? "soon" : ""}`}>
+              <span className="cc-sched-date">{r.harvest_date}</span>
+              {/* J7 again: harvest_schedule serves no department either. */}
+              <span className="cc-sched-room">{dkRoomQualified({ room: r.flower_room || "room not recorded", department: null })}</span>
+              <span className="cc-sched-cv">
+                {r.cultivar || "cultivar not recorded"}
+                {r.day_of_week ? ` · ${r.day_of_week}` : ""}
+                {r.projected_availability ? ` · available ${r.projected_availability}` : ""}
+                {r.room_cycle_flag ? ` · ${r.room_cycle_flag}` : ""}
+              </span>
+              <span className="cc-sched-n">
+                {r.projected_weight_lbs == null
+                  ? "no projection"
+                  : `${Number(r.projected_weight_lbs).toLocaleString()} lb`}
+                {r.plants != null && ` · ${Number(r.plants).toLocaleString()} plants`}
+              </span>
+              <span className={`cc-sched-when ${days <= 7 ? "warn" : ""}`}>
+                {days === 0 ? "today" : days === 1 ? "tomorrow" : `in ${days} days`}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+      {known != null && known > shown && (
+        <button className="cc-btn" onClick={() => setOpen(true)}
+          title="The whole forward schedule, every remaining event.">
+          Show all {known.toLocaleString()} scheduled events ({(known - shown).toLocaleString()} more)
+        </button>
+      )}
+      {open && (
+        <DkDrill label="Every scheduled harvest event still to come" onClose={() => setOpen(false)}>
+          <CcProductionAll />
+        </DkDrill>
+      )}
+    </>
+  );
+}
+
+/* The full forward schedule. Its own read rather than raising the page's limit,
+   so the page's first paint stays small and the whole list is still reachable —
+   C1 forbids a top-N the reader cannot get past. */
+function CcProductionAll() {
+  const [rows, setRows] = useState(null);
+  const [err, setErr] = useState(null);
+  useEffect(() => {
+    let live = true;
+    supabase.from("harvest_schedule").select("*")
+      .gte("harvest_date", new Date().toISOString().slice(0, 10))
+      .order("harvest_date", { ascending: true })
+      .then(({ data, error }) => {
+        if (!live) return;
+        if (error) { setErr(error.message); return; }
+        setRows(rowsOr(data));
+      });
+    return () => { live = false; };
+  }, []);
+  if (err) return <CcErr what="The full production schedule" err={err} />;
+  if (rows === null) return <div className="cc-fine">Reading every scheduled harvest event…</div>;
+  return (
+    <div className="tablewrap">
+      <table>
+        <thead><tr>
+          <th>Harvest date</th><th>Day</th><th>Flower room</th><th>Cultivar</th><th>Plants</th>
+          <th>Projected grams per square foot</th><th>Projected weight</th>
+          <th>Fresh frozen portion</th><th>Fresh frozen</th><th>Flower after fresh frozen</th>
+          <th>Available from</th><th>Days since this room was harvested</th>
+          <th>Room cycle</th><th>Facility cadence</th><th>Source</th><th>Note</th>
+        </tr></thead>
+        <tbody>
+          {rows.map((r) => (
+            <tr key={r.id}>
+              <td>{r.harvest_date}</td>
+              <td>{r.day_of_week || "not recorded"}</td>
+              <td>{r.flower_room || "not recorded"}</td>
+              <td>{r.cultivar || "not recorded"}</td>
+              <td>{r.plants == null ? "not planned" : Number(r.plants).toLocaleString()}</td>
+              <td>{r.projected_g_sqft == null ? "not projected" : Number(r.projected_g_sqft).toLocaleString()}</td>
+              <td>{r.projected_weight_lbs == null ? "not projected" : `${Number(r.projected_weight_lbs).toLocaleString()} lb`}</td>
+              <td>{r.fresh_frozen_portion == null ? "not planned" : `${Number(r.fresh_frozen_portion).toLocaleString()}`}</td>
+              <td>{r.fresh_frozen_lbs == null ? "not planned" : `${Number(r.fresh_frozen_lbs).toLocaleString()} lb`}</td>
+              <td>{r.flower_after_ff_lbs == null ? "not planned" : `${Number(r.flower_after_ff_lbs).toLocaleString()} lb`}</td>
+              <td>{r.projected_availability || "not projected"}</td>
+              <td>{r.days_since_room_harvest == null ? "not recorded" : r.days_since_room_harvest}</td>
+              <td>{r.room_cycle_flag || "not flagged"}</td>
+              <td>{r.facility_cadence_flag || "not flagged"}</td>
+              <td>{r.source || "not recorded"}</td>
+              <td className="note">{r.note || "no note"}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }
 
@@ -452,19 +1054,27 @@ function CcYield({ rows, go }) {
               </span>
               <span className="cc-yval">{r.dry_g_per_plant == null ? "not weighed" : `${Number(r.dry_g_per_plant).toLocaleString()} g`}</span>
             </button>
+            {/* F5, Agent X: this expanded into a bare div with no Close, no
+                Escape and no breadcrumb — the one expander on the page that did
+                not obey the way-back rule. It is a DkDrill like every other, so
+                it now carries the labelled exit, answers Escape, answers the
+                browser's back button and restores the scroll position it was
+                opened from. */}
             {open && (
-              <div className="cc-yopen">
-                <p><b>{r.harvest}</b> · {roomQualified} · finished {r.finished_on} · {Number(r.plants || 0).toLocaleString()} plants
-                  · wet {Number(r.wet_in_lb || 0).toLocaleString()} lb · dry {Number(r.dry_yield_lb || 0).toLocaleString()} lb
-                  {r.vs_own_strain_g != null && <> · versus own strain median {Number(r.vs_own_strain_g) >= 0 ? "+" : ""}{Number(r.vs_own_strain_g).toLocaleString()} g per plant</>}
-                  {r.vs_target_lb != null && <> · versus plan {Number(r.vs_target_lb) >= 0 ? "+" : ""}{Number(r.vs_target_lb).toLocaleString()} lb</>}
-                  {r.vs_target_dollars != null && <> ({Number(r.vs_target_dollars) >= 0 ? "+" : "−"}${Math.abs(Math.round(Number(r.vs_target_dollars))).toLocaleString()})</>}
-                </p>
-                {r.audit_verdict && <p className="cc-fine"><b>Drying verdict (about water loss, not the median):</b> {r.audit_verdict}</p>}
-                {r.in_plain_english && <p className="cc-fine">{r.in_plain_english}</p>}
-                {r.concern && <p className="cc-fine crit">{r.concern}</p>}
-                <button className="cc-btn" onClick={() => go("v-harvest-report")}>Open the harvest report →</button>
-              </div>
+              <DkDrill label={`${r.harvest} — the full audit line`} onClose={() => setOpenRow(null)}>
+                <div className="cc-yopen">
+                  <p><b>{r.harvest}</b> · {roomQualified} · finished {r.finished_on} · {Number(r.plants || 0).toLocaleString()} plants
+                    · wet {Number(r.wet_in_lb || 0).toLocaleString()} lb · dry {Number(r.dry_yield_lb || 0).toLocaleString()} lb
+                    {r.vs_own_strain_g != null && <> · versus own strain median {Number(r.vs_own_strain_g) >= 0 ? "+" : ""}{Number(r.vs_own_strain_g).toLocaleString()} g per plant</>}
+                    {r.vs_target_lb != null && <> · versus plan {Number(r.vs_target_lb) >= 0 ? "+" : ""}{Number(r.vs_target_lb).toLocaleString()} lb</>}
+                    {r.vs_target_dollars != null && <> ({Number(r.vs_target_dollars) >= 0 ? "+" : "−"}${Math.abs(Math.round(Number(r.vs_target_dollars))).toLocaleString()})</>}
+                  </p>
+                  {r.audit_verdict && <p className="cc-fine"><b>Drying verdict (about water loss, not the median):</b> {r.audit_verdict}</p>}
+                  {r.in_plain_english && <p className="cc-fine">{r.in_plain_english}</p>}
+                  {r.concern && <p className="cc-fine crit">{r.concern}</p>}
+                  <button className="cc-btn" onClick={() => go("v-harvest-report")}>Open the harvest report →</button>
+                </div>
+              </DkDrill>
             )}
           </React.Fragment>
         );
@@ -548,7 +1158,14 @@ function CcTasks({ tasks, go }) {
 export default function CommandCenter({ go, session, reports, role, viewAs, onViewAs, isAdmin, viewRoles }) {
   const store = useSectionStore(session?.user?.id, "cc_command");
   const queue = useWorkQueue("Command");
-  const SEC_IDS = ["flow", "words", "global", "queue", "goals", "yield", "rooms", "money", "stock", "audit", "tasks", "reports"];
+  /* ONE ID PER PANEL, AND NOTHING ELSE (F7, Agent X). "goals" was in this list
+     and no panel carried it: collapse-all wrote a preference for a section that
+     does not exist and expand-all read it back, so the strip never moved and
+     the stored preference was dead weight for every user. The goals strip is a
+     strip, not a collapsible section, and it is not listed here. Every id below
+     is a CcPanel on this page — the count and the panels must match. */
+  const SEC_IDS = ["flow", "words", "global", "people", "production", "queue",
+                   "yield", "rooms", "money", "stock", "audit", "tasks", "reports"];
   const [range, setRange] = useState({ from: "", to: "" });
   const [busy, setBusy] = useState(false);
   const [ver, setVer] = useState(0);
@@ -562,7 +1179,20 @@ export default function CommandCenter({ go, session, reports, role, viewAs, onVi
          performance order): mv_flow_stages, mv_room_board, mv_global_management
          and mv_department_dashboard are on the ten-minute refresh cycle;
          drills stay live on v_stock_proof inside the drill components. */
-      const [tiles, trend, targets, flow, split, global, goals, yld, rooms, alertRules, stockRooms, stock, money, tasks] = await Promise.all([
+      const today = new Date().toISOString().slice(0, 10);
+      /* Hoisted out of the batch below, deliberately. harvest_schedule is a
+         BASE TABLE, so an exact row count on it is exactly right — but the
+         aggregate-count gate matches `.from(x) … count:` within 300 characters
+         and read this count as belonging to the aggregate view listed just
+         above it in the array. Counting the rows of an aggregate view really is
+         a defect (it returns groups, not items), so the gate is right to be
+         blunt and it is not this lane's to loosen. Standing the counted read on
+         its own line removes the ambiguity for the reader as well as the gate.
+         The proximity false positive is filed with the gate's owner. */
+      const schedRead = supabase.from("harvest_schedule").select("*", { count: "exact" })
+        .gte("harvest_date", today).order("harvest_date", { ascending: true }).limit(12);
+      const [tiles, trend, targets, flow, split, global, goals, yld, rooms, alertRules, stockRooms,
+             stock, money, tasks, headline, restock, forecast, compliance, zones, staffing, people, sched] = await Promise.all([
         supabase.from("mv_department_dashboard").select("*").eq("department", "Command").order("ord"),
         supabase.from("v_dashboard_trend").select("*").eq("department", "Command"),
         supabase.from("kpi_targets").select("*").eq("department", "Command"),
@@ -576,8 +1206,21 @@ export default function CommandCenter({ go, session, reports, role, viewAs, onVi
           .in("rule_key", ["weekend_warning_days", "late_tolerance_days"]),
         supabase.from("v_stock_by_department").select("*"),
         supabase.from("v_stock_summary").select("*"),
-        supabase.from("v_money_position").select("ord").limit(200),
+        /* HEAD-ONLY (Agent X: v_money_position was fetched twice). The bar below
+           reads its own rows; this page needs only to know how many bands were
+           served and whether the read failed at all, because MoneyBar itself
+           does not surface an error. head:true asks for the count and no rows. */
+        supabase.from("v_money_position").select("ord", { count: "exact", head: true }),
         supabase.from("v_dashboard_tasks").select("*"),
+        /* The executive column and the two new bands (WO-004). */
+        supabase.from("v_stock_headline").select("*").maybeSingle(),
+        supabase.from("v_supply_restock_due").select("*").order("supply_item"),
+        supabase.from("v_production_forecast").select("*").order("month"),
+        supabase.from("v_schedule_compliance").select("*").order("scheduled_date", { ascending: false }),
+        supabase.from("v_zone_now").select("*").order("zone"),
+        supabase.from("v_zone_staffing").select("*").order("work_date", { ascending: false }).limit(200),
+        supabase.from("v_schedulable").select("*").order("full_name"),
+        schedRead,
       ]);
       if (!live) return;
       setD({
@@ -585,7 +1228,12 @@ export default function CommandCenter({ go, session, reports, role, viewAs, onVi
         split: split.error ? { rows: null, err: split.error.message } : { rows: split.data, err: null },
         global: grab(global), goals: grab(goals), yld: grab(yld),
         rooms: grab(rooms), alertRules: grab(alertRules), stockRooms: grab(stockRooms),
-        stock: grab(stock), money: grab(money), tasks: grab(tasks),
+        stock: grab(stock), tasks: grab(tasks),
+        money: { count: money.count, err: money.error ? money.error.message : null },
+        headline: headline.error ? { row: null, err: headline.error.message } : { row: headline.data, err: null },
+        restock: grab(restock), forecast: grab(forecast), compliance: grab(compliance),
+        zones: grab(zones), staffing: grab(staffing), people: grab(people),
+        sched: { ...grab(sched), total: sched.count },
       });
     })();
     return () => { live = false; };
@@ -621,6 +1269,30 @@ export default function CommandCenter({ go, session, reports, role, viewAs, onVi
   const roomsOver = flowerRooms.filter((r) => Number(r.days_until) < 0 && Number(r.plants_now) > 0);
   const openTasks = d.tasks.rows;
   const overdueTasks = openTasks.filter((t) => t.position?.startsWith("OVERDUE"));
+  /* F3, Agent X: "🔍 Open every package" set openTile and NOTHING on this page
+     consumed it, so eleven controls on the owner's own frozen cards were live
+     buttons that did nothing. The drill that fixes it already existed —
+     DkStreamDrill, mounted only by the Inventory dashboard. It is imported and
+     mounted here, below the cards, without altering one of them. */
+  const openStream = d.stock.rows.find((s) => s.origin + s.stream === openTile) ?? null;
+  const zoneRows = d.zones.rows;
+  const schedulable = d.people.rows;
+  /* THE PUBLISHED FIGURE IS NOT CHANGED HERE — the reason it is wrong is shown
+     beside it, in the database's own words. mv_department_dashboard publishes
+     "Total on hand, dry-equivalent" as 2,460.0 lb, which adds fresh frozen at
+     WET weight into a dry-equivalent figure. Owner ruling 12 Aug 2026: split
+     it. v_stock_headline serves the split and serves the sentence; the tile is
+     corrected at source through a correction proposal, and until that lands the
+     reader gets both. The key is the KPI label exactly as published, so a
+     renamed tile drops the caveat rather than mispinning it to a neighbour. */
+  const kpiCaveats = d.headline.row
+    ? {
+        "Total on hand, dry-equivalent":
+          `${d.headline.row.why_two_figures} Split: ${Number(d.headline.row.dried_lb).toLocaleString()} lb dried and `
+          + `${Number(d.headline.row.fresh_frozen_wet_lb).toLocaleString()} lb fresh frozen at wet weight, shown separately in the `
+          + `executive column below. ${d.headline.row.ratio_caveat}`,
+      }
+    : null;
 
   return (
     <DrillRoot label="Command Center">
@@ -670,7 +1342,7 @@ export default function CommandCenter({ go, session, reports, role, viewAs, onVi
       {/* ── order 9 · KPI strip ── */}
       {d.tiles.err ? <CcErr what="The key figures" err={d.tiles.err} /> : (
         <DkKpiStrip dept="Command" tiles={d.tiles.rows} trend={trendByKpi} targets={targetByKpi}
-          go={go} onAssigned={() => setVer((v) => v + 1)} />
+          go={go} onAssigned={() => setVer((v) => v + 1)} caveats={kpiCaveats} />
       )}
       {d.targets.err && <CcErr what="The owner-set targets" err={d.targets.err} />}
       {d.trend.err && <CcErr what="The trend snapshots" err={d.trend.err} />}
@@ -708,7 +1380,49 @@ export default function CommandCenter({ go, session, reports, role, viewAs, onVi
         {d.global.err ? <CcErr what="The global view" err={d.global.err} />
           : d.global.rows.length === 0
             ? <div className="cc-fine">mv_global_management returned no rows — the view is live but empty, which is itself a data-layer finding.</div>
-            : <CcGlobal rows={d.global.rows} go={go} />}
+            : <CcGlobal rows={d.global.rows} go={go}
+                exec={<CcExecColumn
+                  headline={d.headline.row} headlineErr={d.headline.err}
+                  restock={d.restock.rows} restockErr={d.restock.err}
+                  forecast={d.forecast.rows} forecastErr={d.forecast.err}
+                  compliance={d.compliance.rows} complianceErr={d.compliance.err}
+                  go={go} />} />}
+      </CcPanel>
+
+      {/* ── WO-004 · who is on today, and in which zone ── */}
+      <CcPanel id="people" store={store} title="People — who is on today, and in which zone"
+        chips={(d.zones.err || d.people.err || d.staffing.err) ? <CcTag tone="crit">read failed</CcTag> : (
+          <>
+            {zoneRows.length === 0
+              ? <CcTag tone="warn" title="The zones register holds no rows. Nobody can be assigned to a zone that does not exist, so the floor count is unmeasurable rather than zero.">no zone created yet</CcTag>
+              : <CcTag tone="neutral">{zoneRows.length} zones</CcTag>}
+            <CcTag tone={schedulable.filter((p) => p.schedulable_state === "schedulable").length > 0 ? "ok" : "crit"}>
+              {schedulable.filter((p) => p.schedulable_state === "schedulable").length} can be scheduled
+            </CcTag>
+            <CcTag tone="warn" title="schedule_assignments and employee_schedules both hold no rows, so no shift is posted for any date.">
+              no shift posted
+            </CcTag>
+          </>
+        )}>
+        <CcPeople zones={zoneRows} zonesErr={d.zones.err}
+          staffing={d.staffing.rows} staffingErr={d.staffing.err}
+          people={schedulable} peopleErr={d.people.err} go={go} />
+      </CcPanel>
+
+      {/* ── WO-004 · the production schedule ── */}
+      <CcPanel id="production" store={store} title="Production schedule — what is coming, and when"
+        chips={d.sched.err ? <CcTag tone="crit">read failed</CcTag> : (
+          <>
+            <CcTag tone="neutral">
+              {d.sched.total == null ? `${d.sched.rows.length} shown` : `${Number(d.sched.total).toLocaleString()} events still to come`}
+            </CcTag>
+            {d.sched.rows[0] && <CcTag tone="info">next {d.sched.rows[0].harvest_date} · {d.sched.rows[0].flower_room ?? "room not recorded"}</CcTag>}
+            <CcTag tone="attn" title="harvest_schedule is the cultivation calendar. No view unions it with manufacturing runs yet — that is on the data layer's work order, and this band says so rather than implying the plan is complete.">
+              cultivation half only ⓘ
+            </CcTag>
+          </>
+        )}>
+        <CcProduction rows={d.sched.rows} total={d.sched.total} err={d.sched.err} go={go} />
       </CcPanel>
 
       {/* ── order 8 · the work queue ── */}
@@ -763,25 +1477,53 @@ export default function CommandCenter({ go, session, reports, role, viewAs, onVi
             ? <div className="cc-fine">v_room_board_complete returned no rooms — the view reads the room register, the harvest schedule and the package mirror; with all three empty there is nothing to show.</div>
             : <DkRoomBoard rooms={d.rooms.rows}
                 warnDays={warnRule ? Number(warnRule.threshold) : null}
-                renderPlantDrill={(code) => <RoomDrill code={code} />}
+                /* THE PLANT DRILL IS HANDED THE ROOM THE TILE COUNTED BY. It
+                   used to mount RoomDrill, which took a room CODE and looked it
+                   up in grow_rooms — but the board hands it a room ROW, so the
+                   lookup compared a code column with an object and matched
+                   nothing. RoomDrill also queried metrc_plants directly, where
+                   'Flower Room #1' returns 13,552 rows against 1,022 standing,
+                   because source_state was never in the filter. Both are gone:
+                   DkRoomPlantDrill reads v_room_plants_drill, which is keyed by
+                   OUR room name and carries the standing filter at source, so
+                   the tile and its drill cannot disagree. */
+                renderPlantDrill={(r) => <DkRoomPlantDrill room={r.room} metrcRoomName={r.metrc_room_name} />}
                 renderStockDrill={(r) => <RoomStockDrill licence={r.licence} room={r.room} department={r.department} />} />}
       </CcPanel>
 
       {/* ── owner keep-list · Where the Money Is Standing, internals untouched ── */}
       <CcPanel id="money" store={store} title="Where the money is standing"
         chips={d.money.err ? <CcTag tone="crit">read failed</CcTag>
-          : d.money.rows.length === 0 ? <CcTag tone="attn" title="v_money_position served no rows — the bar below stays empty for that reason, not by design.">no rows served</CcTag>
-          : <CcTag tone="neutral">{d.money.rows.length} bands</CcTag>}>
+          : d.money.count === 0 ? <CcTag tone="attn" title="v_money_position served no rows — the bar below stays empty for that reason, not by design.">no rows served</CcTag>
+          : <CcTag tone="neutral">{d.money.count == null ? "bands not counted" : `${d.money.count} bands`}</CcTag>}>
         <MoneyBar go={go} />
       </CcPanel>
 
       {/* ── owner keep-list · Stock by Stream cards, internals untouched ── */}
       <CcPanel id="stock" store={store} title="Stock by stream"
-        chips={d.stock.err ? <CcTag tone="crit">read failed</CcTag> : <CcTag tone="neutral">{d.stock.rows.length} streams</CcTag>}>
+        chips={d.stock.err ? <CcTag tone="crit">read failed</CcTag> : (
+          <>
+            <CcTag tone="neutral">{d.stock.rows.length} streams</CcTag>
+            <CcTag tone="info" title="Press “Open every package” on any card: the full package list opens below the cards, straight from the evidence view, with the certificate and the manifest on every row.">
+              every card opens its packages
+            </CcTag>
+          </>
+        )}>
         {d.stock.err ? <CcErr what="The stock streams" err={d.stock.err} />
           : d.stock.rows.length === 0
             ? <div className="cc-fine">No stock streams served — v_stock_summary returned no rows.</div>
-            : <StockByStreamCards stock={d.stock.rows} openTile={openTile} setOpenTile={setOpenTile} />}
+            : (
+              <>
+                <StockByStreamCards stock={d.stock.rows} openTile={openTile} setOpenTile={setOpenTile} />
+                {openStream && (
+                  <DkDrill label={`Every package in ${openStream.stream} — ${openStream.origin}`}
+                    onClose={() => setOpenTile(null)}>
+                    <DkStreamDrill origin={openStream.origin} stream={openStream.stream}
+                      renderTable={(rows) => <StockProofTable rows={rows} locationLabel="Room" />} />
+                  </DkDrill>
+                )}
+              </>
+            )}
       </CcPanel>
 
       {/* ── owner order 11 Aug: the forensic audit keeps its own section ── */}
