@@ -382,7 +382,8 @@
 .tgwc-table tr:last-child td { border-bottom: 0; }
 .tgwc-table td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .tgwc-blob summary { cursor: pointer; color: var(--wc-info); font-size: 11px; }
-.tgwc-blob pre { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 11px; margin-top: 3px; }
+/* The opened value is CONTENT, not chrome, so it sits on the 12px floor. */
+.tgwc-blob pre { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; margin-top: 3px; }
 
 .tgwc-ev { display: flex; flex-wrap: wrap; gap: 3px; align-items: center; }
 .tgwc-evdoc {
@@ -392,7 +393,11 @@
   padding: 0 5px; cursor: pointer; white-space: nowrap;
 }
 .tgwc-evdoc:hover { background: var(--wc-ok-soft); }
-.tgwc-evwhy { font-size: 11px; color: var(--wc-mute); overflow-wrap: anywhere; }
+/* "Never submitted for testing", "No manifest — packaged here, never
+   transferred": these are the sentences that stand IN PLACE of a document, and
+   a reader has to be able to read them. Prose, therefore 12px, not the chrome
+   band. This is the drift the design lane counted 51 of. */
+.tgwc-evwhy { font-size: 12px; color: var(--wc-mute); overflow-wrap: anywhere; }
 .tgwc-evwhy.attn { color: var(--wc-attn); }
 
 /* ═══════════ empty and gap states ═══════════ */
