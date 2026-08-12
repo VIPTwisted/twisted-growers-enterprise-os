@@ -1,0 +1,347 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   TG WORKSPACE — scoped stylesheet. Agent B, 12 Aug 2026.
+   Owner: "build workspace as our own clone as similar copy to clickup" and
+   "must connect and wire to our version of clickup too we call ours TG workspace".
+
+   SCOPE, AND WHY THE ROOT CARRIES TWO CLASSES.
+   Every rule here is prefixed `.tgws`. Prefixing is NOT scoping, and that has
+   already bitten this codebase, so the mechanism that actually holds is this:
+   the page root renders `class="ccpage tgws"`. `--cct0`, `--ccok`, `--ccline`
+   and the rest of the ladder are declared ON `.ccpage` in commandcenter.css —
+   NOT on :root. A file that used them under any other root would render its
+   text with an empty `var()` and disappear. Carrying `.ccpage` inherits the
+   token scope; carrying `.tgws` adds this layout and nothing else. Verified by
+   rendering the page outside the Command Center.
+
+   ZERO COLOUR VALUES. No hex, and no channel-triple function of any kind —
+   every colour in this file resolves through a token that already existed. The
+   theme-lock gate counts colour literals per stylesheet against the merge-base,
+   and a new file has a baseline of zero, so one literal would fail it. Nothing
+   here needed one. No new font family: everything inherits Figtree, or --ccmono
+   for the chrome, the same monospace the Command Center already uses.
+
+   NOTE FOR THE GATE'S OWNER, not worked around: that scanner reads raw text, so
+   it counts a channel-function NAME written in a comment as though it were a
+   declaration. Two occurrences here were this very sentence describing the rule,
+   and they failed the gate at 0 → 2. Reworded rather than patched — dashkit.jsx
+   hit the identical prose-read-as-code defect against the silent-failures
+   ratchet and resolved it the same way. Stripping comments before counting is
+   the fix, and it is not this lane's file to change.
+
+   DDC SCALE, MEASURED NOT ADJECTIVAL: chrome 9–11px · body 12px · row height
+   26px · paddings ≤16px · hairline 1px borders · radius ≤2px · 12px floor for
+   prose. There are no KPI numbers on this page, so the 22px cap is not
+   exercised — a task list is not a dashboard and does not pretend to be one.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── the page shell: rail + work area, never a horizontal scrollbar ────────
+   `minmax(0, 1fr)` and not `1fr`: a grid track defaults to min-content, so a
+   long unbroken task title in the work area would push the whole page wider
+   than the viewport and put a scrollbar under the side menu. */
+.tgws-shell {
+  display: grid;
+  grid-template-columns: 208px minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+}
+@media (max-width: 980px) {
+  .tgws-shell { grid-template-columns: minmax(0, 1fr); }
+  .tgws-rail { position: static; max-height: none; }
+}
+
+/* ── left rail: spaces, then the lists inside the chosen space ──────────── */
+.tgws-rail {
+  border: 1px solid var(--ccline);
+  background: var(--cc1);
+  position: sticky;
+  top: 8px;
+  max-height: calc(100vh - 120px);
+  overflow: auto;
+  min-width: 0;
+}
+.tgws-railhead {
+  font-family: var(--ccmono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--cct2);
+  padding: 6px 10px 4px;
+  border-bottom: 1px solid var(--ccline);
+  background: var(--cc2);
+}
+.tgws-railfoot { padding: 6px 8px 8px; border-top: 1px solid var(--ccline); }
+
+.tgws-pick {
+  width: 100%;
+  min-height: 26px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 8px 0 6px;
+  background: transparent;
+  border: 0;
+  border-left: 2px solid transparent;
+  color: var(--cct1);
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+  border-radius: 0;
+}
+.tgws-pick:hover { background: var(--cc2); color: var(--cct0); }
+.tgws-pick.on {
+  background: var(--cc2);
+  color: var(--cct0);
+  border-left-color: var(--ccok);
+  font-weight: 600;
+}
+.tgws-pick.sub { padding-left: 18px; font-size: 11.5px; }
+/* Titles wrap. Nothing on this page is clipped or silently shortened. */
+.tgws-pickname { min-width: 0; overflow-wrap: anywhere; line-height: 1.35; padding: 4px 0; }
+.tgws-n {
+  margin-left: auto;
+  flex: none;
+  font-family: var(--ccmono);
+  font-size: 10px;
+  color: var(--cct2);
+  padding-left: 6px;
+}
+.tgws-pick.on .tgws-n { color: var(--cct1); }
+
+/* ── work area ────────────────────────────────────────────────────────── */
+.tgws-main { min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+
+.tgws-group { border: 1px solid var(--ccline); background: var(--cc1); }
+.tgws-grouphead {
+  width: 100%;
+  min-height: 26px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 10px;
+  background: var(--cc2);
+  border: 0;
+  border-bottom: 1px solid var(--ccline);
+  color: var(--cct1);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.tgws-grouphead:hover { color: var(--cct0); }
+.tgws-groupname {
+  font-family: var(--ccmono);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.tgws-groupbody { padding: 0; }
+
+/* One task row. 26px, hairline separated, and the title column is the only
+   one allowed to grow — so the controls never drift about between rows. */
+.tgws-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  min-height: 26px;
+  padding: 2px 10px;
+  border-bottom: 1px solid var(--ccline);
+}
+.tgws-row:last-child { border-bottom: 0; }
+.tgws-row:hover { background: var(--cc2); }
+.tgws-rowl { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.tgws-rowr { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+
+.tgws-titlebtn {
+  background: transparent;
+  border: 0;
+  padding: 3px 0;
+  margin: 0;
+  color: var(--cct0);
+  font: inherit;
+  font-size: 12px;
+  line-height: 1.4;
+  text-align: left;
+  cursor: pointer;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.tgws-titlebtn:hover { color: var(--ccok); }
+.tgws-titlebtn.closed { color: var(--cct2); text-decoration: line-through; }
+
+.tgws-sub { padding-left: 16px; border-left: 1px solid var(--ccline); margin-left: 4px; }
+
+.tgws-meta { font-family: var(--ccmono); font-size: 10px; color: var(--cct2); white-space: nowrap; }
+.tgws-meta.due-late { color: var(--cccrit); }
+.tgws-meta.due-soon { color: var(--ccwarn); }
+
+.tgws-sel {
+  height: 20px;
+  max-width: 150px;
+  background: var(--cc2);
+  color: var(--cct1);
+  border: 1px solid var(--ccline);
+  border-radius: 2px;
+  font-family: inherit;
+  font-size: 11px;
+  padding: 0 4px;
+}
+.tgws-sel:focus { outline: none; border-color: var(--ccok); }
+.tgws-date {
+  height: 20px;
+  background: var(--cc2);
+  color: var(--cct1);
+  border: 1px solid var(--ccline);
+  border-radius: 2px;
+  font-family: inherit;
+  font-size: 11px;
+  padding: 0 4px;
+}
+.tgws-date:focus { outline: none; border-color: var(--ccok); }
+
+/* Inline create, one per status group — the row you type the next task into. */
+.tgws-add { display: flex; align-items: center; gap: 6px; padding: 4px 10px; border-top: 1px solid var(--ccline); }
+.tgws-add input {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 22px;
+  background: var(--cc2);
+  color: var(--cct0);
+  border: 1px solid var(--ccline);
+  border-radius: 2px;
+  font-family: inherit;
+  font-size: 12px;
+  padding: 0 7px;
+}
+.tgws-add input:focus { outline: none; border-color: var(--ccok); }
+
+/* ── board ─────────────────────────────────────────────────────────────
+   auto-fit, not a fixed column count: a space defines its own statuses, and
+   a space with more of them must wrap rather than grow a horizontal
+   scrollbar across the page. */
+.tgws-board {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 8px;
+  align-items: start;
+}
+.tgws-col { border: 1px solid var(--ccline); background: var(--cc1); min-width: 0; display: flex; flex-direction: column; }
+.tgws-colhead {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 26px;
+  padding: 0 8px;
+  background: var(--cc2);
+  border-bottom: 1px solid var(--ccline);
+}
+.tgws-colbody { padding: 6px; display: flex; flex-direction: column; gap: 6px; min-height: 48px; }
+.tgws-col.over { border-color: var(--ccok); }
+.tgws-col.over .tgws-colbody { background: var(--ccok-glow); }
+.tgws-card {
+  border: 1px solid var(--ccline);
+  background: var(--cc2);
+  padding: 6px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  cursor: grab;
+  min-width: 0;
+}
+.tgws-card:active { cursor: grabbing; }
+.tgws-cardrow { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+
+/* ── task detail ───────────────────────────────────────────────────────── */
+.tgws-detail { display: grid; grid-template-columns: minmax(0, 1fr) 240px; gap: 10px; padding: 10px; align-items: start; }
+@media (max-width: 900px) { .tgws-detail { grid-template-columns: minmax(0, 1fr); } }
+.tgws-dcol { min-width: 0; display: flex; flex-direction: column; gap: 10px; }
+.tgws-sec { border: 1px solid var(--ccline); background: var(--cc1); }
+.tgws-sechead {
+  width: 100%;
+  min-height: 26px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 10px;
+  background: var(--cc2);
+  border: 0;
+  border-bottom: 1px solid var(--ccline);
+  color: var(--cct1);
+  font-family: var(--ccmono);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  text-align: left;
+  cursor: pointer;
+}
+.tgws-secbody { padding: 8px 10px; display: flex; flex-direction: column; gap: 8px; }
+.tgws-field { display: flex; align-items: center; gap: 8px; min-height: 24px; flex-wrap: wrap; }
+.tgws-flabel {
+  font-family: var(--ccmono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--cct2);
+  width: 92px;
+  flex: none;
+}
+.tgws-body {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--cct1);
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+.tgws-note { font-size: 12px; line-height: 1.5; color: var(--cct2); overflow-wrap: anywhere; }
+
+.tgws-ta {
+  width: 100%;
+  background: var(--cc2);
+  color: var(--cct0);
+  border: 1px solid var(--ccline);
+  border-radius: 2px;
+  font-family: inherit;
+  font-size: 12px;
+  line-height: 1.5;
+  padding: 6px 8px;
+  resize: vertical;
+}
+.tgws-ta:focus { outline: none; border-color: var(--ccok); }
+
+.tgws-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 4px 0;
+  border-bottom: 1px solid var(--ccline);
+  min-width: 0;
+}
+.tgws-item:last-child { border-bottom: 0; }
+.tgws-itemmain { min-width: 0; flex: 1 1 auto; }
+.tgws-when {
+  font-family: var(--ccmono);
+  font-size: 10px;
+  color: var(--cct2);
+  white-space: nowrap;
+  flex: none;
+}
+.tgws-done { color: var(--cct2); text-decoration: line-through; }
+
+/* ── message strip: one line, never a wall of prose on a card ──────────── */
+.tgws-said {
+  font-size: 11px;
+  line-height: 1.5;
+  padding: 4px 8px;
+  border-left: 2px solid var(--ccok);
+  background: var(--cc2);
+  color: var(--cct1);
+  overflow-wrap: anywhere;
+}
+.tgws-said.bad { border-left-color: var(--cccrit); }
+
+.tgws-wrap { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; min-width: 0; }
+.tgws-grow { flex: 1 1 auto; min-width: 0; }
