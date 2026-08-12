@@ -11143,7 +11143,7 @@ export default function App() {
        Center, "its totally out of order from what i want to se". Nobody can guess the
        order he wants — Finance at year end, Cultivation in season — so he arranges it
        himself. `go` is passed so a widget can open the full records page behind it. */
-    my_dashboard: <WidgetCanvas go={go} heading="My dashboard" />,
+    my_dashboard: <WidgetCanvas go={setView} heading="My dashboard" />,
     /* TG WORKSPACE — owner, 12 Aug 2026: "build workspace as our own clone as similar
        copy to clickup", and earlier "must connect and wire to our version of clickup
        too we call ours TG workspace". Spaces → lists → tasks → subtasks, on our own
