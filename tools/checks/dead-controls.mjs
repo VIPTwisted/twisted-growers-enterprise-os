@@ -28,7 +28,9 @@ import { fileURLToPath } from "node:url";
 const here = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(here, "../..");
 const BASELINE = join(here, "dead-controls.baseline.json");
-const UI_FILES = ["app/web/src/App.jsx", "app/web/src/budz.jsx", "app/web/src/commandcenter.jsx"];
+const UI_FILES = ["app/web/src/App.jsx", "app/web/src/budz.jsx",
+  "app/web/src/commandcenter.jsx", "app/web/src/dashkit.jsx",
+  "app/web/src/dash-cultivation.jsx", "app/web/src/dash-inventory.jsx"];
 
 /* Anything that makes a button do something, or hands its behaviour to a parent. */
 const LIVE = /onClick|onMouseDown|onPointerDown|onSubmit|type\s*=\s*["']submit["']|\{\s*\.\.\./;

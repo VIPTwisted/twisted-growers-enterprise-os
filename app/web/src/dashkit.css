@@ -1,0 +1,133 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   DASHKIT — the widget chrome only. Agent B, 12 Aug 2026.
+
+   THIS FILE ADDS NOTHING THAT ALREADY EXISTS. Every dashboard built on dashkit
+   renders inside .ccpage and reuses the .cc-* classes the owner already graded
+   on the Command Center, so there is ONE visual system, not two. What is here
+   is only the chrome that did not exist before it: the widget grid, the drag
+   affordance, the row-level evidence cell, the honest-gap card and the
+   orphan-target rows.
+
+   LOCKED, AND HELD BY THE PAGE VALIDATOR:
+   - No :root rule. Tokens live on .ccpage in commandcenter.css; this file only
+     consumes them, so nothing can cascade into the side menu, the top menu or
+     any frozen surface.
+   - No colour literal. Every colour is a var() the locked theme already
+     defines — the theme-lock ratchet forbids anything else.
+   - No frozen class is named here: not .entcard, not .moneybar, not .topnav.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── the widget grid ─────────────────────────────────────────────────────
+   Twelve columns so a half-width widget is a true half. One column under
+   1100px: a dashboard must never scroll sideways and never clip a label (F5). */
+.cc-wgrid { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 10px; align-items: start; }
+.cc-w.span-2 { grid-column: span 12; }
+.cc-w.span-1 { grid-column: span 6; }
+@media (max-width: 1100px) {
+  .cc-w.span-1, .cc-w.span-2 { grid-column: span 12; }
+}
+
+/* ── arrange mode ─────────────────────────────────────────────────────── */
+.cc-warrange {
+  border: 1px dashed var(--ccok); background: var(--cc2); color: var(--cct1);
+  padding: 6px 10px; font-size: 11.5px; line-height: 1.5;
+}
+.cc-w.arranging { outline: 1px dashed var(--ccline2); outline-offset: 1px; }
+.cc-w.arranging .cc-panel-head { cursor: grab; }
+.cc-w.arranging:active .cc-panel-head { cursor: grabbing; }
+.cc-w.dropping { outline: 2px solid var(--ccok); outline-offset: 1px; }
+.cc-w.hiddenw { opacity: 0.45; }
+.cc-wdrag {
+  font-size: 13px; line-height: 1; color: var(--cct2); cursor: grab;
+  padding: 0 2px; user-select: none;
+}
+.cc-whead {
+  flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px;
+  background: transparent; border: 0; padding: 0; margin: 0;
+  cursor: pointer; text-align: left; color: inherit; font: inherit;
+}
+.cc-wtools { display: inline-flex; gap: 4px; align-items: center; }
+
+/* ── the row-level evidence cell (C3a, every item row everywhere) ──────── */
+.cc-ev { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 5px; min-width: 0; }
+.cc-evdoc {
+  display: inline-flex; align-items: center; height: 18px; padding: 0 7px;
+  background: transparent; color: var(--ccok); border: 1px solid var(--ccok);
+  font-family: inherit; font-size: 10.5px; font-weight: 600; letter-spacing: 0.02em;
+  cursor: pointer; border-radius: 2px; white-space: nowrap;
+}
+.cc-evdoc:hover { box-shadow: 0 0 8px var(--ccok-glow); }
+/* The reason a document is absent. It WRAPS — a reason clipped to an ellipsis
+   is the same as a blank, and rule A3 forbids a blank (F3: wrap, never clip). */
+.cc-evwhy {
+  font-size: 10.5px; line-height: 1.45; color: var(--cct2);
+  white-space: normal; overflow-wrap: anywhere; max-width: 46ch;
+}
+.cc-evwhy.attn { color: var(--ccattn); }
+.cc-evwhy.crit { color: var(--cccrit); }
+.cc-ev.compact .cc-evwhy { max-width: 30ch; }
+.cc-evthc {
+  font-family: var(--ccmono); font-size: 10px; color: var(--cct1);
+  border: 1px solid var(--ccline); padding: 0 5px; white-space: nowrap;
+}
+
+/* ── a KPI tile that has no target and no history, said plainly ────────── */
+.cc-kpi-target.none { color: var(--cct2); font-style: italic; }
+.cc-kpi-nohist { font-size: 10px; color: var(--cct2); font-style: normal; white-space: nowrap; }
+.cc-kpi-nodrill { font-size: 10px; color: var(--ccattn); white-space: nowrap; }
+.cc-kpi-open:disabled { cursor: default; }
+
+/* ── owner-set targets nothing reports against ─────────────────────────── */
+.cc-orphans { display: flex; flex-direction: column; gap: 4px; }
+.cc-orphan {
+  display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;
+  border-left: 2px solid var(--ccattn); background: var(--cc2); padding: 4px 10px; min-height: 26px;
+}
+.cc-orphan-kpi { font-size: 12px; font-weight: 600; color: var(--cct0); }
+.cc-orphan-target { font-family: var(--ccmono); font-size: 11px; color: var(--ccattn); }
+.cc-orphan-by { font-size: 10.5px; color: var(--cct2); overflow-wrap: anywhere; }
+
+/* ── the honest gap card ───────────────────────────────────────────────── */
+.cc-gapcard {
+  display: flex; flex-direction: column; gap: 6px;
+  border-left: 2px solid var(--ccattn); background: var(--cc2); padding: 10px 12px;
+  font-size: 12px; line-height: 1.55; color: var(--cct1);
+}
+.cc-gapcard b { color: var(--cct0); font-size: 12.5px; }
+.cc-gapcard .cc-btn { align-self: flex-start; }
+
+/* ── closing an expanded drill ─────────────────────────────────────────────
+   Owner, 12 Aug 2026: "how does a user collapse the data after they expand
+   it." The caret shows state BEFORE the click as well as after it, and the
+   open panel carries its own Close at the TOP — on a drill of several hundred
+   rows a control at the bottom is off-screen and might as well not exist. */
+.cc-xcaret {
+  display: inline-block; width: 10px; margin-right: 5px;
+  font-size: 9px; line-height: 1; color: var(--cct2);
+  transform: rotate(0deg); transition: transform 120ms ease-out;
+}
+.cc-xcaret.open { transform: rotate(90deg); color: var(--ccok); }
+.cc-drill-what { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+/* The way back sits in the SAME PLACE on every drill — top right — and names
+   where it lands. Never scrolled off: the header is the top of the panel. */
+.cc-drill-close { margin-left: auto; flex: none; }
+/* Breadcrumb for a drill two or more levels deep: every segment is a button,
+   so four levels can be left in one press instead of four. */
+.cc-crumbs { display: inline-flex; align-items: center; gap: 4px; flex-wrap: wrap; min-width: 0; }
+.cc-crumb {
+  background: transparent; border: 0; padding: 0 2px; cursor: pointer;
+  font-family: var(--ccmono); font-size: 10px; letter-spacing: 0.06em;
+  text-transform: uppercase; color: var(--cct2);
+}
+.cc-crumb:hover { color: var(--ccok); text-decoration: underline; }
+.cc-crumb-sep { color: var(--ccline2); font-size: 10px; }
+/* The drill header is a flex row so Close can sit hard right on the same line
+   as the title. It is defined in the Command Center stylesheet; only the
+   layout needed for the Close control is added here. */
+.cc-drill-head { display: flex; align-items: center; gap: 8px; }
+[aria-expanded="true"] > .cc-sr-name > .cc-xcaret,
+[aria-expanded="true"] > .cc-yname > .cc-xcaret { color: var(--ccok); }
+
+/* ── empty states keep their escape action on the same line ────────────── */
+.cc-empty-act { display: inline-flex; margin-left: 8px; vertical-align: middle; }
+.cc-fine.crit { color: var(--cccrit); }

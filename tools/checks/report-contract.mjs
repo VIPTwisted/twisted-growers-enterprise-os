@@ -196,6 +196,27 @@ export function bareRoomRenders(text) {
      reason this gate can be trusted is that it does not do that. */
   const COMPARISON = /[=!]==?|<=|>=/;
 
+  /* THE DEPARTMENT IS RIGHT THERE. J7 requires the reader to be able to tell
+     which of two same-named rooms they are looking at — so a room rendered
+     WITH its department beside it, in the same expression, satisfies the rule
+     rather than breaking it. Without this the gate flags dkRoomQualified(),
+     the one helper whose entire body is `${r.room} — ${dept}`: the check would
+     be firing on the implementation of the rule it exists to enforce. Added
+     12 Aug 2026 after it did exactly that. */
+  const DEPT_SHOWN = /\b(?:department|dept|room_qualified|licence|license)\b/;
+
+  /* PASSING IS NOT RENDERING. `room={r.room}` hands a component the bare room
+     name as a query key — room identity is licence + name, so the receiving
+     component needs the name unqualified to filter on it. What that component
+     RENDERS is checked in that component, on its own line. Same reasoning the
+     `key=` exclusion below already uses. */
+  const ROOM_PROP = /\broom\s*=\s*$/;
+
+  /* A MAP LOOKUP IS NOT A RENDER. `shared.get(g.room)` counts how many
+     departments share a room name — code written to SUPPORT J7, flagged as
+     breaking it. */
+  const LOOKUP = /\.(?:get|has|set|delete)\(\s*$/;
+
   /* TWO PATTERNS, ONE FINDING PER SITE.
      A template interpolation `${r.room}` contains a brace expression `{r.room}`, so both
      patterns fire on the same characters. The first measurement read 30 where the truth
@@ -209,9 +230,19 @@ export function bareRoomRenders(text) {
                snippet: snippet.replace(/\s+/g, " ").slice(0, 90) });
   };
 
+  /* The enclosing template literal, so "is the department shown beside it"
+     can be asked of the whole string rather than of one interpolation. */
+  const templateAround = (i) => {
+    const a = text.lastIndexOf("`", i);
+    if (a < 0) return "";
+    const b = text.indexOf("`", i);
+    return b < 0 ? text.slice(a) : text.slice(a, b + 1);
+  };
   for (const m of text.matchAll(/\$\{[^{}]*\}/g)) {
     claimed.push([m.index, m.index + m[0].length]);
     if (!BARE.test(m[0]) || COMPARISON.test(m[0])) continue;
+    if (LOOKUP.test(text.slice(Math.max(0, m.index - 14), m.index))) continue;
+    if (DEPT_SHOWN.test(templateAround(m.index))) continue;
     push(m.index, m[0]);
   }
   const inside = (i) => claimed.some(([a, b]) => i >= a && i < b);
@@ -224,6 +255,8 @@ export function bareRoomRenders(text) {
        violation and the key is not. Counting both makes one defect look like two and
        sends whoever fixes it hunting for a second site that does not exist. */
     if (/\bkey\s*=\s*$/.test(text.slice(Math.max(0, m.index - 12), m.index))) continue;
+    if (ROOM_PROP.test(text.slice(Math.max(0, m.index - 12), m.index))) continue;
+    if (LOOKUP.test(text.slice(Math.max(0, m.index - 14), m.index))) continue;
     push(m.index, m[0]);
   }
   return out;
@@ -279,6 +312,22 @@ function selfTest() {
 
   add("NEGATIVE J7 — room_qualified is the correct form and must never be flagged", () =>
     bareRoomRenders("const s = `${r.strain} · ${r.room_qualified}`;").length === 0);
+  /* The three exclusions added 12 Aug 2026, each with the violation it must
+     still catch sitting beside it — an exclusion without its positive half is
+     how a gate quietly stops working. */
+  add("NEGATIVE J7 — the department shown in the same string satisfies the rule", () =>
+    bareRoomRenders("return `${r.room} — ${dept}`;").length === 0);
+  add("POSITIVE J7 — the word department elsewhere in the FILE does not excuse a bare "
+    + "render in its own string", () =>
+    bareRoomRenders("const d = r.department;\nconst s = `${r.strain} · ${r.room}`;").length === 1);
+  add("NEGATIVE J7 — a room passed as the room prop is a query key, not a render", () =>
+    bareRoomRenders("<RoomStockDrill licence={r.licence} room={r.room} department={r.department} />").length === 0);
+  add("POSITIVE J7 — a room rendered as a LABEL prop is still shown to a reader", () =>
+    bareRoomRenders("<Tile label={r.room} />").length === 1);
+  add("NEGATIVE J7 — a Map lookup keyed on the room name is not a render", () =>
+    bareRoomRenders("const n = shared.get(g.room);").length === 0);
+  add("POSITIVE J7 — a bare room inside an ordinary call that renders is still caught", () =>
+    bareRoomRenders("const s = `${titleCase(r.room)}`;").length === 1);
 
   add("NEGATIVE J7 — a COMPARISON is not a render. This is the false positive that would "
     + "have flagged App.jsx:3755, which is correct code deciding a button state", () =>

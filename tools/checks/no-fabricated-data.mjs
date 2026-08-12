@@ -28,7 +28,9 @@ import { fileURLToPath } from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(here, "../..");
-const UI_FILES = ["app/web/src/App.jsx", "app/web/src/budz.jsx"];
+const UI_FILES = ["app/web/src/App.jsx", "app/web/src/budz.jsx",
+  "app/web/src/commandcenter.jsx", "app/web/src/dashkit.jsx",
+  "app/web/src/dash-cultivation.jsx", "app/web/src/dash-inventory.jsx"];
 
 /* Props that feed something that renders a value or a shape to the user. A literal
    array or number here is a claim about the business with no source behind it. */

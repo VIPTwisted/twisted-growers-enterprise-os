@@ -32,10 +32,13 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { supabase } from "./lib/supabase.js";
 import {
-  AssignTask, DateRangeSelect, useSectionStore, movementVerdict, rowsOr,
+  DateRangeSelect, useSectionStore, rowsOr,
   MoneyBar, StockByStreamCards, OpenHarvestDetail, InTransitDrill, BatchList,
   RoomDrill, RoomStockDrill, ForensicAuditLedger, DEPT_BY_VIEW,
 } from "./App.jsx";
+import {
+  DkKpiStrip, DkRoomBoard, DkWorkQueue, useWorkQueue, dkRoomQualified, DkCaret, DkDrill, DrillRoot,
+} from "./dashkit.jsx";
 import "./commandcenter.css";
 
 /* ---------- shared primitives of the new tree ---------- */
@@ -80,89 +83,16 @@ function ccAge(ts) {
   return `${Math.round(s / 86400)} days old`;
 }
 
-const fmtVal = (v, u) => {
-  const n = Number(v ?? 0);
-  if (u === "$") return "$" + Math.round(n).toLocaleString();
-  if (u === "%") return n.toLocaleString() + "%";
-  return n.toLocaleString();
-};
-
-/* 40×10 sparkline, drawn ONLY from served daily snapshots. With fewer than two
-   points nothing renders — no placeholder ghost (order 9; rule 10 honesty). */
-function CcSpark({ series, direction }) {
-  if (!series || series.length < 2) return null;
-  const n = series.map(Number);
-  const min = Math.min(...n), max = Math.max(...n), rng = max - min || 1;
-  const W = 40, H = 10;
-  const pts = n.map((v, i) => [(i / (n.length - 1)) * W, H - 1.5 - ((v - min) / rng) * (H - 3)]);
-  const d = pts.map((p, i) => (i ? "L" : "M") + p[0].toFixed(1) + " " + p[1].toFixed(1)).join(" ");
-  const rising = n[n.length - 1] === n[0] ? null : n[n.length - 1] > n[0];
-  const cls = movementVerdict(rising, direction);
-  return (
-    <svg className={`cc-spark ${cls}`} viewBox={`0 0 ${W} ${H}`} width={W} height={H} aria-hidden="true">
-      <path d={d} className="cc-spark-line" />
-      <circle cx={pts[pts.length - 1][0]} cy={pts[pts.length - 1][1]} r="1.5" className="cc-spark-dot" />
-    </svg>
-  );
-}
-
-/* ---------- order 9 · the KPI strip ---------- */
-function CcKpiStrip({ tiles, trend, targets, go, onAssigned }) {
-  return (
-    <div className="cc-kpiwrap">
-      <div className="cc-striphead">
-        <span className="cc-striplabel">Key figures</span>
-        <CcTag tone="neutral">{tiles.length} figures</CcTag>
-        {/* The range caveat renders ONCE for the whole strip, never per tile
-            (order 9). The full explanation rides the tooltip (rule A3). */}
-        <CcTag tone="info"
-          title="These figures are read from mv_department_dashboard, one pre-computed row per figure with no date on it, refreshed on the ten-minute cycle. They cover all data, all time, whatever range is picked above. The fix belongs in the view: it must carry the date its own facts hold.">
-          all data, all time — does not honour the date range ⓘ
-        </CcTag>
-      </div>
-      <div className="cc-kpi-strip">
-        {tiles.map((r) => {
-          const tg = targets[r.kpi];
-          const tr = trend[r.kpi];
-          const offTarget = tg && tg.target != null &&
-            (tg.direction === "at_most" ? Number(r.value) > Number(tg.target) : Number(r.value) < Number(tg.target));
-          const valTone = offTarget ? "crit" : r.tone === "bad" ? "crit" : r.tone === "warn" ? "warn" : r.tone === "good" ? "ok" : "plain";
-          let delta = null;
-          if (tr && tr.latest != null && tr.previous != null) {
-            const d = Number(tr.latest) - Number(tr.previous);
-            delta = { cls: movementVerdict(d === 0 ? null : d > 0, tg?.direction),
-              txt: d === 0 ? "no change since yesterday" : `${d > 0 ? "+" : ""}${d.toLocaleString()} since yesterday` };
-          }
-          const shortCtx = r.context && r.context.length <= 44 ? r.context : null;
-          return (
-            <div key={r.kpi + r.ord} className="cc-kpi">
-              <button className="cc-kpi-open" onClick={() => r.drill && go(r.drill)}
-                title={(r.context ? r.context + " — " : "") + "Open the records behind this figure."}>
-                <span className="cc-kpi-lbl">{r.kpi}</span>
-                <span className="cc-kpi-line">
-                  <b className={`cc-kpi-val ${valTone}`}>{fmtVal(r.value, r.unit)}</b>
-                  {r.unit && r.unit !== "$" && r.unit !== "%" && <em className="cc-kpi-unit">{r.unit}</em>}
-                  <CcSpark series={tr?.series} direction={tg?.direction} />
-                  {delta && <span className={`cc-kpi-delta ${delta.cls}`}>{delta.txt}</span>}
-                </span>
-                {tg && tg.target != null && (
-                  <span className={`cc-kpi-target ${offTarget ? "crit" : ""}`}>
-                    target {tg.direction === "at_most" ? "no more than" : "at least"} {Number(tg.target).toLocaleString()}
-                    {offTarget ? " — OVER" : " — within"}
-                  </span>
-                )}
-                {shortCtx && <span className="cc-kpi-ctx">{shortCtx}</span>}
-              </button>
-              <span className="cc-kpi-assign">
-                <AssignTask dept="Command" kpi={r.kpi} value={r.value} unit={r.unit} drill={r.drill} onDone={onAssigned} />
-              </span>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
+/* ---------- order 9 · the KPI strip ----------
+   BACK-PORTED to the shared DkKpiStrip, 12 Aug 2026. The version that lived
+   here rendered a tile with no owner-set target as a BLANK where the target
+   line belongs, a null sparkline as nothing at all, and a tile with no drill
+   as a live button that did nothing when pressed. All eight Command tiles hit
+   the first of those — kpi_targets holds twelve rows and not one is for
+   Command — so the certified page was breaching rule 10 and A3 eight times
+   over while looking finished. The shared strip says "no target set", "no
+   history yet" and disables a drill-less tile with "no drill published"
+   beside it. Same markup, same classes, same scale: only the silence is gone. */
 
 /* ---------- order 3 · seed-to-sale strip, first band ---------- */
 const CC_WIP = new Set(["Drying", "Awaiting test", "At the laboratory"]);
@@ -185,8 +115,9 @@ function CcFlow({ flow, split, go }) {
           return (
             <button key={r.stage} className={`cc-stage ${hot ? "hot" : ""} ${openStage === r.stage ? "on" : ""}`}
               onClick={() => setOpenStage(openStage === r.stage ? null : r.stage)}
-              title={(r.note || "") + " Click for every record behind this stage."}>
-              <span className="cc-stage-lbl">{r.stage}</span>
+              aria-expanded={openStage === r.stage}
+              title={(r.note || "") + (openStage === r.stage ? " Click again to close." : " Click for every record behind this stage.")}>
+              <span className="cc-stage-lbl"><DkCaret open={openStage === r.stage} />{r.stage}</span>
               <span className="cc-stage-n">{Number(r.units || 0).toLocaleString()}<em> {r.unit}</em></span>
               {r.pounds != null && <span className="cc-stage-lb">{Number(r.pounds).toLocaleString()} lb</span>}
               {r.pounds != null && (
@@ -212,15 +143,15 @@ function CcFlow({ flow, split, go }) {
         </button>
       )}
       {openStage && (
-        <div className="cc-drill">
-          <div className="cc-drill-head">Every record behind “{openStage}” — full forensic detail</div>
+        <DkDrill label={`Every record behind “${openStage}” — full forensic detail`}
+          onClose={() => setOpenStage(null)}>
           {openStage === "Open harvests" ? <OpenHarvestDetail />
             : openStage === "In transit" ? <InTransitDrill />
             : <BatchList labState={
                 openStage === "Awaiting test" ? "NotSubmitted"
                 : openStage === "Sellable" ? "TestPassed"
                 : openStage === "Blocked - failed" ? "TestFailed" : "SubmittedForTesting"} />}
-        </div>
+        </DkDrill>
       )}
     </>
   );
@@ -441,144 +372,25 @@ function CcGlobal({ rows, go }) {
   );
 }
 
-/* ---------- order 8 · the work queue ---------- */
-const CC_SEV = { critical: "crit", elevated: "warn", watch: "attn", info: "info" };
-function CcAssignCause({ row, isAdmin, viewKey }) {
-  const [open, setOpen] = useState(false);
-  const [people, setPeople] = useState(null);
-  const [who, setWho] = useState("");
-  const [due, setDue] = useState("");
-  const [pri, setPri] = useState("normal");
-  const [msg, setMsg] = useState("");
-  useEffect(() => {
-    if (!open || people) return;
-    supabase.from("employees").select("id, full_name").eq("status", "active").order("full_name")
-      .then(({ data, error }) => setPeople(error ? [] : rowsOr(data)));
-  }, [open, people]);
-  const save = async () => {
-    if (!who) { setMsg("Assignment needs a named person — pick one."); return; }
-    const { data, error } = await supabase.rpc("tg_assign_from_tile", {
-      p_title: `Work the cause: ${row.pattern_key} — ${row.findings_that_clear_if_fixed} findings clear if fixed`,
-      p_assignee_employee_id: who, p_due_on: due || null, p_priority: pri,
-      p_source_view: viewKey, p_source_kpi: row.pattern_key,
-      p_source_value: row.findings_that_clear_if_fixed, p_source_unit: "findings",
-      p_department: row.department, p_description: `${row.example_finding ?? ""}${row.what_to_do ? " — " + row.what_to_do : ""}`,
-      p_snapshot: row,
-    });
-    if (error) { setMsg(`Refused: ${error.message}`); return; }
-    const order = data?.[0]?.order_no;
-    setMsg(order ? `Assigned — order ${order}.` : "Assigned.");
-    setTimeout(() => { setOpen(false); setMsg(""); }, 1400);
-  };
-  if (!isAdmin) {
-    /* Fails closed, with the reason on the control itself. */
-    return <span className="cc-fine" title="tg_assign_from_tile is administrator-gated and fails closed. Ask an owner, executive or administrator to assign this cause.">assign: administrators only</span>;
-  }
-  if (!open) return <button className="cc-btn" onClick={(e) => { e.stopPropagation(); setOpen(true); }}>Assign</button>;
-  return (
-    <span className="cc-assign">
-      <select className="cc-input" aria-label="Assign this cause to a named person" value={who} onChange={(e) => setWho(e.target.value)}>
-        <option value="">Named person…</option>
-        {rowsOr(people).map((p) => <option key={p.id} value={p.id}>{p.full_name}</option>)}
-      </select>
-      <input className="cc-input" type="date" aria-label="Due date" value={due} onChange={(e) => setDue(e.target.value)} />
-      <select className="cc-input" aria-label="Priority" value={pri} onChange={(e) => setPri(e.target.value)}>
-        <option value="low">Low</option><option value="normal">Normal</option>
-        <option value="high">High</option><option value="urgent">Urgent</option>
-      </select>
-      <button className="cc-btn primary" onClick={save}>Assign it</button>
-      <button className="cc-btn" onClick={() => { setOpen(false); setMsg(""); }}>Cancel</button>
-      {msg && <span className="cc-fine">{msg}</span>}
-    </span>
-  );
-}
+/* ---------- order 8 · the work queue ----------
+   BACK-PORTED to the shared DkWorkQueue, 12 Aug 2026, closing two defects the
+   duplicate here carried and the dashkit copy had already fixed:
 
-function CcQueueInstances({ row, go }) {
-  const [inst, setInst] = useState(null);
-  const [err, setErr] = useState(null);
-  useEffect(() => {
-    let live = true;
-    supabase.from("v_findings").select("severity, what, where_it_is, why_it_matters, what_to_do, the_arithmetic, pounds, dollars, first_raised, drill")
-      .eq("pattern_key", row.pattern_key).eq("source", row.source)
-      .is("resolved_at", null)
-      .order("severity_rank", { ascending: false }).order("first_raised", { ascending: true })
-      .limit(50)
-      .then(({ data, error }) => {
-        if (!live) return;
-        if (error) { setErr(error.message); return; }
-        setInst(rowsOr(data).filter((r) => r.is_duplicate !== true));
-      });
-    return () => { live = false; };
-  }, [row.pattern_key, row.source]);
-  if (err) return <CcErr what="The findings behind this cause" err={err} />;
-  if (inst === null) return <div className="cc-fine">Reading every finding behind this cause…</div>;
-  if (!inst.length) return <div className="cc-fine">No open findings behind this cause right now — it may have cleared since the queue was computed.</div>;
-  return (
-    <div className="cc-inst-list">
-      {inst.map((f, i) => (
-        <div key={i} className={`cc-inst ${CC_SEV[f.severity] ?? "info"}`}>
-          <div className="cc-inst-what">{f.what}</div>
-          {f.where_it_is && <div className="cc-inst-line"><b>Where:</b> {f.where_it_is}</div>}
-          {f.why_it_matters && <div className="cc-inst-line"><b>Why it matters:</b> {f.why_it_matters}</div>}
-          {f.what_to_do && <div className="cc-inst-line"><b>What to do:</b> {f.what_to_do}</div>}
-          {f.the_arithmetic && <div className="cc-inst-line dim">{f.the_arithmetic}</div>}
-          <div className="cc-inst-meta">
-            {f.pounds != null && <span>{Number(f.pounds).toLocaleString()} lb</span>}
-            {f.dollars != null && <span title="untrusted — dedupe check disagreeing">${Math.round(Number(f.dollars)).toLocaleString()}</span>}
-            {f.first_raised && <span>raised {String(f.first_raised).slice(0, 10)}</span>}
-            {f.drill && <button className="cc-btn" onClick={() => go(f.drill)}>Open the records →</button>}
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
+   - It selected ten columns WITHOUT is_duplicate and then filtered on
+     `r.is_duplicate !== true`. PostgREST returns only what is asked for, so
+     the property was undefined on every row, the filter passed everything,
+     and the badge read 36 against 39 rendered. A filter on a column you did
+     not select is not a filter.
+   - It capped the instance list at 50 with no pager and no notice. Four causes
+     exceed 50 and 1,066 findings sat behind that cap — a silent top-N, which
+     C1 forbids outright and F3 forbids doing quietly.
 
-function CcQueue({ causes, isAdmin, go }) {
-  const [openRow, setOpenRow] = useState(null);
-  /* Paged like every honest feed on the platform (the in-transit drill set the
-     pattern): the first page renders, the header chips carry the TRUE totals,
-     and one press shows the rest. Nothing is summarised away — every cause is
-     one press from the screen. */
-  const PAGE = 15;
-  const [showAll, setShowAll] = useState(false);
-  const visible = showAll ? causes : causes.slice(0, PAGE);
-  return (
-    <div className="cc-queue">
-      {visible.map((r) => {
-        const key = r.source + "|" + r.pattern_key;
-        const open = openRow === key;
-        const cause = r.pattern_key.includes(":") ? r.pattern_key.slice(r.pattern_key.indexOf(":") + 1) : r.pattern_key;
-        return (
-          <React.Fragment key={key}>
-            <div className={`cc-qrow ${open ? "on" : ""}`}>
-              <button className="cc-qmain" onClick={() => setOpenRow(open ? null : key)}
-                title={`${r.example_finding ?? cause}${r.what_to_do ? " — " + r.what_to_do : ""} — click to open every finding behind this cause, in place.`}>
-                <i className={`cc-dot ${CC_SEV[r.worst_severity] ?? "info"}`} aria-hidden="true" />
-                <b className="cc-qcount">{r.findings_that_clear_if_fixed}</b>
-                <span className="cc-qcause">{cause}</span>
-                <span className="cc-qnums">
-                  {r.pounds_untrusted != null && <span>{Number(r.pounds_untrusted).toLocaleString()} lb</span>}
-                  {r.dollars_untrusted != null && (
-                    <span title="untrusted — dedupe check disagreeing">${Math.round(Number(r.dollars_untrusted)).toLocaleString()} ⓘ</span>
-                  )}
-                </span>
-                <span className="cc-qage">{r.days_open != null ? `${r.days_open} days` : "age not served"}</span>
-              </button>
-              <CcAssignCause row={r} isAdmin={isAdmin} viewKey="dept_dash_command" />
-            </div>
-            {open && <div className="cc-qopen"><CcQueueInstances row={r} go={go} /></div>}
-          </React.Fragment>
-        );
-      })}
-      {causes.length > PAGE && (
-        <button className="cc-btn cc-qmore" onClick={() => setShowAll((v) => !v)}>
-          {showAll ? "Show the worst 15 causes only" : `Show all ${causes.length} causes (${causes.length - PAGE} more)`}
-        </button>
-      )}
-    </div>
-  );
-}
+   It also now resolves through finding_lane_owner like every other dashboard,
+   so Command shows the 207 findings the rollup credits it with (the Unassigned
+   and Unanswered lanes, routed here deliberately: an unclaimed finding is the
+   owner's problem until somebody claims it).
+
+   const CC_SEV moved to dashkit with the queue that used it. */
 
 /* ---------- order 6 · goals strip ---------- */
 function CcGoals({ goals, err, go }) {
@@ -661,133 +473,17 @@ function CcYield({ rows, go }) {
   );
 }
 
-/* ---------- rooms ---------- */
-function CcRooms({ rooms, stockRooms, stockErr, warnDays, lateNote, go }) {
-  const [openRoom, setOpenRoom] = useState(null);
-  const [openStock, setOpenStock] = useState(null);
-  const flower = rooms.filter((r) => r.room_type === "Flower room");
-  const over = flower.filter((r) => Number(r.days_until) < 0 && Number(r.plants_now) > 0);
-  const stateOf = (r) => {
-    if (Number(r.plants_now) === 0) return { tag: "turning", tone: "info" };
-    if (Number(r.days_until) < 0) return { tag: "over", tone: "crit" };
-    if (warnDays != null && Number(r.days_until) <= warnDays) return { tag: "approaching", tone: "warn" };
-    return { tag: "on plan", tone: "ok" };
-  };
-  const byRoom = new Map();
-  for (const s of stockRooms) {
-    const k = s.licence + "|" + s.room;
-    const g = byRoom.get(k) ?? { licence: s.licence, department: s.department, room: s.room,
-      total_lb: 0, ours_lb: 0, third_party_lb: 0, tags: 0, units: 0, failed: 0, no_coa: 0 };
-    g.total_lb += Number(s.total_lb ?? 0); g.ours_lb += Number(s.ours_lb ?? 0);
-    g.third_party_lb += Number(s.third_party_lb ?? 0); g.tags += Number(s.tags ?? 0);
-    g.units += Number(s.units ?? 0); g.failed += Number(s.failed ?? 0); g.no_coa += Number(s.no_coa ?? 0);
-    byRoom.set(k, g);
-  }
-  const stockCards = [...byRoom.values()].sort((a, b) => b.total_lb - a.total_lb);
-  return (
-    <>
-      {over.map((r) => {
-        /* J7: a room never renders without its department. mv_room_board covers
-           the flower rooms, which are Cultivation; the served-department column
-           for post-harvest rooms is the requirement already filed with Agent I. */
-        const roomQualified = r.room + " — Cultivation";
-        return (
-          <div key={"bn" + r.room} className="cc-breach">
-            <b>{roomQualified} is {Math.abs(Number(r.days_until))} day{Math.abs(Number(r.days_until)) === 1 ? "" : "s"} past its scheduled pull{r.cycle_days ? ` on a ${r.cycle_days}-day cycle` : ""}.</b>
-            {lateNote && <em>{lateNote}</em>}
-            <span className="cc-breach-acts">
-              <button className="cc-btn" onClick={() => setOpenRoom(openRoom === r.room ? null : r.room)}>Open {roomQualified}</button>
-              <AssignTask dept="Command" kpi={roomQualified + ", days past scheduled pull"}
-                value={Math.abs(Number(r.days_until))} unit="days" drill="room_board" />
-            </span>
-          </div>
-        );
-      })}
-      <div className="cc-ringrow">
-        {flower.map((r) => {
-          const st = stateOf(r);
-          const empty = Number(r.plants_now) === 0;
-          const roomQualified = r.room + " — Cultivation";
-          const frac = !empty && r.cycle_days
-            ? Math.min(1, Math.max(0, (Number(r.cycle_days) - Number(r.days_until)) / Number(r.cycle_days)))
-            : 0;
-          const C = 2 * Math.PI * 18;
-          return (
-            <button key={r.room} className={`cc-ringcard ${openRoom === r.room ? "on" : ""}`}
-              onClick={() => setOpenRoom(openRoom === r.room ? null : r.room)}
-              title={roomQualified + (r.strains_now ? " · " + r.strains_now : "") + ". Click for every plant in the room."}>
-              <svg className="cc-ring" viewBox="0 0 44 44" width="44" height="44" aria-hidden="true">
-                <circle cx="22" cy="22" r="18" className="cc-ring-track" />
-                {!empty && (
-                  <circle cx="22" cy="22" r="18" className={`cc-ring-fill ${st.tone}`}
-                    strokeDasharray={`${(frac * C).toFixed(1)} ${C.toFixed(1)}`} transform="rotate(-90 22 22)" />
-                )}
-                <text x="22" y="26" textAnchor="middle" className="cc-ring-num">{empty ? "—" : Math.abs(Number(r.days_until))}</text>
-              </svg>
-              <span className="cc-ring-name">{roomQualified}</span>
-              <span className="cc-ring-meta">{empty
-                ? (r.next_event_detail ? `next: ${r.next_event_detail}` : "empty — turning")
-                : `${Number(r.plants_now).toLocaleString()} plants · ${Number(r.days_until) < 0 ? "OVER" : "days left"}`}</span>
-              <CcTag tone={st.tone}>{st.tag}</CcTag>
-            </button>
-          );
-        })}
-      </div>
-      {openRoom && (
-        <div className="cc-drill">
-          <div className="cc-drill-head">Every plant standing in {openRoom} — Cultivation</div>
-          <RoomDrill code={openRoom} />
-        </div>
-      )}
-      {stockErr && <CcErr what="The stock rooms" err={stockErr} />}
-      {stockCards.length > 0 && (
-        <>
-          <div className="cc-substriphead">
-            <span className="cc-striplabel">Rooms holding stock</span>
-            <CcTag tone="neutral">{stockCards.length} rooms</CcTag>
-            <CcTag tone="attn" title="Dry-deadline and cycle tracking covers flower rooms only for now: the harvest schedule view does not yet carry the department for post-harvest rooms, and eleven room names exist in both buildings. The requirement is with the database team.">deadline tracking: flower rooms only ⓘ</CcTag>
-          </div>
-          <div className="cc-stockrooms">
-            {stockCards.map((g) => {
-              const k = g.licence + "|" + g.room;
-              const qualified = g.room + " — " + g.department;
-              return (
-                <button key={k} className={`cc-stockroom ${openStock === k ? "on" : ""}`}
-                  onClick={() => setOpenStock(openStock === k ? null : k)}
-                  title={qualified + ". Click for every package in the room."}>
-                  <span className="cc-sr-name">{qualified}</span>
-                  <span className="cc-sr-big">{g.total_lb > 0
-                    ? <>{g.total_lb.toLocaleString(undefined, { maximumFractionDigits: 1 })}<em> lb</em></>
-                    : <>{g.units.toLocaleString()}<em> units</em></>}</span>
-                  <span className="cc-sr-line">{g.tags.toLocaleString()} tags · ours {g.ours_lb.toLocaleString(undefined, { maximumFractionDigits: 1 })} · third party {g.third_party_lb.toLocaleString(undefined, { maximumFractionDigits: 1 })}</span>
-                  <span className="cc-sr-chips">
-                    {g.failed > 0 && <CcTag tone="crit">{g.failed} failed</CcTag>}
-                    {g.no_coa > 0 && <CcTag tone="attn" title="Packages with no certificate of analysis on file — the reason per package is on its row in the drill.">{g.no_coa} no certificate</CcTag>}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-          {openStock && (() => {
-            const g = byRoom.get(openStock);
-            if (!g) return null;
-            /* J7: the qualified name is composed ONCE and rendered whole — no
-               bare room accessor reaches a render. The filter value is aliased
-               for the same reason: room identity is licence + name. */
-            const room_qualified = g.room + " — " + g.department;
-            const rm = g.room;
-            return (
-              <div className="cc-drill">
-                <div className="cc-drill-head">Every package in {room_qualified} (licence {g.licence})</div>
-                <RoomStockDrill licence={g.licence} room={rm} department={g.department} />
-              </div>
-            );
-          })()}
-        </>
-      )}
-    </>
-  );
-}
+/* ---------- rooms ----------
+   BACK-PORTED to the shared DkRoomBoard, 12 Aug 2026. Three sites here wrote
+   the department as the literal string "Cultivation" because mv_room_board
+   serves no department column — which satisfied J7's letter by hardcoding the
+   very thing J7 exists to stop being guessed. The board now reads
+   v_room_board_complete, which serves the department per room, and composes
+   the qualified name through dkRoomQualified so no department is written in
+   this file at all. It also covers EVERY room rather than the flower rooms
+   alone (owner: "add all rooms drying, trim, and others"), and each room
+   holding stock drills to its packages with certificate and manifest on every
+   row. */
 
 /* ---------- order 7a · report GROUPS card. A dashboard never renders
    individual report links; each row names the group, counts it, previews two
@@ -851,6 +547,7 @@ function CcTasks({ tasks, go }) {
 /* ═══════════════════ the page ═══════════════════ */
 export default function CommandCenter({ go, session, reports, role, viewAs, onViewAs, isAdmin, viewRoles }) {
   const store = useSectionStore(session?.user?.id, "cc_command");
+  const queue = useWorkQueue("Command");
   const SEC_IDS = ["flow", "words", "global", "queue", "goals", "yield", "rooms", "money", "stock", "audit", "tasks", "reports"];
   const [range, setRange] = useState({ from: "", to: "" });
   const [busy, setBusy] = useState(false);
@@ -865,19 +562,16 @@ export default function CommandCenter({ go, session, reports, role, viewAs, onVi
          performance order): mv_flow_stages, mv_room_board, mv_global_management
          and mv_department_dashboard are on the ten-minute refresh cycle;
          drills stay live on v_stock_proof inside the drill components. */
-      const [tiles, trend, targets, flow, split, global, causes, goals, yld, rooms, alertRules, stockRooms, stock, money, tasks] = await Promise.all([
+      const [tiles, trend, targets, flow, split, global, goals, yld, rooms, alertRules, stockRooms, stock, money, tasks] = await Promise.all([
         supabase.from("mv_department_dashboard").select("*").eq("department", "Command").order("ord"),
         supabase.from("v_dashboard_trend").select("*").eq("department", "Command"),
         supabase.from("kpi_targets").select("*").eq("department", "Command"),
         supabase.from("mv_flow_stages").select("*").order("stage_no"),
         supabase.from("v_flow_failed_split").select("*").maybeSingle(),
-        supabase.from("mv_global_management").select("*"),
-        supabase.from("v_finding_causes").select("*")
-          .order("worst_severity_rank", { ascending: false })
-          .order("findings_that_clear_if_fixed", { ascending: false }),
+        supabase.from("v_global_management").select("*"),
         supabase.from("v_goal_status").select("*").order("metric_key"),
         supabase.from("v_harvest_yield_audit").select("*").order("finished_on", { ascending: false }).limit(12),
-        supabase.from("mv_room_board").select("*").order("room"),
+        supabase.from("v_room_board_complete").select("*").order("room"),
         supabase.from("harvest_alert_rules").select("rule_key, threshold, note, active")
           .in("rule_key", ["weekend_warning_days", "late_tolerance_days"]),
         supabase.from("v_stock_by_department").select("*"),
@@ -889,7 +583,7 @@ export default function CommandCenter({ go, session, reports, role, viewAs, onVi
       setD({
         tiles: grab(tiles), trend: grab(trend), targets: grab(targets), flow: grab(flow),
         split: split.error ? { rows: null, err: split.error.message } : { rows: split.data, err: null },
-        global: grab(global), causes: grab(causes), goals: grab(goals), yld: grab(yld),
+        global: grab(global), goals: grab(goals), yld: grab(yld),
         rooms: grab(rooms), alertRules: grab(alertRules), stockRooms: grab(stockRooms),
         stock: grab(stock), money: grab(money), tasks: grab(tasks),
       });
@@ -918,19 +612,18 @@ export default function CommandCenter({ go, session, reports, role, viewAs, onVi
   const age = ccAge(computed);
   const trendByKpi = Object.fromEntries(d.trend.rows.map((r) => [r.kpi, r]));
   const targetByKpi = Object.fromEntries(d.targets.rows.map((r) => [r.kpi, r]));
-  const causes = d.causes.rows;
-  const worstCause = causes[0];
   const yieldRows = d.yld.rows;
   const yieldUnder = yieldRows.filter((r) => r.strain_median_dry_g != null && Number(r.dry_g_per_plant) < Number(r.strain_median_dry_g));
   const flowStages = d.flow.rows.filter((r) => r.stage_no > 0);
   const warnRule = d.alertRules.rows.find((x) => x.rule_key === "weekend_warning_days" && x.active);
   const lateRule = d.alertRules.rows.find((x) => x.rule_key === "late_tolerance_days" && x.active);
-  const flowerRooms = d.rooms.rows.filter((r) => r.room_type === "Flower room");
+  const flowerRooms = d.rooms.rows.filter((r) => r.room_role === "Flower room");
   const roomsOver = flowerRooms.filter((r) => Number(r.days_until) < 0 && Number(r.plants_now) > 0);
   const openTasks = d.tasks.rows;
   const overdueTasks = openTasks.filter((t) => t.position?.startsWith("OVERDUE"));
 
   return (
+    <DrillRoot label="Command Center">
     <div className="ccpage">
       {/* ── order 1 · one-line header, ≤40px: title · role/scope/view · data age ── */}
       <div className="cc-head">
@@ -976,7 +669,8 @@ export default function CommandCenter({ go, session, reports, role, viewAs, onVi
 
       {/* ── order 9 · KPI strip ── */}
       {d.tiles.err ? <CcErr what="The key figures" err={d.tiles.err} /> : (
-        <CcKpiStrip tiles={d.tiles.rows} trend={trendByKpi} targets={targetByKpi} go={go} onAssigned={() => setVer((v) => v + 1)} />
+        <DkKpiStrip dept="Command" tiles={d.tiles.rows} trend={trendByKpi} targets={targetByKpi}
+          go={go} onAssigned={() => setVer((v) => v + 1)} />
       )}
       {d.targets.err && <CcErr what="The owner-set targets" err={d.targets.err} />}
       {d.trend.err && <CcErr what="The trend snapshots" err={d.trend.err} />}
@@ -1019,17 +713,19 @@ export default function CommandCenter({ go, session, reports, role, viewAs, onVi
 
       {/* ── order 8 · the work queue ── */}
       <CcPanel id="queue" store={store} title="Work queue — every open finding, grouped by cause"
-        chips={d.causes.err ? <CcTag tone="crit">read failed</CcTag> : (
+        chips={queue.err ? <CcTag tone="crit">read failed</CcTag> : (
           <>
-            <CcTag tone="neutral">{causes.length} causes</CcTag>
-            <CcTag tone="neutral">{causes.reduce((a, r) => a + Number(r.findings_that_clear_if_fixed || 0), 0)} findings</CcTag>
-            {worstCause && <CcTag tone={CC_SEV[worstCause.worst_severity] ?? "info"}>worst: {worstCause.worst_severity}</CcTag>}
+            <CcTag tone="neutral">{queue.causes ? queue.causes.length : "…"} causes</CcTag>
+            <CcTag tone={queue.findings ? "crit" : "ok"}>{queue.findings ?? "…"} findings</CcTag>
+            {queue.lanes && queue.lanes.length > 0 && (
+              <CcTag tone="info" title={queue.lanes.map((l) => `${l.lane}: ${l.why}`).join(" · ")}>
+                lanes: {queue.lanes.map((l) => l.lane).join(", ")}
+              </CcTag>
+            )}
           </>
         )}>
-        {d.causes.err ? <CcErr what="The work queue" err={d.causes.err} />
-          : causes.length === 0
-            ? <div className="cc-fine">Nothing open. The watchdog sweeps twice a day and clears findings itself when the problem is gone.</div>
-            : <CcQueue causes={causes} isAdmin={isAdmin} go={go} />}
+        <DkWorkQueue causes={queue.causes} lanes={queue.lanes} err={queue.err}
+          dept="Command" isAdmin={isAdmin} viewKey="dept_dash_command" go={go} />
       </CcPanel>
 
       {/* ── order 6 · goals as a strip, no dead card body ── */}
@@ -1051,20 +747,24 @@ export default function CommandCenter({ go, session, reports, role, viewAs, onVi
             : <CcYield rows={yieldRows} go={go} />}
       </CcPanel>
 
-      {/* ── rooms, department-qualified (J7) ── */}
+      {/* ── rooms, department-qualified (J7) — every room, not the flower rooms alone ── */}
       <CcPanel id="rooms" store={store} title="Rooms — every room, department-qualified"
         chips={d.rooms.err ? <CcTag tone="crit">read failed</CcTag> : (
           <>
-            {roomsOver.length > 0 && <CcTag tone="crit">{roomsOver.length} over</CcTag>}
-            {roomsOver.length === 0 && <CcTag tone="ok">every room inside its cycle</CcTag>}
+            {roomsOver.length > 0
+              ? <CcTag tone="crit">{roomsOver.length} past the scheduled pull</CcTag>
+              : <CcTag tone="ok">every flower room inside its cycle</CcTag>}
             <CcTag tone="neutral">{flowerRooms.length} flower rooms</CcTag>
+            <CcTag tone="neutral">{d.rooms.rows.length} rooms in all</CcTag>
           </>
         )}>
         {d.rooms.err ? <CcErr what="The room board" err={d.rooms.err} />
-          : flowerRooms.length === 0
-            ? <div className="cc-fine">No flower rooms in mv_room_board — the board reads the grow-room register and the harvest schedule; if both are empty nothing can be shown.</div>
-            : <CcRooms rooms={d.rooms.rows} stockRooms={d.stockRooms.rows} stockErr={d.stockRooms.err}
-                warnDays={warnRule ? Number(warnRule.threshold) : null} lateNote={lateRule?.note ?? null} go={go} />}
+          : d.rooms.rows.length === 0
+            ? <div className="cc-fine">v_room_board_complete returned no rooms — the view reads the room register, the harvest schedule and the package mirror; with all three empty there is nothing to show.</div>
+            : <DkRoomBoard rooms={d.rooms.rows}
+                warnDays={warnRule ? Number(warnRule.threshold) : null}
+                renderPlantDrill={(code) => <RoomDrill code={code} />}
+                renderStockDrill={(r) => <RoomStockDrill licence={r.licence} room={r.room} department={r.department} />} />}
       </CcPanel>
 
       {/* ── owner keep-list · Where the Money Is Standing, internals untouched ── */}
@@ -1108,5 +808,6 @@ export default function CommandCenter({ go, session, reports, role, viewAs, onVi
         <CcReports reports={reports} go={go} />
       </CcPanel>
     </div>
+    </DrillRoot>
   );
 }

@@ -31,7 +31,9 @@ import { fileURLToPath } from "node:url";
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 
 /* Only the files that present numbers to a decision-maker. */
-const TARGETS = ["app/web/src/budz.jsx", "app/web/src/App.jsx"];
+const TARGETS = ["app/web/src/budz.jsx", "app/web/src/App.jsx",
+  "app/web/src/commandcenter.jsx", "app/web/src/dashkit.jsx",
+  "app/web/src/dash-cultivation.jsx", "app/web/src/dash-inventory.jsx"];
 
 const UNITS =
   "lb|lbs|pound|pounds|gram|grams|g\\b|kg|oz|%|percent|day|days|plant|plants|" +

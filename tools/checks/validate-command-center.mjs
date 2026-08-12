@@ -52,6 +52,14 @@ const ROOT = resolve(here, "../..");
 const APP = join(ROOT, "app/web/src/App.jsx");
 const CC = join(ROOT, "app/web/src/commandcenter.jsx");
 const CCCSS = join(ROOT, "app/web/src/commandcenter.css");
+/* The dashboard TREE, not one page: the Command Center's primitives now live
+   in dashkit and are shared by every department dashboard, so a contract
+   proven only against commandcenter.jsx proves nothing about the pages that
+   actually render it. dashkit.css is scanned for the same reason its own
+   header claims it is — a claim no gate reads is worse than no claim. */
+const DK = join(ROOT, "app/web/src/dashkit.jsx");
+const DKCSS = join(ROOT, "app/web/src/dashkit.css");
+const PAGES = ["dash-cultivation.jsx", "dash-inventory.jsx"].map((f) => join(ROOT, "app/web/src", f));
 
 /* ---------- detectors ---------- */
 
@@ -62,6 +70,23 @@ const FAKE_SERIES = /\[\s*(?:\d+(?:\.\d+)?\s*,\s*){3,}\d+(?:\.\d+)?\s*\]/;
 /* The exact shape of the Gush Mintz defect: colour decided by substring-matching
  * verdict prose. Any regex alternation of those judgement words is the defect. */
 const PROSE_TONE = /\/[^/\n]*(?:concern|under|low|short)\|[^/\n]*\//i;
+
+/* J7, TESTED AT THE SOURCE — rewritten 12 Aug 2026.
+ *
+ * The old check was `/roomQualified/.test(cc)`: it proved an IDENTIFIER
+ * appeared somewhere in the file. Renaming the variable fired it; hardcoding
+ * every department in the platform did not. It could not fail in the way that
+ * mattered, and rule C0b is explicit that a check which cannot fail proves
+ * nothing. It was green the whole time three sites in commandcenter.jsx and
+ * one in dash-cultivation.jsx composed the department as the literal
+ * "Cultivation" — guessing precisely the thing J7 exists to stop being guessed.
+ *
+ * What matters is where the department VALUE comes from. A qualified room name
+ * is built from a served column or from the shared dkRoomQualified helper; a
+ * department spelled out in the source is the defect, whatever the variable
+ * around it happens to be called. */
+const DEPT_WORDS = "Cultivation|Manufacturing|Inventory|Quality|Metrc|Workspace|Settings|Finance";
+const HARDCODED_DEPT = new RegExp("[-—–]\\s*(?:" + DEPT_WORDS + ")\\b(?![\\w\"'`]*\\s*[:=])");
 
 /* ---------- self-test: both halves ---------- */
 function selfTest() {
@@ -80,6 +105,26 @@ function selfTest() {
       "the served numeric comparison is the correct tone source and must stay quiet"],
     [PROSE_TONE.test('title="oldest days under review"'), false,
       "prose containing the word under, with no regex alternation, is not the defect"],
+    // J7 at the source — MUST FIRE
+    [HARDCODED_DEPT.test('const roomQualified = r.room + " — Cultivation";'), true,
+      "a room joined to a department spelled out in the source is the J7 defect"],
+    [HARDCODED_DEPT.test('<div>Every plant standing in {openRoom} — Cultivation</div>'), true,
+      "a department written into rendered text is the same defect wearing markup"],
+    [HARDCODED_DEPT.test('const q = g.room + " — Manufacturing";'), true,
+      "the defect is not specific to one department name"],
+    // J7 at the source — MUST STAY QUIET
+    [HARDCODED_DEPT.test('const roomQualified = g.room + " — " + g.department;'), false,
+      "composing from the SERVED department column is the correct shape"],
+    [HARDCODED_DEPT.test("const roomQualified = dkRoomQualified(r);"), false,
+      "the shared helper reads the served column and must stay quiet"],
+    [HARDCODED_DEPT.test('supabase.from("v_stock_by_department").select("*").eq("department", DEPT.toUpperCase())'), false,
+      "filtering a query BY a department is not rendering a room without one"],
+    // A stylesheet's own prose is not a stylesheet rule — the comment stripper
+    // is what makes this true, and it earned its place by four false findings.
+    [/:root/.test("/* No :root rule lives here. */".replace(/\/\*[\s\S]*?\*\//g, " ")), false,
+      "a comment saying the file declares no :root must not be read as declaring one"],
+    [/:root/.test(":root { --x: 1px; }".replace(/\/\*[\s\S]*?\*\//g, " ")), true,
+      "an actual :root rule must still be caught once comments are stripped"],
   ];
   const bad = cases.filter(([got, want]) => got !== want);
   if (bad.length) {
@@ -93,7 +138,8 @@ function selfTest() {
 selfTest();
 
 /* ---------- the checks ---------- */
-for (const [p, name] of [[APP, "App.jsx"], [CC, "commandcenter.jsx"], [CCCSS, "commandcenter.css"]]) {
+for (const [p, name] of [[APP, "App.jsx"], [CC, "commandcenter.jsx"], [CCCSS, "commandcenter.css"],
+  [DK, "dashkit.jsx"], [DKCSS, "dashkit.css"], ...PAGES.map((p2) => [p2, p2.split(/[\/]/).pop()])]) {
   if (!existsSync(p)) {
     console.error(`validate-command-center: FAIL — ${name} is missing. A gate that scans nothing proves nothing.`);
     process.exit(1);
@@ -102,6 +148,13 @@ for (const [p, name] of [[APP, "App.jsx"], [CC, "commandcenter.jsx"], [CCCSS, "c
 const app = readFileSync(APP, "utf8");
 const cc = readFileSync(CC, "utf8");
 const css = readFileSync(CCCSS, "utf8");
+const dk = readFileSync(DK, "utf8");
+const dkcss = readFileSync(DKCSS, "utf8");
+const pages = PAGES.map((p) => [p.split(/[\/]/).pop(), readFileSync(p, "utf8")]);
+/* The whole rendering tree: the contracts below hold across it, not against
+   one file that happens to still contain the string. */
+const tree = [["commandcenter.jsx", cc], ["dashkit.jsx", dk], ...pages];
+const treeSrc = tree.map(([, t]) => t).join("\n");
 const errors = [];
 
 /* Extract a top-level `function Name(...) {...}` body by brace counting. */
@@ -147,10 +200,10 @@ if (transit.includes('from("v_flow_in_transit")')) {
 }
 
 /* 3 — the Gush Mintz defect cannot return. */
-if (PROSE_TONE.test(cc)) {
+if (PROSE_TONE.test(treeSrc)) {
   errors.push("commandcenter.jsx decides a tone by substring-matching verdict prose — the exact defect that painted a +127 g over-median harvest red. Tone must come from the served numbers.");
 }
-const yieldBody = componentBody(cc, "CcYield") ?? "";
+const yieldBody = componentBody(cc, "CcYield") ?? componentBody(treeSrc, "CvYield") ?? "";
 if (!yieldBody) {
   errors.push("CcYield is missing — the yield section lost its component.");
 } else if (!/strain_median_dry_g\s*!=\s*null\s*&&\s*Number\(r\.dry_g_per_plant\)\s*<\s*Number\(r\.strain_median_dry_g\)/.test(yieldBody)) {
@@ -158,8 +211,9 @@ if (!yieldBody) {
 }
 
 /* 4 — no fabricated series in the new tree. */
-for (const name of ["CcSpark", "CcKpiStrip", "CcFlow", "CcYield", "CcRooms", "CcQueue", "CcGlobal"]) {
-  const body = componentBody(cc, name);
+for (const name of ["DkSpark", "DkKpiStrip", "CcFlow", "CcYield", "CvYield", "DkRoomBoard",
+  "DkWorkQueue", "CcGlobal", "CvDryTime", "InvRooms", "CvStockRooms"]) {
+  const body = componentBody(treeSrc, name);
   if (body && FAKE_SERIES.test(body)) {
     errors.push(`${name} contains a literal numeric series — fabricated data reads as live and must not ship (A1).`);
   }
@@ -172,18 +226,38 @@ if (!/function StockByStreamCards\(/.test(app)) errors.push("App.jsx lost StockB
 for (const cls of ["entcard", "enthead", "entbig", "moneyinner", "moneybar", "moneykeys"]) {
   if (cc.includes(cls)) errors.push(`commandcenter.jsx contains "${cls}" — the frozen surfaces are mounted from App.jsx, never rebuilt or restyled in the new tree.`);
 }
-if (/:root/.test(css)) {
-  errors.push("commandcenter.css declares :root — every token must live on .ccpage so nothing cascades into the owner's hands-off chrome (side menu, top menu, kept KPI surfaces).");
-}
-for (const frozen of [".entcard", ".enthead", ".entbig", ".entrows", ".moneyinner", ".moneybar", ".moneykeys",
-  ".topnav", ".nav ", ".repmenu", ".railwidget"]) {
-  if (css.includes(frozen)) {
-    errors.push(`commandcenter.css styles "${frozen}" — the hands-off list is exempt from all resizing; HIS sizing wins.`);
+/* Both scoped stylesheets, held to the same three claims their headers make.
+   dashkit.css asserted "LOCKED, AND HELD BY THE PAGE VALIDATOR" while no
+   validator read it — an artefact claiming a guard that does not exist is
+   worse than no claim, so the guard now exists. */
+for (const [cssName, cssRaw] of [["commandcenter.css", css], ["dashkit.css", dkcss]]) {
+  /* SCAN THE RULES, NOT THE PROSE. First run of this check reported four
+     findings against dashkit.css and all four were its own header comment
+     saying it does NOT declare :root and does NOT style .entcard, .moneybar
+     or .topnav. A file documenting a prohibition was accused of breaking it.
+     Same defect the dead-controls gate hit and fixed: a scanner that reads
+     comments as markup measures the wrong thing (K1, and K4 — the fault
+     belongs to the check). Comments are stripped before anything is judged. */
+  const cssSrc = cssRaw.replace(/\/\*[\s\S]*?\*\//g, " ");
+  if (/:root/.test(cssSrc)) {
+    errors.push(`${cssName} declares :root — every token must live on .ccpage so nothing cascades into the owner's hands-off chrome (side menu, top menu, kept KPI surfaces).`);
+  }
+  for (const frozen of [".entcard", ".enthead", ".entbig", ".entrows", ".moneyinner", ".moneybar", ".moneykeys",
+    ".topnav", ".nav ", ".repmenu", ".railwidget"]) {
+    if (cssSrc.includes(frozen)) {
+      errors.push(`${cssName} styles "${frozen}" — the hands-off list is exempt from all resizing; HIS sizing wins.`);
+    }
+  }
+  /* A colour literal in a scoped dashboard stylesheet is how the locked theme
+     leaks. Every colour must be a var() the theme already defines. */
+  const lits = (cssSrc.match(/#[0-9a-fA-F]{3,8}|rgba?\(|hsla?\(/g) ?? []);
+  if (lits.length) {
+    errors.push(`${cssName} contains ${lits.length} colour literal(s) (${[...new Set(lits)].slice(0, 4).join(", ")}) — the theme is locked and every colour must come from a var() token.`);
   }
 }
 
 /* 6 — the bottom status bar stays deleted. */
-if (/diagfoot/i.test(cc)) errors.push("The new tree renders a bottom status bar — the owner deleted it ('why is all this shit at bottom, remove').");
+if (/diagfoot/i.test(treeSrc)) errors.push("The new tree renders a bottom status bar — the owner deleted it ('why is all this shit at bottom, remove').");
 
 /* 7 — narrative honesty. */
 const words = componentBody(cc, "CcWords") ?? "";
@@ -201,12 +275,68 @@ if (!note || !/Anonymous commentary is not allowed/.test(note)) {
 }
 
 /* 8 — the work queue contract. */
-if (!cc.includes('from("v_finding_causes")')) errors.push("The work queue no longer reads v_finding_causes — 46 prose cards must stay collapsed into cause rows (order 8).");
-if (!cc.includes('rpc("tg_assign_from_tile"')) errors.push("The work queue no longer assigns through tg_assign_from_tile — the numbered-order path is the contract.");
-if (!cc.includes('from("v_findings")')) errors.push("The work queue no longer expands to v_findings instances — the prose lives one level down, in place.");
+if (!treeSrc.includes('from("v_finding_causes")')) errors.push("The work queue no longer reads v_finding_causes — 46 prose cards must stay collapsed into cause rows (order 8).");
+if (!treeSrc.includes('rpc("tg_assign_from_tile"')) errors.push("The work queue no longer assigns through tg_assign_from_tile — the numbered-order path is the contract.");
+if (!treeSrc.includes('from("v_findings")')) errors.push("The work queue no longer expands to v_findings instances — the prose lives one level down, in place.");
+if (!treeSrc.includes('from("finding_lane_owner")')) {
+  errors.push("Nothing resolves finding_lane_owner — findings are grouped by LANE, not department, so a queue filtered on the department name returns nothing while the chip beside it counts hundreds. The routing table is the join.");
+}
+/* The instance list must PAGE, never stop at a cap. A silent top-N breaches C1
+   and F3 together; 1,066 findings sat behind a bare .limit(50) before this. */
+const inst = componentBody(dk, "DkQueueInstances") ?? "";
+if (!inst) errors.push("DkQueueInstances is missing — the queue lost the level that shows the individual findings.");
+else if (/\.limit\(\s*\d+\s*\)/.test(inst) || !/\.range\(/.test(inst)) {
+  errors.push("DkQueueInstances caps its findings with .limit() instead of paging with .range() — every finding behind a cause must be reachable (C1), and a truncation must say so (F3).");
+}
+/* A PostgREST filter on a column that was never selected always passes. */
+for (const [name, src] of tree) {
+  const bodies = [componentBody(src, "DkQueueInstances"), componentBody(src, "CcQueueInstances")].filter(Boolean);
+  for (const b of bodies) {
+    if (/is_duplicate/.test(b) && !/select\([^)]*is_duplicate/s.test(b)) {
+      errors.push(`${name}: a findings read filters on is_duplicate without selecting it — PostgREST omits the column, the value is undefined and every row passes the filter. Select it or drop the filter.`);
+    }
+  }
+}
 
-/* 9 — J7. */
-if (!/roomQualified/.test(cc)) errors.push("commandcenter.jsx lost its composed roomQualified value (J7: a room is never rendered without its department).");
+/* 8b — EVERY DRILL HAS A WAY BACK. Owner, 12 Aug 2026: "when we drilldown
+   there has to be fast easy way to get back to main screen." The exit, the
+   breadcrumb, Escape, browser-back and scroll restoration live in ONE
+   primitive, DkDrill, because three separate implementations is how three
+   pages end up behaving differently. So a hand-rolled drill container is the
+   defect this catches: the only file allowed to open a `cc-drill` div is the
+   primitive itself. */
+for (const [name, src] of tree) {
+  if (name === "dashkit.jsx") continue;                 // the primitive's own markup
+  for (const [i, line] of src.split(/\r?\n/).entries()) {
+    if (/className="cc-drill"/.test(line)) {
+      errors.push(`${name}:${i + 1} builds a drill container by hand — mount <DkDrill label onClose> instead, so this drill inherits the labelled way back, the breadcrumb, Escape, browser-back and scroll restoration rather than reimplementing three of the five.`);
+    }
+  }
+}
+if (!/function DkDrill\(/.test(dk)) {
+  errors.push("dashkit lost DkDrill — the one primitive that gives every drill its way back.");
+}
+for (const must of ["popstate", "scrollTo", "Escape"]) {
+  if (!dk.includes(must)) {
+    errors.push(`DkDrill no longer handles ${must} — the way back is five behaviours and shipping four of them is what the owner already rejected once.`);
+  }
+}
+
+/* 9 — J7, tested at the SOURCE rather than by the presence of an identifier. */
+for (const [name, src] of tree) {
+  for (const [i, line] of src.split(/\r?\n/).entries()) {
+    if (/^\s*(?:\*|\/\/)/.test(line)) continue;          // prose, not code
+    if (HARDCODED_DEPT.test(line)) {
+      errors.push(`${name}:${i + 1} composes a room name with a department written into the source — J7 exists because eleven room names occur in BOTH departments, and a guessed department is exactly the failure it forbids. Read the served column, or use dkRoomQualified().`);
+    }
+  }
+}
+if (!/function dkRoomQualified\(/.test(dk)) {
+  errors.push("dashkit lost dkRoomQualified — the one place a qualified room name is composed from the served department.");
+}
+if (!treeSrc.includes('from("v_room_board_complete")')) {
+  errors.push("No room board reads v_room_board_complete — mv_room_board serves no department column, which is why the departments were hardcoded in the first place (J7).");
+}
 
 /* ---------- verdict ---------- */
 if (errors.length) {

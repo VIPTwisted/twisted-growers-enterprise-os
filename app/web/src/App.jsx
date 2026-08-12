@@ -23,6 +23,14 @@ import { BudzScreen, CeoDashboard, AssistantSettings, BudzPet, useBudzPet, RedGr
    the frozen keep-list components back from this file — the import cycle is
    deliberate and safe because every binding is used at render time only. */
 import CommandCenter from "./commandcenter.jsx";
+/* dashkit — the shared dashboard primitives and the widget/drag framework the
+   department dashboards are built from. The evidence cell is imported back
+   here so the shared stock-proof drill carries certificate and manifest on
+   every row, sitewide (owner hard rule, 12 Aug 2026). Same deliberate,
+   render-time-only import cycle as the Command Center above. */
+import { TagEvidence, TagEvidenceProvider } from "./dashkit.jsx";
+import CultivationDashboard from "./dash-cultivation.jsx";
+import InventoryDashboard from "./dash-inventory.jsx";
 
 // Laws: live numbers (2) · no fake data (3) · nothing hardwired (4) — navigation itself is DB rows.
 
@@ -1037,17 +1045,37 @@ function ForensicPanel({ row }) {
 
 /* Wrap a hand-built <tr> to make it drill down in place. The page keeps its own
    cells; the row gains the same forensic panel every generic page has. */
+/* Owner, 12 Aug 2026: "how does a user collapse the data after they expand it."
+   This row toggled all along, but nothing on screen said so — no caret, no
+   state, and on a drill of several hundred packages the expanded panel buried
+   the row you would have to find again to close it. It now shows its state and
+   carries its own Close at the top of the panel, and Escape closes it. */
 function DrillRow({ row, colCount, children }) {
   const [open, setOpen] = useState(false);
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e) => { if (e.key === "Escape") setOpen(false); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open]);
   return (
     <>
-      <tr onClick={() => setOpen(!open)} style={{ cursor: "pointer" }}
-        title="Open the complete record, its certificate and its manifest">
+      <tr onClick={() => setOpen(!open)} style={{ cursor: "pointer" }} aria-expanded={open}
+        title={open
+          ? "Open — click the row again, press Escape, or use Close below."
+          : "Open the complete record, its certificate and its manifest"}>
         {children}
       </tr>
       {open && (
         <tr>
-          <td colSpan={colCount} className="detailcell"><ForensicPanel row={row} /></td>
+          <td colSpan={colCount} className="detailcell">
+            <div className="cc-drill-head">
+              <span className="cc-drill-what">{row.package_tag ?? "The complete record"}</span>
+              <button className="cc-btn cc-drill-close" onClick={() => setOpen(false)}
+                title="Close this record. The Escape key does the same.">✕ close</button>
+            </div>
+            <ForensicPanel row={row} />
+          </td>
         </tr>
       )}
     </>
@@ -8518,18 +8546,65 @@ export const DEPT_BY_VIEW = {
    a dry-equivalent shown on the row itself so nobody has to take the figure on trust. */
 export function OpenHarvestDetail() {
   const [rows, setRows] = useState(null);
+  const [err, setErr] = useState(null);
+  const [band, setBand] = useState(null);
   useEffect(() => {
-    supabase.from("v_harvest_still_in_room").select("*").then(({ data }) => setRows(data ?? []));
+    let live = true;
+    supabase.from("v_harvest_still_in_room").select("*").then(({ data, error }) => {
+      if (!live) return;
+      if (error) { setErr(error.message); return; }
+      setRows(rowsOr(data));
+    });
+    /* The conversion is an OWNER-SET ROW, never a literal here (G1/G4). */
+    supabase.from("conversion_factors").select("key, value, unit, label, where_it_came_from, set_by")
+      .in("key", ["expected_moisture_pct_min", "expected_moisture_pct_max", "moisture_loss_goal_pct"])
+      .then(({ data, error }) => {
+        if (!live) return;
+        if (error) { setBand({ err: error.message }); return; }
+        const m = Object.fromEntries(rowsOr(data).map((r) => [r.key, r]));
+        setBand({
+          goal: m.moisture_loss_goal_pct ? Number(m.moisture_loss_goal_pct.value) : null,
+          min: m.expected_moisture_pct_min ? Number(m.expected_moisture_pct_min.value) : null,
+          max: m.expected_moisture_pct_max ? Number(m.expected_moisture_pct_max.value) : null,
+          setBy: m.moisture_loss_goal_pct?.set_by ?? null,
+          err: null,
+        });
+      });
+    return () => { live = false; };
   }, []);
-  if (!rows) return <div className="note">Reading every open harvest…</div>;
+  if (err) return <div className="brnone"><b>The open harvests could not be read:</b> {err}</div>;
+  if (!rows || !band) return <div className="note">Reading every open harvest…</div>;
   if (!rows.length) return <div className="brnone">No harvests are open.</div>;
+  /* Retained fraction = 1 − moisture loss. The band gives the honest spread. */
+  const keep = band.goal != null ? (100 - band.goal) / 100 : null;
+  const keepHi = band.min != null ? (100 - band.min) / 100 : null;   // least loss → most dry
+  const keepLo = band.max != null ? (100 - band.max) / 100 : null;   // most loss → least dry
+  const pct = (f) => (f == null ? "not set" : `${(f * 100).toFixed(1)}%`);
+  const projNote = keep == null
+    ? "The moisture figure is not set, so no dry weight can be projected."
+    : `PROJECTED, NOT WEIGHED. Wet weight × ${pct(keep)} retained (the owner-set moisture-loss goal of ${band.goal}%${band.setBy ? `, set by ${band.setBy}` : ""}). Nobody has put this material on a scale.`;
+  const spreadNote = keepLo == null || keepHi == null
+    ? ""
+    : ` Across the owner-set normal band (${band.min}% to ${band.max}% loss) the same wet weight projects anywhere from ${pct(keepLo)} to ${pct(keepHi)} retained — so treat the figure as a range, not a count.`;
   return (
     <div className="tablewrap">
+      {/* A2: a number nobody measured says so on its face. The owner found this
+          table reading 26.7 lb "really left" as though it had been counted,
+          when the input was wet weight times an assumed retained fraction; at
+          the other end of the same owner-set band it is roughly half that.
+          The arithmetic is unchanged and defensible — the presentation was not. */}
+      <p className="buildnote" style={{ color: "var(--muted)" }}>
+        <b>Two of these columns are PROJECTIONS, marked “est.”, not measurements.</b> {projNote}{spreadNote}
+        {" "}Packaged, waste and the Metrc figure are recorded weights.
+      </p>
       <table>
         <thead><tr>
           <th>Harvest</th><th>Cut on</th><th>Dried in</th><th>Days open</th>
-          <th>Wet weight</th><th>Dry it should yield</th><th>Packaged so far</th><th>Waste</th>
-          <th>Really left</th><th>Old wet-minus-dry figure</th>
+          <th>Wet weight</th>
+          <th title={projNote + spreadNote}>Est. dry yield (projected) ⓘ</th>
+          <th>Packaged so far</th><th>Waste</th>
+          <th title={"Est. dry yield minus what has actually been packaged. " + projNote + spreadNote}>Est. dry remaining ⓘ</th>
+          <th title="Metrc's own CurrentWeight for this harvest — the state's legal record, not our estimate. It is wet minus packaged, so it still contains the water that has evaporated.">Metrc still shows ⓘ</th>
           <th>Last package taken off</th><th>Days since</th><th>What it really means</th>
         </tr></thead>
         <tbody>
@@ -8540,11 +8615,24 @@ export function OpenHarvestDetail() {
               <td>{r.drying_room || "not recorded"}</td>
               <td>{r.days_open}</td>
               <td>{Number(r.wet_lb).toLocaleString()} lb</td>
-              <td>{Number(r.expected_dry_lb).toLocaleString()} lb</td>
+              <td className="note" title={projNote + spreadNote}>
+                est. {Number(r.expected_dry_lb).toLocaleString()} lb
+              </td>
               <td>{Number(r.packaged_lb).toLocaleString()} lb</td>
               <td>{Number(r.waste_lb).toLocaleString()} lb</td>
-              <td><b>{Number(r.really_left_lb).toLocaleString()} lb</b></td>
-              <td className="note">{Number(r.old_figure_wet_minus_dry).toLocaleString()} lb</td>
+              {/* Derived, and shown with the spread its own assumption implies
+                  rather than as a single bold count. */}
+              <td className="note" title={"Est. dry yield minus packaged. " + projNote + spreadNote}>
+                est. {Number(r.really_left_lb).toLocaleString()} lb
+                {keepLo != null && keepHi != null && (
+                  <div style={{ fontSize: "10.5px" }}>
+                    range {Math.max(0, Number(r.wet_lb) * keepLo - Number(r.packaged_lb)).toLocaleString(undefined, { maximumFractionDigits: 1 })}
+                    {" – "}
+                    {Math.max(0, Number(r.wet_lb) * keepHi - Number(r.packaged_lb)).toLocaleString(undefined, { maximumFractionDigits: 1 })} lb
+                  </div>
+                )}
+              </td>
+              <td title="Metrc's own CurrentWeight — the state's legal record.">{Number(r.old_figure_wet_minus_dry).toLocaleString()} lb</td>
               <td>{r.last_package_taken_off || "never"}</td>
               <td>{r.days_since_last_package ?? "—"}</td>
               <td>{r.what_it_really_means}</td>
@@ -8641,8 +8729,31 @@ export function InTransitDrill() {
    in-transit drill and the per-room drills. One primitive, so a per-item row can
    never carry different columns on different pages (share primitives, never
    layouts — this is a row renderer, not a page). */
-function StockProofTable({ rows, locationLabel = "Where it is" }) {
+/* THE DOCUMENTS COLUMN IS NOW THE EVIDENCE CELL — owner hard rule, 12 Aug 2026:
+   "no item anywhere on site can be missing full forensic drill down with
+   documents — even in a line item or report, no matter where."
+
+   This table is the shared drill body behind the room drills, the in-transit
+   drill and every stock drill on the platform, so upgrading this ONE cell
+   carries the rule everywhere at once. Two things changed and both were
+   defects:
+
+   1. It rendered f_package_documents' STORED download_url. All 3,666 stored
+      URLs were signed together and expire on one day, which would have taken
+      every certificate button on the platform with them. TagEvidence mints the
+      link at click time and never caches one.
+   2. A tag with no document rendered "none held" — a blank in all but wording.
+      mv_tag_evidence resolves a certificate through up to five generations of
+      parent packages and, where there is genuinely none, serves the SENTENCE
+      saying why (A3). Measured 12 Aug 2026: 969 direct · 1,520 inherited ·
+      837 lab-result-only · 1,100 none, and all 1,937 of the last two carry a
+      reason. No row can render a dash.
+
+   The provider fetches the whole page of tags in one batched read rather than
+   one per row. */
+export function StockProofTable({ rows, locationLabel = "Where it is" }) {
   return (
+    <TagEvidenceProvider tags={rows.map((r) => r.package_tag)}>
     <div className="tablewrap">
       <table>
         <thead><tr>
@@ -8686,12 +8797,13 @@ function StockProofTable({ rows, locationLabel = "Where it is" }) {
                 ? `$${Number(r.rate_per_pound_used).toLocaleString()}/lb → $${Math.round(Number(r.value_at_our_rate ?? 0)).toLocaleString()}`
                 : "no rate — countable item or no rate row"}</td>
               <td className="note">{r.traceability}</td>
-              <td><DocumentChips tag={r.package_tag} /></td>
+              <td><TagEvidence tag={r.package_tag} compact /></td>
             </DrillRow>
           ))}
         </tbody>
       </table>
     </div>
+    </TagEvidenceProvider>
   );
 }
 
@@ -11003,6 +11115,20 @@ export default function App() {
        AFTER the spread on purpose: dept_dash_command routes to the new tree and
        the old DeptDashboard rendering for Command is retired from the path. */
     dept_dash_command: <CommandCenter go={setView} session={session} reports={reports}
+      role={role} viewAs={viewAsRole} onViewAs={switchViewAs}
+      isAdmin={isAdmin} viewRoles={viewRoles} />,
+    /* THE DEPARTMENT DASHBOARDS, built on the same certified template through
+       dashkit. Owner order 12 Aug 2026: "build out all dashboards first for
+       every single category… each and every single dashboard must be built so
+       the manager of that department can fully manage and see every single
+       detail, as we are doing for command." Like the Command Center above,
+       each override sits AFTER the spread so the generic DeptDashboard is
+       retired from that department's path rather than left as a second
+       rendering of the same page. */
+    dept_dash_cultivation: <CultivationDashboard go={setView} session={session} reports={reports}
+      role={role} viewAs={viewAsRole} onViewAs={switchViewAs}
+      isAdmin={isAdmin} viewRoles={viewRoles} />,
+    dept_dash_inventory: <InventoryDashboard go={setView} session={session} reports={reports}
       role={role} viewAs={viewAsRole} onViewAs={switchViewAs}
       isAdmin={isAdmin} viewRoles={viewRoles} />,
     cfo_inventory_audit: <CfoInventoryAudit go={setView} session={session} />,
