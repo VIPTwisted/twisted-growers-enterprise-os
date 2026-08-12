@@ -7,6 +7,10 @@
           {
             "type": "command",
             "command": "node \"$CLAUDE_PROJECT_DIR/tools/hooks/session-start.mjs\""
+          },
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/tools/hooks/house-rules.mjs\""
           }
         ]
       }
@@ -22,6 +26,15 @@
           {
             "type": "command",
             "command": "node \"$CLAUDE_PROJECT_DIR/tools/hooks/guard-secrets.mjs\""
+          }
+        ]
+      },
+      {
+        "matcher": ".*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/tools/hooks/guard-sheets-readonly.mjs\""
           }
         ]
       },

@@ -1,0 +1,22 @@
+create extension if not exists pg_trgm;
+-- Hot filter columns on the big Metrc tables
+create index if not exists mp_license_state on metrc_packages (license, source_state);
+create index if not exists mp_lab on metrc_packages (lab_testing_state);
+create index if not exists mp_packaged on metrc_packages (packaged_on desc);
+create index if not exists mp_location on metrc_packages (location);
+create index if not exists mp_tag on metrc_packages (tag);
+create index if not exists mp_item_trgm on metrc_packages using gin (item_name gin_trgm_ops);
+create index if not exists mp_srcharvest_trgm on metrc_packages using gin ((raw->>'SourceHarvestNames') gin_trgm_ops);
+create index if not exists mpl_license_state on metrc_plants (license, source_state);
+create index if not exists mpl_room on metrc_plants (room);
+create index if not exists mpl_strain on metrc_plants (strain);
+create index if not exists mpl_planted on metrc_plants (planted_on desc);
+create index if not exists mh_license_start on metrc_harvests (license, harvest_start desc);
+create index if not exists mh_name_trgm on metrc_harvests using gin (name gin_trgm_ops);
+create index if not exists mh_strain_trgm on metrc_harvests using gin ((raw->>'SourceStrainNames') gin_trgm_ops);
+create index if not exists mt_license_dir on metrc_transfers (license, direction, created_on desc);
+create index if not exists mt_manifest on metrc_transfers (manifest_number);
+create index if not exists mpb_license_state on metrc_plant_batches (license, source_state);
+create index if not exists msr_started on metrc_sync_runs (started_at desc);
+create index if not exists ar_status_created on actions_register (status, created_at desc);
+analyze metrc_packages; analyze metrc_plants; analyze metrc_harvests; analyze metrc_transfers; analyze metrc_plant_batches;;

@@ -7,6 +7,41 @@ of it. A wrong number here can reach a state filing.
 
 ---
 
+## ⛔ BEFORE ANYTHING ELSE — RUN THIS QUERY. ALL RULES SINCE DAY 1 APPLY TO YOU
+
+**Owner, 12 Aug 2026: "ALL RULES APPLY; TO ALL FUTURE NEW AGENTS MUST READ AND
+FOLLOW ALL RULES WE HAVE CREATED SINCE DAY 1."**
+
+```sql
+select source, rule_key, rule, what_it_means, never_do_this, authority, standing
+from v_house_rules order by source, rule_key;
+```
+
+**35 standing rules, five kinds, one window** — owner rulings, IRC 280E doctrine,
+audit assertions, disagreement classes, and logged root causes you must never
+repeat. This briefing does **not** restate them, deliberately: a copy goes stale
+the day a rule is added and then *lies* to the agent reading it, which is the
+drift the owner has banned. `v_house_rules` is generated from the rule tables, so
+a rule added after this file was written still reaches you.
+
+**Two you will need within your first hour, both owner rulings from 12 Aug 2026:**
+
+- **`tag_missing_means_go_find_the_manifest`** — a tag absent from `metrc_packages`
+  is **never** "unknown". Every physical item carries a tag and every tag moved on
+  a manifest. Check third-party status, then look the tag up in
+  `metrc_rpt_package_transfers`, and report **what the manifest says**. *Proven the
+  hour it was given: 484 "missing" adjustment tags, **all 484** had a manifest.*
+- **`tested_means_a_coa_exists_go_find_it`** — if Metrc says `TestPassed`, a
+  certificate **exists**. Search order is fixed: Metrc's lab result and attached
+  document → the parent or sibling tag's certificate → **Apex last resort only**.
+  You may write "certificate not yet retrieved" and must name where you looked.
+  You may **never** imply material is untested when Metrc says it passed.
+
+**The shape both share, and the habit to build:** an absence in our mirror is a
+statement about *our retrieval*, never about the material. Hunt before you file.
+
+---
+
 ## 🔒 HARD RULE — PROOF REQUIRED. "NEVER TESTED" IS A CLAIM, NOT AN EXCUSE
 **Owner, 8 Aug 2026: "All items you show as untested, no COA or manifest — I need
 to see what Metrc inventory and seed-to-sale shows for each tag. That means it's
