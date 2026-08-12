@@ -34,6 +34,7 @@ const PayRuns = lazy(() => import("./payruns.jsx"));
 const MySchedule = lazy(() => import("./myschedule.jsx"));
 const SyncItems = lazy(() => import("./syncitems.jsx"));
 const KeysConnections = lazy(() => import("./keysconnections.jsx"));
+const WidgetCanvas = lazy(() => import("./wcanvas.jsx").then((m) => ({ default: m.WidgetCanvas })));
 import jsQR from "jsqr";
 import { supabase, FUNCTIONS_URL } from "./lib/supabase.js";
 import { BudzScreen, CeoDashboard, AssistantSettings, BudzPet, useBudzPet, RedGreen,
@@ -11136,6 +11137,12 @@ export default function App() {
        add way for me to add key and secrets here right now i cant". Its own layout, shared
        primitives only. `hold_the_ddc_discipline`. */
     app_secrets: <KeysConnections session={session} />,
+    /* MY DASHBOARD — the rearrangeable canvas. Owner, 12 Aug 2026: "SIMILAR TO TRADING
+       PLATFORM i CAN MOVE AND RESIZE EACH AS I WANT" and, looking at the fixed Command
+       Center, "its totally out of order from what i want to se". Nobody can guess the
+       order he wants — Finance at year end, Cultivation in season — so he arranges it
+       himself. `go` is passed so a widget can open the full records page behind it. */
+    my_dashboard: <WidgetCanvas go={go} heading="My dashboard" />,
     settings: <Settings session={session} prefs={prefs} />,
     help: <Help />,
     metrc_mirror: <MetrcMirror />,
