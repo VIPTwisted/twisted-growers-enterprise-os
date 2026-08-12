@@ -104,6 +104,40 @@ through Agent I. Answers `docs/workflows/FORENSIC_DELIVERY_AUDIT_CHECKLIST.md` l
 - Screenshots of signed-in surfaces: NOT TAKEN — no credentials in this session.
   Deploy stays gated on a signed-in review (F2). Committed, not deployed.
 
+## Addendum — narrative commentary, three lanes (owner-approved addition, same day)
+
+- One shared render (`NarrativeBlock`): platform prose muted-italic behind a solid tone
+  spine; a signed human note carries a DASHED spine, transparent ground, and its
+  author-dated byline — opinion and computed fact cannot be confused. Platform lanes
+  drill (a paragraph is a claim, C1); the block is a button wired to its served drill key.
+- Period lane: `tg_period_narrative(p_from, p_to)` wired to the SAME range state as the
+  tiles — every date-bar change refetches. NEVER called without a real range: measured
+  that null bounds degenerate to a one-day window (`v_days = greatest(null+1, 1) = 1`),
+  so the "All dates" screen would carry prose about a window nobody picked. With no
+  range, an honest hint renders instead. Byline states the exact window.
+- Standing lane: `v_section_narrative` (4 rows live), byline "Platform · computed live".
+- CEO notes: `dashboard_commentary` — insert-only (corrections are new rows), retire
+  sets `retired_at`/`retired_by`, nothing deletes, anonymous refused in code. Editing
+  gated to owner/executive in the interface; pinned notes sort first.
+- Mounted as its own collapsible Section ("In plain words…") on every department
+  dashboard, registered in the collapse store; all reads error-surfacing.
+- Validator extended: NarrativeBlock must drill; DashNarratives must keep its range
+  guard and all three lane reads; AddCeoNote must keep its anonymous-refusal. Both
+  fixture halves still self-test.
+- Gates re-run after the addition: command-center PASS · parse PASS · theme-lock PASS ·
+  silent-failures PASS (limits held) · ui-language PASS · accessibility PASS (two new
+  inputs labelled after the gate caught them) · tile-drills PASS · no-fabricated-data
+  PASS. Build clean.
+- **Defects filed with Agent I:** (1) `dashboard_commentary` has row-level security
+  ENABLED with ZERO policies — every authenticated read and write is denied, so the CEO
+  lane shows its error honestly but cannot work until read/insert/retire policies land
+  (insert/retire for owner+executive, read for authenticated). (2) The table has no
+  `drill` column although the order says both lanes drill — add it or confirm notes do
+  not. (3) `section_key` is NOT NULL; notes written from the band use `section_key =
+  'narrative'` — confirm or supply the intended vocabulary, and supply the
+  section_key ↔ dashboard-section placement contract if paragraphs should sit under
+  specific section headers rather than the narrative band.
+
 ## Deferred (named, per Agent I's "land vs defer")
 
 Global command bar (nav-only stub) · governance control-plane page · faceted filter grid

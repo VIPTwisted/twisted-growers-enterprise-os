@@ -129,6 +129,32 @@ if (rings && !/never shown without its department|room_qualified/i.test(rings)) 
   errors.push("RoomRings lost its room-qualification honesty note (J7: a room is never shown without its department).");
 }
 
+/* 4 — narrative lanes (owner addition, 11 Aug 2026): paragraphs are claims and
+ *     drill; the period lane never fires without a real range (null bounds
+ *     degenerate to a one-day window and the prose would misstate the screen);
+ *     a CEO note without a signed author is refused, never defaulted. */
+const nb = componentBody(src, "NarrativeBlock") ?? "";
+if (!nb) {
+  errors.push("NarrativeBlock is missing — narrative paragraphs have no shared render and no drill (C1).");
+} else if (!nb.includes("go(drill)")) {
+  errors.push("NarrativeBlock no longer drills — a paragraph is a claim like any tile (C1).");
+}
+const dn = componentBody(src, "DashNarratives") ?? "";
+if (!dn) {
+  errors.push("DashNarratives is missing — the three narrative lanes are not mounted.");
+} else {
+  if (!/if \(!ranged\)/.test(dn)) {
+    errors.push("DashNarratives lost its range guard — tg_period_narrative must never be called with null bounds.");
+  }
+  for (const lane of ['rpc("tg_period_narrative"', 'from("v_section_narrative")', 'from("dashboard_commentary")']) {
+    if (!dn.includes(lane)) errors.push(`DashNarratives no longer reads ${lane} — a lane went dark silently.`);
+  }
+}
+const note = componentBody(src, "AddCeoNote") ?? "";
+if (note && !/Anonymous commentary is not allowed/.test(note)) {
+  errors.push("AddCeoNote lost its anonymous-refusal — every note must carry a signed author.");
+}
+
 /* ---------- verdict ---------- */
 if (errors.length) {
   console.error(`\nvalidate-command-center: FAIL — ${errors.length} finding(s):\n`);

@@ -10098,13 +10098,189 @@ function DiagFooter({ sources, computed }) {
   );
 }
 
+/* ============ NARRATIVE COMMENTARY — owner-approved addition, 11 Aug 2026 ============
+   Three lanes, one unbreakable byline discipline: the reader must never mistake
+   a signed human opinion for live computed fact, or vice versa.
+
+   1. PERIOD — tg_period_narrative(p_from, p_to), refetched with the tiles on
+      every date-bar change so the paragraphs always describe the window the
+      reader picked. NOT called without a range: with null bounds the function
+      degenerates to a one-day window and the prose would misstate the "All
+      dates" selection on screen. The byline states the window.
+   2. STANDING — v_section_narrative, range-independent. Byline
+      "Platform · computed live".
+   3. CEO NOTES — dashboard_commentary. Hand-written, attributed, timestamped.
+      Corrections are NEW rows, never edits; retirement sets retired_at and
+      nothing deletes; a note with no signed-in author is refused.
+
+   A paragraph is a claim like any tile, so the platform lanes DRILL (C1).
+   dashboard_commentary carries no drill column although the order says both
+   lanes drill — flagged to Agent I rather than invented here. */
+function NarrativeBlock({ tone, byline, drill, go, human, children }) {
+  const cls = `narrblock ${tone === "good" || tone === "warn" || tone === "bad" ? tone : "info"}${human ? " human" : ""}`;
+  const inner = (
+    <>
+      <span className="narrtext">{children}</span>
+      <span className="narrbyline">{byline}{drill ? " · Open the records →" : ""}</span>
+    </>
+  );
+  if (!drill) return <div className={cls}>{inner}</div>;
+  return (
+    <button className={cls} onClick={() => go(drill)}
+      title="A paragraph is a claim like any tile — it opens to the records behind it.">
+      {inner}
+    </button>
+  );
+}
+
+function AddCeoNote({ pageKey, session, role, onDone }) {
+  const [open, setOpen] = useState(false);
+  const [body, setBody] = useState("");
+  const [pinned, setPinned] = useState(false);
+  const [msg, setMsg] = useState("");
+  const author = session?.user?.email ?? null;
+  const save = async () => {
+    if (!body.trim()) { setMsg("Write the note first."); return; }
+    if (!author) { setMsg("A note must be signed — no signed-in email, no note. Anonymous commentary is not allowed."); return; }
+    const { error } = await supabase.from("dashboard_commentary").insert({
+      page: pageKey, section_key: "narrative", author, author_role: role, body: body.trim(), pinned,
+    });
+    if (error) { setMsg(`Not saved: ${error.message}`); return; }
+    setBody(""); setPinned(false); setOpen(false); setMsg("");
+    onDone();
+  };
+  if (!open) return (
+    <div>
+      <button className="btn" onClick={() => setOpen(true)}>Add a signed note</button>
+      {msg && <span className="note" style={{ marginLeft: 8 }}>{msg}</span>}
+    </div>
+  );
+  return (
+    <div className="narradd">
+      <label className="cfok">A signed note from {author ?? "(not signed in)"} · {role}</label>
+      <textarea className="inp" rows={3} value={body} onChange={(e) => setBody(e.target.value)}
+        aria-label="The note, published under your name with today's date"
+        placeholder="Your read of this dashboard, in your own words. It publishes under your name with today's date. A correction later is a new note — nothing is edited in place." />
+      <div className="goalsumrow">
+        <label className="goalen">
+          <input type="checkbox" aria-label="Pin this note to the top"
+            checked={pinned} onChange={(e) => setPinned(e.target.checked)} /> pinned to the top
+        </label>
+        <button className="btn primary" onClick={save}>Publish under my name</button>
+        <button className="btn" onClick={() => { setOpen(false); setMsg(""); }}>Cancel</button>
+        {msg && <span className="note">{msg}</span>}
+      </div>
+    </div>
+  );
+}
+
+function DashNarratives({ dept, range, role, session, go }) {
+  const pageKey = dept.toLowerCase();
+  const [period, setPeriod] = useState(null);
+  const [standing, setStanding] = useState(null);
+  const [notes, setNotes] = useState(null);
+  const [errs, setErrs] = useState([]);
+  const [ver, setVer] = useState(0);
+  const ranged = Boolean(range?.from && range?.to);
+  const mayWrite = role === "owner" || role === "executive";
+  const pushErr = (m) => setErrs((p) => (p.includes(m) ? p : [...p, m]));
+
+  useEffect(() => {
+    let live = true;
+    if (!ranged) { setPeriod([]); return; }
+    supabase.rpc("tg_period_narrative", { p_from: range.from, p_to: range.to })
+      .then(({ data, error }) => {
+        if (!live) return;
+        if (error) { pushErr(`The period story could not be computed: ${error.message}`); setPeriod([]); return; }
+        setPeriod(rowsOr(data).filter((n) => n.page === pageKey));
+      });
+    return () => { live = false; };
+  }, [pageKey, ranged, range?.from, range?.to]);
+
+  useEffect(() => {
+    let live = true;
+    supabase.from("v_section_narrative").select("*").eq("page", pageKey)
+      .then(({ data, error }) => {
+        if (!live) return;
+        if (error) { pushErr(`The standing platform story could not be read: ${error.message}`); setStanding([]); return; }
+        setStanding(rowsOr(data));
+      });
+    return () => { live = false; };
+  }, [pageKey]);
+
+  useEffect(() => {
+    let live = true;
+    supabase.from("dashboard_commentary").select("*").eq("page", pageKey).is("retired_at", null)
+      .order("pinned", { ascending: false }).order("written_at", { ascending: false })
+      .then(({ data, error }) => {
+        if (!live) return;
+        if (error) { pushErr(`Signed notes could not be read: ${error.message}`); setNotes([]); return; }
+        setNotes(rowsOr(data));
+      });
+    return () => { live = false; };
+  }, [pageKey, ver]);
+
+  const retire = async (n) => {
+    const who = session?.user?.email;
+    if (!who) return;
+    const { error } = await supabase.from("dashboard_commentary")
+      .update({ retired_at: new Date().toISOString(), retired_by: who }).eq("id", n.id);
+    if (error) { pushErr(`Could not retire the note: ${error.message}`); return; }
+    setVer((v) => v + 1);
+  };
+
+  if (period === null || standing === null || notes === null) return <div className="note">Reading the story of this page…</div>;
+  const empty = !errs.length && !period.length && !standing.length && !notes.length;
+  if (empty && !mayWrite && ranged) return (
+    <div className="brnone">Nothing to tell for this window. <b>Why:</b> no narrative is computed for
+      this page over these dates, and nobody has signed a note here yet.</div>
+  );
+  return (
+    <div className="narrband">
+      {errs.map((e) => <div key={e} className="brnone"><b>Not shown, and why:</b> {e}</div>)}
+      {!ranged && (
+        <div className="note">Pick a date range above to read the period story — it describes your
+          window against the one before it, and rewrites itself every time the range changes.</div>
+      )}
+      {ranged && period.length === 0 && !errs.length && (
+        <div className="note">No period story is computed for this page over {range.from} to {range.to}.</div>
+      )}
+      {period.map((n) => (
+        <NarrativeBlock key={"p" + n.section_key} tone={n.tone} drill={n.drill} go={go}
+          byline={`Period · computed live for ${range.from} to ${range.to}`}>
+          {n.narrative}
+        </NarrativeBlock>
+      ))}
+      {standing.map((n) => (
+        <NarrativeBlock key={"s" + n.section_key} tone={n.tone} drill={n.drill} go={go}
+          byline="Platform · computed live">
+          {n.narrative}
+        </NarrativeBlock>
+      ))}
+      {notes.map((n) => (
+        <div key={"n" + n.id} className="narrnotewrap">
+          <NarrativeBlock tone="info" human
+            byline={`${n.author}${n.author_role ? " · " + n.author_role : ""} · ${String(n.written_at).slice(0, 10)} · a signed opinion, not a computed figure${n.pinned ? " · pinned" : ""}`}>
+            {n.body}
+          </NarrativeBlock>
+          {mayWrite && (
+            <button className="btn small ghost" title="Retire this note — it is kept on the record, never deleted"
+              onClick={() => retire(n)}>Retire</button>
+          )}
+        </div>
+      ))}
+      {mayWrite && <AddCeoNote pageKey={pageKey} session={session} role={role} onDone={() => setVer((v) => v + 1)} />}
+    </div>
+  );
+}
+
 function DeptDashboard({ viewKey, go, nav, deep, session, reports, role, viewAs, onViewAs, isAdmin, viewRoles }) {
   const [openTile, setOpenTile] = useState(null);
   const dept = DEPT_BY_VIEW[viewKey] ?? "Command";
   /* Per-user collapse memory — owner order 11 Aug 2026. Every section id below
      is registered here so Collapse all / Expand all can reach all of them. */
   const store = useSectionStore(session?.user?.id, viewKey);
-  const SEC_IDS = ["flow", "money", "audit", "goals", "figures", "rooms", "yield",
+  const SEC_IDS = ["narrative", "flow", "money", "audit", "goals", "figures", "rooms", "yield",
     "stock", "admin", "watchdog", "tasks", "pages", "deep", "reports"];
   const [rows, setRows] = useState(null);
   const [trend, setTrend] = useState({});
@@ -10242,6 +10418,14 @@ function DeptDashboard({ viewKey, go, nav, deep, session, reports, role, viewAs,
       </div>
 
       <WhatChanged dept={dept} go={go} />
+
+      {/* NARRATIVE COMMENTARY — owner-approved 11 Aug 2026: the period story
+          (rewrites with the date bar), the standing platform story, and signed
+          notes. Byline discipline is the whole design. */}
+      <Section id="narrative" store={store} title="In plain words — the period, the platform, and signed notes">
+        <DashNarratives dept={dept} range={range} role={role} session={session} go={go} />
+      </Section>
+
       {(dept === "Command" || dept === "Cultivation" || dept === "Inventory") && (
         <>
           <Section id="flow" store={store} title="Seed to sale — where everything is right now"><FlowStrip go={go} /></Section>

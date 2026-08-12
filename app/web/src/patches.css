@@ -1406,3 +1406,27 @@
   background: color-mix(in srgb, var(--red) 10%, var(--bg));
 }
 .viewasbanner b { color: var(--red); letter-spacing: .04em; }
+
+/* ── Narrative commentary, three lanes — Agent B, 11 Aug 2026 ──────────────
+   Byline discipline: platform prose (computed) reads muted-italic behind a
+   solid tone spine; a signed human note carries a DASHED spine and its
+   author-dated byline, so opinion can never be mistaken for computed fact. */
+.narrband { display: flex; flex-direction: column; gap: 8px; }
+.narrblock {
+  display: flex; flex-direction: column; gap: 4px; text-align: left; width: 100%;
+  padding: 9px 13px; border: 0; border-left: 3px solid var(--line); border-radius: 0 8px 8px 0;
+  background: var(--panel-2); color: inherit; cursor: default;
+}
+.narrblock.good { border-left-color: var(--neon); }
+.narrblock.warn { border-left-color: var(--amber); }
+.narrblock.bad  { border-left-color: var(--red); }
+button.narrblock { cursor: pointer; }
+button.narrblock:hover { outline: 1px solid var(--line); }
+.narrtext { font-size: 13px; line-height: 1.55; font-style: italic; opacity: .85; }
+.narrblock.human { border-left-style: dashed; background: transparent; outline: 1px dashed var(--line); }
+.narrblock.human .narrtext { font-style: normal; opacity: .95; }
+.narrbyline { font-size: 11.5px; letter-spacing: .03em; opacity: .55; text-transform: none; }
+.narrnotewrap { display: flex; align-items: flex-start; gap: 8px; }
+.narrnotewrap > .narrblock { flex: 1; }
+.narradd { display: flex; flex-direction: column; gap: 8px; padding: 10px;
+  border: 1px dashed var(--line); border-radius: 10px; }
