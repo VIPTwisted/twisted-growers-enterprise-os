@@ -49,16 +49,90 @@ function connectionString() {
   return url.replace(/sslmode=[a-z-]+/, "uselibpqcompat=true&sslmode=require");
 }
 
-const q = async (c, sql, params) => (await c.query(sql, params)).rows;
-
+/* WHY THIS DIED, AND WHAT IT WAS NOT. Diagnosed 12 Aug 2026.
+ *
+ * The dump printed "connected (read-only dump)" and then died with "Connection terminated
+ * unexpectedly". Three plausible causes were ruled out by measurement, not by guessing:
+ *
+ *   NOT credentials  - schema-baseline-fresh.mjs reads live counts on the same string.
+ *   NOT statement_timeout - that returns an ERROR ("canceling statement..."). A dead socket
+ *                      with no server message means the BACKEND went away mid-query.
+ *   NOT pooler idle-drop - keepAlive was added first and changed nothing, because the
+ *                      connection was never idle. It was busy killing itself.
+ *
+ * THE ACTUAL CAUSE was the VIEWS section's recursive CTE. It walked the view dependency graph
+ * with UNION ALL and no de-duplication, which enumerates every distinct PATH through the graph
+ * rather than every node. pg_depend carries one row per referenced COLUMN, so the 278 real
+ * edges between our 484 views appear as 2,037 traversable edges. Measured row counts per level
+ * on 12 Aug 2026:
+ *
+ *      depth 0:        484        depth 3:     55,357
+ *      depth 1:      2,037        depth 4:    112,766
+ *      depth 2:     12,125        depth 5:    276,503
+ *
+ * That is a ~2.5-6x multiplier per level against a cap of `depth < 12`, i.e. of the order of
+ * 10^9 rows in the recursive working table. The backend exhausts memory and is killed; the
+ * client sees a socket close with no message. At 225 views this query was survivable, so it
+ * worked for months and then stopped - the query did not change, the schema grew into it.
+ *
+ * THE FIX, and note it captures MORE, not less:
+ *   1. Collapse pg_depend's per-column rows to a DISTINCT edge set (2,037 -> 278).
+ *   2. UNION, not UNION ALL, in the recursive term. Rows are (oid, depth), so the working
+ *      table is bounded by nodes x maxdepth = 484 x 13 = 6,292. `max(depth) group by` gives
+ *      byte-identical output either way - duplicate paths never changed the answer.
+ *   3. Constrain the CONSUMER side to the public schema. The old recursion did not, so a view
+ *      in another schema could enter the result and then be emitted as `public.<name>`.
+ *   4. One query for all view definitions instead of 2 round trips per view (968 -> 1).
+ *
+ * AND SO IT CANNOT COME BACK SILENTLY: every step is named and timed, a failure reports WHICH
+ * step died rather than one bare driver message, and the view count is asserted against
+ * pg_class before the file is written. A dump that quietly captures fewer views than exist is
+ * the exact defect this whole file was built to end - a 6-file baseline once described 4
+ * tables while production held 244.
+ */
 const client = new pg.Client({
   connectionString: connectionString(),
   ssl: { rejectUnauthorized: false },
   statement_timeout: 120000,
+  query_timeout: 120000,
+  keepAlive: true,
+  keepAliveInitialDelayMillis: 5000,
+  connectionTimeoutMillis: 30000,
+  application_name: "tg-dump-schema",
 });
 
+/* A pg Client emits 'error' as an EventEmitter event when the socket dies underneath it. With
+   no listener, Node treats that as an unhandled 'error' event and terminates the process on the
+   spot - so the whole diagnostic catch block below never ran, for precisely the failure it was
+   written to explain. The in-flight query promise still rejects, so this listener only has to
+   exist for the rejection to reach the catch. */
+let socketDeath = null;
+client.on("error", (e) => { socketDeath = e; });
+
+/* Every catalogue read goes through here so that no query can fail anonymously. */
+let step = "startup";
+const timings = [];
+const q = async (c, sql, params) => {
+  const t0 = Date.now();
+  try {
+    const { rows } = await c.query(sql, params);
+    timings.push({ step, ms: Date.now() - t0, rows: rows.length });
+    return rows;
+  } catch (e) {
+    e.tgStep = step;
+    e.tgSql = sql.trim().split("\n")[0].slice(0, 120);
+    e.tgMs = Date.now() - t0;
+    throw e;
+  }
+};
+
 const out = [];
-const section = (t) => out.push(`\n-- ${"=".repeat(74)}\n-- ${t}\n-- ${"=".repeat(74)}\n`);
+const section = (t) => {
+  step = t.split(" —")[0].split(" -")[0].trim();
+  console.log(`  ${step}`);
+  out.push(`\n-- ${"=".repeat(74)}\n-- ${t}\n-- ${"=".repeat(74)}\n`);
+};
+const done = () => {};   // sections report through `timings`, printed at the end and on failure
 
 try {
   await client.connect();
@@ -138,28 +212,56 @@ try {
     order by p.proname`)) out.push(r.ddl);
 
   section("VIEWS — created in dependency order");
-  for (const r of await q(client, `
-    with recursive deps as (
-      select c.oid, c.relname, 0 as depth
-      from pg_class c join pg_namespace n on n.oid=c.relnamespace
-      where n.nspname='public' and c.relkind in ('v','m')
-      union all
-      select c.oid, c.relname, d.depth+1
-      from deps d
-      join pg_depend dep on dep.refobjid = d.oid
+  const views = await q(client, `
+    with recursive edges as (
+      /* DISTINCT is load-bearing: pg_depend records one row per referenced COLUMN, so without
+         it the 278 real edges between our views present as 2,037 and the walk below explodes. */
+      select distinct rw.ev_class as consumer, dep.refobjid as producer
+      from pg_depend dep
       join pg_rewrite rw on rw.oid = dep.objid
-      join pg_class c on c.oid = rw.ev_class and c.relkind in ('v','m')
-      where d.depth < 12 and c.oid <> d.oid
-    )
-    select relname, max(depth) as depth from deps group by relname order by max(depth), relname`)) {
-    const [{ kind }] = await q(client,
-      `select relkind::text as kind from pg_class c join pg_namespace n on n.oid=c.relnamespace
-       where n.nspname='public' and c.relname=$1`, [r.relname]);
-    const [{ def }] = await q(client,
-      `select pg_get_viewdef(('public.'||quote_ident($1))::regclass, true) as def`, [r.relname]);
-    out.push(kind === "m"
-      ? `create materialized view if not exists public.${r.relname} as\n${def}`
-      : `create or replace view public.${r.relname} as\n${def}`);
+      join pg_class  pc on pc.oid = dep.refobjid and pc.relkind in ('v','m')
+      join pg_namespace pn on pn.oid = pc.relnamespace and pn.nspname = 'public'
+      join pg_class  cc on cc.oid = rw.ev_class    and cc.relkind in ('v','m')
+      join pg_namespace cn on cn.oid = cc.relnamespace and cn.nspname = 'public'
+      where rw.ev_class <> dep.refobjid
+    ),
+    deps as (
+      select c.oid, 0 as depth
+      from pg_class c join pg_namespace n on n.oid = c.relnamespace
+      where n.nspname = 'public' and c.relkind in ('v','m')
+      union                       -- NOT "union all"; see the header note. Bounds the walk.
+      select e.consumer, d.depth + 1
+      from deps d join edges e on e.producer = d.oid
+      where d.depth < 12
+    ),
+    ranked as (select oid, max(depth) as depth from deps group by oid)
+    select c.relname, c.relkind::text as kind, r.depth,
+           pg_get_viewdef(c.oid, true) as def
+    from ranked r join pg_class c on c.oid = r.oid
+    order by r.depth, c.relname`);
+
+  for (const v of views) {
+    out.push(v.kind === "m"
+      ? `create materialized view if not exists public.${v.relname} as\n${v.def}`
+      : `create or replace view public.${v.relname} as\n${v.def}`);
+  }
+  done();
+
+  /* COMPLETENESS ASSERTION. The dump is a recoverability artefact: a thin one is worse than a
+     missing one, because a thin one looks like success. If the dependency walk ever loses a
+     view again, this stops the run and NAMES what was lost, rather than writing a short file
+     that passes every downstream check. */
+  step = "VIEWS completeness assertion";
+  const missing = await q(client, `
+    select c.relname
+    from pg_class c join pg_namespace n on n.oid = c.relnamespace
+    where n.nspname = 'public' and c.relkind in ('v','m')
+      and not (c.relname = any($1::text[]))
+    order by c.relname`, [views.map((v) => v.relname)]);
+  if (missing.length) {
+    throw new Error(
+      `dependency walk lost ${missing.length} view(s) that exist in pg_class — ` +
+      `refusing to write a thin baseline. Missing: ${missing.map((m) => m.relname).join(", ")}`);
   }
 
   section("ROW LEVEL SECURITY");
@@ -236,8 +338,33 @@ try {
   console.log(`  ${counts.tables} tables · ${counts.views} views · ${counts.matviews} matviews`);
   console.log(`  ${counts.policies} policies · ${counts.jobs} cron jobs (commented out)`);
   console.log(`  ${(out.join("\n").length / 1024).toFixed(0)} KB`);
+
+  /* The three slowest steps, always. A step that is quietly creeping toward the timeout is the
+     early warning that this file did not get in 2026 - the VIEWS walk went from survivable to
+     fatal with no signal at all, because nothing was ever timed. */
+  const slow = [...timings].sort((a, b) => b.ms - a.ms).slice(0, 3);
+  console.log(`  slowest steps: ${slow.map((t) => `${t.step} ${(t.ms / 1000).toFixed(1)}s`).join(" · ")}`);
 } catch (err) {
-  console.error("dump failed:", err.message);
+  /* NAME THE STEP. A bare "Connection terminated unexpectedly" cost real diagnostic time on
+     12 Aug 2026 because it did not say which of 14 catalogue reads had died. */
+  console.error(`\ndump failed during step: ${err.tgStep ?? step ?? "unknown"}`);
+  console.error(`  ${err.message}`);
+  if (socketDeath && socketDeath.message !== err.message) {
+    console.error(`  socket also reported: ${socketDeath.message}`);
+  }
+  if (err.tgSql) console.error(`  query began: ${err.tgSql}`);
+  if (err.tgMs != null) console.error(`  it had been running ${(err.tgMs / 1000).toFixed(1)}s`);
+  if (timings.length) {
+    console.error("  steps that completed before it:");
+    for (const t of timings) console.error(`    ${t.step.padEnd(34)} ${(t.ms / 1000).toFixed(1)}s  ${t.rows} row(s)`);
+  }
+  if (/terminated unexpectedly|socket hang up|ECONNRESET/i.test(err.message)) {
+    console.error(
+      "\n  A closed socket with NO server error message means the backend went away mid-query,\n" +
+      "  not that credentials or the network are wrong. Look for a catalogue query whose result\n" +
+      "  set grew unbounded - that is what happened to the view dependency walk. Do not respond\n" +
+      "  by capturing less; find the query and bound it.");
+  }
   process.exit(1);
 } finally {
   await client.end().catch(() => {});

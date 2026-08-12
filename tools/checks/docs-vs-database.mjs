@@ -73,6 +73,78 @@ const EXPLAINS_ITSELF =
 const OUR_LICENCE = /\bM[CP]\d{6}\b/g;
 const KINDS = ["cultivation", "manufactur", "retail", "transport", "laborator", "research"];
 
+/* ── WRONG POPULATION, found 12 Aug 2026 by Agent W. ──────────────────────────────
+ *
+ * The narrowing above stopped at the STATE PREFIX and not at the question. IL and MT codes
+ * were excluded because they belong to other companies — but a Massachusetts CUSTOMER carries
+ * an MC or MP code too, so every third-party licence in-state still fell through and was
+ * reported as "not real".
+ *
+ * It failed the build on five of them, all genuine, every one attested by Metrc's own transfer
+ * records: two Flower Power Growers licences (54 and 11 transfers), Bud's Goods & Service
+ * (150), Northeast Alternatives (1) and Coastal Cultivars (5). An audit document that lists
+ * who we shipped to CANNOT be written without naming their licences, so the gate made a
+ * correct document unpublishable.
+ *
+ * The five codes are deliberately NOT written here. Rule G2 says licence numbers do not belong
+ * in executable code, and this file is executable code; they are recorded in the check_defect
+ * row for 'docs-vs-database' along with the SQL that re-derives them.
+ *
+ * THE FIX IS NOT A TOLERANCE. The question this gate asks is "does this licence exist?" and it
+ * was putting that question to an authority that structurally cannot hold half the right
+ * answers. company_licenses is OURS BY DEFINITION. So the authority widens to every licence the
+ * database can attest — ours, plus any code Metrc's transfer records show as a real
+ * counterparty — and the verdict does not move an inch: a code in NEITHER set is still a hard
+ * fail. The founding failure is still caught, because a Metrc USER ID typed with an MC prefix
+ * appears in no company_licenses row and on no manifest.
+ *
+ * RULE 2 (kind matching) deliberately still consults OUR licences only. We know our own kinds;
+ * we do not hold a counterparty's, and guessing one would be the same mistake again.
+ */
+export function licenceVerdict(code, ours, attested) {
+  if (ours.has(code)) return "ours";
+  if (attested.has(code)) return "counterparty";
+  return "unknown";
+}
+
+/* BOTH HALVES, or it does not ship. The positive half proves it still fires; the negative half
+   is the one that would have prevented this defect, and it is the half that keeps getting
+   skipped. */
+function selfTest() {
+  /* SHAPED, NOT REAL. Rule G2 keeps licence numbers out of executable code, and a fixture is
+     executable code. These are built from a prefix and a counter so the file holds no licence
+     literal at all — which also makes the test independent of production, so renewing a real
+     licence can never break it. The verdict function is pure and takes both sets as
+     arguments, so shape is the only thing under test. */
+  const shaped = (prefix, n) => prefix + String(n).padStart(6, "0");
+  const ourCult = shaped("MC", 1), ourMfg = shaped("MP", 2);
+  const cpA = shaped("MC", 3), cpB = shaped("MP", 4);
+  const ours = new Set([ourCult, ourMfg]);
+  const attested = new Set([cpA, cpB]);
+  const cases = [
+    // POSITIVE — must still fail. These are the failures the gate exists for.
+    [shaped("MC", 999999), "unknown", "fabricated code in neither set"],
+    [shaped("MP", 123456), "unknown", "a Metrc USER ID typed with a licence prefix — the founding defect"],
+    [shaped("MC", 4), "unknown", "right shape, wrong prefix for an attested MP code — a typo must not pass"],
+    // NEGATIVE — must stay quiet. This half is what the 12 Aug 2026 false alarm needed.
+    [ourCult, "ours", "our cultivation licence"],
+    [ourMfg, "ours", "our manufacturing licence"],
+    [cpA, "counterparty", "a customer attested by its own manifests"],
+    [cpB, "counterparty", "a second customer, different prefix"],
+  ];
+  const bad = cases.filter(([code, want]) => licenceVerdict(code, ours, attested) !== want);
+  if (bad.length) {
+    console.error("docs-vs-database: SELF-TEST FAILED — refusing to run.");
+    for (const [code, want, why] of bad) {
+      console.error(`      ${code} expected ${want} (${why}), got ` +
+                    `${licenceVerdict(code, ours, attested)}`);
+    }
+    process.exit(1);
+  }
+  console.log(`docs-vs-database: verdict self-test PASSED (${cases.length} cases, ` +
+              "4 of them negative — the half that stops a wrong label).");
+}
+
 const git = (...a) => spawnSync("git", a, { cwd: ROOT, encoding: "utf8", maxBuffer: 64 * 1024 * 1024 });
 
 const files = git("ls-files", "*.md").stdout.split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
@@ -99,12 +171,24 @@ async function licencesFromDatabase() {
     await client.connect();
     const { rows } = await client.query(
       "select license, kind, active from company_licenses");
-    return rows;
+    /* Counterparty licences the database can ATTEST — each one carries real Metrc transfer
+       rows behind it, so this is evidence, not an allow-list somebody can type into. */
+    const { rows: cp } = await client.query(`
+      select destination_licence as license, count(*)::int as transfers,
+             max(destination_facility) as facility
+        from metrc_rpt_package_transfers
+       where destination_licence ~ '^M[CP][0-9]{6}$'
+       group by 1`);
+    return { ours: rows, counterparties: cp };
   } catch { return null; }
   finally { await client.end().catch(() => {}); }
 }
 
-const rows = await licencesFromDatabase();
+selfTest();
+if (process.argv.includes("--selftest")) process.exit(0);
+
+const db = await licencesFromDatabase();
+const rows = db?.ours ?? null;
 
 if (!rows) {
   /* Never a bare PASS on a check that did not run. That is how a vacuous gate survives — the
@@ -116,6 +200,10 @@ if (!rows) {
 }
 
 const known = new Map(rows.map((r) => [r.license, r]));
+/* Attested counterparties. Keyed by licence, valued by the evidence, so the output can say
+   WHY a code was accepted rather than merely that it was. */
+const attested = new Map((db.counterparties ?? []).map((r) => [r.license, r]));
+for (const k of known.keys()) attested.delete(k);   // ours are ours, never "counterparty"
 if (known.size === 0) {
   console.error("docs-vs-database: FAIL — company_licenses is EMPTY.");
   console.error("  Every licence in every document would be unverifiable. Refusing to pass.");
@@ -136,7 +224,9 @@ for (const f of live) {
     const codes = [...new Set(hits)];
 
     for (const code of codes) {
-      if (!known.has(code)) unknown.push(`${f}:${i + 1}  ${code}  — not in company_licenses`);
+      if (licenceVerdict(code, known, attested) === "unknown") {
+        unknown.push(`${f}:${i + 1}  ${code}  — in neither company_licenses nor any manifest`);
+      }
     }
 
     /* RULE 2 — ONLY when the line names exactly ONE of our licences.
@@ -180,10 +270,16 @@ if (unknown.length) {
   console.error(`docs-vs-database: FAIL — ${unknown.length} licence(s) in live documents are not real:`);
   unknown.forEach((x) => console.error(`    ${x}`));
   console.error("");
-  console.error("A licence-shaped code that is not in company_licenses is either a typo, a user");
+  console.error("These are in NEITHER company_licenses NOR any Metrc transfer record, so the");
+  console.error("database cannot attest them as ours or as anybody's. That leaves a typo, a user");
   console.error("ID mistaken for a licence (this happened: a USER ID was typed as one and reached a");
-  console.error("template addressed to api-info@metrc.com), or a licence that was never added to");
-  console.error("the table. All three are worth failing a build over.");
+  console.error("template addressed to api-info@metrc.com), or a real licence nobody recorded.");
+  console.error("All three are worth failing a build over.");
+  console.error("");
+  console.error("A CUSTOMER's licence is fine and is NOT what this is reporting — those are");
+  console.error("accepted on the evidence of their own manifests. If one of these is a genuine");
+  console.error("counterparty we have simply never shipped to, add it to company_licenses or");
+  console.error("wait for its first manifest. Do not add it to a list in this file.");
   console.error("");
   console.error("If the line legitimately records a PAST error, say so on the line — words like");
   console.error('"not a licence", "was wrong", "CORRECTED", "historical" are recognised — or move');
@@ -207,3 +303,5 @@ if (failed) {
 const list = [...known.values()].map((r) => `${r.license}=${r.kind}`).join(", ");
 console.log(`docs-vs-database: PASS (VERIFIED against company_licenses) — ${list}.`);
 console.log(`  ${live.length} live documents checked, ${files.length - live.length} archives exempt.`);
+console.log(`  ${attested.size} counterparty licence(s) additionally attested by Metrc transfer`);
+console.log("  records, so a document may name who we shipped to. A code in neither set fails.");
