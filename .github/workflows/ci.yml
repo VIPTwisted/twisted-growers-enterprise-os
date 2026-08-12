@@ -216,6 +216,18 @@ jobs:
       - name: Every tile opens to its records
         run: node tools/checks/tile-drills.mjs
 
+      # ---- The Command Center delivery's own validator (Agent B, 11 Aug 2026) --------
+      # Static, no database: every flow stage drills in place (including stage 6,
+      # "In transit"), drill rows come from v_stock_proof and never the view measured
+      # at 30.7 s with 0/429 manifests matched, no literal numeric series reads as
+      # live data, and the honesty chips and narrative-lane guards stay in place.
+      # WIRED HERE THE SAME DAY IT WAS WRITTEN, because registering it in
+      # package.json alone turned all-checks-wired red inside the Netlify build and
+      # stopped the 791855d deploy — the exact failure all-checks-wired exists to
+      # catch, caught on the guard's own author.
+      - name: Command Center delivery validator
+        run: node tools/checks/validate-command-center.mjs
+
       # ---- Rules L6 / §7 / C3a / I4 / J7: the reports were governed by nothing ---------
       # Pages have five gates. Reports had none, and the owner asked for this specifically.
       # Measured 11 Aug 2026: 102 reports whose source carries a date and whose view drops

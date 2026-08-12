@@ -10012,7 +10012,7 @@ function YieldBars() {
         {under.length > 0
           ? <StatusChip kind="OVER">{under.length} UNDER OWN STRAIN MEDIAN</StatusChip>
           : <StatusChip kind="OK">every recent harvest at or above its strain median</StatusChip>}
-        <span className="note">last {rows.length} closed harvests · grams of dry yield per plant · tick = that strain's own median</span>
+        <span className="note">last {rows.length} closed harvests · grams of dry yield per plant · tick = that strain&rsquo;s own median</span>
       </div>
       <div className="ybars">
         {rows.map((r) => {
@@ -11244,7 +11244,7 @@ export default function App() {
       The {viewAsRole ?? role} role does not have view access to “{view}” — set by an
       administrator in page permissions. Ask an owner or executive if you need it.
       {viewAsRole && <div className="note" style={{ marginTop: 8 }}>You are seeing this because the design preview is
-        showing you the {viewAsRole} role's view. Your own access is unchanged.</div>}
+        showing you the {viewAsRole} role&rsquo;s view. Your own access is unchanged.</div>}
       <div style={{ marginTop: 14 }}>
         <button className="btn primary" onClick={() => setView("tower")}>Go to the Control Tower</button>
         {viewAsRole && <button className="btn" onClick={() => switchViewAs(null)}>Exit the preview</button>}
@@ -11278,8 +11278,8 @@ export default function App() {
       {viewAsRole && (
         <div className="viewasbanner" role="status">
           <b>VIEWING AS {viewAsRole}</b> — presentation preview only: menus and pages render with
-          that role's visibility; your own permissions and your own data access still apply, and
-          the data on screen is NOT what this role's queries would return.
+          that role&rsquo;s visibility; your own permissions and your own data access still apply, and
+          the data on screen is NOT what this role&rsquo;s queries would return.
           <button className="btn small" onClick={() => switchViewAs(null)}>Exit preview</button>
         </div>
       )}
