@@ -9826,21 +9826,26 @@ function RoomRings({ dept }) {
       {/* ALERT BANNER — the rule-10 pattern: the fact, the rule it breaks, and the
           two actions ON the banner. Fires only on a real served breach; today none
           may exist, and then nothing renders — an absent banner is the honest state. */}
-      {over.map((r) => (
-        <div key={"bn" + r.room} className="roombreach">
-          <span className="rbnum">{Math.abs(Number(r.days_until))}</span>
-          <span className="rbbody">
-            <b>{r.room} is {Math.abs(Number(r.days_until))} day{Math.abs(Number(r.days_until)) === 1 ? "" : "s"} past
-              its scheduled pull{r.cycle_days ? ` on a ${r.cycle_days}-day cycle` : ""}.</b>
-            {lateNote && <em>{lateNote}</em>}
-          </span>
-          <span className="rbacts">
-            <button className="btn" onClick={() => setOpenRoom(openRoom === r.room ? null : r.room)}>Open {r.room}</button>
-            <AssignTask dept={dept} kpi={`${r.room} days past scheduled pull`}
-              value={Math.abs(Number(r.days_until))} unit="days" drill="room_board" />
-          </span>
-        </div>
-      ))}
+      {over.map((r) => {
+        /* J7: a room is never rendered bare. Department is a display label until
+           v_room_board serves it — requirement already filed with Agent I. */
+        const roomQualified = r.room + " — Cultivation";
+        return (
+          <div key={"bn" + r.room} className="roombreach">
+            <span className="rbnum">{Math.abs(Number(r.days_until))}</span>
+            <span className="rbbody">
+              <b>{roomQualified} is {Math.abs(Number(r.days_until))} day{Math.abs(Number(r.days_until)) === 1 ? "" : "s"} past
+                its scheduled pull{r.cycle_days ? ` on a ${r.cycle_days}-day cycle` : ""}.</b>
+              {lateNote && <em>{lateNote}</em>}
+            </span>
+            <span className="rbacts">
+              <button className="btn" onClick={() => setOpenRoom(openRoom === r.room ? null : r.room)}>Open {roomQualified}</button>
+              <AssignTask dept={dept} kpi={roomQualified + ", days past scheduled pull"}
+                value={Math.abs(Number(r.days_until))} unit="days" drill="room_board" />
+            </span>
+          </div>
+        );
+      })}
       <div className="ringhead">
         {over.length > 0 && <StatusChip kind="OVER">{over.length} OVER</StatusChip>}
         {soon.length > 0 && <StatusChip kind="APPROACHING">{soon.length} PULLING SOON</StatusChip>}
@@ -9850,6 +9855,8 @@ function RoomRings({ dept }) {
         {flower.map((r) => {
           const st = stateOf(r);
           const empty = Number(r.plants_now) === 0;
+          /* J7: qualified name composed once, rendered everywhere. */
+          const roomQualified = r.room + " — Cultivation";
           const frac = !empty && r.cycle_days
             ? Math.min(1, Math.max(0, (Number(r.cycle_days) - Number(r.days_until)) / Number(r.cycle_days)))
             : 0;
@@ -9857,7 +9864,7 @@ function RoomRings({ dept }) {
           return (
             <button key={r.room} className={`ringcard ${st === "OVER" ? "over" : ""} ${openRoom === r.room ? "opened" : ""}`}
               onClick={() => setOpenRoom(openRoom === r.room ? null : r.room)}
-              title={`${r.room} — click for every plant in the room`}>
+              title={roomQualified + ". Click for every plant in the room."}>
               <svg className="ring" viewBox="0 0 64 64" width="64" height="64" aria-hidden="true">
                 <circle cx="32" cy="32" r="26" className="ringtrack" />
                 {!empty && (
@@ -9871,7 +9878,7 @@ function RoomRings({ dept }) {
                   {empty ? "" : Number(r.days_until) < 0 ? "OVER" : "DAYS"}
                 </text>
               </svg>
-              <span className="ringname">{r.room} — Cultivation</span>
+              <span className="ringname">{roomQualified}</span>
               <span className="ringmeta">{empty
                 ? (r.next_event_detail ? `next: ${r.next_event_detail}` : "empty — turning")
                 : `${Number(r.plants_now).toLocaleString()} plants`}</span>
@@ -10019,11 +10026,13 @@ function YieldBars() {
           const w = (Number(r.dry_g_per_plant || 0) / max) * 100;
           const tick = r.strain_median_dry_g != null ? (Number(r.strain_median_dry_g) / max) * 100 : null;
           const open = openRow === r.harvest;
+          /* J7: room identity is licence + name, and this view serves the licence. */
+          const roomQualified = (r.room ?? "room not recorded") + " — licence " + (r.licence ?? "not recorded");
           return (
             <React.Fragment key={r.harvest}>
               <button className={`ybar ${open ? "opened" : ""}`} onClick={() => setOpenRow(open ? null : r.harvest)}
                 title="Open this harvest's audit line">
-                <span className="ybname">{r.strain || "strain not recorded"}<em>{r.room} · {r.licence} · {r.finished_on}</em></span>
+                <span className="ybname">{r.strain || "strain not recorded"}<em>{roomQualified} · {r.finished_on}</em></span>
                 <span className="ybtrack">
                   <i className={`ybfill ${toneOf(r.audit_verdict)}`} style={{ width: `${Math.max(2, w)}%` }} />
                   {tick != null && <b className="ybtick" style={{ left: `${tick}%` }} title={`Strain median: ${Number(r.strain_median_dry_g).toLocaleString()} g/plant over ${r.strain_harvests} harvests`} />}

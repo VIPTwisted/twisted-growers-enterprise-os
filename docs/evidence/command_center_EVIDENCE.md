@@ -154,6 +154,33 @@ through Agent I. Answers `docs/workflows/FORENSIC_DELIVERY_AUDIT_CHECKLIST.md` l
   authenticated policy path (admin can write, non-admin cannot) still gets its live
   confirmation in the signed-in review that already gates the deploy (F2).
 
+## Deploy incident — 791855d red on Netlify (owner screenshot, 8:01 PM), root causes named
+
+Two real failures in one commit, and my first report to Agent I named the wrong one
+first — corrected here on the record (A7):
+
+1. **The gate that killed the deploy: `report-contract`, rule J7** — rooms rendered
+   without their department went 15 → 21 (ratchet limit 15). Six of the 21 were my new
+   RoomRings/YieldBars code rendering bare `.room` accessors; "— Cultivation" sitting
+   beside the accessor does not qualify it, and the detector is right — qualification
+   must be IN the rendered value. Fixed by composing `roomQualified` once per row
+   (flower rooms: name + department label pending the served field; yield rows:
+   name + licence, which that view serves — licence + name IS room identity). Count
+   back at the 15 limit.
+2. **`all-checks-wired`** — my validator was registered in package.json but absent
+   from `.github/workflows/ci.yml`, and the gate requires both. Real, but SECOND in
+   the chain: Netlify never reached it. Wired in ci.yml with the incident recorded in
+   the step comment. NOT the database hypothesis — the validator is static.
+3. **Found because the chain died early: `eslint-ratchet`** (after `wired`, so it had
+   never run on this code anywhere) — four new `react/no-unescaped-entities` warnings,
+   raw apostrophes in my JSX. Escaped; ratchet back at its 13-warning baseline.
+
+Process lesson, adopted: my local runs were gate SUBSETS, and both misses (`wired`
+verdict cut off by a `tail -2`; `report-contract` simply not in my subset) are exactly
+what a subset cannot see. The full `npm run gates` chain — the same command Netlify
+runs — is now the only pre-push verification this delivery uses. No dependency was
+ever added; package-lock untouched; the npm-ci hypothesis is clear.
+
 ## Deferred (named, per Agent I's "land vs defer")
 
 Global command bar (nav-only stub) · governance control-plane page · faceted filter grid
