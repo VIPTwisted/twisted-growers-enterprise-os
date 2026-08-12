@@ -259,3 +259,15 @@ in the commit chain (theme-lock, parse-check, eslint-ratchet 0 errors/13 warning
 accessibility, silent-failures, tile-drills 8/8, ui-language, dead-controls 0 inert,
 no-fabricated-data, trend-sentiment, routing, error-boundaries, guard-fixtures 49,
 validate-command-center with 6 self-test cases both halves, and the rest of the 41).
+
+## Addendum — a second baseline rename rode in commit d495998, and how
+
+Stated rather than glossed: the evidence commit (`d495998`) shows the schema baseline
+renamed again, `20260812030542 → 20260812120316` (76 lines). I did not stage it. A
+concurrent session on this machine ran `dump-schema` at 12:03:16 UTC and left the
+result STAGED in the shared index; my `git commit` three minutes later swept everything
+staged, which is how a by-name discipline still gets beaten on a shared tree. The swept
+file is verified good — `schema-baseline: PASS (VERIFIED against live), 387 tables,
+435 views, 23 matviews, 731 policies, all match` — so it stands rather than forcing a
+revert commit against a fresher baseline. Lesson recorded: on a shared tree, check
+`git diff --cached --stat` immediately before every commit, not only `git add` by name.
