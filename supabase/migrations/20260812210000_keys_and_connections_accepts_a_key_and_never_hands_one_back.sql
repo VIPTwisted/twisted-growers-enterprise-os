@@ -273,6 +273,15 @@ update public.nav_registry
        range_kind    = null
  where view_key in ('app_secrets', 'integration-secrets', 'app-secrets');
 
+-- Declare the archetype rather than leaving it null. `rules_editor` already covers 34 pages
+-- whose job is to SET something rather than read a ledger, which is exactly what this is. An
+-- existing value, not a new one -- a second word for the same idea is the defect
+-- `hold_the_ddc_discipline` names. page-architecture.mjs is red on DB state today (153 pages
+-- with no archetype against a ceiling of 129) and this takes one row off that count. It does
+-- not change what renders: App.jsx routes app_secrets through the `special` map, which is
+-- consulted before any archetype.
+update public.nav_registry set archetype = 'rules_editor' where view_key = 'app_secrets';
+
 -- The description promised a capability the page did not have. It has it now, so the sentence
 -- can stay -- but "can never be read back into a browser" was NOT true when it was written and
 -- is only true from this migration onwards.
