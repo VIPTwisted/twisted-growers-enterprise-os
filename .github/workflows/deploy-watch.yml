@@ -1,0 +1,78 @@
+ps: >-
+  THE WATCHER FOR THE DEPLOY, AND WHY IT LIVES HERE AND NOWHERE ELSE.
+
+  On 12 Aug 2026 Netlify's GitHub webhook stopped firing at 19:52. Five pushes
+  followed. Not one triggered a build - so there were no failed builds to look at,
+  no red anywhere, and nothing to notice. The owner found it hours later by opening
+  a page and asking why it had not changed, and his reaction was the correct one:
+  "WHERE ARE THE WATCHERS AND GUARD".
+
+  The detector already existed. tools/checks/deploy-current.mjs compares the commit
+  the LIVE SITE is serving against origin/main and fails when they differ. Nothing
+  ran it. That is the same defect as everything else that day: the instrument was
+  built and never scheduled.
+
+  IT RUNS ON GITHUB DELIBERATELY. A watcher that lives inside the thing it watches
+  is not a watcher. If it ran in the Netlify build it would go quiet exactly when
+  Netlify stopped building - which is the failure. If it ran on the laptop it would
+  go quiet when the laptop is closed. GitHub Actions is outside both, and GitHub
+  emails the owner when a scheduled workflow fails, so the alert does not depend on
+  the platform's own alerting being wired.
+
+  IT NEEDS NO SECRET. It fetches the public site and reads git. Nothing to leak.
+
+name: deploy-watch
+
+on:
+  schedule:
+    # Every 30 minutes. A deploy that has not landed within half an hour of a push
+    # is either broken or not listening; either way the owner should know before he
+    # discovers it by opening a page.
+    - cron: "*/30 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  is-the-live-site-running-what-we-pushed:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # deploy-current.mjs compares against origin/main and counts commits
+          # behind. A shallow clone cannot count, and would report a false pass.
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Is the live site running origin/main?
+        run: node tools/checks/deploy-current.mjs
+
+      - name: Say what to do about it
+        if: failure()
+        run: |
+          echo "::error::The live site is NOT running origin/main."
+          echo ""
+          echo "This is the state that held unnoticed for four hours on 12 Aug 2026,"
+          echo "and for two days between 9 and 11 Aug across fourteen failed builds."
+          echo ""
+          echo "CHECK IN THIS ORDER — the first one is the one that has actually happened:"
+          echo ""
+          echo "  1. IS NETLIFY EVEN LISTENING? Open the deploys list. If the newest"
+          echo "     deploy is OLDER than the newest commit, no build was ATTEMPTED and"
+          echo "     the GitHub webhook has stopped firing. There will be no red build"
+          echo "     to find, which is exactly why this went unnoticed. Reconnect the"
+          echo "     webhook; trigger one now with:"
+          echo "       npx netlify api createSiteBuild --data '{\"site_id\":\"<id>\"}'"
+          echo ""
+          echo "  2. DID A BUILD FAIL? Then a gate stopped it. Reproduce it locally with"
+          echo "     'npm run gates' and fix the gate's cause. Never raise a baseline or"
+          echo "     relax a guard to make it pass."
+          echo ""
+          echo "  3. DID A BUILD SUCCEED BUT NOT PUBLISH? Check auto-publishing is on"
+          echo "     and the deploy is not locked."
+          echo ""
+          echo "Work that is committed and not deployed is work nobody can see."
