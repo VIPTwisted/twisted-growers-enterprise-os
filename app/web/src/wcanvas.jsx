@@ -599,6 +599,10 @@ export function WidgetCanvas({ page, go, heading }) {
   const trendByKey = new Map((boot.trend.rows ? boot.trend.rows : []).map((t) => [`${String(t.department).toLowerCase()}|${String(t.kpi).toLowerCase()}`, t]));
   const roomMap = boot.rooms.map;
   const noDrill = catalogue.filter((c) => c.has_no_drill);
+  /* Moved above the no-dashboards branch on 13 Aug 2026 so the confirm dialog,
+     which needs it, can be defined once and rendered in both branches. Undefined
+     when there are no dashboards, which is exactly what it meant before. */
+  const current = dashboards.find((d) => d.dashboard_key === active);
 
   const templatePicker = (
     <div className="tgwc-pop">
@@ -630,6 +634,77 @@ export function WidgetCanvas({ page, go, heading }) {
     </div>
   );
 
+  /* NAMING AND CONFIRMING, IN THE PAGE — defined ONCE, above the branch, because
+     it is needed on both sides of it. It was written inside the main return only,
+     and the no-dashboards branch below never rendered it. The effect, measured on
+     the live site on 13 Aug 2026: a brand-new user clicked a template card, the
+     dialog state was set, nothing appeared, and there was NO WAY AT ALL to create
+     a first dashboard. Six buttons that set state and show nothing. Repaired by
+     rendering the same dialog in both branches — one definition, two places, no
+     second copy. */
+  const confirmDialog = dialog && (
+    <div className="tgwc-pop" role="group" aria-label="Confirm">
+      {(dialog.kind === "new" || dialog.kind === "rename") && (
+        <>
+          <div className="tgwc-field" style={{ minWidth: 260 }}>
+            <label htmlFor="tgwc-dialog-name">
+              {dialog.kind === "new"
+                ? `Name this dashboard${dialog.template ? " (from the template you picked)" : ""}`
+                : "Rename this dashboard"}
+            </label>
+            <input id="tgwc-dialog-name" className="tgwc-in" type="text" value={dialog.name}
+              onChange={(e) => setDialog((d) => ({ ...d, name: e.target.value }))} />
+          </div>
+          <p className="tgwc-say tight">You pick it from a list, so give it a name you will recognise later.</p>
+          <div className="tgwc-fields">
+            <button type="button" className="tgwc-btn on" disabled={!!busy || !dialog.name.trim()}
+              onClick={() => dialog.kind === "new"
+                ? createFromDialog(dialog.name.trim(), dialog.template)
+                : runAction("rename", () => renameDashboard(active, dialog.name.trim())).then((done) => { if (done) setDialog(null); })}>
+              {dialog.kind === "new" ? "Create it" : "Rename it"}
+            </button>
+            <button type="button" className="tgwc-btn" onClick={() => setDialog(null)}>Cancel</button>
+          </div>
+        </>
+      )}
+      {dialog.kind === "reset" && (
+        <>
+          <span className="tgwc-bar-title">Put &quot;{dialog.name}&quot; back to nothing?</span>
+          <p className="tgwc-say tight">
+            Every panel you placed on it is removed and you choose again from the templates. Only your own
+            view changes — nobody else&apos;s dashboard is touched.
+          </p>
+          <div className="tgwc-fields">
+            <button type="button" className="tgwc-btn danger" disabled={!!busy} onClick={async () => {
+              const done = await runAction("reset", () => resetLayout(active));
+              setDialog(null);
+              if (done) readLayout(active);
+            }}>Yes, reset it</button>
+            <button type="button" className="tgwc-btn" onClick={() => setDialog(null)}>Keep it as it is</button>
+          </div>
+        </>
+      )}
+      {dialog.kind === "delete" && (
+        <>
+          <span className="tgwc-bar-title">Delete &quot;{dialog.name}&quot;?</span>
+          <p className="tgwc-say tight">
+            Its panels go with it. Your other dashboards are untouched, and if this was the one that opens
+            first another takes over so you are never left with dashboards and no default.
+          </p>
+          <div className="tgwc-fields">
+            <button type="button" className="tgwc-btn danger" disabled={!!busy} onClick={async () => {
+              const key = current ? current.dashboard_key : active;
+              setDialog(null);
+              setActive(null);
+              await runAction("delete", () => deleteDashboard(key));
+            }}>Yes, delete it</button>
+            <button type="button" className="tgwc-btn" onClick={() => setDialog(null)}>Keep it</button>
+          </div>
+        </>
+      )}
+    </div>
+  );
+
   /* No dashboards at all. Not an error and not an empty screen — the house
      starters ARE the default, so they are what gets offered. */
   if (!page && dashboards.length === 0) {
@@ -641,12 +716,12 @@ export function WidgetCanvas({ page, go, heading }) {
           fills="Nothing has gone wrong: dashboards are personal, and yours is empty because you have never arranged one. Pick a starting point below and you can move, resize and rename every panel afterwards. Nobody else's view changes."
         />
         {templatePicker}
+        {confirmDialog}
         {saveErr && <WcErr what="That could not be saved" err={saveErr} />}
       </div>
     );
   }
 
-  const current = dashboards.find((d) => d.dashboard_key === active);
   const visible = items ? items.filter((i) => i.visible !== false) : [];
   const hidden = items ? items.filter((i) => i.visible === false) : [];
 
@@ -705,69 +780,7 @@ export function WidgetCanvas({ page, go, heading }) {
         )}
       </div>
 
-      {/* ── naming and confirming, in the page ── */}
-      {dialog && (
-        <div className="tgwc-pop" role="group" aria-label="Confirm">
-          {(dialog.kind === "new" || dialog.kind === "rename") && (
-            <>
-              <div className="tgwc-field" style={{ minWidth: 260 }}>
-                <label htmlFor="tgwc-dialog-name">
-                  {dialog.kind === "new"
-                    ? `Name this dashboard${dialog.template ? " (from the template you picked)" : ""}`
-                    : "Rename this dashboard"}
-                </label>
-                <input id="tgwc-dialog-name" className="tgwc-in" type="text" value={dialog.name}
-                  onChange={(e) => setDialog((d) => ({ ...d, name: e.target.value }))} />
-              </div>
-              <p className="tgwc-say tight">You pick it from a list, so give it a name you will recognise later.</p>
-              <div className="tgwc-fields">
-                <button type="button" className="tgwc-btn on" disabled={!!busy || !dialog.name.trim()}
-                  onClick={() => dialog.kind === "new"
-                    ? createFromDialog(dialog.name.trim(), dialog.template)
-                    : runAction("rename", () => renameDashboard(active, dialog.name.trim())).then((done) => { if (done) setDialog(null); })}>
-                  {dialog.kind === "new" ? "Create it" : "Rename it"}
-                </button>
-                <button type="button" className="tgwc-btn" onClick={() => setDialog(null)}>Cancel</button>
-              </div>
-            </>
-          )}
-          {dialog.kind === "reset" && (
-            <>
-              <span className="tgwc-bar-title">Put &quot;{dialog.name}&quot; back to nothing?</span>
-              <p className="tgwc-say tight">
-                Every panel you placed on it is removed and you choose again from the templates. Only your own
-                view changes — nobody else&apos;s dashboard is touched.
-              </p>
-              <div className="tgwc-fields">
-                <button type="button" className="tgwc-btn danger" disabled={!!busy} onClick={async () => {
-                  const done = await runAction("reset", () => resetLayout(active));
-                  setDialog(null);
-                  if (done) readLayout(active);
-                }}>Yes, reset it</button>
-                <button type="button" className="tgwc-btn" onClick={() => setDialog(null)}>Keep it as it is</button>
-              </div>
-            </>
-          )}
-          {dialog.kind === "delete" && (
-            <>
-              <span className="tgwc-bar-title">Delete &quot;{dialog.name}&quot;?</span>
-              <p className="tgwc-say tight">
-                Its panels go with it. Your other dashboards are untouched, and if this was the one that opens
-                first another takes over so you are never left with dashboards and no default.
-              </p>
-              <div className="tgwc-fields">
-                <button type="button" className="tgwc-btn danger" disabled={!!busy} onClick={async () => {
-                  const key = current ? current.dashboard_key : active;
-                  setDialog(null);
-                  setActive(null);
-                  await runAction("delete", () => deleteDashboard(key));
-                }}>Yes, delete it</button>
-                <button type="button" className="tgwc-btn" onClick={() => setDialog(null)}>Keep it</button>
-              </div>
-            </>
-          )}
-        </div>
-      )}
+      {confirmDialog}
 
       {saveErr && <WcErr what="Your arrangement" err={saveErr} />}
       {boot.targets.err && <WcErr what="The owner-set targets" err={boot.targets.err} />}
