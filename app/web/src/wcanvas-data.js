@@ -15,7 +15,7 @@
      kpi_targets                owner-set targets            (never a number we chose)
      v_dashboard_trend          real daily snapshots         (never a drawn line without them)
      v_room_board_complete      room → department, so no room is shown bare (J7)
-     mv_tag_evidence            certificate and manifest per tag (C3a)
+     v_tag_evidence             certificate and manifest per tag (C3a)
      <widget.table_ref>         the figure and the records behind it
 
    and it writes only through the functions Agent I built:
@@ -356,18 +356,36 @@ export function qualifyRoom(map, value) {
 }
 
 /* ═══════════ certificate and manifest, per row (C3a) ═══════════
-   mv_tag_evidence resolves the certificate directly, then by inheritance from a
+   v_tag_evidence resolves the certificate directly, then by inheritance from a
    parent package, then a lab result with no certificate, then nothing — and
    when nothing, it serves the sentence saying why. The signed link is minted at
    click time and never stored: all 3,666 stored URLs were signed together and
-   expire on one day. */
+   expire on one day.
+
+   REPOINTED FROM mv_tag_evidence, 13 Aug 2026, in the same commit as
+   dashkit.jsx so the two evidence readers can never disagree about which view
+   is authoritative. Same 4,553 tags; columns 1-15 identical in name, order and
+   type; 182 tags gain an openable certificate the matview served as absent and
+   none loses one. Until both readers said v_, certified material read as
+   uncertified on every screen.
+
+   `select("*")` means the four appended columns arrive here with no further
+   change: certificate_grade, certificate_hops, certificate_client and
+   certificate_client_license. evidence_source carries a FIFTH value,
+   `certificate on file` — Metrc's lab result names the certificate and the
+   document opens, but the document does not print that tag. Nothing in this
+   module branches on evidence_source, so the new value passes through
+   untouched; EvidenceCell in wcanvas-kinds.jsx tests only for `inherited` and
+   therefore renders it as a working Certificate of Analysis button. That file
+   does NOT yet show certificate_grade — it is owned by another session and is
+   deliberately left alone here rather than edited behind its back. */
 export async function loadEvidence(tags) {
   const list = [...new Set(tags.filter(Boolean).map(String))];
   if (!list.length) return { map: new Map(), err: null };
   const CHUNK = 200;
   const map = new Map();
   for (let i = 0; i < list.length; i += CHUNK) {
-    const r = await read(supabase.from("mv_tag_evidence").select("*").in("tag", list.slice(i, i + CHUNK)));
+    const r = await read(supabase.from("v_tag_evidence").select("*").in("tag", list.slice(i, i + CHUNK)));
     if (r.err) return { map: null, err: r.err };
     for (const row of r.rows) map.set(row.tag, row);
   }

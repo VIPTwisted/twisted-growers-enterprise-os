@@ -21,7 +21,7 @@
    THE DATA LAYER IS AGENT I'S AND IS CONSUMED AS SERVED. This file computes no
    business figure. Reads: v_my_dashboard_layout · mv_department_dashboard ·
    v_dashboard_trend · kpi_targets · v_finding_causes · v_findings ·
-   mv_global_management · mv_tag_evidence · v_section_narrative ·
+   mv_global_management · v_tag_evidence · v_section_narrative ·
    dashboard_commentary · tg_period_narrative. Writes: tg_save_dashboard_layout
    (the caller's own layout) and tg_assign_from_tile (administrator-gated).
 
@@ -311,13 +311,27 @@ export function DkSpark({ series, direction }) {
 /* ═══════════════════════════════════════════════════════════════════════════
    FORENSIC EVIDENCE — C3a / L2, satisfied site-wide from ONE source.
 
-   mv_tag_evidence resolves each tag in Agent I's order: a certificate filed
+   v_tag_evidence resolves each tag in Agent I's order: a certificate filed
    directly on the tag → one INHERITED from up to five generations of parent
    packages → a Metrc lab result with no certificate → nothing, and when
-   nothing, why_no_certificate is a sentence stating why. Measured live 12 Aug
-   2026: 969 direct · 1,520 inherited · 837 lab-result-only · 1,100 none, and
-   every one of those 1,937 carries its reason. So a row NEVER shows a blank or
-   a dash: it shows the document, or the sentence.
+   nothing, why_no_certificate is a sentence stating why. So a row NEVER shows a
+   blank or a dash: it shows the document, or the sentence.
+
+   REPOINTED FROM mv_tag_evidence, 13 Aug 2026. Same 4,553 tags, columns 1-15
+   identical in name, order and type — verified here against pg_attribute, not
+   taken on trust. 323 rows changed VALUE, which is the entire point of the
+   release: 182 tags gained an openable certificate that the matview rendered as
+   "no certificate", and NOT ONE tag lost a certificate or a manifest. Until
+   this line said v_, material that is certified in the database read as
+   uncertified on every screen in the platform.
+
+   evidence_source now carries FIVE values, not four. Measured 13 Aug 2026 over
+   all 4,553 tags: 1,669 inherited · 1,080 none · 969 direct · 675 lab result
+   only · 160 CERTIFICATE ON FILE. The fifth is new and it is the subtle one:
+   Metrc's lab result for the tag names a certificate and the document opens,
+   but THE DOCUMENT DOES NOT PRINT THAT TAG. Of those 160, seven are named by a
+   certificate that prints a DIFFERENT tag. Nothing here branches on the value —
+   certificate_grade carries the basis in plain words and is rendered as served.
 
    THE LINK IS MINTED AT CLICK TIME AND NEVER STORED. All 3,666 stored
    download_url values were signed together and expire on one day; a cached
@@ -340,7 +354,7 @@ export function useTagEvidence(tags) {
     const CHUNK = 200;
     const chunks = [];
     for (let i = 0; i < list.length; i += CHUNK) chunks.push(list.slice(i, i + CHUNK));
-    Promise.all(chunks.map((c) => supabase.from("mv_tag_evidence").select("*").in("tag", c)))
+    Promise.all(chunks.map((c) => supabase.from("v_tag_evidence").select("*").in("tag", c)))
       .then((results) => {
         if (!live) return;
         const bad = results.find((r) => r.error);
@@ -381,9 +395,12 @@ export function DkDocButton({ path, label, title }) {
 }
 
 /* THE CELL DEFENDS ITSELF — it does not trust the view to have kept its own
-   promise. mv_tag_evidence undertakes that where a document is absent a reason
-   sentence is served in its place, and on 12 Aug 2026 it broke that undertaking
-   on 14 rows: manifest null AND reason null. Rendering a served null into an
+   promise. v_tag_evidence undertakes that where a document is absent a reason
+   sentence is served in its place, and it breaks that undertaking on 14 rows:
+   manifest null AND reason null. Re-measured 13 Aug 2026 after the repoint —
+   still exactly 14, unchanged by the new view, so this floor is still load-
+   bearing and is not being removed on the strength of a green release.
+   Rendering a served null into an
    empty span would have produced exactly the blank cell rule A3 forbids — and
    it would have been MY defect, not only the view's, because a component that
    renders whatever it is handed has no floor of its own. So the missing reason
@@ -408,7 +425,7 @@ export function TagEvidence({ tag, compact = false }) {
     /* Honest: the tag is not in the evidence view at all, which is itself a
        finding — never dressed up as "no documents". */
     return (
-      <span className="cc-evwhy attn" title="mv_tag_evidence resolves every tag in the package mirror. A tag missing from it has not been through the evidence build — raise it with the database team.">
+      <span className="cc-evwhy attn" title="v_tag_evidence resolves every tag in the package mirror. A tag missing from it has not been through the evidence build — raise it with the database team.">
         no evidence row for this tag — it is not in the evidence view
       </span>
     );
@@ -419,6 +436,29 @@ export function TagEvidence({ tag, compact = false }) {
   const certTitle = e.evidence_source === "inherited"
     ? `Certificate of Analysis inherited from parent package ${e.certificate_inherited_from}${e.certificate_date ? `, tested ${String(e.certificate_date).slice(0, 10)}` : ""}${e.lab_name ? `, ${e.lab_name}` : ""}. Opens the real document.`
     : `Certificate of Analysis${e.certificate_date ? `, tested ${String(e.certificate_date).slice(0, 10)}` : ""}${e.lab_name ? `, ${e.lab_name}` : ""}. Opens the real document.`;
+  /* THE BASIS, IN PLAIN WORDS — and it is shown, not hidden in a tooltip.
+     A DISTINCTION NOBODY CAN SEE IS NOT A DISTINCTION. Four different bases
+     currently render as the identical button "Certificate of Analysis":
+     `direct` (the document names this tag), `inherited` (a parsed certificate
+     names an ancestor), `inherited via Metrc` (the ancestor's lab result names
+     it), and `certificate on file` — where Metrc's lab result names the
+     certificate and the document opens, BUT THE DOCUMENT DOES NOT PRINT THIS
+     TAG. Seven of those 160 are named by a certificate printing a DIFFERENT
+     tag. Someone about to quote a certificate to an inspector needs that
+     sentence before they do it, and a title attribute is not read aloud by a
+     person under audit.
+
+     ONLY WHERE A DOCUMENT EXISTS. With no document, why_no_certificate is
+     already the richer sentence — it names the laboratory, the result date and
+     the lab state, where the grade only restates the category. Rendering both
+     would put two sentences for one fact on one row, which is the duplicate
+     definition the DDC discipline counts as the defect. One definition: the
+     grade qualifies a document that is present, the reason explains one absent.
+
+     `attn` — the existing gold token, no new colour — is reserved for
+     `certificate on file`, the one class whose document does not name the tag.
+     It is driven off evidence_source, a real column, never a match on prose. */
+  const gradeAttn = e.evidence_source === "certificate on file";
   /* NO onClick ON THIS WRAPPER. It once carried one purely to stop a click
      reaching the expanding row underneath, which made a plain span a click
      target no keyboard can tab to and no screen reader announces — precisely
@@ -429,6 +469,12 @@ export function TagEvidence({ tag, compact = false }) {
       {e.certificate_document
         ? <DkDocButton path={e.certificate_document} label={compact ? "Certificate" : certLabel} title={certTitle} />
         : <span className="cc-evwhy" title="Rule A3: absence is explained, never blank.">{reasonOr(e.why_no_certificate, "certificate")}</span>}
+      {e.certificate_document && e.certificate_grade && (
+        <span className={gradeAttn ? "cc-evwhy attn" : "cc-evwhy"}
+          title="How this certificate was matched to this tag. It wraps in full and is never shortened — the basis is the whole point of it.">
+          {e.certificate_grade}
+        </span>
+      )}
       {e.manifest_document
         ? <DkDocButton path={e.manifest_document} label={`Manifest ${e.manifest_number ?? ""}`.trim()}
             title={`Manifest ${e.manifest_number ?? ""}. Opens the real document.`} />
