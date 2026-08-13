@@ -24,3 +24,12 @@ app/web/.netlify/
 **/__pycache__/
 # Downloaded PDF cache for the document parsers — regenerable from storage
 tools/documents/.cache/
+
+# Migrations whose recorded statements contain live credentials. The mirror in
+# tools/sync-migrations.mjs rewrites them from schema_migrations on every run, so they
+# are ignored by name rather than deleted. Rotate the keys, scrub the recorded
+# statements in the database, then remove these lines.
+supabase/migrations/20260805154324_metrc_auto_sync_schedule.sql
+supabase/migrations/20260805173721_metrc_reference_tables_and_schedule.sql
+supabase/migrations/20260807224411_permanent_document_urls_no_expiry_anywhere.sql
+supabase/migrations/20260805215014_vincent_user_and_ai_budget.sql
