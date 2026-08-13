@@ -681,8 +681,12 @@ function AdherenceBand({ rows, err, deptOf, said, onRecord, openBand, setOpenBan
    ═══════════════════════════════════════════════════════════════════════════ */
 const PCT = 100;
 function DriftBars({ rows, deptOf }) {
+  /* A pull whose date has not arrived carries days_late = 0, and drawing it as
+     a zero-length bar beside the pulls that came down would read as "on time"
+     for something that has not happened. Only pulls with something to judge are
+     drawn, and the sentence below says so. */
   const pulls = rows
-    .filter((r) => r.event_type === PULL && r.days_late != null)
+    .filter((r) => r.event_type === PULL && r.days_late != null && bandOf(r) !== "ahead")
     .sort((a, b) => Number(a.pull_no) - Number(b.pull_no));
   if (pulls.length < 2) {
     return (
@@ -701,7 +705,10 @@ function DriftBars({ rows, deptOf }) {
           const open = r.actual_date === null;
           return (
             <div key={rowKey(r.pull_no, D(r.scheduled_date))} className="sch-bar">
-              <span className="sch-bar-lbl">{qualify(deptOf, r.room)}</span>
+              <span className="sch-bar-lbl">
+                {r.pull_no == null ? "" : `#${r.pull_no} `}{qualify(deptOf, r.room)}
+                <em>{D(r.scheduled_date)}</em>
+              </span>
               <span className="sch-track">
                 <span className={`sch-fill ${v > 0 ? (open ? "crit" : "warn") : ""}`}
                   style={{ width: `${((v / max) * PCT).toFixed(1)}%` }} />
@@ -720,6 +727,9 @@ function DriftBars({ rows, deptOf }) {
         isolated misses. Those need different answers from a manager, and a single average across
         these bars would look identical for both. The bars drawn in the strongest tone are pulls that
         have <b>not come down at all</b> — their figure is measured from today and is not final.
+        Pulls whose date has not arrived are <b>not drawn</b>: they carry a days-late figure of zero
+        because there is nothing to judge yet, and a zero-length bar beside these would read as
+        &ldquo;on time&rdquo; for something that has not happened.
       </div>
     </>
   );

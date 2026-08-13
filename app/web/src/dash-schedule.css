@@ -30,8 +30,18 @@
    about a fourfold move. Bars keep the two magnitudes side by side at the same
    scale, which is what "reads as a direction" means. */
 .sch-trend { display: flex; flex-direction: column; gap: 3px; }
-.sch-bar { display: grid; grid-template-columns: 96px minmax(0, 1fr) 116px; gap: 8px; align-items: center; min-height: 26px; }
-.sch-bar-lbl { font-family: var(--ccmono); font-size: 11px; color: var(--cct1); font-variant-numeric: tabular-nums; }
+.sch-bar { display: grid; grid-template-columns: minmax(140px, 210px) minmax(0, 1fr) 128px; gap: 8px; align-items: center; min-height: 26px; }
+/* Wraps, never clips. A room label is name plus department and it is long by
+   design — shortening it is how a reader ends up looking at the wrong room. */
+.sch-bar-lbl {
+  font-family: var(--ccmono); font-size: 11px; line-height: 1.35; color: var(--cct1);
+  font-variant-numeric: tabular-nums; overflow-wrap: anywhere; min-width: 0;
+}
+.sch-bar-lbl em { font-style: normal; color: var(--cct2); margin-left: 5px; }
+@media (max-width: 760px) {
+  .sch-bar { grid-template-columns: minmax(0, 1fr) 110px; row-gap: 2px; }
+  .sch-track { grid-column: 1 / -1; }
+}
 .sch-track { height: 8px; background: var(--cc2); border: 1px solid var(--ccline); min-width: 0; }
 .sch-fill { display: block; height: 100%; background: var(--cct2); }
 .sch-fill.crit { background: var(--cccrit); }
