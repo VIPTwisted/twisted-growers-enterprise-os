@@ -48,7 +48,7 @@
      here ask who is asking, and say "you cannot see this" rather than showing an
      empty box that reads as calm.
    ═══════════════════════════════════════════════════════════════════════════ */
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "./lib/supabase.js";
 import {
   read, callRpc, loadEvidence, qualifyRoom, tagColumnIn, dateText, stampText,
@@ -228,41 +228,28 @@ function DataAge({ newest, what, scope, loaded, total }) {
   );
 }
 
-/* WIDTH ONLY, AND ON PURPOSE.
-   A chart drawn into a stretched viewBox distorts its own dots and its own text,
-   so the chart is drawn at real pixels measured from the box it sits in.
-   Measuring the HEIGHT as well froze the renderer on the live site, 13 Aug 2026,
-   the instant a figure was chosen: the plot box was a growing flex child of a
-   scrolling column, so a taller plot pushed the prose below it into another line,
-   which shrank the plot, which shortened the prose — an oscillation the observer
-   re-rendered on every pass. The tab stopped responding.
-   Height no longer comes from measurement at all; it is derived from the panel's
-   own saved row count, which nothing on screen can change. Width is measured, and
-   width cannot feed back because the SVG is absolutely positioned inside a clipped
-   parent and so contributes nothing to layout. */
-function useWidth() {
-  const ref = useRef(null);
-  const [w, setW] = useState(0);
-  useEffect(() => {
-    const el = ref.current;
-    if (!el || typeof ResizeObserver === "undefined") return undefined;
-    const ro = new ResizeObserver((entries) => {
-      for (const e of entries) {
-        const next = e.contentRect.width;
-        setW((cur) => (Math.abs(cur - next) < 1 ? cur : next));
-      }
-    });
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, []);
-  return [ref, w];
-}
+/* THE CHART IS NOT MEASURED. NOTHING ON THIS CANVAS OBSERVES ITS OWN SIZE.
+   Two deploys on 13 Aug 2026 froze the tab outright — not slow, unrecoverable —
+   and both had the same shape: a ResizeObserver on an element whose size the
+   drawing could influence, feeding React state, feeding a re-render, feeding
+   layout. I closed the direct path (absolute inside a clipped parent), then the
+   height path (fixed from the saved row count), and it froze a third time. A
+   feedback loop I cannot prove is closed is not closed.
+   So the measurement is gone. The plot is drawn in a FIXED coordinate space and
+   the browser scales it — `xMidYMid meet`, so the scale is uniform on both axes
+   and nothing is stretched: dots stay round, the hairline stays a hairline, and
+   the labels shrink evenly rather than distorting. There is no observer, no state
+   and no re-render on resize, so there is nothing left that can spin.
+   The cost is honest and small: at a narrow panel the 10px axis labels render
+   around 9px, which is inside the 9–11px chrome band. Prose is untouched and
+   still sits on the 12px floor. */
+const PLOT_W = 600;
+const PLOT_H = 200;
 
-/* One grid row is 52px with a 6px gap. A panel spends its first two rows on the
-   header, the dropdowns and the figure, and the rest below the chart on the
-   readings, the basis and the drill — so the plot takes the middle band. Clamped
-   so a one-row panel still draws something legible and a twelve-row panel does
-   not draw a chart taller than the screen. */
+/* One grid row is 52px with a 6px gap. The panel spends its top on the dropdowns,
+   the figure and the chips, and its bottom on the readings, the basis and the
+   drill — the plot takes the band between. Clamped so a short panel still draws
+   something legible and a tall one does not draw a chart taller than the screen. */
 const plotHeightFor = (rows) => Math.max(90, Math.min(280, (Number(rows) || 6) * 58 - 160));
 
 /* One reader for every panel in this file: bind the error, count the total, never
@@ -311,8 +298,10 @@ function useRows(build, deps, enabled = true) {
    CHART — a figure over time, drawn only from readings that exist
    ═══════════════════════════════════════════════════════════════════════════ */
 
-function TrendPlot({ w, h, days, values, target, direction, shape, breach }) {
-  const PAD = { l: 42, r: 10, t: 10, b: 18 };
+function TrendPlot({ days, values, target, direction, shape, breach }) {
+  const w = PLOT_W;
+  const h = PLOT_H;
+  const PAD = { l: 60, r: 14, t: 14, b: 26 };
   const iw = Math.max(20, w - PAD.l - PAD.r);
   const ih = Math.max(20, h - PAD.t - PAD.b);
   const n = values.length;
@@ -332,7 +321,8 @@ function TrendPlot({ w, h, days, values, target, direction, shape, breach }) {
   const num = (v) => Number(v).toLocaleString(undefined, { maximumFractionDigits: 1 });
 
   return (
-    <svg className={`tgwc-chart ${tone}`} width={w} height={h} role="img"
+    <svg className={`tgwc-chart ${tone}`} viewBox={`0 0 ${w} ${h}`}
+      preserveAspectRatio="xMidYMid meet" role="img"
       aria-label={`${n} readings between ${dateText(days[0]) ? dateText(days[0]) : "an unrecorded date"} and ${dateText(days[n - 1]) ? dateText(days[n - 1]) : "an unrecorded date"}, running from ${num(values[0])} to ${num(values[n - 1])}.`}>
       {/* the band the readings sit in, labelled at both ends */}
       <line className="ax" x1={PAD.l} y1={PAD.t} x2={PAD.l} y2={PAD.t + ih} />
@@ -369,7 +359,6 @@ function TrendPlot({ w, h, days, values, target, direction, shape, breach }) {
 }
 
 export function ChartBody({ item, cfg, targets, trends, setCfg, onDrill }) {
-  const [ref, boxW] = useWidth();
   const [readings, setReadings] = useState(false);
   const [admin, setAdmin] = useState({ value: null, err: null });
 
@@ -492,23 +481,14 @@ export function ChartBody({ item, cfg, targets, trends, setCfg, onDrill }) {
       </div>
 
       {points >= 2 ? (
-        <div className="tgwc-plotbox" ref={ref} style={{ height: plotHeightFor(item.h) }}>
-          {boxW > 90 && (
-            <TrendPlot
-              w={Math.floor(boxW)} h={plotHeightFor(item.h)}
-              days={days} values={values}
-              target={target ? Number(target.target) : null}
-              direction={target ? target.direction : null}
-              shape={cfg.shape === "bars" ? "bars" : "line"}
-              breach={breach}
-            />
-          )}
-          {boxW > 0 && boxW <= 90 && (
-            <span className="tgwc-evwhy">
-              This panel is too narrow to draw a chart anybody could read, so none is drawn. Make it
-              wider — drag its right edge, or focus its handle and hold Shift with the right arrow.
-            </span>
-          )}
+        <div className="tgwc-plotbox" style={{ height: plotHeightFor(item.h) }}>
+          <TrendPlot
+            days={days} values={values}
+            target={target ? Number(target.target) : null}
+            direction={target ? target.direction : null}
+            shape={cfg.shape === "bars" ? "bars" : "line"}
+            breach={breach}
+          />
         </div>
       ) : (
         /* UNDER TWO READINGS, NOTHING IS DRAWN. Not a flat line, not a single dot

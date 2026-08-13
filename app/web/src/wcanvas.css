@@ -375,7 +375,9 @@
   position: relative; overflow: hidden;
   flex: 0 0 auto; min-width: 0;
 }
-.tgwc-chart { display: block; position: absolute; top: 0; left: 0; }
+/* Fills its box and scales UNIFORMLY (xMidYMid meet on the element), so nothing
+   is stretched and nothing is measured. */
+.tgwc-chart { display: block; width: 100%; height: 100%; }
 .tgwc-chart .ax     { stroke: var(--wc-line); stroke-width: 1; }
 .tgwc-chart .line   { fill: none; stroke: var(--wc-info); stroke-width: 1.5; stroke-linejoin: round; }
 .tgwc-chart .dot    { fill: var(--wc-info); }
