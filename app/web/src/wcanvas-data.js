@@ -382,6 +382,47 @@ export async function signDocument(path) {
 
 /* ═══════════ the canvas's own reads ═══════════ */
 
+/* ═══════════ who is asking, and what they are allowed to see ═══════════
+   Resolved through app_users, which is the auth-to-employee link this platform
+   already has. There is no second identity path and none is invented here. */
+export async function loadMyIdentity() {
+  const { data: sess } = await supabase.auth.getSession();
+  const uid = sess && sess.session && sess.session.user ? sess.session.user.id : null;
+  const email = sess && sess.session && sess.session.user ? sess.session.user.email : null;
+  if (!uid) return { state: "anonymous", uid: null, email: null, name: null, err: null };
+  const link = await read(supabase.from("app_users").select("display_name, employee_id").eq("user_id", uid).limit(1));
+  if (link.err) return { state: "error", uid, email, name: null, err: link.err };
+  const row = link.rows.length ? link.rows[0] : null;
+  if (row && row.display_name) return { state: "ready", uid, email, name: row.display_name, err: null };
+  if (row && row.employee_id) {
+    const emp = await read(supabase.from("employees").select("full_name").eq("id", row.employee_id).limit(1));
+    if (emp.err) return { state: "error", uid, email, name: null, err: emp.err };
+    if (emp.rows.length && emp.rows[0].full_name) {
+      return { state: "ready", uid, email, name: emp.rows[0].full_name, err: null };
+    }
+  }
+  /* Signed in, but this account carries no name anywhere. Said plainly rather
+     than invented, because a message signed with a made-up name is a forged
+     record in a table people will later read as evidence of who said what. */
+  return { state: "unnamed", uid, email, name: null, err: null };
+}
+
+/* audit_events is readable only by executives (policy exec_all, USING is_executive()).
+   RLS FILTERS, IT DOES NOT ERROR — a non-executive gets zero rows and no message, which
+   is indistinguishable on screen from "nothing has happened". This is how the surface
+   tells those two apart instead of guessing. */
+export const callerIsExecutive = () => callRpc("is_executive");
+
+export const loadChannels = () =>
+  read(supabase.from("channels").select("id, name, description").order("name", { ascending: true }));
+
+/* The one write this canvas makes that is not a layout. The insert binds its error and
+   returns it; nothing here retries, and nothing here pretends a failed send succeeded. */
+export async function sendChannelMessage(channel_id, user_id, author, body) {
+  const { error } = await supabase.from("messages").insert({ channel_id, user_id, author, body });
+  return { err: error ? error.message : null };
+}
+
 export const loadDashboards = () => read(supabase.from("v_my_dashboards").select("*"));
 export const loadTemplates = () => read(supabase.from("v_dashboard_templates").select("*"));
 export const loadCatalogue = () => read(supabase.from("v_widget_catalog_available").select("*"));
@@ -442,6 +483,26 @@ export const setDefaultDashboard = (key) => callRpc("tg_set_default_dashboard", 
 /* ═══════════ small shared helpers ═══════════ */
 
 export const uidOf = (widget_key, instance_id) => `${widget_key}#${instance_id ?? 1}`;
+
+/* ONE DATE PATTERN ON THIS CANVAS, and one timestamp pattern. Both live here, beside
+   formatFigure, because a second definition of "how a date looks" is the DDC defect the
+   owner counted: two formats on one page and nobody can tell whether they mean the same
+   thing. dateText was defined inside wcanvas-kinds.jsx until 13 Aug 2026; it moved here
+   rather than being copied, so the count of definitions went from one to one.
+
+   These take the leading characters of an ISO timestamp deliberately: 2026-08-13T01:53:48Z
+   is already in the order a person reads, so nothing is reordered, nothing is localised
+   away, and nothing is rounded. The seconds are dropped from stampText and NOTHING ELSE
+   is — a feed row states its minute, and the full value is in the drill. */
+export const dateText = (v) => (v ? String(v).slice(0, 10) : null);
+
+export function stampText(v) {
+  if (!v) return null;
+  const s = String(v);
+  const day = s.slice(0, 10);
+  const minute = s.slice(11, 16);
+  return /^\d{2}:\d{2}$/.test(minute) ? `${day} ${minute}` : day;
+}
 
 export function formatFigure(value, format) {
   const n = Number(value);

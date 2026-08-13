@@ -18,7 +18,7 @@ import { supabase } from "./lib/supabase.js";
 import {
   read, runMetric, probeColumns, orderColumnFor, fetchDrillPage, loadEvidence,
   signDocument, qualifyRoom, formatFigure, movementInWords, movementShort,
-  tagColumnIn, isRoomColumn,
+  tagColumnIn, isRoomColumn, dateText,
 } from "./wcanvas-data.js";
 
 /* ═══════════ shared small chrome ═══════════ */
@@ -45,7 +45,9 @@ export function WcEmpty({ why, fills, action, gap = false }) {
   );
 }
 
-const dateText = (v) => (v ? String(v).slice(0, 10) : null);
+/* dateText moved to wcanvas-data.js on 13 Aug 2026 and is imported above. It was
+   defined here and needed by wcanvas-live.jsx too; it was MOVED rather than copied,
+   so this canvas still has exactly one definition of how a date looks. */
 
 /* ═══════════ certificate and manifest on the row (C3a) ═══════════ */
 
@@ -955,26 +957,13 @@ export function LookupBody({ item, cfg, roomMap, onDrill }) {
   );
 }
 
-/* ═══════════ the dispatcher ═══════════ */
+/* ═══════════ the dispatcher lives in wcanvas-live.jsx ═══════════
+   It was here until 13 Aug 2026. It moved because the four remaining kinds — chart,
+   list, feed and messaging — are built in wcanvas-live.jsx, and a dispatcher that
+   imports from that file while that file imports the six bodies from this one is a
+   cycle. Moving the switch out breaks the cycle and, more to the point, keeps the
+   number of dispatchers at ONE. Two switches on widget_kind, each knowing about some
+   of the kinds, is the exact defect the owner counted six times over on 12 Aug: a
+   primitive with two definitions, both of which look fine on their own.
 
-export function WidgetBody(props) {
-  const { item } = props;
-  switch (item.widget_kind) {
-    case "metric":   return <MetricBody {...props} />;
-    case "calendar": return <CalendarBody {...props} />;
-    case "schedule": return <ScheduleBody {...props} />;
-    case "alerts":   return <AlertsBody {...props} />;
-    case "tasks":    return <TasksBody {...props} />;
-    case "lookup":   return <LookupBody {...props} />;
-    default:
-      /* Declared in the catalogue, not yet drawn here. Named, so it is a known
-         gap rather than a panel that mysteriously renders nothing. */
-      return (
-        <WcEmpty gap
-          why={`"${item.catalogue_label ?? item.label}" is registered as a ${item.widget_kind} widget, and this canvas cannot draw that kind yet.`}
-          fills="The panel keeps its place and its settings; it will render the moment the kind is built. Nothing about the underlying data is being hidden — there is simply no drawing for it here."
-          action={props.onDrill ? <button type="button" className="tgwc-btn" onClick={props.onDrill}>Open the records behind it</button> : null}
-        />
-      );
-  }
-}
+   wcanvas.jsx imports { WidgetBody } from "./wcanvas-live.jsx". */

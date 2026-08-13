@@ -308,6 +308,83 @@
   color: var(--wc-mute); padding-top: 4px;
 }
 
+/* ═══════════ the dropdown row on the widget's own face ═══════════
+   Owner, 12 Aug 2026: "CALANDARS AND CAN SELECT CALANDAR FROM DROPDOWN, SCHDULES
+   AND CAN SELECT SCHEDULES FROM DROP DOWN". Every SELECT a widget declares sits
+   here, above its content, on the panel — not three clicks away in settings.
+
+   It reuses .tgwc-sel and .tgwc-fieldlabel exactly. No second control size, no
+   second label style: the count of definitions of "a dropdown on this canvas"
+   stays at one. */
+.tgwc-pickbar {
+  display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: center;
+  border-bottom: 1px solid var(--wc-line);
+  padding-bottom: 4px;
+  flex: 0 0 auto;
+  min-width: 0;
+}
+.tgwc-pick { display: inline-flex; align-items: center; gap: 4px; min-width: 0; max-width: 100%; }
+.tgwc-pick .tgwc-sel { max-width: 190px; }
+/* The catalogue's own note about a choice — "UNFED — work_orders is empty". It
+   WRAPS, because clipping the warning is worse than not showing it. */
+.tgwc-pick .tgwc-evwhy { flex: 1 1 120px; min-width: 0; }
+
+/* ═══════════ a row that opens its own record ═══════════
+   A real button, so Tab reaches it and Enter works. Styled as text because a
+   list of forty buttons reads as a wall of chrome. */
+.tgwc-rowopen {
+  font: inherit; font-size: 12px; text-align: left;
+  background: transparent; border: 0; padding: 0; margin: 0;
+  color: var(--wc-ink); cursor: pointer;
+  overflow-wrap: anywhere;
+}
+.tgwc-rowopen:hover { color: var(--wc-ok); text-decoration: underline; }
+.tgwc-row.msg { align-items: flex-start; padding: 4px 0; }
+.tgwc-row.msg .what b { color: var(--wc-ink2); font-weight: 700; }
+
+/* The diagnostic footer. Real DATA age, never computation age — the six-day
+   Command Center failure is in the root-cause ledger for exactly this. */
+.tgwc-age { border-top: 1px solid var(--wc-line); padding-top: 3px; }
+
+/* ═══════════ chart ═══════════
+   Drawn at real pixels, measured from the panel, so a 1px hairline is 1px and a
+   10px axis label is 10px at every panel width. Nothing in here is drawn unless
+   there are two real readings behind it. */
+.tgwc-plotbox { flex: 1 1 auto; min-height: 72px; min-width: 0; display: flex; }
+.tgwc-chart { display: block; }
+.tgwc-chart .ax     { stroke: var(--wc-line); stroke-width: 1; }
+.tgwc-chart .line   { fill: none; stroke: var(--wc-info); stroke-width: 1.5; stroke-linejoin: round; }
+.tgwc-chart .dot    { fill: var(--wc-info); }
+.tgwc-chart .bar    { fill: var(--wc-info); }
+.tgwc-chart.good .line, .tgwc-chart.good .dot, .tgwc-chart.good .bar { stroke: var(--wc-ok);   fill: var(--wc-ok); }
+.tgwc-chart.good .line { fill: none; }
+.tgwc-chart.bad  .line, .tgwc-chart.bad  .dot, .tgwc-chart.bad  .bar { stroke: var(--wc-crit); fill: var(--wc-crit); }
+.tgwc-chart.bad  .line { fill: none; }
+/* The owner-set target. Dashed, because it is a line somebody DECIDED, not a line
+   the business drew. */
+.tgwc-chart .target   { stroke: var(--wc-attn); stroke-width: 1; stroke-dasharray: 3 3; }
+.tgwc-chart .target-t { fill: var(--wc-attn); }
+.tgwc-chart .tick     { fill: var(--wc-mute); font-size: 10px; font-variant-numeric: tabular-nums; }
+
+/* ═══════════ writing a message ═══════════ */
+.tgwc-compose {
+  display: flex; flex-direction: column; gap: 4px;
+  border-top: 1px solid var(--wc-line);
+  padding-top: 5px; margin-top: 2px;
+  flex: 0 0 auto;
+}
+.tgwc-ta {
+  background: var(--wc-input);
+  color: var(--wc-ink);
+  border: 1px solid var(--wc-line);
+  border-radius: var(--wc-r);
+  padding: 4px 6px;
+  font: inherit; font-size: 12px;     /* what a person TYPES is content, so it sits on the floor */
+  resize: vertical; min-height: 34px; width: 100%; min-width: 0;
+}
+.tgwc-ta:focus { outline: none; border-color: var(--wc-ok); }
+.tgwc-ta:disabled { opacity: 0.6; }
+
 /* ═══════════ settings panel, picker, dialogs ═══════════ */
 
 .tgwc-pop {

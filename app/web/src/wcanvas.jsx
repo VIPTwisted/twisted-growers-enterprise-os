@@ -31,10 +31,10 @@
    wherever it is mounted. It does not require .ccpage and imports no other
    page's stylesheet.
 
-   IT TOUCHES NOTHING ELSE. New files only: wcanvas.jsx, wcanvas-kinds.jsx,
-   wcanvas-data.js, wcanvas.css. No existing component, page or stylesheet is
-   modified, and nothing here is imported from App.jsx, commandcenter.jsx or
-   dashkit.jsx.
+   IT TOUCHES NOTHING ELSE. Its own files only: wcanvas.jsx, wcanvas-kinds.jsx,
+   wcanvas-live.jsx, wcanvas-data.js, wcanvas.css. No existing component, page or
+   stylesheet is modified, and nothing here is imported from App.jsx,
+   commandcenter.jsx or dashkit.jsx.
 
    THE THREE "NOTHING HERE YET" CASES, AND WHY NONE OF THEM IS AN ERROR
      v_my_dashboards → 0 rows   the user has never made a dashboard.
@@ -52,7 +52,10 @@ import {
   loadTrend, loadRoomDirectory, loadColumnSemantics, makeSaver, resetLayout, createDashboard, renameDashboard,
   deleteDashboard, setDefaultDashboard, forgetSourceTotals,
 } from "./wcanvas-data.js";
-import { WidgetBody, RecordDrill, WcEmpty, WcErr } from "./wcanvas-kinds.jsx";
+import { RecordDrill, WcEmpty, WcErr } from "./wcanvas-kinds.jsx";
+/* The dispatcher moved to wcanvas-live.jsx on 13 Aug 2026 with the four kinds it
+   now has to know about. There is still exactly one of it. */
+import { WidgetBody } from "./wcanvas-live.jsx";
 import "./wcanvas.css";
 
 /* An icon column that carries two vocabularies: 45 metric widgets name an icon
@@ -99,6 +102,23 @@ function SchemaField({ id, name, def, value, onChange, onCommit }) {
       </div>
     );
   }
+  /* A choice whose list is ROWS, not a schema: which channel, which figure has
+     readings. It cannot be drawn from the schema because the schema does not know
+     what exists today, so it is drawn on the panel face where the list is read.
+     Said here rather than left out — a setting that silently does not appear in
+     the place a user goes looking for settings is a setting they cannot find. */
+  if (def?.type === "live_select") {
+    return (
+      <div className="tgwc-field">
+        <span className="tgwc-fieldlabel">{label}</span>
+        <span className="tgwc-say">
+          Chosen from the dropdown on the panel itself, because the choices are live records
+          rather than a fixed list. It is currently set to{" "}
+          <b>{shown === "" ? "nothing — the panel says which it is standing in for" : String(shown)}</b>.
+        </span>
+      </div>
+    );
+  }
   if (def?.type === "number") {
     return (
       <div className="tgwc-field">
@@ -137,13 +157,23 @@ function SchemaField({ id, name, def, value, onChange, onCommit }) {
    ONE PANEL
    ═══════════════════════════════════════════════════════════════════════════ */
 function Panel({
-  item, spec, target, trend, roomMap, options, go, canRemove,
+  item, spec, target, trend, targets, trends, roomMap, options, go, canRemove,
   onPointerGesture, onKeyGesture, onPatch, onPatchLocal, onSaveNow, onRemove, onDrill,
   held, settingsOpen, onToggleSettings,
 }) {
   const cfg = useMemo(() => resolveConfig(item.options_schema, item.config), [item.options_schema, item.config]);
   const glyph = glyphOf(item.icon);
   const idBase = `tgwc-${item.uid.replace(/[^a-z0-9]/gi, "-")}`;
+
+  /* CHANGING A DROPDOWN ON THE PANEL FACE IS ONE FINISHED GESTURE, so it writes at
+     once — the same path the settings pop-out takes, not a second one. The owner
+     asked for the calendar, the schedule, the tasks and the alerts to be switchable
+     without leaving the board; the write behaviour must not differ depending on
+     which of the two places he changed it from. */
+  const setCfg = useCallback(
+    (name, value) => onPatch(item.uid, { config: { ...cfg, [name]: value } }),
+    [onPatch, item.uid, cfg],
+  );
 
   /* Every widget body may hand back its OWN source and filters, because the
      panel's source is not always the catalogue's: a Calendar set to
@@ -265,8 +295,11 @@ function Panel({
             spec={spec}
             target={target}
             trend={trend}
+            targets={targets}
+            trends={trends}
             roomMap={roomMap}
             cfg={cfg}
+            setCfg={setCfg}
             options={options}
             go={go}
             onDrill={drill}
@@ -819,6 +852,10 @@ export function WidgetCanvas({ page, go, heading }) {
         <div className="tgwc-grid" ref={gridRef}>
           {visible.map((item) => {
             const catKey = `${String(item.category).toLowerCase()}|${String(item.catalogue_label).toLowerCase()}`;
+            /* A metric tile gets the ONE target and the ONE trend matching its own
+               catalogue label. A chart is different: the figure it draws is chosen on
+               the panel itself, so it is handed the whole set to choose from. The same
+               two maps, built once at boot — not a second read. */
             return (
               <Panel
                 key={item.uid}
@@ -826,6 +863,8 @@ export function WidgetCanvas({ page, go, heading }) {
                 spec={specByKey.get(item.widget_key)}
                 target={targetByKey.get(catKey)}
                 trend={trendByKey.get(catKey)}
+                targets={targetByKey}
+                trends={trendByKey}
                 roomMap={roomMap}
                 options={{ which_schedule: normaliseOptions(item.options_schema?.which_schedule?.options) }}
                 go={go}
