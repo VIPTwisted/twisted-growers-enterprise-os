@@ -74,7 +74,12 @@ const glyphOf = (icon) => (icon && !/^[a-z0-9_-]+$/i.test(icon) ? icon : null);
    anything is not finished.
    Every one is still freely movable and resizable; this is only where it lands. */
 const ARRIVES_AT = {
-  chart:     { w: 6, h: 6 },   // dropdowns, a figure, the plot — all above the fold
+  /* MEASURED, twice, on the deployed site rather than estimated. Above the plot a
+     chart panel carries two dropdowns, the note on the chosen one, the figure, its
+     rail and up to four chips — about 190px before the picture starts. At 6 rows
+     that left the plot and its date axis below the fold. 8 rows fits all of it,
+     including a plot worth looking at. */
+  chart:     { w: 6, h: 8 },
   list:      { w: 6, h: 4 },   // rows carrying a certificate and a manifest
   feed:      { w: 6, h: 4 },   // a timestamp, the entry and who, on one line
   messaging: { w: 4, h: 4 },   // messages, plus somewhere to type
