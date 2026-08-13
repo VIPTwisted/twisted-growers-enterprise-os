@@ -376,7 +376,12 @@
    drawing a chart the height of the screen. */
 .tgwc-plotbox {
   position: relative; overflow: hidden;
-  flex: 1 1 auto; min-width: 0;
+  /* Basis 90px, not auto. With `auto` the box took its content's height and flex
+     had nothing to shrink, so at the size the panel arrives in the plot ran 60px
+     past the fold and took its own lower axis figure, its target label and both
+     dates with it — measured, 13 Aug 2026. From a 90px basis it fits whenever
+     space is tight and grows into a taller panel. */
+  flex: 1 1 90px; min-width: 0;
   min-height: 90px; max-height: 280px;
 }
 /* Fills its box and scales UNIFORMLY (xMidYMid meet on the element), so nothing
