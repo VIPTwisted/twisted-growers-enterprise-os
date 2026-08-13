@@ -300,12 +300,21 @@ function useRows(build, deps, enabled = true) {
    CHART — a figure over time, drawn only from readings that exist
    ═══════════════════════════════════════════════════════════════════════════ */
 
+/* EVERY WORD AND EVERY FIGURE IS REAL HTML AT A REAL PIXEL SIZE. Only the shapes
+   are in the SVG.
+   Text inside a scaled viewBox is scaled with it. Measured on the deployed site,
+   13 Aug 2026: a 10px axis label in a 600x200 viewBox rendered at FOUR AND A HALF
+   PIXELS in a panel-sized box, because `meet` takes the smaller of the two scales
+   and the box was far wider than it was tall. That is under the 9px chrome floor
+   and under the 12px prose floor, and it is unreadable — the exact "silently
+   truncated" failure in a different disguise.
+   So the labels live outside the drawing, at 10px, in the chrome band, wrapping
+   rather than clipping. The shapes stretch to fill (`preserveAspectRatio="none"`)
+   with `vector-effect="non-scaling-stroke"`, so the hairline stays a hairline at
+   any aspect. Nothing is measured; nothing observes its own size. */
 function TrendPlot({ days, values, target, direction, shape, breach }) {
   const w = PLOT_W;
   const h = PLOT_H;
-  const PAD = { l: 60, r: 14, t: 14, b: 26 };
-  const iw = Math.max(20, w - PAD.l - PAD.r);
-  const ih = Math.max(20, h - PAD.t - PAD.b);
   const n = values.length;
 
   const seen = target == null ? values : [...values, Number(target)];
@@ -313,50 +322,50 @@ function TrendPlot({ days, values, target, direction, shape, breach }) {
   const hi = Math.max(...seen);
   const flat = hi === lo;
 
-  /* A flat run is drawn flat, in the middle, and the axis says the same number at
-     both ends. Stretching an invented band around it would draw movement that did
-     not happen. */
-  const y = (v) => (flat ? PAD.t + ih / 2 : PAD.t + ih - ((Number(v) - lo) / (hi - lo)) * ih);
-  const x = (i) => PAD.l + (n === 1 ? iw / 2 : (i / (n - 1)) * iw);
+  /* A flat run is drawn flat, down the middle, and the axis says the same number
+     at both ends. Stretching an invented band around it would draw movement that
+     did not happen. */
+  const y = (v) => (flat ? h / 2 : h - ((Number(v) - lo) / (hi - lo)) * h);
+  const x = (i) => (n === 1 ? w / 2 : (i / (n - 1)) * w);
 
   const tone = breach === true ? "bad" : breach === false ? "good" : "";
   const num = (v) => Number(v).toLocaleString(undefined, { maximumFractionDigits: 1 });
+  const first = dateText(days[0]) ? dateText(days[0]) : "date not recorded";
+  const last = dateText(days[n - 1]) ? dateText(days[n - 1]) : "date not recorded";
 
   return (
-    <svg className={`tgwc-chart ${tone}`} viewBox={`0 0 ${w} ${h}`}
-      preserveAspectRatio="xMidYMid meet" role="img"
-      aria-label={`${n} readings between ${dateText(days[0]) ? dateText(days[0]) : "an unrecorded date"} and ${dateText(days[n - 1]) ? dateText(days[n - 1]) : "an unrecorded date"}, running from ${num(values[0])} to ${num(values[n - 1])}.`}>
-      {/* the band the readings sit in, labelled at both ends */}
-      <line className="ax" x1={PAD.l} y1={PAD.t} x2={PAD.l} y2={PAD.t + ih} />
-      <line className="ax" x1={PAD.l} y1={PAD.t + ih} x2={PAD.l + iw} y2={PAD.t + ih} />
-      <text className="tick" x={PAD.l - 4} y={PAD.t + 4} textAnchor="end">{num(hi)}</text>
-      <text className="tick" x={PAD.l - 4} y={PAD.t + ih} textAnchor="end">{num(lo)}</text>
-
-      {target != null && (
-        <>
-          <line className="target" x1={PAD.l} y1={y(target)} x2={PAD.l + iw} y2={y(target)} />
-          <text className="tick target-t" x={PAD.l + iw} y={y(target) - 3} textAnchor="end">
+    <div className="tgwc-plot">
+      <div className="tgwc-plot-y">
+        <span className="tgwc-tick">{num(hi)}</span>
+        <span className="tgwc-tick">{num(lo)}</span>
+      </div>
+      <div className="tgwc-plot-area">
+        <svg className={`tgwc-chart ${tone}`} viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" role="img"
+          aria-label={`${n} readings between ${first} and ${last}, running from ${num(values[0])} to ${num(values[n - 1])}. The highest is ${num(hi)} and the lowest ${num(lo)}.${target == null ? "" : ` The owner target is ${direction === "at_most" ? "no more than" : "at least"} ${num(target)}.`}`}>
+          {target != null && (
+            <line className="target" vectorEffect="non-scaling-stroke"
+              x1={0} y1={y(target)} x2={w} y2={y(target)} />
+          )}
+          {shape === "bars"
+            ? values.map((v, i) => {
+              const bw = Math.max(3, (w / n) * 0.6);
+              const top = Math.min(y(v), h - 1);
+              return <rect key={i} className="bar" x={Math.max(0, x(i) - bw / 2)} y={top} width={bw} height={Math.max(1, h - top)} />;
+            })
+            : <path className="line" vectorEffect="non-scaling-stroke"
+                d={values.map((v, i) => `${i ? "L" : "M"}${x(i).toFixed(1)} ${Math.min(h - 1, Math.max(1, y(v))).toFixed(1)}`).join(" ")} />}
+        </svg>
+      </div>
+      <div className="tgwc-plot-x">
+        <span className="tgwc-tick">{first}</span>
+        {target != null && (
+          <span className="tgwc-tick target">
             {direction === "at_most" ? "no more than" : "at least"} {num(target)}
-          </text>
-        </>
-      )}
-
-      {shape === "bars"
-        ? values.map((v, i) => {
-          const bw = Math.max(2, (iw / n) * 0.66);
-          const top = y(v);
-          const base = PAD.t + ih;
-          return <rect key={i} className="bar" x={x(i) - bw / 2} y={Math.min(top, base - 1)} width={bw} height={Math.max(1, base - top)} />;
-        })
-        : <path className="line" d={values.map((v, i) => `${i ? "L" : "M"}${x(i).toFixed(1)} ${y(v).toFixed(1)}`).join(" ")} />}
-
-      {shape !== "bars" && n <= 40 && values.map((v, i) => (
-        <circle key={i} className={i === n - 1 ? "dot last" : "dot"} cx={x(i)} cy={y(v)} r={i === n - 1 ? 2.6 : 1.6} />
-      ))}
-
-      <text className="tick" x={PAD.l} y={h - 4}>{dateText(days[0]) ? dateText(days[0]) : "date not recorded"}</text>
-      <text className="tick" x={PAD.l + iw} y={h - 4} textAnchor="end">{dateText(days[n - 1]) ? dateText(days[n - 1]) : "date not recorded"}</text>
-    </svg>
+          </span>
+        )}
+        <span className="tgwc-tick">{last}</span>
+      </div>
+    </div>
   );
 }
 

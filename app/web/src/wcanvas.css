@@ -384,22 +384,32 @@
   flex: 1 1 90px; min-width: 0;
   min-height: 90px; max-height: 280px;
 }
-/* Fills its box and scales UNIFORMLY (xMidYMid meet on the element), so nothing
-   is stretched and nothing is measured. */
+/* THE LABELS ARE HTML, NOT SVG TEXT, and that is the whole point of this block.
+   Text inside a scaled viewBox scales with it: a 10px label rendered at 4.5px in
+   a panel-sized box. Out here it is 10px at every size — inside the 9-11px chrome
+   band, wrapping rather than clipping. Only the shapes are drawn. */
+.tgwc-plot { display: grid; grid-template-columns: auto 1fr; grid-template-rows: 1fr auto; gap: 2px 4px; height: 100%; min-width: 0; }
+.tgwc-plot-y { display: flex; flex-direction: column; justify-content: space-between; align-items: flex-end; }
+.tgwc-plot-area { position: relative; min-width: 0; border-left: 1px solid var(--wc-line); border-bottom: 1px solid var(--wc-line); }
+.tgwc-plot-x { grid-column: 2; display: flex; justify-content: space-between; gap: 6px; min-width: 0; }
+.tgwc-tick {
+  font-size: 10px; color: var(--wc-mute);
+  font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+.tgwc-tick.target { color: var(--wc-attn); white-space: normal; overflow-wrap: anywhere; }
+
+/* Stretched to fill (preserveAspectRatio="none" on the element), with
+   non-scaling strokes so the hairline stays a hairline at any aspect. */
 .tgwc-chart { display: block; width: 100%; height: 100%; }
-.tgwc-chart .ax     { stroke: var(--wc-line); stroke-width: 1; }
 .tgwc-chart .line   { fill: none; stroke: var(--wc-info); stroke-width: 1.5; stroke-linejoin: round; }
-.tgwc-chart .dot    { fill: var(--wc-info); }
 .tgwc-chart .bar    { fill: var(--wc-info); }
-.tgwc-chart.good .line, .tgwc-chart.good .dot, .tgwc-chart.good .bar { stroke: var(--wc-ok);   fill: var(--wc-ok); }
-.tgwc-chart.good .line { fill: none; }
-.tgwc-chart.bad  .line, .tgwc-chart.bad  .dot, .tgwc-chart.bad  .bar { stroke: var(--wc-crit); fill: var(--wc-crit); }
-.tgwc-chart.bad  .line { fill: none; }
+.tgwc-chart.good .line { stroke: var(--wc-ok); }
+.tgwc-chart.good .bar  { fill: var(--wc-ok); }
+.tgwc-chart.bad  .line { stroke: var(--wc-crit); }
+.tgwc-chart.bad  .bar  { fill: var(--wc-crit); }
 /* The owner-set target. Dashed, because it is a line somebody DECIDED, not a line
    the business drew. */
-.tgwc-chart .target   { stroke: var(--wc-attn); stroke-width: 1; stroke-dasharray: 3 3; }
-.tgwc-chart .target-t { fill: var(--wc-attn); }
-.tgwc-chart .tick     { fill: var(--wc-mute); font-size: 10px; font-variant-numeric: tabular-nums; }
+.tgwc-chart .target { stroke: var(--wc-attn); stroke-width: 1; stroke-dasharray: 3 3; }
 
 /* ═══════════ writing a message ═══════════ */
 .tgwc-compose {
