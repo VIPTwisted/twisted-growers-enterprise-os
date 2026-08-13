@@ -1,26 +1,32 @@
-ps: >-
-  THE WATCHER FOR THE DEPLOY, AND WHY IT LIVES HERE AND NOWHERE ELSE.
-
-  On 12 Aug 2026 Netlify's GitHub webhook stopped firing at 19:52. Five pushes
-  followed. Not one triggered a build - so there were no failed builds to look at,
-  no red anywhere, and nothing to notice. The owner found it hours later by opening
-  a page and asking why it had not changed, and his reaction was the correct one:
-  "WHERE ARE THE WATCHERS AND GUARD".
-
-  The detector already existed. tools/checks/deploy-current.mjs compares the commit
-  the LIVE SITE is serving against origin/main and fails when they differ. Nothing
-  ran it. That is the same defect as everything else that day: the instrument was
-  built and never scheduled.
-
-  IT RUNS ON GITHUB DELIBERATELY. A watcher that lives inside the thing it watches
-  is not a watcher. If it ran in the Netlify build it would go quiet exactly when
-  Netlify stopped building - which is the failure. If it ran on the laptop it would
-  go quiet when the laptop is closed. GitHub Actions is outside both, and GitHub
-  emails the owner when a scheduled workflow fails, so the alert does not depend on
-  the platform's own alerting being wired.
-
-  IT NEEDS NO SECRET. It fetches the public site and reads git. Nothing to leak.
-
+# THE WATCHER FOR THE DEPLOY, AND WHY IT LIVES HERE AND NOWHERE ELSE.
+#
+# On 12 Aug 2026 Netlify's GitHub webhook stopped firing at 19:52. Five pushes
+# followed. Not one triggered a build - so there were no failed builds to look at,
+# no red anywhere, and nothing to notice. The owner found it hours later by opening
+# a page and asking why it had not changed, and his reaction was the correct one:
+# "WHERE ARE THE WATCHERS AND GUARD".
+#
+# The detector already existed. tools/checks/deploy-current.mjs compares the commit
+# the LIVE SITE is serving against origin/main and fails when they differ. Nothing
+# ran it. That is the same defect as everything else that day: the instrument was
+# built and never scheduled.
+#
+# IT RUNS ON GITHUB DELIBERATELY. A watcher that lives inside the thing it watches
+# is not a watcher. If it ran in the Netlify build it would go quiet exactly when
+# Netlify stopped building - which is the failure. If it ran on the laptop it would
+# go quiet when the laptop is closed. GitHub Actions is outside both, and GitHub
+# emails the owner when a scheduled workflow fails, so the alert does not depend on
+# the platform's own alerting being wired.
+#
+# IT NEEDS NO SECRET. It fetches the public site and reads git. Nothing to leak.
+#
+# THIS BLOCK WAS `ps: >-` UNTIL 13 Aug 2026 AND THAT MADE THE WHOLE FILE INVALID.
+# GitHub Actions validates workflows against a closed top-level schema and rejects an
+# unknown key outright, so this workflow never ran — not once. The watcher written
+# because the owner asked "WHERE ARE THE WATCHERS AND GUARD" was itself the unwired
+# instrument it was built to catch. Found by an agent reading the file, not by anything
+# that runs. Comments in YAML are `#`; prose at the top level is a syntax error.
+#
 name: deploy-watch
 
 on:
