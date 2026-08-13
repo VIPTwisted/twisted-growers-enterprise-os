@@ -366,14 +366,18 @@
    scrollbar appearing at one width and vanishing at the next is an observer loop
    that spins the renderer. Absolute inside a clipped relative parent makes that
    feedback path impossible rather than unlikely. */
-/* FIXED HEIGHT, SET FROM THE PANEL'S OWN ROW COUNT, never from flex growth.
-   As `flex: 1 1 auto` in a scrolling column this box grew, pushed the prose below
-   it onto another line, shrank again, and the observer watching it re-rendered on
-   every pass until the tab stopped responding. Height now comes from the saved
-   layout, which nothing on screen can move. */
+/* THE PLOT TAKES THE LEFTOVER SPACE, and CSS works out how much.
+   It is safe for this to grow and shrink because NOTHING WATCHES IT: the SVG
+   scales into it with a fixed viewBox, so the drawing contributes no size of its
+   own and no JavaScript re-renders on resize. That is the whole difference from
+   the version that froze the tab — the loop needed an observer feeding state, and
+   there is no longer an observer anywhere on this canvas.
+   The floor keeps a chart legible in a short panel; the ceiling stops a tall one
+   drawing a chart the height of the screen. */
 .tgwc-plotbox {
   position: relative; overflow: hidden;
-  flex: 0 0 auto; min-width: 0;
+  flex: 1 1 auto; min-width: 0;
+  min-height: 90px; max-height: 280px;
 }
 /* Fills its box and scales UNIFORMLY (xMidYMid meet on the element), so nothing
    is stretched and nothing is measured. */

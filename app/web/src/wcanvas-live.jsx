@@ -246,11 +246,13 @@ function DataAge({ newest, what, scope, loaded, total }) {
 const PLOT_W = 600;
 const PLOT_H = 200;
 
-/* One grid row is 52px with a 6px gap. The panel spends its top on the dropdowns,
-   the figure and the chips, and its bottom on the readings, the basis and the
-   drill — the plot takes the band between. Clamped so a short panel still draws
-   something legible and a tall one does not draw a chart taller than the screen. */
-const plotHeightFor = (rows) => Math.max(90, Math.min(280, (Number(rows) || 6) * 58 - 185));
+/* THE PLOT TAKES THE SPACE THAT IS LEFT, and CSS decides how much — see the
+   .tgwc-plotbox rule. Two attempts at an arithmetic height (rows * 58 - a
+   constant) both put the lower axis figure, the target label and the dates just
+   past the fold, because the chrome above the plot is not a constant: it grows a
+   line when the chosen option carries a note, and another when a target exists.
+   Subtracting a guess from a number that moves is how a chart ends up with its
+   own axis cut off. Flex knows the leftover space exactly and needs no guess. */
 
 /* One reader for every panel in this file: bind the error, count the total, never
    confuse "the read failed" with "there is nothing".
@@ -481,7 +483,7 @@ export function ChartBody({ item, cfg, targets, trends, setCfg, onDrill }) {
       </div>
 
       {points >= 2 ? (
-        <div className="tgwc-plotbox" style={{ height: plotHeightFor(item.h) }}>
+        <div className="tgwc-plotbox">
           <TrendPlot
             days={days} values={values}
             target={target ? Number(target.target) : null}
