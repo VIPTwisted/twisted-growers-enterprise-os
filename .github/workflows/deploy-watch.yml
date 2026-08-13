@@ -30,10 +30,19 @@
 name: deploy-watch
 
 on:
+  # EVERY COMMIT. Owner, 13 Aug 2026: "i do not ever want to hear again the excuse
+  # stuck behind commits; deploy watchguard immeidty so this can not happen again
+  # that watches every commit". A schedule alone leaves a window of up to half an
+  # hour in which work is pushed, does not land, and nobody knows. This closes it:
+  # every push to main is followed until the live site is serving that commit or
+  # the wait runs out.
+  push:
+    branches: [main]
   schedule:
-    # Every 30 minutes. A deploy that has not landed within half an hour of a push
-    # is either broken or not listening; either way the owner should know before he
-    # discovers it by opening a page.
+    # The safety net underneath the push trigger. It catches what a push cannot:
+    # a deploy that succeeded and was later rolled back, a webhook that dies
+    # between commits, and any period with no commits at all — which is exactly
+    # when a silent outage would otherwise go unseen longest.
     - cron: "*/30 * * * *"
   workflow_dispatch:
 
@@ -54,8 +63,30 @@ jobs:
         with:
           node-version: "20"
 
+      # ON A PUSH, WAIT FOR IT. Netlify has not built yet when this fires, so an
+      # immediate check would fail on every single commit — and a watcher that cries
+      # wolf is one people learn to ignore, which is worse than no watcher.
+      # It polls for up to 12 minutes and passes the moment the live site is serving
+      # the commit. A build that has not landed in 12 minutes has not landed.
+      # On the schedule and on a manual run there is nothing to wait for, so it
+      # checks once and answers immediately.
       - name: Is the live site running origin/main?
-        run: node tools/checks/deploy-current.mjs
+        run: |
+          if [ "${{ github.event_name }}" = "push" ]; then
+            for i in $(seq 1 24); do
+              if node tools/checks/deploy-current.mjs; then
+                echo "Landed after roughly $((i*30)) seconds."
+                exit 0
+              fi
+              echo "Not yet — attempt $i of 24, waiting 30s."
+              sleep 30
+            done
+            echo "::error::Twelve minutes after the push, the live site is still not serving this commit."
+            node tools/checks/deploy-current.mjs
+            exit 1
+          else
+            node tools/checks/deploy-current.mjs
+          fi
 
       - name: Say what to do about it
         if: failure()

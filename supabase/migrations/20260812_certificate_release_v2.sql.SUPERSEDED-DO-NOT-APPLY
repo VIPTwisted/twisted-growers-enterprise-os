@@ -1,0 +1,346 @@
+-- Agent P (Parser & Documents), 12 August 2026. RESUBMISSION after Agent X
+-- returned v1 as DO NOT APPLY. v1 is superseded and should be deleted, not applied:
+--   supabase/migrations/20260812_certificate_one_definition.sql
+--
+-- X was right on every structural point and on both factual challenges. What
+-- changed, and what I got wrong:
+--
+--  1. v1 DID NOT PARSE. The `hit` CTE selected w.tag alongside c.*, and `cert`
+--     also has a tag column: 42702, ambiguous, on statement one. I reported
+--     numbers from queries I ran and a migration I never executed, and did not
+--     say which was which. That is the actual failure here.
+--  2. v1 dropped mv_tag_evidence. Guard E1 at tools/hooks/guard-sql.mjs:234 reads
+--     `escapeApplies = escapeDeclared && !isCascade && !isMaterialized` — the
+--     escape deliberately excludes materialized views, and the event trigger
+--     tg_guard_view_drops enforces the same in the database. I read the guard as
+--     "no CASCADE" when it says "no matview drop, ever, ask the owner".
+--     Verified: 14 objects hang off mv_tag_evidence, through
+--     v_missing_lab_results into mv_department_dashboard_base and the
+--     "Out at the laboratory" KPI on Command and Quality.
+--     THIS MIGRATION DROPS NOTHING. It is one CREATE OR REPLACE VIEW, which is
+--     exactly what the guard's own message prescribes.
+--  3. v1 had three nested begin/commit pairs inside a script apply_migration
+--     already wraps. A later failure would not have rolled back the drops.
+--     This file has no transaction control at all — one statement, plus inserts.
+--  4. GRANTS: because nothing is dropped, every grant survives untouched,
+--     including tg_desktop_reader's SELECT, which v1 would have silently lost.
+--
+-- ─────────────────────────────────────────────────────────────────────────────
+-- THE TWO CLAIMS I GOT WRONG, corrected in the record.
+--
+--  * f_is_ours DOES handle a licence list. Measured 12 Aug 2026:
+--        f_is_ours('MC281714, MP281909')                     -> true
+--        rows where f_is_ours <> f_any_ours, all 983          -> 0
+--        certificates carrying a licence LIST                 -> 651  (not 621)
+--    I took "f_is_ours returns false on a list" from my briefing and never
+--    measured it, then wrote it into a view comment as fact. It is false and it
+--    is not repeated here.
+--  * ZEN MA. 15 certificates carry client_name 'Zen MA' against client_license
+--    'MP281909' — our own manufacturing licence — and they cover 119 held tags.
+--    Any is_ours verdict would print "Zen MA" beside "ours". THIS MIGRATION
+--    TAKES NO POSITION: it exposes certificate_client and
+--    certificate_client_license verbatim and adds NO ownership column. Owner
+--    decision, filed, not resolved here.
+--
+-- ─────────────────────────────────────────────────────────────────────────────
+-- WHAT IS BEING FIXED, unchanged from v1 and unchallenged by X.
+--
+-- Metrc's lab result carries document_file_id, the id of the certificate PDF
+-- behind that result. Measured:
+--     distinct document_file_id in metrc_lab_results    983
+--     doc_type='coa' rows in metrc_documents            983
+--     matching on metrc_id                              983   (0 unmatched)
+--     rows in coa_extract                               983
+-- Every certificate Metrc ever named is fetched, stored and parsed. But one
+-- certificate covers many tags — 431 cover more than one, one covers 24 — so:
+--     tags Metrc links to a certificate               1,904
+--     tags coa_extract stamps                           969
+--     tags holding a parsed certificate, unlinked       935
+-- coa_extract.package_tag records the tag the PDF was fetched under. That is
+-- correct and does not change: it holds WHAT THE DOCUMENT PRINTED.
+-- v_certificate_resolved already contains the join. mv_tag_evidence, which
+-- feeds the inventory surface, never consulted it.
+--
+-- ─────────────────────────────────────────────────────────────────────────────
+-- SCOPE DELIBERATELY CUT AFTER X'S REVIEW. v1 also rewrote
+-- v_certificate_resolved to walk transfer-report edges as well as package
+-- lineage. X measured the consequence I had not: 2,798 -> 13,486 rows, 4.8x,
+-- inherited by eight consumers, unmeasured. That is dropped from this
+-- migration. It buys exactly ONE more tag — 1A40A030000E5B2000011010, 0.996 lb,
+-- whose parent shipped out on manifest 0003360724 and left the mirror — and it
+-- is not worth 4.8x on eight views inside an unreviewed change. It is filed as
+-- its own proposal with its own measurement.
+--
+-- CONSEQUENCE OF THAT CUT, stated plainly: this migration releases 30 tags,
+-- not 32. The three figures in my v1 report (30/22.40, 32/23.40, 32/23.62) were
+-- three different designs and I quoted them interchangeably. This design is
+-- 30 tags / 22.40 lb, measured against the shipped expression below.
+--
+-- ─────────────────────────────────────────────────────────────────────────────
+-- WHY evidence_source KEEPS ITS EXISTING VOCABULARY.
+--
+-- v1 introduced five values and would have reclassified 582 of the 800
+-- 'inherited' tags. Three front-end sites test the literal string —
+-- app/web/src/dashkit.jsx:416 and :419, app/web/src/wcanvas-kinds.jsx:92 — and
+-- those packages would have silently lost their "Certificate (inherited from …)"
+-- label with no coordinated Agent B release.
+--
+-- So evidence_source keeps exactly its four values and MOVES ONLY UPWARD. The
+-- 966 tags already reading 'direct' or 'inherited' are returned byte-identical.
+-- Measured against this exact expression:
+--     lab result only -> inherited    15 tags   17.90 lb
+--     none            -> inherited    15 tags    4.50 lb
+--     any downgrade                    0 tags    0.00 lb
+--     any change to an existing
+--       'direct' or 'inherited'        0 tags
+-- The finer distinction lives in the APPENDED certificate_grade column, which
+-- no consumer reads yet, so Agent B adopts it when ready rather than on my clock.
+--
+-- ─────────────────────────────────────────────────────────────────────────────
+-- WHAT THIS DOES NOT FIX.
+--
+--  * certificate_link in v_certificate_resolved reads 'DIRECT' for 1,904 tags,
+--    935 of them rank 2 where the document does not name the tag. That
+--    conflation PRE-DATES this migration, sits in a column eight consumers
+--    already read, and is NOT fixed here — v1 claimed to be "THE single
+--    definition" while leaving it standing, which X was right to call out.
+--    Filed separately. The new certificate_grade below is honest; certificate_link
+--    is not, and this comment is the disclosure rather than a silent inheritance.
+--  * mv_tag_certificate and mv_tag_coa_lineage remain as third and fourth
+--    definitions, still disagreeing (0 / 1 / 15 / 19 on the same 26 tags).
+--    Retiring them needs the matview drop that only the owner can authorise.
+--  * 7 of the 26 held packages (60.37 lb) resolve to nothing and are untouched
+--    by this: 1A40A030000E5B1000006115, ...6117, ...6119, ...6121 (60.05 lb,
+--    passed 10 Aug, never fetched — needs TG-01's re-queue), plus ...004908,
+--    ...001031, ...006858.
+--  * 3 more (2.61 lb) have an ancestor lab result with document_file_id NULL:
+--    ...001439, ...000492, ...000327. Measured attach rate by laboratory —
+--    SafeTiva 12.1%, ProVerde 25.0%, Aries 0.0%, Assured 0.0%, against 100% for
+--    Analytics Labs, Green Analytics MA and Smithers. Those certificates are not
+--    in the Metrc API and must come from the laboratory, or Apex as last resort.
+--  * coa_extract still has pathogens 0/983, water_activity 0/983, pages 0/983,
+--    client_address 0/983, and the self-test at 20 against a threshold of 3.
+--    Not touched here and not relaxed.
+--
+-- METRC IS READ-ONLY THROUGHOUT. No external call.
+--
+-- UNDO, in full: restore the prior body of v_stock_packages from git with
+-- CREATE OR REPLACE VIEW (the appended columns simply disappear), then
+--   delete from verification_checks where check_key like 'certificate_%';
+
+-- ── 1 · the only schema change: one CREATE OR REPLACE, columns appended ──────
+-- No drop, so no dependent is disturbed and no grant is lost. Every existing
+-- column keeps its name, type and ordinal position; the four new ones are at the
+-- end. Verified against the live definition before writing.
+create or replace view public.v_stock_packages as
+ SELECT p.tag AS package_tag,
+    p.item_name,
+    p.raw #>> '{Item,StrainName}'::text[] AS strain,
+        CASE
+            WHEN (p.raw #>> '{Item,ProductCategoryName}'::text[]) ~~* '%fresh frozen%'::text THEN 'Fresh frozen'::text
+            WHEN (p.raw #>> '{Item,ProductCategoryName}'::text[]) ~~* '%bud%'::text THEN 'Dried flower'::text
+            WHEN (p.raw #>> '{Item,ProductCategoryName}'::text[]) ~~* '%shake%'::text OR (p.raw #>> '{Item,ProductCategoryName}'::text[]) ~~* '%trim%'::text THEN 'Shake and trim'::text
+            WHEN (p.raw #>> '{Item,ProductCategoryName}'::text[]) ~~* '%concentrate%'::text THEN 'Concentrate'::text
+            WHEN (p.raw #>> '{Item,ProductCategoryName}'::text[]) ~~* '%roll%'::text THEN 'Pre-rolls'::text
+            WHEN (p.raw #>> '{Item,ProductCategoryName}'::text[]) ~~* '%vape%'::text THEN 'Vape'::text
+            ELSE COALESCE(p.raw #>> '{Item,ProductCategoryName}'::text[], '(uncategorised)'::text)
+        END AS stream,
+        CASE
+            WHEN f_is_ours(p.raw ->> 'ItemFromFacilityLicenseNumber'::text) THEN 'Grown by us'::text
+            ELSE 'Bought in'::text
+        END AS origin,
+    COALESCE(NULLIF(p.raw ->> 'ItemFromFacilityName'::text, ''::text), 'not recorded'::text) AS made_by,
+    COALESCE(NULLIF(p.raw ->> 'ReceivedFromFacilityName'::text, ''::text), '—'::text) AS shipped_to_us_by,
+    NULLIF(p.raw ->> 'ReceivedFromManifestNumber'::text, ''::text) AS inbound_manifest,
+    p.license,
+    p.location,
+    p.raw ->> 'LabTestingState'::text AS lab_state,
+    round(p.quantity) AS quantity,
+    p.uom,
+    round(f_to_pounds(p.quantity, p.uom), 3) AS pounds,
+    p.packaged_on,
+    CURRENT_DATE - p.packaged_on AS days_here,
+    NULLIF(p.raw ->> 'SourceHarvestNames'::text, ''::text) AS source_harvest,
+    NULLIF(p.raw ->> 'SourcePackageLabels'::text, ''::text) AS made_from_packages,
+    NULLIF(p.raw ->> 'SourceProductionBatchNumbers'::text, ''::text) AS production_batch,
+    (p.raw ->> 'LabTestingStateDate'::text)::date AS submitted_on,
+    (p.raw ->> 'LabTestingRecordedDate'::text)::date AS result_on,
+    (p.raw ->> 'LabTestResultExpirationDateTime'::text)::date AS coa_expires,
+    h.harvest_start AS harvest_cut_on,
+    COALESCE(NULLIF(h.raw ->> 'DryingLocationName'::text, ''::text), '—'::text) AS dried_in,
+    (h.raw ->> 'FinishedDate'::text)::date AS harvest_closed_on,
+        CASE
+            WHEN NULLIF(p.raw ->> 'SourceHarvestNames'::text, ''::text) IS NOT NULL THEN 'Traceable to harvest '::text || (p.raw ->> 'SourceHarvestNames'::text)
+            WHEN NULLIF(p.raw ->> 'SourcePackageLabels'::text, ''::text) IS NOT NULL THEN 'Made from package '::text || (p.raw ->> 'SourcePackageLabels'::text)
+            WHEN NOT f_is_ours(p.raw ->> 'ItemFromFacilityLicenseNumber'::text) THEN (('BOUGHT IN — no harvest of ours to trace to. Its history sits with '::text || COALESCE(NULLIF(p.raw ->> 'ItemFromFacilityName'::text, ''::text), 'the supplier'::text)) || COALESCE(', arrived on manifest '::text || NULLIF(p.raw ->> 'ReceivedFromManifestNumber'::text, ''::text), ''::text)) || '. Ask them for the certificate and cultivation record.'::text
+            ELSE 'NO SOURCE RECORDED in Metrc — neither a harvest nor a parent package. This is a lineage gap and should be corrected.'::text
+        END AS traceability,
+    f_is_weight(p.uom) AS sold_by_weight,
+        CASE
+            WHEN NOT f_is_weight(p.uom) THEN round(p.quantity)
+            ELSE NULL::numeric
+        END AS units,
+        CASE
+            WHEN f_is_weight(p.uom) THEN round(f_to_pounds(p.quantity, p.uom), 3)::text || ' lb'::text
+            ELSE (round(p.quantity)::text || ' '::text) || COALESCE(p.uom, 'units'::text)
+        END AS quantity_shown,
+    -- THE ONE CHANGED EXPRESSION. Monotonic by construction: an existing
+    -- 'direct' or 'inherited' is returned untouched by the first branch, so no
+    -- consumer's string test can change meaning. Only 'none' and
+    -- 'lab result only' can move, and only upward.
+        CASE
+            WHEN ev.evidence_source IN ('direct'::text, 'inherited'::text) THEN ev.evidence_source
+            WHEN cr.package_tag IS NOT NULL THEN 'inherited'::text
+            ELSE ev.evidence_source
+        END AS evidence_source,
+    COALESCE(ev.certificate_id, cr.cert_report) AS certificate_id,
+    ev.certificate_date,
+    COALESCE(ev.certificate_document, crd.storage_path) AS certificate_document,
+    COALESCE(ev.certificate_inherited_from, NULLIF(cr.certificate_on_package, p.tag)) AS certificate_inherited_from,
+    ev.lab_result_date,
+    ev.lab_name,
+    ev.manifest_document AS inbound_manifest_document,
+    -- the honest reason, so a surface never says untested when Metrc says passed
+        CASE
+            WHEN ev.evidence_source IN ('direct'::text, 'inherited'::text) OR cr.package_tag IS NOT NULL THEN NULL::text
+            ELSE ev.why_no_certificate
+        END AS why_no_certificate,
+    ev.why_no_manifest,
+    "out".outbound_manifest,
+    "out".sold_to,
+    "out".shipped_on,
+    "out".outbound_manifest_document,
+        CASE
+            WHEN "out".outbound_manifest IS NULL THEN 'Still held — no outbound manifest because this package has not left. When it ships, the manifest number and the receiving licensee appear here.'::text
+            ELSE NULL::text
+        END AS why_no_outbound_manifest,
+    -- ── appended below this line; nothing above changes name, type or position ──
+    -- The basis, stated honestly. 'certificate on file' is the 935-tag case:
+    -- the certificate is real and in hand, and the document does not print this
+    -- tag. It must never be rendered as direct evidence.
+        CASE
+            WHEN EXISTS (SELECT 1 FROM coa_extract c WHERE c.package_tag = p.tag)
+                THEN 'direct — the certificate document names this tag'::text
+            WHEN ev.certificate_inherited_from IS NOT NULL
+                 AND EXISTS (SELECT 1 FROM coa_extract c WHERE c.package_tag = ev.certificate_inherited_from)
+                THEN 'inherited — a parsed certificate names ancestor ' || ev.certificate_inherited_from
+            WHEN cr.package_tag IS NOT NULL AND cr.found_at_depth = 0
+                THEN 'certificate on file — Metrc''s lab result names this certificate; the document does not name this tag'::text
+            WHEN cr.package_tag IS NOT NULL
+                THEN 'inherited via Metrc — the lab result for ancestor ' || cr.certificate_on_package || ' names this certificate'
+            WHEN ev.evidence_source = 'lab result only'::text
+                THEN 'lab result only — Metrc holds the result and that laboratory attached no certificate document'::text
+            ELSE 'none — no certificate found on this tag, its lineage, or any Metrc lab result'::text
+        END AS certificate_grade,
+    cr.found_at_depth AS certificate_hops,
+    -- Verbatim, with NO ownership verdict. 15 certificates read client_name
+    -- 'Zen MA' against our own MP281909 and cover 119 held tags; deciding what
+    -- that means is the owner's, not this view's.
+    cr.cert_client  AS certificate_client,
+    cr.cert_license AS certificate_client_license
+   FROM metrc_packages p
+     LEFT JOIN metrc_harvests h ON h.name = split_part(COALESCE(p.raw ->> 'SourceHarvestNames'::text, ''::text), ','::text, 1)
+     LEFT JOIN mv_tag_evidence ev ON ev.tag = p.tag
+     LEFT JOIN v_certificate_resolved cr ON cr.package_tag = p.tag
+     LEFT JOIN LATERAL ( SELECT d.storage_path
+           FROM coa_extract c
+             JOIN metrc_documents d ON d.metrc_id = c.document_id AND d.doc_type = 'coa'::text
+          WHERE c.package_tag = cr.certificate_on_package
+          LIMIT 1) crd ON true
+     LEFT JOIN LATERAL ( SELECT t.manifest_number AS outbound_manifest,
+            COALESCE(NULLIF(t.source_row ->> 'Dest. Facility'::text, ''::text), NULLIF(t.source_row ->> 'Dest. Lic.'::text, ''::text)) AS sold_to,
+            t.as_of_date AS shipped_on,
+            ( SELECT d.storage_path
+                   FROM metrc_documents d
+                  WHERE d.manifest_number = t.manifest_number AND d.doc_type ~~* '%manifest%'::text
+                 LIMIT 1) AS outbound_manifest_document
+           FROM metrc_rpt_package_transfers t
+          WHERE t.package_tag = p.tag AND NOT f_is_ours(COALESCE(NULLIF(t.source_row ->> 'Dest. Lic.'::text, ''::text), t.destination_licence))
+          ORDER BY t.as_of_date DESC NULLS LAST
+         LIMIT 1) "out" ON true
+  WHERE COALESCE(p.quantity, 0::numeric) > 0::numeric AND COALESCE((p.raw ->> 'IsFinished'::text)::boolean, false) = false;
+
+comment on view public.v_stock_packages is
+  'Held packages with their certificate and manifest evidence. evidence_source '
+  'keeps its four original values and can only move UPWARD — the 966 tags already '
+  'reading direct or inherited are returned unchanged, because dashkit.jsx and '
+  'wcanvas-kinds.jsx test the literal string. The upgrade path is '
+  'v_certificate_resolved, which joins metrc_lab_results.document_file_id to '
+  'coa_extract.document_id: one certificate covers many tags (431 cover more than '
+  'one, one covers 24) and 935 tags held a fetched, parsed certificate that nothing '
+  'linked to them. certificate_grade carries the real basis, including the '
+  '"certificate on file" case where the document is genuine but does not print this '
+  'tag — never render that as direct evidence. certificate_client is verbatim and '
+  'carries NO ownership verdict: 15 certificates read Zen MA against our own '
+  'MP281909, which is an open owner question.';
+
+-- ── 2 · the fixture, both halves, each MEASURED against today's schema ───────
+-- v1 shipped three checks; X killed two. One was tautological after the change
+-- (both sides would derive from the same view) and one referenced a column the
+-- migration itself added, so it errors 42703 today — I reported "zero today" for
+-- SQL I could not have run. Both halves below were executed against the live
+-- database before this file was written, and their current values are stated.
+
+insert into verification_checks
+  (check_key, title, what_it_proves, source_a_label, source_a_sql,
+   source_b_label, source_b_sql, tolerance_pct, severity, owner,
+   measures_a_process, in_flight_rule, settles_within)
+values
+-- POSITIVE HALF. Reads 15 today; must reach 0 when this migration lands.
+-- Compares the surface against the SOURCE TABLES, never against the view it is
+-- fed by, so it cannot become true by construction.
+('certificate_surface_shows_every_certificate_held',
+ 'The inventory surface shows every certificate we actually hold',
+ 'Metrc names a certificate file for 1,904 tags; coa_extract stamps 969, because one '
+ 'certificate covers many tags. 935 tags held a fetched and parsed certificate that '
+ 'nothing joined to them, and on held stock the surface reported no certificate for 15 '
+ 'tags whose certificate was already on disk. Owner ruling '
+ 'tested_means_a_coa_exists_go_find_it forbids reporting absence when the answer is '
+ 'ours to find. Side A reads v_stock_packages; side B reads metrc_lab_results and '
+ 'coa_extract directly, so the two are written by different code paths.',
+ 'Held tags whose certificate is on disk but the surface will not show it',
+ 'select count(*)::numeric from v_stock_packages s where s.evidence_source not in (''direct'',''inherited'') and exists (select 1 from metrc_lab_results l join coa_extract c on c.document_id = l.document_file_id where l.package_tag = s.package_tag)',
+ 'Expected (zero)',
+ 'select 0::numeric',
+ 0, 'elevated', 'Agent P — Parser & Documents', false, null, null),
+
+-- NEGATIVE HALF. Reads 0 today AND 0 after the migration — both measured, not
+-- reasoned. It took three drafts and the first two were wrong, which is the
+-- argument for running a fixture rather than arguing about it:
+--   draft 1 read 305: it compared v_certificate_resolved''s chosen ancestor
+--     against mv_tag_evidence''s chosen ancestor and called the difference a
+--     defect. All 305 had a named ancestor carrying a parsed certificate.
+--   draft 2 read 0 today but 15 AFTER: it looked for the Metrc bridge only on
+--     the tag itself, and for the 14 Fuji Tart packages the bridge sits on the
+--     PARENT. It would have fired on precisely the material this migration
+--     legitimately releases.
+-- Those two failures are also the proof the check CAN fail, which is the thing a
+-- negative half has to earn.
+('certificate_never_claimed_without_a_document',
+ 'No package is called certified without a certificate document behind it',
+ 'mv_tag_certificate grades a bare Metrc lab result as a certificate — 4 of the 26 held '
+ 'packages, certificate_document null on every one. A test having happened is not a '
+ 'certificate in hand, and a surface that conflates them tells a regulator we hold '
+ 'paperwork we do not hold. This counts tags the surface calls certified where NO parsed '
+ 'certificate document can be named by any route: on the tag, on the ancestor the surface '
+ 'cites, on the ancestor the resolver cites, or through a Metrc lab result on either. '
+ 'Zero today and zero after, both measured 12 Aug 2026.',
+ 'Tags called certified with no nameable certificate document',
+ 'select count(*)::numeric from v_stock_packages s where s.evidence_source in (''direct'',''inherited'') and not exists (select 1 from coa_extract c where c.package_tag = s.package_tag) and not exists (select 1 from mv_tag_evidence e join coa_extract c on c.package_tag = e.certificate_inherited_from where e.tag = s.package_tag) and not exists (select 1 from metrc_lab_results l join coa_extract c on c.document_id = l.document_file_id where l.package_tag = s.package_tag) and not exists (select 1 from v_certificate_resolved r join coa_extract c on c.package_tag = r.certificate_on_package where r.package_tag = s.package_tag) and not exists (select 1 from v_certificate_resolved r join metrc_lab_results l on l.package_tag = r.certificate_on_package join coa_extract c on c.document_id = l.document_file_id where r.package_tag = s.package_tag)',
+ 'Expected (zero)',
+ 'select 0::numeric',
+ 0, 'critical', 'Agent P — Parser & Documents', false, null, null)
+on conflict (check_key) do update set
+  title = excluded.title, what_it_proves = excluded.what_it_proves,
+  source_a_label = excluded.source_a_label, source_a_sql = excluded.source_a_sql,
+  source_b_label = excluded.source_b_label, source_b_sql = excluded.source_b_sql,
+  tolerance_pct = excluded.tolerance_pct, severity = excluded.severity,
+  owner = excluded.owner, measures_a_process = excluded.measures_a_process,
+  in_flight_rule = excluded.in_flight_rule, settles_within = excluded.settles_within;
+
+-- ── 3 · prove it in the migration record ─────────────────────────────────────
+-- No refresh needed: mv_tag_evidence is untouched, and v_stock_packages is a
+-- plain view. Expected after apply: direct 166, inherited 830, lab result only 15,
+-- none 107.
+select evidence_source, count(*) as tags, round(sum(pounds), 2) as lb
+from v_stock_packages group by 1 order by 3 desc;
