@@ -278,6 +278,55 @@ export async function fetchDrillPage(source, filters, orderCol, from, size) {
 
    Where one bare name resolves to two rooms the canvas says so and names both.
    It does not choose — choosing is how a total ends up spanning two buildings. */
+/* WHICH COLUMN MEANS WHAT — read, never hardcoded (§7: filters are DATA, never JSX).
+ *
+ * This file previously carried TAG_COLS and ROOM_COLS as literal arrays in wcanvas-kinds.jsx,
+ * and App.jsx still carries nine more copies of the same idea. Eleven definitions of "which
+ * column holds a package tag": rename one column in Metrc and ten of them go quietly wrong.
+ * column_semantics is the one definition; this reads it.
+ *
+ * It DEGRADES LOUDLY, not silently. If the read fails, meansFor() returns an empty list and
+ * every caller is told why, rather than a tag quietly rendering as plain text and nobody
+ * knowing the drill link vanished. */
+let COLUMN_MEANS = null;
+let COLUMN_MEANS_ERR = null;
+
+export async function loadColumnSemantics() {
+  const r = await read(supabase.from("v_column_semantics").select("means, column_names"));
+  if (r.err) {
+    COLUMN_MEANS_ERR = r.err;
+    return { err: r.err };
+  }
+  /* No `?? []` on either line below, deliberately. A meaning that arrives with no column names
+     is a broken dictionary row, and defaulting it to an empty list would hide that behind tags
+     quietly rendering as plain text. It is dropped and named instead. */
+  const empty = r.rows.filter((row) => !Array.isArray(row.column_names) || row.column_names.length === 0);
+  COLUMN_MEANS = new Map(
+    r.rows.filter((row) => Array.isArray(row.column_names) && row.column_names.length > 0)
+          .map((row) => [row.means, row.column_names]));
+  COLUMN_MEANS_ERR = empty.length
+    ? `${empty.map((e) => e.means).join(", ")} carry no column names in column_semantics`
+    : null;
+  return { err: null };
+}
+
+const meansFor = (kind) => {
+  if (!COLUMN_MEANS) return EMPTY;
+  const hit = COLUMN_MEANS.get(kind);
+  return hit === undefined ? EMPTY : hit;
+};
+const EMPTY = Object.freeze([]);
+
+/* Null when nothing in this record set is a package tag — which is a real answer, not a failure. */
+export const tagColumnIn = (cols) => meansFor("package_tag").find((c) => cols.includes(c)) ?? null;
+export const isRoomColumn = (col) => meansFor("room").includes(col);
+
+/* So a surface can say WHY a tag stopped linking, instead of the link just not being there. */
+export const columnSemanticsProblem = () =>
+  COLUMN_MEANS_ERR
+    ? `The column dictionary could not be read (${COLUMN_MEANS_ERR}), so tags are shown as plain text and rooms are not department-qualified.`
+    : null;
+
 export async function loadRoomDirectory() {
   const r = await read(supabase.from("v_room_board_complete").select("room, department, room_qualified"));
   if (r.err) return { map: null, err: r.err };

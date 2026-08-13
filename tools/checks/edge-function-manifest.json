@@ -176,6 +176,12 @@
       "sha256": "44a5afb24e3538596244e235927a8294f8c2974c2e9d50f82273d7424523ce5d",
       "redacted": false,
       "note": "Real source. Deployed v1 on 10 Aug 2026 and recovered into the repo on 11 Aug 2026 by Agent I, verbatim from the deployment - it had been running for a day with no source anywhere, found by diffing the 27 live functions against the 26 with source. READ ONLY: it downloads a stored certificate and reports what the text actually extracts to, so the COA parser can be written against reality rather than an assumption. Writes nothing. Admin-key gated with a constant-time compare, key read from integration_secrets at run time, so no literal in the file. verify_jwt false, which is correct here because the admin key is the gate."
+    },
+    "alert-email": {
+      "deployed_version": 0,
+      "sha256": "7715c766982ed45fefa73a8cdf3cfc23ad4c51f66cd1f309aacc9d1caa83189a",
+      "redacted": false,
+      "note": "Real source, WRITTEN AND NOT YET DEPLOYED - deployed_version 0 says so rather than implying a deploy that never happened. Sends the missed-sync alerts the owner asked for on 12 Aug 2026 (\"I NEED TO GET AN ALERT EVERY TIME A SYNC IS MISSED\"). It reads ALERT_EMAIL_API_KEY from the secret store at run time and contains no literal, and it FAILS CLOSED with a readable reason when the secret is unset - which it is, until the owner pastes a Resend key into Settings then Keys & Connections. Pinned here because an unpinned function is invisible to edge-function-drift, which is exactly how twenty sources once differed from production unnoticed. Deploy with verify_jwt=true."
     }
   }
 }

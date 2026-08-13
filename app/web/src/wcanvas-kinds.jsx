@@ -18,6 +18,7 @@ import { supabase } from "./lib/supabase.js";
 import {
   read, runMetric, probeColumns, orderColumnFor, fetchDrillPage, loadEvidence,
   signDocument, qualifyRoom, formatFigure, movementInWords, movementShort,
+  tagColumnIn, isRoomColumn,
 } from "./wcanvas-data.js";
 
 /* ═══════════ shared small chrome ═══════════ */
@@ -105,10 +106,11 @@ export function EvidenceCell({ tag, map, err }) {
 
 /* ═══════════ the generic record table used by every drill ═══════════ */
 
-const TAG_COLS = ["package_tag", "tag", "metrc_tag", "final_metrc_tag", "bulk_metrc_tag", "prefill_metrc_tag"];
-const ROOM_COLS = ["room", "current_room", "mirror_room", "flower_room", "drying_room"];
-
-const tagColumnIn = (cols) => TAG_COLS.find((c) => cols.includes(c)) ?? null;
+/* WHICH COLUMN IS A TAG, WHICH IS A ROOM — read from column_semantics, not frozen here.
+   These were two literal arrays. App.jsx still carries nine more copies of the same idea, which
+   is why the report-contract ratchet stood at 17 before this file existed. Rename a column in
+   Metrc and every copy but one goes quietly wrong. tagColumnIn and isRoomColumn now come from
+   wcanvas-data.js, which reads v_column_semantics once at mount. (§7: filters are DATA.) */
 
 function Cell({ column, value, roomMap }) {
   if (value === null || value === undefined || value === "") {
@@ -116,7 +118,7 @@ function Cell({ column, value, roomMap }) {
        empty cell of a forty-column table is unreadable — but explicit. */
     return <span className="tgwc-evwhy" title={`${column} carries no value on this record.`}>not recorded</span>;
   }
-  if (ROOM_COLS.includes(column)) {
+  if (isRoomColumn(column)) {
     const q = qualifyRoom(roomMap, value);
     return (
       <span>

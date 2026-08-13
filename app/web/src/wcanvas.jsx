@@ -49,7 +49,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
   GRID_COLS, MAX_H, clampItem, resolve, firstFreeSlot, uidOf, resolveConfig, normaliseOptions,
   loadDashboards, loadTemplates, loadCatalogue, loadComputeSpecs, loadLayout, loadTargets,
-  loadTrend, loadRoomDirectory, makeSaver, resetLayout, createDashboard, renameDashboard,
+  loadTrend, loadRoomDirectory, loadColumnSemantics, makeSaver, resetLayout, createDashboard, renameDashboard,
   deleteDashboard, setDefaultDashboard, forgetSourceTotals,
 } from "./wcanvas-data.js";
 import { WidgetBody, RecordDrill, WcEmpty, WcErr } from "./wcanvas-kinds.jsx";
@@ -319,6 +319,10 @@ export function WidgetCanvas({ page, go, heading }) {
     Promise.all([
       loadDashboards(), loadTemplates(), loadCatalogue(),
       loadComputeSpecs(), loadTargets(), loadTrend(), loadRoomDirectory(),
+      /* The column dictionary must be in memory BEFORE the first record table renders, or a tag
+         would draw as plain text on the first paint and silently gain its drill link a moment
+         later. Loaded in the same Promise.all as everything else, so it cannot be forgotten. */
+      loadColumnSemantics(),
     ]).then(([dash, tpl, cat, specs, targets, trend, rooms]) => {
       if (live) setBoot({ dash, tpl, cat, specs, targets, trend, rooms });
     });
