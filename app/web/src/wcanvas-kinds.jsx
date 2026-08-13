@@ -681,7 +681,10 @@ export function AlertsBody({ item, cfg, onDrill }) {
     if (unreadOnly) q = q.is("read_at", null);
     read(q).then((r) => { if (live) setSt({ rows: r.rows, err: r.err, loading: false, total: r.count }); });
     return () => { live = false; };
-  }, [cfg.severity_at_least, cfg.unread_only]);
+  /* wanted and unreadOnly are derived from these two cfg fields on the line above, so the
+     effect already re-runs whenever they change. Named explicitly because a dependency the
+     linter cannot see is a stale read waiting to happen. */
+  }, [cfg.severity_at_least, cfg.unread_only, wanted, unreadOnly]);
 
   if (st.err) return <WcErr what={item.label} err={st.err} />;
   if (st.loading) return <p className="tgwc-say tight">Reading the alerts…</p>;

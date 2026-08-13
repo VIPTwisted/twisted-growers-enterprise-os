@@ -736,7 +736,7 @@ function StatusSelect({ id, task, statuses, onPatch }) {
     <select id={id} className="tgws-sel" value={known ? task.status : ""}
       title="Move this task to another status. This is the keyboard way to do what dragging does on the board."
       onChange={(e) => onPatch(task, "status", e.target.value)}>
-      {!known && <option value="">{pretty(task.status)} — not one of this space's</option>}
+      {!known && <option value="">{pretty(task.status)} — not one of this space&rsquo;s</option>}
       {statuses.map((s) => <option key={s} value={s}>{pretty(s)}</option>)}
     </select>
   );
