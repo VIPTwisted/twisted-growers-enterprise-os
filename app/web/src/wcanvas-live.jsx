@@ -252,20 +252,45 @@ function useBox() {
 }
 
 /* One reader for every panel in this file: bind the error, count the total, never
-   confuse "the read failed" with "there is nothing". */
+   confuse "the read failed" with "there is nothing".
+
+   THE ANSWER IS STAMPED WITH THE QUESTION IT ANSWERS, and this is not tidiness.
+   The first version set `loading` inside the effect, and an effect runs AFTER the
+   render that scheduled it. So on the one render where the question changed —
+   a channel chosen, a list switched — the component saw the PREVIOUS answer with
+   `loading` already false. For the messaging panel the previous answer was "no
+   question asked", rows null, and `st.rows.length` threw
+   `TypeError: Cannot read properties of null (reading 'length')` the instant a
+   channel was picked. Caught by the error boundary on the live site, 13 Aug 2026;
+   the panel became a red box.
+
+   Deriving `loading` from whether the stored answer matches the CURRENT question
+   closes the whole class rather than that one instance: a stale answer can never
+   be read as a fresh one, and `loading === false && err === null` now guarantees
+   `rows` is an array. */
 function useRows(build, deps, enabled = true) {
-  const [st, setSt] = useState({ rows: null, err: null, loading: true, total: null });
+  const sig = JSON.stringify([deps, enabled]);
+  const [st, setSt] = useState({ sig: null, rows: null, err: null, total: null });
+
   useEffect(() => {
     let live = true;
-    if (!enabled) { setSt({ rows: null, err: null, loading: false, total: null }); return undefined; }
-    setSt({ rows: null, err: null, loading: true, total: null });
-    read(build()).then((r) => { if (live) setSt({ rows: r.rows, err: r.err, loading: false, total: r.count }); });
+    /* Disabled means no question has been asked, so no answer is stored and
+       `loading` stays true. Every caller returns before it could render that. */
+    if (!enabled) return undefined;
+    read(build()).then((r) => { if (live) setSt({ sig, rows: r.rows, err: r.err, total: r.count }); });
     return () => { live = false; };
-    /* `build` is rebuilt from these deps by the caller, which is why it is not
-       itself a dependency: including it would re-read on every render. */
+    /* `build` is rebuilt from these deps by the caller, so `sig` already covers
+       every input; depending on `build` itself would re-read on every render. */
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [...deps, enabled]);
-  return st;
+  }, [sig]);
+
+  const fresh = st.sig === sig;
+  return {
+    loading: !fresh,
+    rows: fresh ? st.rows : null,
+    err: fresh ? st.err : null,
+    total: fresh ? st.total : null,
+  };
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -964,9 +989,13 @@ export function MessagingBody({ item, cfg, onDrill }) {
       <>
         <WcEmpty
           why="Nothing has been said in this channel."
-          fills={total === 0
-            ? "The messages table holds no rows at all, across every channel. The channels were created and nobody has posted yet — so this is an empty room, not a failed read. Yours can be the first message."
-            : `${total === null ? "Some" : total.toLocaleString()} message(s) exist in other channels, so the reading works — this particular channel is the one nobody has used.`}
+          fills={everywhere.loading
+            ? "Checking whether any message exists in any channel, so this can tell you which of the two it is."
+            : total === 0
+              ? "The messages table holds no rows at all, across every channel. The channels were created and nobody has posted yet — so this is an empty room, not a failed read. Yours can be the first message."
+              : total === null
+                ? "How many messages exist elsewhere could not be counted, so whether this is an unused channel or an unused platform cannot be stated here."
+                : `${total.toLocaleString()} message(s) exist in other channels, so the reading works — this particular channel is the one nobody has used.`}
           action={<button type="button" className="tgwc-btn" onClick={openAll}>Open every message in this channel</button>}
         />
         {everywhere.err && <WcErr what="The count of messages across all channels" err={everywhere.err} />}
