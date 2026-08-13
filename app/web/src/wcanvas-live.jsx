@@ -228,28 +228,42 @@ function DataAge({ newest, what, scope, loaded, total }) {
   );
 }
 
-/* Real pixels, measured. A chart drawn into a stretched viewBox distorts its own
-   dots and its own text; this measures the box it is in and draws one to one, so
-   a 1px hairline is 1px and a 10px label is 10px at every panel size. */
-function useBox() {
+/* WIDTH ONLY, AND ON PURPOSE.
+   A chart drawn into a stretched viewBox distorts its own dots and its own text,
+   so the chart is drawn at real pixels measured from the box it sits in.
+   Measuring the HEIGHT as well froze the renderer on the live site, 13 Aug 2026,
+   the instant a figure was chosen: the plot box was a growing flex child of a
+   scrolling column, so a taller plot pushed the prose below it into another line,
+   which shrank the plot, which shortened the prose — an oscillation the observer
+   re-rendered on every pass. The tab stopped responding.
+   Height no longer comes from measurement at all; it is derived from the panel's
+   own saved row count, which nothing on screen can change. Width is measured, and
+   width cannot feed back because the SVG is absolutely positioned inside a clipped
+   parent and so contributes nothing to layout. */
+function useWidth() {
   const ref = useRef(null);
-  const [box, setBox] = useState({ w: 0, h: 0 });
+  const [w, setW] = useState(0);
   useEffect(() => {
     const el = ref.current;
     if (!el || typeof ResizeObserver === "undefined") return undefined;
     const ro = new ResizeObserver((entries) => {
       for (const e of entries) {
-        const r = e.contentRect;
-        setBox((b) => (Math.abs(b.w - r.width) < 1 && Math.abs(b.h - r.height) < 1
-          ? b
-          : { w: r.width, h: r.height }));
+        const next = e.contentRect.width;
+        setW((cur) => (Math.abs(cur - next) < 1 ? cur : next));
       }
     });
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
-  return [ref, box];
+  return [ref, w];
 }
+
+/* One grid row is 52px with a 6px gap. A panel spends its first two rows on the
+   header, the dropdowns and the figure, and the rest below the chart on the
+   readings, the basis and the drill — so the plot takes the middle band. Clamped
+   so a one-row panel still draws something legible and a twelve-row panel does
+   not draw a chart taller than the screen. */
+const plotHeightFor = (rows) => Math.max(96, Math.min(300, (Number(rows) || 4) * 58 - 130));
 
 /* One reader for every panel in this file: bind the error, count the total, never
    confuse "the read failed" with "there is nothing".
@@ -355,7 +369,7 @@ function TrendPlot({ w, h, days, values, target, direction, shape, breach }) {
 }
 
 export function ChartBody({ item, cfg, targets, trends, setCfg, onDrill }) {
-  const [ref, box] = useBox();
+  const [ref, boxW] = useWidth();
   const [readings, setReadings] = useState(false);
   const [admin, setAdmin] = useState({ value: null, err: null });
 
@@ -478,10 +492,10 @@ export function ChartBody({ item, cfg, targets, trends, setCfg, onDrill }) {
       </div>
 
       {points >= 2 ? (
-        <div className="tgwc-plotbox" ref={ref}>
-          {box.w > 60 && box.h > 40 && (
+        <div className="tgwc-plotbox" ref={ref} style={{ height: plotHeightFor(item.h) }}>
+          {boxW > 90 && (
             <TrendPlot
-              w={Math.floor(box.w)} h={Math.floor(box.h)}
+              w={Math.floor(boxW)} h={plotHeightFor(item.h)}
               days={days} values={values}
               target={target ? Number(target.target) : null}
               direction={target ? target.direction : null}
@@ -489,8 +503,11 @@ export function ChartBody({ item, cfg, targets, trends, setCfg, onDrill }) {
               breach={breach}
             />
           )}
-          {box.w > 0 && box.w <= 60 && (
-            <span className="tgwc-evwhy">This panel is too narrow to draw a readable chart. Make it wider and the line appears.</span>
+          {boxW > 0 && boxW <= 90 && (
+            <span className="tgwc-evwhy">
+              This panel is too narrow to draw a chart anybody could read, so none is drawn. Make it
+              wider — drag its right edge, or focus its handle and hold Shift with the right arrow.
+            </span>
           )}
         </div>
       ) : (

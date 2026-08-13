@@ -366,9 +366,14 @@
    scrollbar appearing at one width and vanishing at the next is an observer loop
    that spins the renderer. Absolute inside a clipped relative parent makes that
    feedback path impossible rather than unlikely. */
+/* FIXED HEIGHT, SET FROM THE PANEL'S OWN ROW COUNT, never from flex growth.
+   As `flex: 1 1 auto` in a scrolling column this box grew, pushed the prose below
+   it onto another line, shrank again, and the observer watching it re-rendered on
+   every pass until the tab stopped responding. Height now comes from the saved
+   layout, which nothing on screen can move. */
 .tgwc-plotbox {
   position: relative; overflow: hidden;
-  flex: 1 1 auto; min-height: 72px; min-width: 0;
+  flex: 0 0 auto; min-width: 0;
 }
 .tgwc-chart { display: block; position: absolute; top: 0; left: 0; }
 .tgwc-chart .ax     { stroke: var(--wc-line); stroke-width: 1; }
