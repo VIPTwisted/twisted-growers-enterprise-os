@@ -67,7 +67,7 @@ import {
 /* THE canvas dropdown. One control, one size, one place the label sits.
    `note` is the catalogue's own honest warning about a choice — "UNFED —
    work_orders is empty" — and it reaches the screen rather than being dropped. */
-export function WcPick({ id, label, value, options, onChange, note, busy, problem }) {
+export function WcPick({ id, label, value, options, onChange, busy }) {
   const chosen = options.find((o) => String(o.value) === String(value));
   return (
     <span className="tgwc-pick">
@@ -82,8 +82,6 @@ export function WcPick({ id, label, value, options, onChange, note, busy, proble
         {!chosen && <option value="">{busy ? "reading the choices…" : "choose one"}</option>}
         {options.map((o) => <option key={String(o.value)} value={String(o.value)}>{o.label}</option>)}
       </select>
-      {problem && <span className="tgwc-evwhy attn">{problem}</span>}
-      {!problem && note && <span className="tgwc-evwhy">{note}</span>}
     </span>
   );
 }
@@ -168,30 +166,42 @@ function PickerBar({ item, cfg, setCfg, live }) {
   const picks = Object.entries(schema).filter(([, d]) => d && (d.type === "select" || d.type === "live_select"));
   if (!picks.length) return null;
   const idBase = `tgwc-pick-${item.uid.replace(/[^a-z0-9]/gi, "-")}`;
+
+  /* The catalogue's own note about the CHOSEN option — "UNFED — work_orders is
+     empty" — and any failure to read a live list. Both go on their OWN line under
+     the controls, never inline beside them: at three columns wide an inline note
+     wrapped to four lines and pushed the panel's actual content off the bottom.
+     The warning still has to be readable, so it wraps rather than being clipped. */
+  const notes = [];
+  const bar = picks.map(([name, def]) => {
+    const isLive = def.type === "live_select";
+    const feed = isLive ? live[name] : null;
+    const options = isLive
+      ? (feed && feed.options ? feed.options : [])
+      : normaliseOptions(def.options);
+    const value = cfg[name] === undefined || cfg[name] === null ? "" : cfg[name];
+    const chosen = options.find((o) => String(o.value) === String(value));
+    if (feed && feed.err) notes.push({ key: name, text: feed.err, attn: true });
+    else if (chosen && chosen.note) notes.push({ key: name, text: chosen.note, attn: false });
+    return (
+      <WcPick
+        key={name}
+        id={`${idBase}-${name}`}
+        label={def.label ? def.label : name.replace(/_/g, " ")}
+        value={value}
+        options={options}
+        busy={!!(feed && feed.loading)}
+        onChange={(v) => setCfg(name, v)}
+      />
+    );
+  });
+
   return (
     <div className="tgwc-pickbar">
-      {picks.map(([name, def]) => {
-        const isLive = def.type === "live_select";
-        const feed = isLive ? live[name] : null;
-        const options = isLive
-          ? (feed && feed.options ? feed.options : [])
-          : normaliseOptions(def.options);
-        const value = cfg[name] === undefined || cfg[name] === null ? "" : cfg[name];
-        const chosen = options.find((o) => String(o.value) === String(value));
-        return (
-          <WcPick
-            key={name}
-            id={`${idBase}-${name}`}
-            label={def.label ? def.label : name.replace(/_/g, " ")}
-            value={value}
-            options={options}
-            busy={!!(feed && feed.loading)}
-            problem={feed && feed.err ? feed.err : null}
-            note={chosen && chosen.note ? chosen.note : null}
-            onChange={(v) => setCfg(name, v)}
-          />
-        );
-      })}
+      <div className="tgwc-pickrow">{bar}</div>
+      {notes.map((n) => (
+        <span key={n.key} className={`tgwc-evwhy${n.attn ? " attn" : ""}`}>{n.text}</span>
+      ))}
     </div>
   );
 }
@@ -333,15 +343,13 @@ export function ChartBody({ item, cfg, targets, trends, setCfg, onDrill }) {
   const all = useMemo(() => (trends instanceof Map ? [...trends.values()] : []), [trends]);
   const withHistory = all.filter((t) => Number(t.points) >= 2).length;
 
-  /* Nothing chosen yet shows the first figure that CAN be drawn, and says so. A
-     panel that opens on "choose something" is a dead panel, and quietly writing a
-     choice the user never made is a setting they did not set. Neither: it shows
-     one, names it as a stand-in, and the dropdown is right above it. */
+  /* NOTHING IS DRAWN UNTIL A FIGURE IS CHOSEN, and the dropdown above says the
+     same thing. A first draft picked one to stand in for the unchosen state; on
+     the live site the dropdown then read "choose one" while the panel drew a
+     figure, so the control and the content disagreed about what was on screen.
+     One state, said once, in both places. */
   const chosenKey = cfg.which_series ? String(cfg.which_series).toLowerCase() : null;
-  const fallback = all.find((t) => Number(t.points) >= 2);
-  const t = chosenKey && trends instanceof Map ? trends.get(chosenKey) : null;
-  const series = t ? t : (chosenKey ? null : fallback);
-  const standingIn = !chosenKey && !!fallback;
+  const series = chosenKey && trends instanceof Map ? trends.get(chosenKey) : null;
 
   const key = series ? `${series.department}|${series.kpi}` : null;
   const target = key && targets instanceof Map ? targets.get(key.toLowerCase()) : null;
@@ -385,11 +393,19 @@ export function ChartBody({ item, cfg, targets, trends, setCfg, onDrill }) {
   }
 
   if (!series) {
+    const first = all.find((s) => Number(s.points) >= 2);
     return (
       <WcEmpty
-        why={`The figure this panel is set to (${cfg.which_series}) has no readings in the last thirty days.`}
-        fills={`${all.length} figures are being recorded and ${withHistory} of them carry two or more readings. Pick a different one from the list above this panel.`}
-        action={<button type="button" className="tgwc-btn" onClick={() => setCfg("which_series", "")}>Clear the choice and show one that can be drawn</button>}
+        why={chosenKey
+          ? `The figure this panel is set to (${cfg.which_series}) is not among the figures being recorded.`
+          : "No figure is chosen yet, so nothing is drawn."}
+        fills={`${all.length} figures are recorded daily and ${withHistory} of them carry the two readings a line needs. Choose one from the dropdown above this panel — the choices say how many readings each has, so a figure that cannot be drawn is visible before you pick it, not after.`}
+        action={first
+          ? <button type="button" className="tgwc-btn"
+              onClick={() => setCfg("which_series", `${first.department}|${first.kpi}`)}>
+              Show {first.department} — {first.kpi} ({first.points} readings)
+            </button>
+          : <button type="button" className="tgwc-btn" onClick={openRecords}>Open every daily reading and see what is recorded</button>}
       />
     );
   }
@@ -433,7 +449,7 @@ export function ChartBody({ item, cfg, targets, trends, setCfg, onDrill }) {
         <span className="tgwc-chip">{points} reading{points === 1 ? "" : "s"}</span>
         {moved && <span className="tgwc-chip">{moved} since the day before</span>}
         {dropped > 0 && <span className="tgwc-chip crit">{dropped} unreadable</span>}
-        {standingIn && <span className="tgwc-chip attn">standing in — pick one above</span>}
+        <span className="tgwc-chip">{series.department}</span>
       </div>
 
       {points >= 2 ? (

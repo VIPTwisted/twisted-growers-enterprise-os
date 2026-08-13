@@ -317,17 +317,20 @@
    second label style: the count of definitions of "a dropdown on this canvas"
    stays at one. */
 .tgwc-pickbar {
-  display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: center;
+  display: flex; flex-direction: column; gap: 2px;
   border-bottom: 1px solid var(--wc-line);
   padding-bottom: 4px;
   flex: 0 0 auto;
   min-width: 0;
 }
+/* The controls on one wrapping row. The catalogue's note about the CHOSEN option
+   — "UNFED — work_orders is empty" — sits BELOW them on its own line: inline
+   beside a select it wrapped to four lines in a three-column panel and pushed the
+   panel's content off the bottom. It still wraps rather than being clipped,
+   because a warning you cannot finish reading is not a warning. */
+.tgwc-pickrow { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: center; min-width: 0; }
 .tgwc-pick { display: inline-flex; align-items: center; gap: 4px; min-width: 0; max-width: 100%; }
-.tgwc-pick .tgwc-sel { max-width: 190px; }
-/* The catalogue's own note about a choice — "UNFED — work_orders is empty". It
-   WRAPS, because clipping the warning is worse than not showing it. */
-.tgwc-pick .tgwc-evwhy { flex: 1 1 120px; min-width: 0; }
+.tgwc-pick .tgwc-sel { max-width: 200px; }
 
 /* ═══════════ a row that opens its own record ═══════════
    A real button, so Tab reaches it and Enter works. Styled as text because a

@@ -66,6 +66,25 @@ import "./wcanvas.css";
    tile as though it were an icon. Raised with Agent I. */
 const glyphOf = (icon) => (icon && !/^[a-z0-9_-]+$/i.test(icon) ? icon : null);
 
+/* THE SIZE A PANEL ARRIVES AT, decided by what it has to show.
+   Every panel used to arrive 3 columns by 2 rows — 110px tall. That is right for a
+   figure and a rail and unusable for anything that draws. Placed on the live site
+   on 13 Aug 2026, a chart at 3x2 had no room for the chart at all, and a channel
+   showed one line of one message. A panel the user must resize before it shows
+   anything is not finished.
+   Every one is still freely movable and resizable; this is only where it lands. */
+const ARRIVES_AT = {
+  chart:     { w: 6, h: 4 },   // an axis, a line and two date labels need the width
+  list:      { w: 6, h: 4 },   // rows carrying a certificate and a manifest
+  feed:      { w: 6, h: 4 },   // a timestamp, the entry and who, on one line
+  messaging: { w: 4, h: 4 },   // messages, plus somewhere to type
+  calendar:  { w: 4, h: 3 },
+  schedule:  { w: 4, h: 3 },
+  alerts:    { w: 4, h: 3 },
+  tasks:     { w: 4, h: 3 },
+  lookup:    { w: 4, h: 3 },
+};
+
 /* ═══════════════════════════════════════════════════════════════════════════
    SETTINGS RENDERED FROM options_schema — never a hardcoded dropdown.
    The choices are data precisely so a new calendar is a database row and not a
@@ -532,11 +551,12 @@ export function WidgetCanvas({ page, go, heading }) {
     const existing = list.filter((i) => i.widget_key === cat.key);
     if (existing.length && !cat.multi_instance) return;
     const instance_id = existing.reduce((m, i) => Math.max(m, i.instance_id), 0) + 1;
-    const slot = firstFreeSlot(list.filter((i) => i.visible !== false), 3, 2);
+    const size = ARRIVES_AT[cat.widget_kind] ? ARRIVES_AT[cat.widget_kind] : { w: 3, h: 2 };
+    const slot = firstFreeSlot(list.filter((i) => i.visible !== false), size.w, size.h);
     const item = clampItem({
       uid: uidOf(cat.key, instance_id),
       widget_key: cat.key, instance_id,
-      x: slot.x, y: slot.y, w: 3, h: 2, visible: true,
+      x: slot.x, y: slot.y, w: size.w, h: size.h, visible: true,
       config: {}, title_override: null,
       label: cat.label, catalogue_label: cat.label, category: cat.category,
       icon: cat.icon, source: cat.source, drill: cat.drill, format: cat.format, hot: cat.hot,
