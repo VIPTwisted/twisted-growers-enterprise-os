@@ -328,9 +328,17 @@
    beside a select it wrapped to four lines in a three-column panel and pushed the
    panel's content off the bottom. It still wraps rather than being clipped,
    because a warning you cannot finish reading is not a warning. */
-.tgwc-pickrow { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: center; min-width: 0; }
-.tgwc-pick { display: inline-flex; align-items: center; gap: 4px; min-width: 0; max-width: 100%; }
-.tgwc-pick .tgwc-sel { max-width: 200px; }
+.tgwc-pickrow { display: flex; flex-wrap: wrap; gap: 4px 8px; min-width: 0; }
+/* THE LABEL SITS ABOVE THE CONTROL, exactly as .tgwc-field already does — one
+   definition of "a labelled control on this canvas", not two.
+   It was label-beside-control for one deploy and a three-column panel could not
+   fit the pair: the panel grew a HORIZONTAL SCROLLBAR, which rule F5 forbids
+   outright. Stacked, the pair is 34px tall and cannot overflow at any width. */
+.tgwc-pick {
+  display: flex; flex-direction: column; align-items: stretch; gap: 1px;
+  flex: 1 1 120px; min-width: 0; max-width: 260px;
+}
+.tgwc-pick .tgwc-sel { width: 100%; min-width: 0; }
 
 /* ═══════════ a row that opens its own record ═══════════
    A real button, so Tab reaches it and Enter works. Styled as text because a
@@ -353,8 +361,16 @@
    Drawn at real pixels, measured from the panel, so a 1px hairline is 1px and a
    10px axis label is 10px at every panel width. Nothing in here is drawn unless
    there are two real readings behind it. */
-.tgwc-plotbox { flex: 1 1 auto; min-height: 72px; min-width: 0; display: flex; }
-.tgwc-chart { display: block; }
+/* THE SVG IS TAKEN OUT OF THE FLOW ON PURPOSE. It is sized in real pixels from a
+   ResizeObserver on this box; if it could influence the box's own size, a
+   scrollbar appearing at one width and vanishing at the next is an observer loop
+   that spins the renderer. Absolute inside a clipped relative parent makes that
+   feedback path impossible rather than unlikely. */
+.tgwc-plotbox {
+  position: relative; overflow: hidden;
+  flex: 1 1 auto; min-height: 72px; min-width: 0;
+}
+.tgwc-chart { display: block; position: absolute; top: 0; left: 0; }
 .tgwc-chart .ax     { stroke: var(--wc-line); stroke-width: 1; }
 .tgwc-chart .line   { fill: none; stroke: var(--wc-info); stroke-width: 1.5; stroke-linejoin: round; }
 .tgwc-chart .dot    { fill: var(--wc-info); }
