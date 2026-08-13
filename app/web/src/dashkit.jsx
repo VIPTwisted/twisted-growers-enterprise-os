@@ -660,7 +660,38 @@ export function WidgetBoard({ layout, children }) {
    published tile is corrected at SOURCE, not here — a correction proposal is
    filed against the matview — and until that lands the reader sees the number
    and the reason it is wrong together, rather than the number alone. */
-export function DkKpiStrip({ dept, tiles, trend, targets, go, onAssigned, caveats }) {
+/* `pairs` is an optional map from a PUBLISHED KPI label to a SECOND served
+   figure that belongs to the same tile and MUST NEVER BE ADDED TO IT.
+
+   It exists for the owner's 12 Aug 2026 ruling on the stock headline ("AGREE
+   SPLIT THIS"). Dried flower is dry weight; fresh frozen is packaged at field
+   moisture and is mostly water. The department publishes the dried figure as
+   its tile and carries the fresh frozen figure in a `context` sentence — which
+   is prose, at 10px, and reads as a footnote rather than as the other half of a
+   split. Two figures the owner ordered split must render as TWO FIGURES, at the
+   same scale, on the same tile, with the words "never added" between them.
+
+   Both numbers stay served. The strip formats them through dkFmt like every
+   other figure and computes neither.
+
+   A PAIR THAT MATCHES NO PUBLISHED TILE IS ANNOUNCED, NOT DROPPED. The caveat
+   map that came before this was keyed to "Total on hand, dry-equivalent"; the
+   department later renamed that tile to "Dried flower on hand" and the caveat
+   silently detached — it rendered nowhere and nothing said so. A qualifier that
+   can vanish without a sound is worse than none, so an unmatched key is a
+   critical chip on the strip head naming the key and the labels it did not
+   find. */
+/* `inPlace` is an optional map from a PUBLISHED KPI label to { open, onOpen }.
+   Where a tile has an entry, pressing it OPENS ITS OWN RECORDS BELOW THE STRIP
+   instead of navigating to the report page named in its `drill` column.
+
+   It exists because measurement, 13 Aug 2026, found that the published drill
+   target lands the reader on a superset of the figure they pressed on seven of
+   the Command Center's eight figures — go() carries a view key and no filter,
+   and ReportScreen clears every filter on arrival. C1 wants "the exact records,
+   not a general report", so the exact records open here and the general report
+   stays one press further in, inside the drill. */
+export function DkKpiStrip({ dept, tiles, trend, targets, go, onAssigned, caveats, pairs, inPlace }) {
   if (!tiles.length) {
     return (
       <DkEmpty
@@ -670,11 +701,23 @@ export function DkKpiStrip({ dept, tiles, trend, targets, go, onAssigned, caveat
     );
   }
   const noTarget = tiles.filter((r) => !targets[r.kpi] || targets[r.kpi].target == null).length;
+  const pairMap = pairs ?? {};
+  /* Any key — a split figure or an in-place drill — that matches no published
+     tile. Both maps are keyed by label because the row carries no stable
+     identifier, so a rename must be LOUD rather than silent. */
+  const orphanPairs = [...new Set([...Object.keys(pairMap), ...Object.keys(inPlace ?? {})])]
+    .filter((k) => !tiles.some((t) => t.kpi === k));
   return (
     <div className="cc-kpiwrap">
       <div className="cc-striphead">
         <span className="cc-striplabel">Key figures</span>
         <DkTag tone="neutral">{tiles.length} figures</DkTag>
+        {orphanPairs.map((k) => (
+          <DkTag key={k} tone="crit"
+            title={`This page prepared a split figure or an in-place drill for the published figure “${k}”, and no figure of that name is published for ${dept}. The published labels are: ${tiles.map((t) => t.kpi).join(" · ")}. Nothing has been dropped quietly — that half of the split, or that drill, is not on screen and this chip is the reason why.`}>
+            no published figure named “{k}” ⓘ
+          </DkTag>
+        ))}
         {noTarget > 0 && (
           <DkTag tone="attn"
             title="A tile with no owner-set target cannot show a red rail, because there is nothing to breach. Targets are rows in kpi_targets set by a person — this platform never invents one. Set them on the Goals and Targets page.">
@@ -704,13 +747,29 @@ export function DkKpiStrip({ dept, tiles, trend, targets, go, onAssigned, caveat
             };
           }
           const hasSpark = tr?.series && tr.series.length >= 2;
-          const shortCtx = r.context && r.context.length <= 44 ? r.context : null;
+          /* THE CONTEXT SENTENCE RENDERS IN FULL, WRAPPING (F5, and the house
+             rule against silent truncation). It used to render only when it was
+             44 characters or shorter, on the argument that a longer one "rides
+             the tooltip" — but nothing on screen said a sentence had been
+             withheld, and a tooltip does not exist on a touch screen or in
+             print. Seven of the Command Center's eight published figures carry
+             a context longer than 44 characters, so seven explanations were
+             invisible: the dried-flower tile's own sentence naming the fresh
+             frozen held separately was one of them. Wrap, never clip, and never
+             omit without saying so. */
+          const pair = pairMap[r.kpi];
+          const here = inPlace && inPlace[r.kpi];
           return (
-            <div key={r.kpi + r.ord} className="cc-kpi">
+            <div key={r.kpi + r.ord} className={`cc-kpi ${here?.open ? "on" : ""}`}>
               <button className="cc-kpi-open"
-                onClick={() => r.drill && go(r.drill)}
-                disabled={!r.drill}
-                title={(r.context ? r.context + " — " : "") + (r.drill
+                onClick={() => (here ? here.onOpen() : r.drill && go(r.drill))}
+                disabled={!here && !r.drill}
+                aria-expanded={here ? Boolean(here.open) : undefined}
+                title={(r.context ? r.context + " — " : "") + (here
+                  ? (here.open
+                      ? "Click again to close. The records are listed below the strip."
+                      : "Open the exact records behind this figure, in place, below the strip.")
+                  : r.drill
                   ? "Open the records behind this figure."
                   : "This figure publishes no drill target. A tile without a drill is not finished — it is filed with the database team (rule C1).")}>
                 <span className="cc-kpi-lbl">{r.kpi}</span>
@@ -734,9 +793,30 @@ export function DkKpiStrip({ dept, tiles, trend, targets, go, onAssigned, caveat
                     no target set
                   </span>
                 )}
-                {!r.drill && <span className="cc-kpi-nodrill">no drill published</span>}
-                {shortCtx && <span className="cc-kpi-ctx">{shortCtx}</span>}
+                {!here && !r.drill && <span className="cc-kpi-nodrill">no drill published</span>}
+                {r.context && <span className="cc-kpi-ctx">{r.context}</span>}
+                {here && (
+                  <span className="cc-kpi-pair-go">
+                    {here.open ? "Close — the records are below" : "Open the exact records →"}
+                  </span>
+                )}
               </button>
+              {pair && (
+                <button className={`cc-kpi-pair ${pair.open ? "on" : ""}`}
+                  onClick={pair.onOpen} aria-expanded={pair.open}
+                  title={pair.why ?? "The other half of a split figure. The two are never added."}>
+                  <span className="cc-kpi-pair-rule">{pair.rule ?? "never added to the figure above"}</span>
+                  <span className="cc-kpi-lbl">{pair.label}</span>
+                  <span className="cc-kpi-line">
+                    <b className="cc-kpi-val plain">{dkFmt(pair.value, pair.unit)}</b>
+                    {pair.unit && pair.unit !== "$" && pair.unit !== "%" && <em className="cc-kpi-unit">{pair.unit}</em>}
+                  </span>
+                  {pair.sub && <span className="cc-kpi-ctx">{pair.sub}</span>}
+                  <span className="cc-kpi-pair-go">
+                    {pair.open ? "Close — the records are below" : "Open the records →"}
+                  </span>
+                </button>
+              )}
               {caveats && caveats[r.kpi] && (
                 <div className="cc-kpi-caveat" title={caveats[r.kpi]}>{caveats[r.kpi]}</div>
               )}
@@ -1213,46 +1293,180 @@ export function DkNarrative({ page, range, role, session, go, onChips }) {
    pre-aggregated sum and these rows are summed per package — a rounding
    difference, stated here rather than hidden, never a reconciliation failure.
    ═══════════════════════════════════════════════════════════════════════════ */
-export function DkStreamDrill({ origin, stream, renderTable }) {
+/* One stream's packages, or every package EXCEPT one stream's.
+
+   `excludeStream` was added 13 Aug 2026 for the split stock headline. The
+   published "Dried flower on hand" figure is every package that is not fresh
+   frozen, and its drill used to navigate to the whole stock report — which
+   totals 2,459.5 lb against a tile reading 2,041.3. A tile that opens a
+   superset of itself is a drill in name only (C1: the exact records, not a
+   general report). The exclusion is served — it filters on the same `stream`
+   column the inclusive form uses — and tile_drill_contract re-derives the sum
+   from these very rows so the two cannot drift apart.
+
+   IT NOW ASKS FOR AN EXACT COUNT. The old "more" flag inferred a further page
+   from a full one, which is a fair guess but gives the reader no total: a
+   1,110-row list said "50+ packages". The count is a row count over an
+   ungrouped evidence view — one row per package — so it answers exactly the
+   question it looks like it answers (E4). */
+export function DkStreamDrill({ origin, stream, excludeStream, labState, labStateLabel, renderTable }) {
   const PAGE = 50;
   const [rows, setRows] = useState(null);
+  const [total, setTotal] = useState(null);
   const [err, setErr] = useState(null);
   const [pages, setPages] = useState(1);
-  const [more, setMore] = useState(false);
   useEffect(() => {
     let live = true;
-    supabase.from("v_stock_proof").select("*")
-      .eq("stream", stream).eq("origin", origin)
-      .order("packaged_on", { ascending: true })
+    let q = supabase.from("v_stock_proof").select("*", { count: "exact" });
+    if (stream) q = q.eq("stream", stream);
+    if (origin) q = q.eq("origin", origin);
+    if (excludeStream) q = q.neq("stream", excludeStream);
+    if (labState) q = q.eq("lab_state", labState);
+    q.order("packaged_on", { ascending: true })
       .range(0, pages * PAGE - 1)
-      .then(({ data, error }) => {
+      .then(({ data, error, count }) => {
         if (!live) return;
         if (error) { setErr(error.message); return; }
-        const got = rowsOr(data);
-        setRows(got);
-        setMore(got.length === pages * PAGE);
+        setRows(rowsOr(data));
+        setTotal(count);
       });
     return () => { live = false; };
-  }, [origin, stream, pages]);
-  if (err) return <DkErr what={`Every package in ${stream}, ${origin}`} err={err} />;
-  if (rows === null) return <div className="cc-fine">Reading every package in this stream…</div>;
+  }, [origin, stream, excludeStream, labState, pages]);
+  const what = labState ? (labStateLabel ?? labState)
+    : stream ? `${stream}, ${origin}`
+    : `every stream except ${excludeStream}`;
+  if (err) return <DkErr what={`Every package in ${what}`} err={err} />;
+  if (rows === null) return <div className="cc-fine">Reading every package in this population…</div>;
   if (!rows.length) {
-    return <DkEmpty why={`No package is on hand in ${stream}, ${origin}.`}
-      fills="The card counts the same population from the same evidence view, so an empty list here means the stream really is clear." />;
+    return <DkEmpty why={`No package is on hand in ${what}.`}
+      fills="The tile counts the same population from the same evidence view, so an empty list here means it really is clear." />;
   }
+  const known = total == null ? null : Number(total);
+  const more = known != null && rows.length < known;
   return (
     <>
       <div className="cc-fine">
-        {rows.length}{more ? "+" : ""} package{rows.length === 1 ? "" : "s"} in <b>{stream}</b>, {origin},
-        oldest packaged first. Every row carries its certificate and its manifest, or the reason
-        it has neither.
+        {known != null
+          ? <>Showing <b>{rows.length.toLocaleString()}</b> of <b>{known.toLocaleString()}</b> packages
+              in <b>{what}</b>, oldest packaged first.</>
+          : <>Showing <b>{rows.length.toLocaleString()}</b> packages in <b>{what}</b>. No exact count was served
+              with them, so this list cannot promise to be complete and says so rather than implying it is.</>}
+        {" "}Every row carries its certificate and its manifest, or the reason it has neither.
       </div>
       {renderTable(rows)}
       {more && (
         <button className="cc-btn" onClick={() => setPages((p) => p + 1)}>
-          Show the next {PAGE} packages
+          Show the next {Math.min(PAGE, known - rows.length).toLocaleString()} packages ({(known - rows.length).toLocaleString()} still unread)
         </button>
       )}
+    </>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   THE ROWS BEHIND ONE TILE — the primitive that closes C1 on the key figures.
+
+   MEASURED 13 Aug 2026, and this is the defect it exists for. Seven of the
+   Command Center's eight published figures drilled by navigating to a report
+   page keyed on a view, and ReportScreen resets every filter on arrival. A
+   reader who pressed the in-the-rooms figure landed on the whole moisture
+   register, several times larger; a reader who pressed the moisture-loss figure
+   landed on the SAME page. Two different figures, one destination, neither of
+   them reconciling to it. C1 says the drill opens the exact records, "not a
+   general report", and go() carries a view key and nothing else — there is no
+   filter channel to add one to. The measurements live in tile_drill_contract,
+   which re-derives them on every run; a figure written into this comment would
+   go stale exactly as fast as one written into code.
+
+   So the exact rows open IN PLACE, from the view the figure is actually
+   computed from, with the figure's own served predicate. The reader still
+   reaches the full report from a control inside the drill; what changes is that
+   the first thing they see is their own number's records.
+
+   NO PREDICATE IS INVENTED HERE. Every filter passed in is lifted from
+   mv_department_dashboard_base's own definition, and every one of them is
+   registered in tile_drill_contract so the database re-derives the tile from
+   these very rows on each run. A filter this component gets wrong shows up as
+   DISAGREE, not as a quietly wrong list.
+
+   The descriptor is a plain object built at module scope by the caller, never
+   inline: an object literal rebuilt every render would re-run the read on every
+   render. NO SILENT TOP-N — exact count in the header, remainder on the pager. */
+const DK_NUM = (v) => Number(v).toLocaleString(undefined, { maximumFractionDigits: 1 });
+export function DkRowDrill({ view, filters, order, columns, note, footer, pageSize = 200 }) {
+  const [rows, setRows] = useState(null);
+  const [total, setTotal] = useState(null);
+  const [err, setErr] = useState(null);
+  const [pages, setPages] = useState(1);
+  /* A new population is a new list. Without this reset the previous figure's
+     rows stay on screen under the new figure's heading while the read is in
+     flight — which is the shape of a wrong answer, not a slow one. */
+  useEffect(() => { setRows(null); setErr(null); setPages(1); }, [view, filters, order]);
+  useEffect(() => {
+    let live = true;
+    let q = supabase.from(view).select("*", { count: "exact" });
+    for (const f of listOf(filters)) q = q[f.op](f.col, f.val);
+    if (order) q = q.order(order.col, { ascending: !!order.asc, nullsFirst: false });
+    q.range(0, pages * pageSize - 1).then(({ data, error, count }) => {
+      if (!live) return;
+      if (error) { setErr(error.message); return; }
+      setRows(rowsOr(data));
+      setTotal(count);
+    });
+    return () => { live = false; };
+  }, [view, filters, order, pageSize, pages]);
+  if (err) return <DkErr what={`The records behind this figure (${view})`} err={err} />;
+  if (rows === null) return <div className="cc-fine">Reading every record behind this figure…</div>;
+  if (!rows.length) {
+    return (
+      <DkEmpty
+        why="No record sits behind this figure right now."
+        fills={`The tile counts the same population from ${view} with the same filter, so an empty list here is the real position rather than a failed read. If the tile above still shows a figure, that is a disagreement worth raising — tile_drill_contract re-derives one from the other on every run.`}
+        action={footer ?? null} />
+    );
+  }
+  const known = total == null ? null : Number(total);
+  const more = known != null && rows.length < known;
+  return (
+    <>
+      <div className="cc-fine">
+        {known != null
+          ? <>Showing <b>{rows.length.toLocaleString()}</b> of <b>{known.toLocaleString()}</b> records,
+              read from <b>{view}</b> with the figure&rsquo;s own filter.</>
+          : <>Showing <b>{rows.length.toLocaleString()}</b> records from <b>{view}</b>. No exact count was served
+              with them, so this list cannot promise to be complete and will not present what arrived as the total.</>}
+        {" "}Every record is listed individually; nothing is grouped away.{note ? ` ${note}` : ""}
+      </div>
+      <div className="tablewrap">
+        <table>
+          <thead><tr>{listOf(columns).map((c) => <th key={c.key}>{c.label}</th>)}</tr></thead>
+          <tbody>
+            {rows.map((r, i) => (
+              <tr key={`${r.id ?? r.package_tag ?? r.harvest_name ?? r.plant_tag ?? "row"}|${i}`}>
+                {listOf(columns).map((c) => {
+                  const v = r[c.key];
+                  const blank = v === null || v === undefined || v === "";
+                  return (
+                    <td key={c.key} className={c.kind === "note" ? "note" : (c.bad && c.bad(r) ? "bad" : undefined)}>
+                      {blank ? (c.none ?? "not recorded")
+                        : c.kind === "num" ? DK_NUM(v)
+                        : c.kind === "lb" ? `${DK_NUM(v)} lb`
+                        : c.kind === "bool" ? (v === true ? "Yes" : "No")
+                        : String(v)}
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {more && (
+        <button className="cc-btn" onClick={() => setPages((p) => p + 1)}>
+          Show the next {Math.min(pageSize, known - rows.length).toLocaleString()} records ({(known - rows.length).toLocaleString()} still unread)
+        </button>
+      )}
+      {footer}
     </>
   );
 }

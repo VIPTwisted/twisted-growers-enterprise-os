@@ -83,6 +83,36 @@
   padding: 0 10px 7px; border-left: 3px solid var(--cccrit); margin-left: 0;
 }
 
+/* ── THE OTHER HALF OF A SPLIT FIGURE ──────────────────────────────────────
+   Owner ruling 12 Aug 2026, "AGREE SPLIT THIS": dried flower and fresh frozen
+   are two figures and are never summed. The second one sits on the SAME tile,
+   at the SAME 22px scale as the published figure above it (it inherits
+   .cc-kpi-val), separated by a hairline carrying the words that make the
+   relationship a rule rather than a layout accident. Nothing here sets a
+   colour that is not already a theme token. */
+.cc-kpi-pair {
+  display: flex; flex-direction: column; gap: 1px; width: 100%;
+  background: transparent; border: 0; border-top: 1px solid var(--ccline);
+  color: inherit; text-align: left; padding: 5px 10px 6px;
+  cursor: pointer; font-family: inherit;
+}
+.cc-kpi-pair:hover { background: var(--cc2); }
+.cc-kpi-pair.on { background: var(--cc2); box-shadow: inset 0 -2px 0 var(--ccok); }
+.cc-kpi-pair-rule {
+  font-family: var(--ccmono); font-size: 9.5px; letter-spacing: 0.07em;
+  text-transform: uppercase; color: var(--ccattn); line-height: 1.4; overflow-wrap: anywhere;
+}
+.cc-kpi-pair-go {
+  font-family: var(--ccmono); font-size: 10px; letter-spacing: 0.06em;
+  text-transform: uppercase; color: var(--cct2); line-height: 1.4;
+}
+.cc-kpi-pair:hover .cc-kpi-pair-go, .cc-kpi-pair.on .cc-kpi-pair-go { color: var(--ccok); }
+/* A key figure whose own records are open below the strip. Same open-state
+   marker the room tiles and the stock-room tiles already use, so "this is the
+   one you opened" reads the same everywhere on the page. */
+.cc-kpi.on { background: var(--cc2); box-shadow: inset 0 -2px 0 var(--ccok); }
+.cc-kpi.on .cc-kpi-pair-go { color: var(--ccok); }
+
 /* ── owner-set targets nothing reports against ─────────────────────────── */
 .cc-orphans { display: flex; flex-direction: column; gap: 4px; }
 .cc-orphan {

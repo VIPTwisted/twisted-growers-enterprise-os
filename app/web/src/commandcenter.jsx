@@ -29,7 +29,7 @@
    stamp in the page header is the single home for freshness, and it reports
    the age of the DATA (the tile snapshot's computed_at), not query time.
    ═══════════════════════════════════════════════════════════════════════════ */
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useMemo } from "react";
 import { supabase } from "./lib/supabase.js";
 import {
   DateRangeSelect, useSectionStore, rowsOr,
@@ -38,7 +38,7 @@ import {
 } from "./App.jsx";
 import {
   DkKpiStrip, DkRoomBoard, DkRoomPlantDrill, DkWorkQueue, useWorkQueue, DkCaret, DkDrill, DrillRoot,
-  DkStreamDrill, DkEmpty, dkRoomQualified,
+  DkStreamDrill, DkRowDrill, DkEmpty, dkRoomQualified,
 } from "./dashkit.jsx";
 import "./commandcenter.css";
 
@@ -114,6 +114,153 @@ function ccAge(ts) {
    over while looking finished. The shared strip says "no target set", "no
    history yet" and disables a drill-less tile with "no drill published"
    beside it. Same markup, same classes, same scale: only the silence is gone. */
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   WHAT EACH KEY FIGURE OPENS — one descriptor per published tile.
+
+   THE DEFECT THIS CLOSES, measured 13 Aug 2026. Every Command key figure drilled
+   by navigating to a report page named in its own `drill` column, and that page
+   shows the whole view with every filter reset. So the dried-flower figure
+   opened a stock report that also counts fresh frozen; the in-the-rooms figure
+   opened the whole moisture register rather than the open harvests it counts;
+   the moisture-not-recorded figure opened THE SAME PAGE as the in-the-rooms
+   figure; and the harvests-open-too-long figure opened every harvest on the
+   register rather than the ones past the limit. Each gap is a multiple, not a
+   rounding, and each is recorded with the measurement of the day in
+   tile_drill_contract and in correction proposal 27 — never frozen in prose
+   here, where it would go stale exactly as fast as a number typed into code.
+
+   Two different figures pointing at one destination cannot both reconcile to it,
+   and rule C1 is explicit that a drill opens the exact records, "not a general
+   report". go() carries a view key and nothing else, so the destination cannot
+   be narrowed — the records therefore open IN PLACE, and the full report is
+   still one press away from inside the drill.
+
+   EVERY FILTER BELOW IS LIFTED VERBATIM FROM mv_department_dashboard_base — the
+   definition that computes the figure — and never composed from what the number
+   looks like. Two of the figures already have a dedicated view standing behind
+   them (v_harvest_still_in_room, v_missing_lab_results) and those are used as
+   they are. Each descriptor is also registered in tile_drill_contract, so the
+   database re-derives the tile from these very rows on every run: a filter that
+   is wrong here reads DISAGREE rather than shipping a quietly wrong list.
+
+   The descriptors are module constants, not inline objects. An object rebuilt
+   on every render is a new dependency on every render, and DkRowDrill would
+   re-read the database on each one.
+   ═══════════════════════════════════════════════════════════════════════════ */
+/* THE PUBLISHED LABELS, in one place. mv_department_dashboard rows carry no
+   stable identifier, so a label is the only key a page has. Naming them once
+   here means a rename shows up as ONE broken constant rather than as six string
+   literals scattered through the render, and DkKpiStrip raises a critical chip
+   for any key that matches no published figure rather than silently rendering
+   nothing. Filed with the data layer: a stable tile key on the row would retire
+   this block entirely. */
+const CC_KPI_DRIED = "Dried flower on hand";
+const CC_KPI_IN_ROOMS = "In the rooms, dry-equivalent";
+const CC_KPI_OPEN_TOO_LONG = "Harvests open too long";
+const CC_KPI_PHANTOM = "Moisture loss not recorded";
+const CC_KPI_AT_LAB = "Out at the laboratory, no result";
+const CC_KPI_NOT_SUBMITTED = "Never submitted for testing";
+const CC_KPI_FAILED = "Failed testing on hand";
+/* Not a published label — the fresh frozen half of the split rides on the dried
+   tile, so it needs a key of its own for the one-drill-at-a-time selector. */
+const CC_FF_KEY = "pair:fresh frozen, wet weight";
+/* The stream key is the SERVED value in v_stock_summary and v_stock_proof, not
+   a category invented here. v_stock_headline counts the same population by
+   Metrc product category, and tile_drill_contract cc.stock.fresh_frozen_lb
+   re-derives one from the other so the mapping is tested rather than trusted.
+   If no served stream carries this name, the drill says so by name. */
+const CC_FRESH_FROZEN_STREAM = "Fresh frozen";
+
+const CC_O_STILL_IN_ROOM = { col: "really_left_lb", asc: false };
+const CC_C_STILL_IN_ROOM = [
+  { key: "harvest_name", label: "Harvest" },
+  { key: "drying_room", label: "Drying room", none: "room not recorded" },
+  { key: "harvest_started", label: "Started", none: "not recorded" },
+  { key: "days_open", label: "Days open", kind: "num", none: "not recorded" },
+  { key: "days_since_last_package", label: "Days since the last package came off", kind: "num", none: "no package has come off yet" },
+  { key: "last_package_taken_off", label: "Last package off", none: "none yet" },
+  { key: "wet_lb", label: "Wet in", kind: "lb", none: "not weighed" },
+  { key: "expected_dry_lb", label: "Expected dry", kind: "lb", none: "not computable" },
+  { key: "packaged_lb", label: "Packaged off", kind: "lb", none: "none packaged" },
+  { key: "waste_lb", label: "Waste", kind: "lb", none: "none recorded" },
+  { key: "really_left_lb", label: "Really left, dry-equivalent", kind: "lb", none: "not computable" },
+  { key: "old_figure_wet_minus_dry", label: "Metrc still shows, wet", kind: "lb", none: "not recorded" },
+  { key: "what_it_really_means", label: "What it really means", kind: "note", none: "no reading recorded" },
+];
+/* Moisture register, the two DIFFERENT populations that used to share one page. */
+const CC_F_PHANTOM = [
+  { op: "eq", col: "harvest_state", val: "CLOSED" },
+  { op: "is", col: "needs_recording", val: true },
+  { op: "gt", col: "phantom_lb", val: 0 },
+];
+const CC_O_PHANTOM = { col: "phantom_lb", asc: false };
+const CC_C_MOISTURE = [
+  { key: "harvest_name", label: "Harvest" },
+  { key: "strain", label: "Strain", none: "strain not recorded" },
+  { key: "drying_room", label: "Drying room", none: "room not recorded" },
+  { key: "harvest_state", label: "Harvest state", none: "not recorded" },
+  { key: "harvest_closed", label: "Closed on", none: "still open" },
+  { key: "wet_lb", label: "Wet in", kind: "lb", none: "not weighed" },
+  { key: "packaged_lb", label: "Packaged off", kind: "lb", none: "none packaged" },
+  { key: "waste_lb", label: "Waste", kind: "lb", none: "none recorded" },
+  { key: "metrc_shows_remaining_lb", label: "Metrc still shows", kind: "lb", none: "nothing" },
+  { key: "expected_moisture_loss_lb", label: "Expected water loss", kind: "lb", none: "not computable" },
+  { key: "phantom_lb", label: "Water never written off", kind: "lb", none: "none" },
+  { key: "recorded_loss_lb", label: "Loss actually recorded", kind: "lb", none: "never recorded" },
+  { key: "recorded_method", label: "How it was recorded", none: "not recorded" },
+  { key: "entered_by", label: "Entered by", none: "nobody recorded" },
+  { key: "status", label: "Status", none: "not flagged" },
+];
+/* Harvests open past the owner-set limit. The limit is f_rule('harvest_open_max_days')
+   and is NOT written here — the view serves harvest_closed and the running day
+   count, and the filter asks for exactly what the tile's own definition asks for:
+   not closed, and open longer than the served rule. The rule value arrives with
+   the page in harvest_alert_rules and is applied at render, never typed in. */
+const CC_O_OPEN_TOO_LONG = { col: "total_days_start_to_now", asc: false };
+const CC_C_HARVEST_ISSUES = [
+  { key: "harvest_name", label: "Harvest" },
+  { key: "strain", label: "Strain", none: "strain not recorded" },
+  { key: "drying_room", label: "Drying room", none: "room not recorded" },
+  { key: "license", label: "Licence", none: "not recorded" },
+  { key: "harvest_started", label: "Started", none: "not recorded" },
+  { key: "total_days_start_to_now", label: "Days open", kind: "num", none: "not recorded" },
+  { key: "plants", label: "Plants", kind: "num", none: "not recorded" },
+  { key: "wet_lb", label: "Wet in", kind: "lb", none: "not weighed" },
+  { key: "packaged_lb", label: "Packaged off", kind: "lb", none: "none packaged" },
+  { key: "still_in_room_lb", label: "Still in the room", kind: "lb", none: "nothing" },
+  { key: "packages_made", label: "Packages made", kind: "num", none: "none" },
+  { key: "harvest_state", label: "State", none: "not recorded" },
+  { key: "what_is_wrong", label: "What is wrong", kind: "note", none: "nothing flagged" },
+];
+/* Submitted to a laboratory and never reported back. v_missing_lab_results IS
+   the tile's population — no filter is needed and none is invented. */
+const CC_O_MISSING_LAB = { col: "pounds", asc: false };
+const CC_C_MISSING_LAB = [
+  { key: "package_tag", label: "Package tag" },
+  { key: "product", label: "Product", none: "not recorded" },
+  { key: "category", label: "Category", none: "not recorded" },
+  { key: "strain", label: "Strain", none: "strain not recorded" },
+  { key: "origin", label: "Origin", none: "not recorded" },
+  { key: "pounds", label: "Weight", kind: "lb", none: "not weighed" },
+  { key: "went_out_on", label: "Went out on", none: "date not recorded" },
+  { key: "days_missing", label: "Days with no result", kind: "num", none: "not computable" },
+  { key: "testing_state", label: "Testing state in Metrc", none: "not recorded" },
+  { key: "source_harvest", label: "Source harvest", none: "not recorded" },
+  { key: "where_it_is_now", label: "Where it is now", none: "location not recorded" },
+  { key: "value_at_risk", label: "Value at risk", none: "not valued" },
+  { key: "what_to_do", label: "What to do", kind: "note", none: "no action recorded" },
+];
+/* THE TWO LABORATORY-STATE FIGURES DO NOT DRILL v_stock_on_hand, EVEN THOUGH
+   THAT IS THE VIEW THEY ARE COMPUTED FROM. v_stock_on_hand GROUPS — counting
+   its rows answers "how many streams" while looking exactly like "how many
+   packages" (rule E4, and the platform has already broken this way). Their
+   drills read the package-level evidence view instead, filtered on the same
+   lab_state column, so every row is one physical package and carries its
+   certificate and its manifest. Measured 13 Aug 2026: 173.4 against a published
+   173.5, and 165.4 against 165.3 — one rounding step apart, nothing more. */
+const CC_LAB_NOT_SUBMITTED = "NotSubmitted";
+const CC_LAB_TEST_FAILED = "TestFailed";
 
 /* ---------- order 3 · seed-to-sale strip, first band ---------- */
 const CC_WIP = new Set(["Drying", "Awaiting test", "At the laboratory"]);
@@ -636,7 +783,7 @@ function CcGlobal({ rows, go, exec }) {
    both are on WO-004 for the data layer. A control that looks live and writes
    nowhere is the exact defect this page was graded down for.
    ═══════════════════════════════════════════════════════════════════════════ */
-function CcPeople({ zones, zonesErr, staffing, staffingErr, people, peopleErr, go }) {
+function CcPeople({ zones, zonesErr, staffing, staffingTotal, staffingErr, people, peopleErr, go }) {
   const [open, setOpen] = useState(null);
   const t = (k) => (open === k ? null : k);
   const canBe = people.filter((p) => p.schedulable_state === "schedulable");
@@ -1030,11 +1177,28 @@ function CcGoals({ goals, err, go }) {
    shape. The tone below derives from the SERVED numeric comparison only. The
    drying verdict is prose and lives in the expanded row, labelled as what it
    is. */
-function CcYield({ rows, go }) {
+function CcYield({ rows, total, go }) {
   const [openRow, setOpenRow] = useState(null);
+  const [openAll, setOpenAll] = useState(false);
   const max = Math.max(...rows.map((r) => Math.max(Number(r.dry_g_per_plant || 0), Number(r.strain_median_dry_g || 0))), 1);
+  const known = total == null ? null : Number(total);
   return (
     <div className="cc-yield">
+      {/* THE BAND SAYS WHAT IT IS NOT SHOWING. It rendered twelve rows over a
+          register of 273 and called them "the last 12", which reads as the
+          whole of the recent record rather than as a slice of it. C1 forbids a
+          top-N the reader cannot get past and F3 forbids truncating without
+          saying so, so the true total is stated and the rest is one press
+          away. Where the database serves no count, that is said too — the
+          number of rows that happened to arrive is never presented as a total. */}
+      <div className="cc-fine">
+        {known != null
+          ? <>The <b>{rows.length.toLocaleString()}</b> most recently finished of <b>{known.toLocaleString()}</b> closed
+              harvests on the audit register, newest first. Nothing is summarised away — the rest open below.</>
+          : <>The <b>{rows.length.toLocaleString()}</b> most recently finished closed harvests. The database served no
+              exact count with them, so this band cannot say how many more there are, and it will not present the
+              rows that happened to arrive as the total.</>}
+      </div>
       {rows.map((r) => {
         const under = r.strain_median_dry_g != null && Number(r.dry_g_per_plant) < Number(r.strain_median_dry_g);
         const tone = r.strain_median_dry_g == null ? "plain" : under ? "crit" : "ok";
@@ -1079,7 +1243,103 @@ function CcYield({ rows, go }) {
           </React.Fragment>
         );
       })}
+      {known != null && known > rows.length && (
+        <button className="cc-btn" onClick={() => setOpenAll(true)}
+          title="Every closed harvest on the audit register, not the twelve most recent.">
+          Show every closed harvest ({(known - rows.length).toLocaleString()} more)
+        </button>
+      )}
+      {openAll && (
+        <DkDrill label="Every closed harvest on the yield audit register" onClose={() => setOpenAll(false)}>
+          <CcYieldAll go={go} />
+        </DkDrill>
+      )}
     </div>
+  );
+}
+
+/* Every closed harvest, on its own read rather than by raising the band's
+   limit — the page's first paint stays twelve rows and the whole register is
+   still reachable, which is the shape C1 asks for. It pages rather than
+   capping, and the header states the true total from an exact count. */
+function CcYieldAll({ go }) {
+  const PAGE = 100;
+  const [rows, setRows] = useState(null);
+  const [total, setTotal] = useState(null);
+  const [err, setErr] = useState(null);
+  const [pages, setPages] = useState(1);
+  useEffect(() => {
+    let live = true;
+    supabase.from("v_harvest_yield_audit").select("*", { count: "exact" })
+      .order("finished_on", { ascending: false })
+      .range(0, pages * PAGE - 1)
+      .then(({ data, error, count }) => {
+        if (!live) return;
+        if (error) { setErr(error.message); return; }
+        setRows(rowsOr(data));
+        setTotal(count);
+      });
+    return () => { live = false; };
+  }, [pages]);
+  if (err) return <CcErr what="Every closed harvest" err={err} />;
+  if (rows === null) return <div className="cc-fine">Reading every closed harvest on the register…</div>;
+  if (!rows.length) {
+    return <DkEmpty why="No closed harvest is on the yield audit register."
+      fills="v_harvest_yield_audit carries one row per finished harvest with its dry yield weighed. With none finished there is nothing to audit." />;
+  }
+  const known = total == null ? null : Number(total);
+  const more = known != null && rows.length < known;
+  return (
+    <>
+      <div className="cc-fine">
+        {known != null
+          ? <>Showing <b>{rows.length.toLocaleString()}</b> of <b>{known.toLocaleString()}</b> closed harvests, newest first.</>
+          : <>Showing <b>{rows.length.toLocaleString()}</b> closed harvests. No exact count was served with them, so this
+              list cannot promise to be complete and says so rather than implying it is.</>}
+        {" "}Every harvest is listed individually; nothing is grouped away.
+      </div>
+      <div className="tablewrap">
+        <table>
+          <thead><tr>
+            <th>Harvest</th><th>Strain</th><th>Room</th><th>Finished on</th><th>Plants</th>
+            <th>Wet in</th><th>Dry yield</th><th>Dry grams per plant</th>
+            <th>Own strain median</th><th>Versus own strain median</th><th>Versus plan</th>
+            <th>Drying verdict</th><th>In plain English</th><th>Concern</th>
+          </tr></thead>
+          <tbody>
+            {rows.map((r) => (
+              <tr key={r.harvest}>
+                <td>{r.harvest}</td>
+                <td>{r.strain || "strain not recorded"}</td>
+                {/* J7: this view serves no department column, so the qualified
+                    name is composed with the honest marker rather than with a
+                    department guessed to satisfy the rule. */}
+                <td>{dkRoomQualified({ room: r.room ?? "room not recorded", department: null })}</td>
+                <td>{r.finished_on || "not recorded"}</td>
+                <td>{r.plants == null ? "not recorded" : Number(r.plants).toLocaleString()}</td>
+                <td>{r.wet_in_lb == null ? "not weighed" : `${Number(r.wet_in_lb).toLocaleString()} lb`}</td>
+                <td>{r.dry_yield_lb == null ? "not weighed" : `${Number(r.dry_yield_lb).toLocaleString()} lb`}</td>
+                <td>{r.dry_g_per_plant == null ? "not weighed" : `${Number(r.dry_g_per_plant).toLocaleString()} g`}</td>
+                <td>{r.strain_median_dry_g == null ? "no median — this is the only harvest of this strain" : `${Number(r.strain_median_dry_g).toLocaleString()} g over ${r.strain_harvests} harvests`}</td>
+                <td className={r.vs_own_strain_g != null && Number(r.vs_own_strain_g) < 0 ? "bad" : ""}>
+                  {r.vs_own_strain_g == null ? "not comparable" : `${Number(r.vs_own_strain_g) >= 0 ? "+" : ""}${Number(r.vs_own_strain_g).toLocaleString()} g per plant`}
+                </td>
+                <td>{r.vs_target_lb == null ? "no plan recorded" : `${Number(r.vs_target_lb) >= 0 ? "+" : ""}${Number(r.vs_target_lb).toLocaleString()} lb`}</td>
+                <td className="note">{r.audit_verdict || "no drying verdict recorded"}</td>
+                <td className="note">{r.in_plain_english || "no plain-English line recorded"}</td>
+                <td className="note">{r.concern || "no concern raised"}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {more && (
+        <button className="cc-btn" onClick={() => setPages((p) => p + 1)}>
+          Show the next {Math.min(PAGE, known - rows.length).toLocaleString()} harvests ({(known - rows.length).toLocaleString()} still unread)
+        </button>
+      )}
+      <button className="cc-btn" onClick={() => go("v-harvest-report")}>Open the harvest report →</button>
+    </>
   );
 }
 
@@ -1191,7 +1451,24 @@ export default function CommandCenter({ go, session, reports, role, viewAs, onVi
          The proximity false positive is filed with the gate's owner. */
       const schedRead = supabase.from("harvest_schedule").select("*", { count: "exact" })
         .gte("harvest_date", today).order("harvest_date", { ascending: true }).limit(12);
-      const [tiles, trend, targets, flow, split, global, goals, yld, rooms, alertRules, stockRooms,
+      /* THE YIELD BAND SHOWED TWELVE OF 273 AND SAID "LAST 12", FULL STOP.
+         A reader had no way of knowing 261 closed harvests were behind it and
+         no control to reach them — a silent top-N, which C1 forbids outright
+         and F3 forbids doing quietly. The exact count comes back with the
+         twelve so the band can state the real total, and "Show every closed
+         harvest" opens the rest. Hoisted onto its own line for the same reason
+         schedRead is: v_harvest_yield_audit serves ONE ROW PER HARVEST, so an
+         exact row count is exactly right, but the aggregate-count gate matches
+         `.from(x) … count:` within 300 characters and would read it as
+         belonging to an aggregate view listed near it in the array below. */
+      const yieldRead = supabase.from("v_harvest_yield_audit").select("*", { count: "exact" })
+        .order("finished_on", { ascending: false }).limit(12);
+      /* The staffing detail is capped at 200 rows. It serves none today, but a
+         cap nobody states is a cap nobody notices the day it bites, so the
+         count rides along and the drill says how many it is not showing. */
+      const staffingRead = supabase.from("v_zone_staffing").select("*", { count: "exact" })
+        .order("work_date", { ascending: false }).limit(200);
+      const [tiles, trend, targets, flow, split, global, goals, yld, rooms, alertRules, openRule, stockRooms,
              stock, money, tasks, headline, restock, forecast, compliance, zones, staffing, people, sched] = await Promise.all([
         supabase.from("mv_department_dashboard").select("*").eq("department", "Command").order("ord"),
         supabase.from("v_dashboard_trend").select("*").eq("department", "Command"),
@@ -1200,10 +1477,16 @@ export default function CommandCenter({ go, session, reports, role, viewAs, onVi
         supabase.from("v_flow_failed_split").select("*").maybeSingle(),
         supabase.from("v_global_management").select("*"),
         supabase.from("v_goal_status").select("*").order("metric_key"),
-        supabase.from("v_harvest_yield_audit").select("*").order("finished_on", { ascending: false }).limit(12),
+        yieldRead,
         supabase.from("v_room_board_complete").select("*").order("room"),
         supabase.from("harvest_alert_rules").select("rule_key, threshold, note, active")
           .in("rule_key", ["weekend_warning_days", "late_tolerance_days"]),
+        /* The open-harvest limit the "Harvests open too long" figure counts
+           against. It is an owner-set row in conversion_factors, read here so
+           the tile's drill can ask for exactly the harvests the tile counted.
+           Never a literal: 28 is today's value, not the rule. */
+        supabase.from("conversion_factors").select("key, value, set_by, note")
+          .eq("key", "harvest_open_max_days").maybeSingle(),
         supabase.from("v_stock_by_department").select("*"),
         supabase.from("v_stock_summary").select("*"),
         /* HEAD-ONLY (Agent X: v_money_position was fetched twice). The bar below
@@ -1218,7 +1501,7 @@ export default function CommandCenter({ go, session, reports, role, viewAs, onVi
         supabase.from("v_production_forecast").select("*").order("month"),
         supabase.from("v_schedule_compliance").select("*").order("scheduled_date", { ascending: false }),
         supabase.from("v_zone_now").select("*").order("zone"),
-        supabase.from("v_zone_staffing").select("*").order("work_date", { ascending: false }).limit(200),
+        staffingRead,
         supabase.from("v_schedulable").select("*").order("full_name"),
         schedRead,
       ]);
@@ -1226,13 +1509,16 @@ export default function CommandCenter({ go, session, reports, role, viewAs, onVi
       setD({
         tiles: grab(tiles), trend: grab(trend), targets: grab(targets), flow: grab(flow),
         split: split.error ? { rows: null, err: split.error.message } : { rows: split.data, err: null },
-        global: grab(global), goals: grab(goals), yld: grab(yld),
+        global: grab(global), goals: grab(goals),
+        yld: { ...grab(yld), total: yld.count },
         rooms: grab(rooms), alertRules: grab(alertRules), stockRooms: grab(stockRooms),
+        openRule: openRule.error ? { row: null, err: openRule.error.message } : { row: openRule.data, err: null },
         stock: grab(stock), tasks: grab(tasks),
         money: { count: money.count, err: money.error ? money.error.message : null },
         headline: headline.error ? { row: null, err: headline.error.message } : { row: headline.data, err: null },
         restock: grab(restock), forecast: grab(forecast), compliance: grab(compliance),
-        zones: grab(zones), staffing: grab(staffing), people: grab(people),
+        zones: grab(zones), people: grab(people),
+        staffing: { ...grab(staffing), total: staffing.count },
         sched: { ...grab(sched), total: sched.count },
       });
     })();
@@ -1251,6 +1537,29 @@ export default function CommandCenter({ go, session, reports, role, viewAs, onVi
      verbatim from App.jsx, internals pixel-untouched. Their open/hide state
      lives here exactly as it did in the old dashboard. */
   const [openTile, setOpenTile] = useState(null);
+  /* WHICH KEY FIGURE HAS ITS OWN RECORDS OPEN, and only ever one. Holding it in
+     a single selector rather than one flag per tile is what makes "one drill at
+     a time" structural instead of something every call site has to remember —
+     the same fix the room board needed when a plant drill and a package drill
+     could stand open together. The fresh-frozen half of the split headline is a
+     second control on the same tile, so it takes its own key: two figures that
+     are never added must not share one set of rows. */
+  const [openKpi, setOpenKpi] = useState(null);
+  const toggleKpi = useCallback((k) => setOpenKpi((p) => (p === k ? null : k)), []);
+  /* The open-harvest limit, from the owner-set row, used to ask the drill for
+     exactly the harvests the tile counted. Memoised so DkRowDrill's read does
+     not re-fire on every render — an array literal rebuilt each render is a new
+     dependency each render. Where the rule could not be read there is NO
+     filter and NO in-place drill: a guessed limit would quietly list the wrong
+     harvests, which is worse than the tile it is meant to prove. */
+  const openMaxDays = d?.openRule?.row?.value == null ? null : Number(d.openRule.row.value);
+  const ccOpenTooLong = useMemo(
+    () => (openMaxDays == null ? null : [
+      { op: "is", col: "harvest_closed", val: null },
+      { op: "gt", col: "total_days_start_to_now", val: openMaxDays },
+    ]),
+    [openMaxDays],
+  );
 
   if (d === null) return (
     <div className="ccpage"><div className="cc-fine" style={{ padding: 16 }}>Building the Command Center from the live records…</div></div>
@@ -1277,22 +1586,68 @@ export default function CommandCenter({ go, session, reports, role, viewAs, onVi
   const openStream = d.stock.rows.find((s) => s.origin + s.stream === openTile) ?? null;
   const zoneRows = d.zones.rows;
   const schedulable = d.people.rows;
-  /* THE PUBLISHED FIGURE IS NOT CHANGED HERE — the reason it is wrong is shown
-     beside it, in the database's own words. mv_department_dashboard publishes
-     "Total on hand, dry-equivalent" as 2,460.0 lb, which adds fresh frozen at
-     WET weight into a dry-equivalent figure. Owner ruling 12 Aug 2026: split
-     it. v_stock_headline serves the split and serves the sentence; the tile is
-     corrected at source through a correction proposal, and until that lands the
-     reader gets both. The key is the KPI label exactly as published, so a
-     renamed tile drops the caveat rather than mispinning it to a neighbour. */
-  const kpiCaveats = d.headline.row
+  /* ═══ THE SPLIT HEADLINE, ON THE TILE ITSELF ═══════════════════════════════
+     Owner ruling 12 Aug 2026: "AGREE SPLIT THIS". Dried flower is dry weight;
+     fresh frozen is packaged at field moisture and is mostly water. The two are
+     never summed, and the owner asked to SEE both.
+
+     WHAT WAS HERE BEFORE, AND WHY IT WAS NOT ENOUGH. The department used to
+     publish one combined tile, "Total on hand, dry-equivalent", and this file
+     hung a red caveat under it explaining that the figure was overstated. The
+     owner rejected that on sight — a wrong number with an apology beside it is
+     still the number on the dashboard. The data layer has since corrected the
+     publication: the tile is now "Dried flower on hand" and carries only dried
+     pounds. But the fresh frozen half went into the tile's `context` sentence,
+     which is prose, and the strip was hiding any context over 44 characters
+     altogether. So the split existed in the database and appeared nowhere on
+     the page, and the caveat above was keyed to a KPI label that no longer
+     exists — it had silently detached and nothing said so.
+
+     WHAT HAPPENS NOW. Both halves render as figures at the same scale on the
+     same tile, with "never added" between them. Both are read from
+     v_stock_headline; this file computes neither and rounds neither. The
+     dry-equivalent is deliberately NOT on the tile face — the view's own
+     instruction is to show it only beside its caveat, so it lives in the drill
+     next to ratio_caveat, verbatim.
+
+     THE KEY IS THE PUBLISHED LABEL, AND A RENAME IS ANNOUNCED. There is no
+     stable identifier on an mv_department_dashboard row, so the pair is keyed
+     by label like the caveat was. The difference is that DkKpiStrip now raises
+     a critical chip naming an unmatched key instead of rendering nothing.
+     Filed with the data layer: v_stock_headline should serve the KPI label it
+     splits, and CC_KPI_DRIED then disappears with it. */
+  const ffStreams = d.stock.rows.filter((s) => s.stream === CC_FRESH_FROZEN_STREAM);
+  const kpiPairs = d.headline.row
     ? {
-        "Total on hand, dry-equivalent":
-          `${d.headline.row.why_two_figures} Split: ${Number(d.headline.row.dried_lb).toLocaleString()} lb dried and `
-          + `${Number(d.headline.row.fresh_frozen_wet_lb).toLocaleString()} lb fresh frozen at wet weight, shown separately in the `
-          + `executive column below. ${d.headline.row.ratio_caveat}`,
+        [CC_KPI_DRIED]: {
+          label: "Fresh frozen on hand, wet weight",
+          value: d.headline.row.fresh_frozen_wet_lb,
+          unit: "lb",
+          rule: "never added to the dried figure above",
+          sub: `${Number(d.headline.row.fresh_frozen_packages).toLocaleString()} packages, weighed wet at field moisture.`,
+          why: d.headline.row.why_two_figures,
+          open: openKpi === CC_FF_KEY,
+          onOpen: () => toggleKpi(CC_FF_KEY),
+        },
       }
     : null;
+
+  /* ═══ WHAT EACH KEY FIGURE OPENS, keyed by its PUBLISHED label ═════════════
+     Seven of the eight. The eighth, "Open watchdog findings", keeps navigating
+     to the intelligence briefing because that page IS its population — measured
+     13 Aug 2026, 147 findings against a tile of 147 — so sending the reader
+     there opens exactly their own records and an in-place copy would be a
+     second definition of one list.
+
+     A key here that matches no published figure is announced by the strip as a
+     critical chip rather than dropped, the same as an orphaned split. */
+  const kpiInPlace = {};
+  for (const k of [CC_KPI_DRIED, CC_KPI_IN_ROOMS, CC_KPI_PHANTOM, CC_KPI_AT_LAB,
+                   CC_KPI_NOT_SUBMITTED, CC_KPI_FAILED,
+                   ...(ccOpenTooLong ? [CC_KPI_OPEN_TOO_LONG] : [])]) {
+    kpiInPlace[k] = { open: openKpi === k, onOpen: () => toggleKpi(k) };
+  }
+  const openTileRow = d.tiles.rows.find((t) => t.kpi === openKpi) ?? null;
 
   return (
     <DrillRoot label="Command Center">
@@ -1342,7 +1697,103 @@ export default function CommandCenter({ go, session, reports, role, viewAs, onVi
       {/* ── order 9 · KPI strip ── */}
       {d.tiles.err ? <CcErr what="The key figures" err={d.tiles.err} /> : (
         <DkKpiStrip dept="Command" tiles={d.tiles.rows} trend={trendByKpi} targets={targetByKpi}
-          go={go} onAssigned={() => setVer((v) => v + 1)} caveats={kpiCaveats} />
+          go={go} onAssigned={() => setVer((v) => v + 1)} pairs={kpiPairs} inPlace={kpiInPlace} />
+      )}
+      {d.headline.err && <CcErr what="The split stock headline" err={d.headline.err} />}
+      {d.openRule.err && <CcErr what="The open-harvest limit" err={d.openRule.err} />}
+      {openMaxDays == null && !d.openRule.err && (
+        <div className="cc-fine">
+          No open-harvest limit is set. <b>{CC_KPI_OPEN_TOO_LONG}</b> therefore opens the whole harvest
+          register rather than the harvests it counted — the limit is a row in the business rules
+          (harvest_open_max_days) and this page will not guess one to narrow a list with.
+        </div>
+      )}
+
+      {/* ── the records behind whichever key figure is open, in place ─────────
+          One at a time, each closing on its own button, on Escape and on the
+          browser's back button, with the full report still reachable from
+          inside. Nothing here re-mounts the page. ─────────────────────────── */}
+      {openKpi === CC_FF_KEY && (
+        <DkDrill label="Fresh frozen on hand, wet weight — every package"
+          onClose={() => setOpenKpi(null)}>
+          <div className="cc-fine">{d.headline.row?.why_two_figures}</div>
+          {d.headline.row && (
+            <div className="cc-fine">
+              Dry-equivalent at the configured ratio of {Number(d.headline.row.configured_ratio)} would
+              be {Number(d.headline.row.fresh_frozen_dry_equivalent_lb).toLocaleString()} lb.{" "}
+              {d.headline.row.ratio_caveat}
+            </div>
+          )}
+          {ffStreams.length === 0 ? (
+            <DkEmpty
+              why={`No stock stream is served under the name “${CC_FRESH_FROZEN_STREAM}”.`}
+              fills={`v_stock_headline counts fresh frozen by Metrc product category and v_stock_summary groups it by stream; the two are matched here by that stream name. The names served today are: ${d.stock.rows.map((s) => s.stream).join(" · ") || "none"}. The figure on the tile is still the served one — it is only the package list that cannot be aimed, and that mismatch is filed with the database team rather than shown as an empty table.`}
+              action={<button className="cc-btn" onClick={() => go("dept_dash_inventory")}>Open the Inventory dashboard →</button>} />
+          ) : ffStreams.map((s) => (
+            <React.Fragment key={s.origin + s.stream}>
+              <div className="cc-fine">
+                <b>{s.origin}</b> — {Number(s.total_lb).toLocaleString()} lb across{" "}
+                {Number(s.packages).toLocaleString()} packages, oldest packaged {s.oldest_days} days ago.
+              </div>
+              <DkStreamDrill origin={s.origin} stream={s.stream}
+                renderTable={(rows) => <StockProofTable rows={rows} locationLabel="Room" />} />
+            </React.Fragment>
+          ))}
+        </DkDrill>
+      )}
+
+      {openTileRow && kpiInPlace[openTileRow.kpi] && (
+        <DkDrill label={`${openTileRow.kpi} — every record behind the figure`}
+          onClose={() => setOpenKpi(null)}>
+          {openTileRow.context && <div className="cc-fine">{openTileRow.context}</div>}
+
+          {openKpi === CC_KPI_DRIED && (
+            <DkStreamDrill excludeStream={CC_FRESH_FROZEN_STREAM}
+              renderTable={(rows) => <StockProofTable rows={rows} locationLabel="Room" />} />
+          )}
+          {openKpi === CC_KPI_NOT_SUBMITTED && (
+            <DkStreamDrill labState={CC_LAB_NOT_SUBMITTED}
+              labStateLabel="never submitted for testing"
+              renderTable={(rows) => <StockProofTable rows={rows} locationLabel="Room" />} />
+          )}
+          {openKpi === CC_KPI_FAILED && (
+            <DkStreamDrill labState={CC_LAB_TEST_FAILED}
+              labStateLabel="failed testing and still on hand"
+              renderTable={(rows) => <StockProofTable rows={rows} locationLabel="Room" />} />
+          )}
+          {openKpi === CC_KPI_IN_ROOMS && (
+            <DkRowDrill view="v_harvest_still_in_room" order={CC_O_STILL_IN_ROOM}
+              columns={CC_C_STILL_IN_ROOM}
+              note="Every open harvest with material still in the room. The dry-equivalent is the view's own figure; the wet figure beside it is what Metrc still shows, and the difference is water."
+              footer={<button className="cc-btn" onClick={() => go("moisture_loss_register")}>
+                Open the full moisture loss register →
+              </button>} />
+          )}
+          {openKpi === CC_KPI_PHANTOM && (
+            <DkRowDrill view="v_moisture_loss_register" filters={CC_F_PHANTOM} order={CC_O_PHANTOM}
+              columns={CC_C_MOISTURE}
+              note="Closed harvests that still show water in Metrc and have no loss written off against them. This is a different population from the open harvests above, which is why the two figures no longer share one destination."
+              footer={<button className="cc-btn" onClick={() => go("moisture_loss_register")}>
+                Open the full moisture loss register →
+              </button>} />
+          )}
+          {openKpi === CC_KPI_OPEN_TOO_LONG && ccOpenTooLong && (
+            <DkRowDrill view="v_harvest_issues" filters={ccOpenTooLong} order={CC_O_OPEN_TOO_LONG}
+              columns={CC_C_HARVEST_ISSUES}
+              note={`Harvests not yet closed that have been open longer than the owner-set limit of ${openMaxDays} days${d.openRule.row?.set_by ? `, set by ${d.openRule.row.set_by}` : ""}. The limit is read from the business rules, never written into this page.`}
+              footer={<button className="cc-btn" onClick={() => go("harvest_issues")}>
+                Open the full harvest issues register →
+              </button>} />
+          )}
+          {openKpi === CC_KPI_AT_LAB && (
+            <DkRowDrill view="v_missing_lab_results" order={CC_O_MISSING_LAB}
+              columns={CC_C_MISSING_LAB}
+              note="Packages submitted to a laboratory that have never been reported back. This view is the figure's whole population, so no filter is applied and none is invented."
+              footer={<button className="cc-btn" onClick={() => go("metrc_rpt_lab")}>
+                Open the Metrc laboratory status report →
+              </button>} />
+          )}
+        </DkDrill>
       )}
       {d.targets.err && <CcErr what="The owner-set targets" err={d.targets.err} />}
       {d.trend.err && <CcErr what="The trend snapshots" err={d.trend.err} />}
@@ -1452,13 +1903,18 @@ export default function CommandCenter({ go, session, reports, role, viewAs, onVi
             {yieldUnder.length > 0
               ? <CcTag tone="crit">{yieldUnder.length} under own strain median</CcTag>
               : <CcTag tone="ok">every recent harvest at or above its strain median</CcTag>}
-            <CcTag tone="neutral">last {yieldRows.length} closed harvests</CcTag>
+            <CcTag tone="neutral"
+              title="The band shows the most recently finished harvests. The rest of the register opens from the control under the rows — nothing is capped without saying so.">
+              {d.yld.total == null
+                ? `last ${yieldRows.length} closed harvests — total not counted`
+                : `last ${yieldRows.length} of ${Number(d.yld.total).toLocaleString()} closed harvests`}
+            </CcTag>
           </>
         )}>
         {d.yld.err ? <CcErr what="The yield audit" err={d.yld.err} />
           : yieldRows.length === 0
             ? <div className="cc-fine">No closed harvests yet — rows appear as soon as a harvest finishes and its dry yield is weighed.</div>
-            : <CcYield rows={yieldRows} go={go} />}
+            : <CcYield rows={yieldRows} total={d.yld.total} go={go} />}
       </CcPanel>
 
       {/* ── rooms, department-qualified (J7) — every room, not the flower rooms alone ── */}
