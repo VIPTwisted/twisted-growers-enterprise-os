@@ -250,7 +250,7 @@ const PLOT_H = 200;
    the figure and the chips, and its bottom on the readings, the basis and the
    drill — the plot takes the band between. Clamped so a short panel still draws
    something legible and a tall one does not draw a chart taller than the screen. */
-const plotHeightFor = (rows) => Math.max(90, Math.min(280, (Number(rows) || 6) * 58 - 160));
+const plotHeightFor = (rows) => Math.max(90, Math.min(280, (Number(rows) || 6) * 58 - 185));
 
 /* One reader for every panel in this file: bind the error, count the total, never
    confuse "the read failed" with "there is nothing".
