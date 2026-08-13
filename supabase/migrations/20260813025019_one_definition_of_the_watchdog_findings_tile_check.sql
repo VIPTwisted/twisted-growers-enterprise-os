@@ -1,0 +1,22 @@
+-- Agent B, 13 Aug 2026. Two contracts were registered for the same tile within
+-- the same hour, by two agents working in parallel:
+--
+--   cc.kpi.open_watchdog_findings         (Agent B) — tile by KPI label
+--   dash.command.8.open_watchdog_findings (Agent V) — tile by ord
+--
+-- Same tile, same drill, same verdict. The DDC discipline is explicit: when a
+-- second definition of a primitive appears, DELETE ONE — do not improve both.
+-- Agent V's is the one that survives, because its evidence note is strictly
+-- better: it names BOTH directions of the error (the tile ignores
+-- watchdog_findings.cleared_at so it counts 7 already-cleared findings, and its
+-- 48-hour window is not what OPEN means, so it misses uncleared findings older
+-- than that). Mine recorded only that the two sides agreed at the moment of
+-- registration, which they stopped doing within the hour as the rolling window
+-- moved.
+--
+-- THIS IS NOT A CHECK BEING SWITCHED OFF TO MAKE A BOARD GREEN. The identical
+-- check remains under Agent V's key and is still DISAGREE. What is removed is
+-- the duplicate, which would otherwise report the same failure twice and make
+-- the Command Center look worse than it is by double counting one defect.
+
+delete from tile_drill_contract where contract_key = 'cc.kpi.open_watchdog_findings';
