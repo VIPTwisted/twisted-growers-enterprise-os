@@ -40,11 +40,204 @@ import {
   grab, DkTag, DkErr, DkEmpty, DkKpiStrip, DkOrphanTargets, DkWorkQueue, useWorkQueue,
   DkNarrative, DkReports, DkTasks, DkGapCard, DkHead, DkRoomBoard, useWidgetLayout,
   Widget, WidgetBoard, WidgetBarControls, useSectionStore, DkCaret, DkDrill, DrillRoot,
+  DkRowDrill,
 } from "./dashkit.jsx";
 
 const DEPT = "Cultivation";
 const VIEW_KEY = "dept_dash_cultivation";
 const PAGE_KEY = "cultivation";
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   WHAT EACH KEY FIGURE OPENS — all six, in place, keyed by PUBLISHED LABEL.
+
+   THE DEFECT THIS EXISTS FOR, measured by Agent V on 13 Aug 2026 and recorded
+   in tile_drill_contract. This page passed NO in-place handler to DkKpiStrip,
+   so every tile fell through to go(r.drill) — a view key with no filter
+   channel — and ReportScreen clears every filter on arrival. Five of the six
+   figures therefore opened a population that was not their own:
+
+     · the two moisture figures both landed on the whole register,
+     · "Harvests open too long" landed on every harvest carrying any issue,
+     · "Average dry time" and "Conversion" landed on panels that average over
+       ROOMS while the tiles average over HARVESTS — two questions, one label,
+     · and "Harvests dried too long" landed on the pull-schedule page, which
+       holds schedule EVENTS and not harvests at all, so the figure could not
+       be found there under any filter. That is the F1-1,022-plants shape: a
+       tile whose drill explains a different kind of thing.
+
+   NO PREDICATE IS INVENTED HERE. Every filter below is lifted from
+   mv_department_dashboard_base's own definition of the tile it serves, and
+   each one is registered in tile_drill_contract so the database re-derives the
+   published figure from these very rows every hour. A filter this file gets
+   wrong surfaces as DISAGREE within the hour, not as a quietly wrong list.
+
+   TWO PREDICATES ARE WRITTEN AS THE VIEW'S OWN VOCABULARY RATHER THAN AS
+   "IS NOT NULL", because the client's filter channel takes an operator and one
+   value and has no three-argument negation. Both were measured equivalent
+   before they were used and both are in the contract, so an inequivalence
+   becomes a finding rather than a silent difference:
+     · "dry time recorded" is served as `dry_days_to_first_package >= 0`. The
+       column is a day count that cannot be negative, so this is exactly the
+       set the tile averages over; if a negative one ever appears the contract
+       breaks and says so.
+     · "the harvest is closed" is served as `harvest_state = 'Finished'`, which
+       is the view's own state word. Measured against `harvest_closed is not
+       null` across every harvest in the view: zero rows differ.
+
+   THE DESCRIPTORS ARE BUILT AT MODULE SCOPE, never inline. An object literal
+   rebuilt each render is a new dependency each render, and DkRowDrill would
+   re-read the whole population on every keystroke elsewhere on the page.
+
+   THE DRYING ROOM IS SHOWN WITH THE LICENCE THE HARVEST SITS UNDER wherever
+   the view serves one. Two of these views serve the room name with neither a
+   department nor a licence, and their drills say so in words rather than
+   presenting a bare room as if it were qualified — the room register maps two
+   of these very names to a different department from the licence the harvests
+   sit under, so composing a department here would be inventing one. The
+   missing column is filed with the database team.
+   ═══════════════════════════════════════════════════════════════════════════ */
+const CV_KPI_IN_ROOMS = "In the rooms, dry-equivalent";
+const CV_KPI_OPEN_LONG = "Harvests open too long";
+const CV_KPI_PHANTOM = "Moisture loss not recorded";
+const CV_KPI_AVG_DRY = "Average dry time";
+const CV_KPI_DRIED_LONG = "Harvests dried too long";
+const CV_KPI_CONVERSION = "Conversion, dried flower only";
+
+/* The two owner-set limits two of these drills need. Read with the page from
+   conversion_factors; never written here. Where one is absent its tile keeps
+   the published navigation and the page says why, because a guessed limit
+   would list the wrong harvests under the right heading. */
+const CV_RULE_OPEN_MAX = "harvest_open_max_days";
+const CV_RULE_DRY_MAX = "dry_window_max_days";
+const CV_RULE_KEYS = [CV_RULE_OPEN_MAX, CV_RULE_DRY_MAX];
+function cvRule(rows, key) {
+  if (!Array.isArray(rows)) return null;
+  const row = rows.find((r) => r.key === key);
+  return row && row.value != null ? { value: Number(row.value), setBy: row.set_by } : null;
+}
+
+/* ── 1 · In the rooms, dry-equivalent — the whole of v_harvest_still_in_room,
+      which IS the tile's population, so no filter is applied and none is
+      invented. ─────────────────────────────────────────────────────────── */
+const CV_O_IN_ROOMS = { col: "really_left_lb", asc: false };
+const CV_C_IN_ROOMS = [
+  { key: "harvest_name", label: "Harvest" },
+  { key: "drying_room", label: "Drying room", none: "room not recorded" },
+  { key: "harvest_started", label: "Cut on", none: "not recorded" },
+  { key: "days_open", label: "Days open", kind: "num" },
+  { key: "last_package_taken_off", label: "Last package taken off", none: "nothing packaged yet" },
+  { key: "days_since_last_package", label: "Days since that package", kind: "num", none: "nothing packaged yet" },
+  { key: "wet_lb", label: "Wet weight", kind: "lb" },
+  { key: "expected_dry_lb", label: "Expected dry weight", kind: "lb" },
+  { key: "packaged_lb", label: "Packaged", kind: "lb" },
+  { key: "waste_lb", label: "Waste", kind: "lb" },
+  { key: "really_left_lb", label: "Really left, dry-equivalent", kind: "lb" },
+  { key: "old_figure_wet_minus_dry", label: "What Metrc still shows, wet", kind: "lb" },
+  { key: "what_it_really_means", label: "What it really means", kind: "note", none: "no reading recorded" },
+];
+
+/* ── 2 · Harvests open too long — not closed, and open past the owner-set
+      limit. The limit arrives with the page and is applied at render. ───── */
+const CV_O_OPEN_LONG = { col: "total_days_start_to_now", asc: false };
+const CV_C_OPEN_LONG = [
+  { key: "harvest_name", label: "Harvest" },
+  { key: "drying_room", label: "Drying room", none: "room not recorded" },
+  { key: "license", label: "Licence the harvest sits under", none: "not recorded" },
+  { key: "strain", label: "Strain", none: "strain not recorded" },
+  { key: "harvest_started", label: "Cut on", none: "not recorded" },
+  { key: "total_days_start_to_now", label: "Days open", kind: "num" },
+  { key: "first_package_taken_off", label: "First package taken off", none: "nothing packaged yet" },
+  { key: "plants", label: "Plants", kind: "num" },
+  { key: "wet_lb", label: "Wet weight", kind: "lb" },
+  { key: "packaged_lb", label: "Packaged", kind: "lb" },
+  { key: "still_in_room_lb", label: "Still in the room", kind: "lb" },
+  { key: "harvest_state", label: "State", none: "not recorded" },
+  { key: "what_is_wrong", label: "What is wrong", kind: "note", none: "nothing flagged against this harvest" },
+  { key: "severity", label: "Severity", none: "not graded" },
+];
+
+/* ── 3 · Moisture loss not recorded — closed, still showing water in Metrc,
+      nothing written off. The three clauses are the tile's own. ─────────── */
+const CV_F_PHANTOM = [
+  { op: "eq", col: "harvest_state", val: "CLOSED" },
+  { op: "is", col: "needs_recording", val: true },
+  { op: "gt", col: "phantom_lb", val: 0 },
+];
+const CV_O_PHANTOM = { col: "phantom_lb", asc: false };
+const CV_C_PHANTOM = [
+  { key: "harvest_name", label: "Harvest" },
+  { key: "strain", label: "Strain", none: "strain not recorded" },
+  { key: "drying_room", label: "Drying room", none: "room not recorded" },
+  { key: "harvest_started", label: "Cut on", none: "not recorded" },
+  { key: "harvest_closed", label: "Closed on", none: "still open" },
+  { key: "wet_lb", label: "Wet weight", kind: "lb" },
+  { key: "packaged_lb", label: "Packaged", kind: "lb" },
+  { key: "waste_lb", label: "Waste", kind: "lb" },
+  { key: "metrc_shows_remaining_lb", label: "What Metrc still shows remaining", kind: "lb" },
+  { key: "expected_moisture_loss_lb", label: "Expected moisture loss", kind: "lb" },
+  { key: "really_left_lb", label: "Really left, dry-equivalent", kind: "lb" },
+  { key: "phantom_lb", label: "Water still on the books", kind: "lb" },
+  { key: "recorded_loss_lb", label: "Loss already recorded", kind: "lb", none: "none recorded" },
+  { key: "recorded_method", label: "How it was recorded", none: "not recorded" },
+  { key: "entered_by", label: "Entered by", none: "nobody recorded" },
+  { key: "recorded_in_metrc", label: "Recorded in Metrc", kind: "bool", none: "not recorded" },
+  { key: "status", label: "Status", none: "not flagged" },
+];
+
+/* ── 4 and 5 · Dry time. One column set, two populations: every harvest that
+      HAS a recorded dry time (the average), and those past the owner-set
+      longest acceptable dry time (the count). ───────────────────────────── */
+const CV_F_AVG_DRY = [{ op: "gte", col: "dry_days_to_first_package", val: 0 }];
+const CV_O_DRY = { col: "dry_days_to_first_package", asc: false };
+const CV_C_DRY = [
+  { key: "harvest_name", label: "Harvest" },
+  { key: "drying_room", label: "Drying room", none: "room not recorded" },
+  { key: "license", label: "Licence the harvest sits under", none: "not recorded" },
+  { key: "strain", label: "Strain", none: "strain not recorded" },
+  { key: "harvest_started", label: "Cut on", none: "not recorded" },
+  { key: "first_package_taken_off", label: "First package taken off", none: "nothing packaged yet" },
+  { key: "dry_days_to_first_package", label: "Days drying, cut to first package", kind: "num", none: "never packaged, so no dry time can be scored" },
+  { key: "packaging_window_days", label: "Days spent packaging", kind: "num", none: "not scoreable yet" },
+  { key: "harvest_state", label: "State", none: "not recorded" },
+  { key: "plants", label: "Plants", kind: "num" },
+  { key: "wet_lb", label: "Wet weight", kind: "lb" },
+  { key: "packaged_lb", label: "Packaged", kind: "lb" },
+  { key: "drying_verdict", label: "Drying verdict", kind: "note", none: "no verdict recorded" },
+];
+
+/* ── 6 · Conversion, dried flower only — every finished harvest, worst
+      conversion first, which is the order a grower reads it in. ─────────── */
+const CV_F_CONVERSION = [{ op: "eq", col: "harvest_state", val: "Finished" }];
+const CV_O_CONVERSION = { col: "conversion_pct", asc: true };
+const CV_C_CONVERSION = [
+  { key: "harvest_name", label: "Harvest" },
+  { key: "drying_room", label: "Drying room", none: "room not recorded" },
+  { key: "license", label: "Licence the harvest sits under", none: "not recorded" },
+  { key: "strain", label: "Strain", none: "strain not recorded" },
+  { key: "harvest_closed", label: "Closed on", none: "not recorded" },
+  { key: "plants", label: "Plants", kind: "num" },
+  { key: "wet_lb", label: "Wet weight", kind: "lb" },
+  { key: "packaged_lb", label: "Packaged", kind: "lb" },
+  { key: "bud_lb", label: "Bud", kind: "lb" },
+  { key: "shake_trim_lb", label: "Shake and trim", kind: "lb" },
+  { key: "waste_lb", label: "Waste", kind: "lb" },
+  { key: "conversion_pct", label: "Conversion, percent of wet weight packaged", kind: "num", none: "no conversion recorded" },
+  { key: "wet_to_dry_ratio", label: "Wet to dry ratio", kind: "num", none: "not recorded" },
+  { key: "packaged_g_per_plant", label: "Packaged grams per plant", kind: "num", none: "not recorded" },
+  { key: "drying_verdict", label: "Drying verdict", kind: "note", none: "no verdict recorded" },
+];
+
+/* Whole populations in one read where they fit, with the pager still honest
+   about anything beyond it. No sampling and no silent top-N (C1). */
+const CV_PAGE = 500;
+
+/* Said once, on the two drills whose view serves a room name with neither a
+   department nor a licence beside it. */
+const CV_ROOM_UNQUALIFIED =
+  "This view serves the drying room name on its own, with no department and no licence beside it, "
+  + "so the room here is NOT department-qualified. The room register maps two of these names to a "
+  + "different department from the licence these harvests sit under, so this page will not compose a "
+  + "department it cannot prove — the missing column is filed with the database team instead.";
 
 /* ---------- rooms holding stock, department-qualified ---------- */
 function CvStockRooms({ rows, go }) {
@@ -217,6 +410,10 @@ export default function CultivationDashboard({ go, session, reports, role, viewA
   const [busy, setBusy] = useState(false);
   const [ver, setVer] = useState(0);
   const [d, setD] = useState(null);
+  /* WHICH KEY FIGURE HAS ITS OWN RECORDS OPEN. One at a time, so two evidence
+     tables can never stand open under each other's headings. */
+  const [openKpi, setOpenKpi] = useState(null);
+  const toggleKpi = (k) => setOpenKpi((cur) => (cur === k ? null : k));
 
   /* THE PAGE IS A DECLARATIVE LIST OF WIDGET KEYS. Adding a section to this
      dashboard is one entry here plus its <Widget> below — that is the whole
@@ -239,7 +436,7 @@ export default function CultivationDashboard({ go, session, reports, role, viewA
   useEffect(() => {
     let live = true;
     (async () => {
-      const [tiles, trend, targets, rooms, alertRules, stockRooms, yld, dry, tasks, global] =
+      const [tiles, trend, targets, rooms, alertRules, limits, stockRooms, yld, dry, tasks, global] =
         await Promise.all([
           supabase.from("mv_department_dashboard").select("*").eq("department", DEPT).order("ord"),
           supabase.from("v_dashboard_trend").select("*").eq("department", DEPT),
@@ -247,6 +444,12 @@ export default function CultivationDashboard({ go, session, reports, role, viewA
           supabase.from("v_room_board_complete").select("*").order("room"),
           supabase.from("harvest_alert_rules").select("rule_key, threshold, note, active")
             .in("rule_key", ["weekend_warning_days", "late_tolerance_days"]),
+          /* THE TWO OWNER-SET LIMITS TWO OF THE KEY FIGURES ARE DEFINED BY.
+             They are rows in conversion_factors, read here so those tiles'
+             drills can ask for exactly the harvests the tiles counted. Never
+             a literal: today's values are today's values, not the rules. */
+          supabase.from("conversion_factors").select("key, value, set_by, what_it_means")
+            .in("key", CV_RULE_KEYS),
           supabase.from("v_stock_by_department").select("*").eq("department", DEPT.toUpperCase()),
           supabase.from("v_harvest_yield_audit").select("*").order("finished_on", { ascending: false }).limit(12),
           supabase.from("v_dry_time_discipline").select("*").order("month", { ascending: false }),
@@ -256,13 +459,35 @@ export default function CultivationDashboard({ go, session, reports, role, viewA
       if (!live) return;
       setD({
         tiles: grab(tiles), trend: grab(trend), targets: grab(targets), rooms: grab(rooms),
-        alertRules: grab(alertRules), stockRooms: grab(stockRooms), yld: grab(yld), dry: grab(dry),
+        alertRules: grab(alertRules), limits: grab(limits),
+        stockRooms: grab(stockRooms), yld: grab(yld), dry: grab(dry),
         tasks: grab(tasks),
         global: global.error ? { rows: null, err: global.error.message } : { rows: global.data, err: null },
       });
     })();
     return () => { live = false; };
   }, [ver]);
+
+  /* THE TWO SERVED LIMITS, AND THE FILTER ARRAYS BUILT FROM THEM. Memoised on
+     the value so DkRowDrill does not see a new dependency and re-read its whole
+     population on every unrelated render. Where a limit could not be read there
+     is NO filter and NO in-place drill for that figure: a guessed limit lists
+     the wrong harvests under the right heading, which is worse than the
+     navigation it would replace. The page says so on screen. */
+  const limitRows = d ? d.limits.rows : null;
+  const openMax = React.useMemo(() => cvRule(limitRows, CV_RULE_OPEN_MAX), [limitRows]);
+  const dryMax = React.useMemo(() => cvRule(limitRows, CV_RULE_DRY_MAX), [limitRows]);
+  const cvOpenTooLong = React.useMemo(
+    () => (openMax == null ? null : [
+      { op: "is", col: "harvest_closed", val: null },
+      { op: "gt", col: "total_days_start_to_now", val: openMax.value },
+    ]),
+    [openMax],
+  );
+  const cvDriedTooLong = React.useMemo(
+    () => (dryMax == null ? null : [{ op: "gt", col: "dry_days_to_first_package", val: dryMax.value }]),
+    [dryMax],
+  );
 
   const recompute = async () => {
     setBusy(true);
@@ -286,6 +511,19 @@ export default function CultivationDashboard({ go, session, reports, role, viewA
   const openTasks = d.tasks.rows.filter((t) => t.department === DEPT);
   const overdueTasks = openTasks.filter((t) => t.position?.startsWith("OVERDUE"));
   const dryLatest = d.dry.rows[0];
+
+  /* EVERY PUBLISHED FIGURE OPENS ITS OWN RECORDS, IN PLACE. The two that are
+     defined by an owner-set limit join the map only once that limit has been
+     read; without it they keep the published navigation and the page says why
+     immediately below the strip. A key here matching no published figure is
+     raised by the strip as a critical chip rather than dropped in silence. */
+  const kpiInPlace = {};
+  for (const k of [CV_KPI_IN_ROOMS, CV_KPI_PHANTOM, CV_KPI_AVG_DRY, CV_KPI_CONVERSION,
+                   ...(cvOpenTooLong ? [CV_KPI_OPEN_LONG] : []),
+                   ...(cvDriedTooLong ? [CV_KPI_DRIED_LONG] : [])]) {
+    kpiInPlace[k] = { open: openKpi === k, onOpen: () => toggleKpi(k) };
+  }
+  const openTileRow = d.tiles.rows.find((t) => t.kpi === openKpi) ?? null;
 
   return (
     <DrillRoot label="Cultivation">
@@ -327,9 +565,109 @@ export default function CultivationDashboard({ go, session, reports, role, viewA
         : d.tiles.rows.length === 0
           ? <DkGapCard row={d.global.rows} dept={DEPT} go={go} />
           : <DkKpiStrip dept={DEPT} tiles={d.tiles.rows} trend={trendByKpi} targets={targetByKpi}
-              go={go} onAssigned={() => setVer((v) => v + 1)} />}
+              go={go} onAssigned={() => setVer((v) => v + 1)} inPlace={kpiInPlace} />}
       {d.targets.err && <DkErr what="The owner-set targets" err={d.targets.err} />}
       {d.trend.err && <DkErr what="The trend snapshots" err={d.trend.err} />}
+      {d.limits.err && <DkErr what="The owner-set harvest and drying limits" err={d.limits.err} />}
+      {!d.limits.err && openMax == null && (
+        <div className="cc-fine">
+          No harvest-open limit is set, so <b>{CV_KPI_OPEN_LONG}</b> still opens the whole harvest
+          exceptions register rather than the harvests it counted. The limit is the
+          conversion_factors row <b>{CV_RULE_OPEN_MAX}</b>, and this page will not guess one to
+          narrow a list with — a guessed limit would list the wrong harvests under the right heading.
+        </div>
+      )}
+      {!d.limits.err && dryMax == null && (
+        <div className="cc-fine">
+          No longest-acceptable dry time is set, so <b>{CV_KPI_DRIED_LONG}</b> still opens the page
+          named in its published drill rather than the harvests it counted. The limit is the
+          conversion_factors row <b>{CV_RULE_DRY_MAX}</b>, and this page will not guess one.
+        </div>
+      )}
+
+      {/* ── the records behind whichever key figure is open, in place ────────
+          One at a time. Each closes on its own control at the top of the
+          drill, on Escape, and on the browser's back button, and the page
+          behind it never re-mounts. The general report stays reachable from
+          inside the drill, one press further in. ─────────────────────────── */}
+      {openTileRow && kpiInPlace[openTileRow.kpi] && (
+        <DkDrill label={`${openTileRow.kpi} — every record behind the figure`}
+          onClose={() => setOpenKpi(null)}>
+          {openTileRow.context && <div className="cc-fine">{openTileRow.context}</div>}
+
+          {openKpi === CV_KPI_IN_ROOMS && (
+            <DkRowDrill view="v_harvest_still_in_room" order={CV_O_IN_ROOMS}
+              columns={CV_C_IN_ROOMS} pageSize={CV_PAGE}
+              note={"Every open harvest with material still in the room — this view IS the figure's whole "
+                + "population, so no filter is applied and none is invented. The dry-equivalent is the "
+                + "view's own figure; the wet figure beside it is what Metrc still shows, and the "
+                + "difference is water. " + CV_ROOM_UNQUALIFIED}
+              footer={<button className="cc-btn" onClick={() => go("moisture_loss_register")}>
+                Open the full moisture loss register →
+              </button>} />
+          )}
+
+          {openKpi === CV_KPI_OPEN_LONG && cvOpenTooLong && (
+            <DkRowDrill view="v_harvest_forensic" filters={cvOpenTooLong} order={CV_O_OPEN_LONG}
+              columns={CV_C_OPEN_LONG} pageSize={CV_PAGE}
+              note={`Harvests not yet closed that have been open longer than the owner-set limit of `
+                + `${openMax.value} days${openMax.setBy ? `, set by ${openMax.setBy}` : ""}. The limit is `
+                + `read from the business rules with the page, never written into it. These are the `
+                + `harvests the figure counted, not every harvest carrying an issue.`}
+              footer={<button className="cc-btn" onClick={() => go("harvest_issues")}>
+                Open the full harvest exceptions register →
+              </button>} />
+          )}
+
+          {openKpi === CV_KPI_PHANTOM && (
+            <DkRowDrill view="v_moisture_loss_register" filters={CV_F_PHANTOM} order={CV_O_PHANTOM}
+              columns={CV_C_PHANTOM} pageSize={CV_PAGE}
+              note={"Closed harvests that still show water in Metrc with no loss written off against "
+                + "them. This is a different population from the open harvests in the room, which is "
+                + "why the two moisture figures no longer share one destination. " + CV_ROOM_UNQUALIFIED}
+              footer={<button className="cc-btn" onClick={() => go("moisture_loss_register")}>
+                Open the full moisture loss register →
+              </button>} />
+          )}
+
+          {openKpi === CV_KPI_AVG_DRY && (
+            <DkRowDrill view="v_harvest_forensic" filters={CV_F_AVG_DRY} order={CV_O_DRY}
+              columns={CV_C_DRY} pageSize={CV_PAGE}
+              note={"Every harvest with a recorded dry time, cut to first package, longest first. The "
+                + "figure above is the average of that one column across exactly these rows and no "
+                + "others. A harvest never packaged has no dry time to average, so it is absent here "
+                + "rather than counted as nothing. This averages over HARVESTS; the drying-room panel "
+                + "averages over ROOMS, which is a different question with the same words."}
+              footer={<button className="cc-btn" onClick={() => go("dry_room_performance")}>
+                Open drying room performance, which averages by room →
+              </button>} />
+          )}
+
+          {openKpi === CV_KPI_DRIED_LONG && cvDriedTooLong && (
+            <DkRowDrill view="v_harvest_forensic" filters={cvDriedTooLong} order={CV_O_DRY}
+              columns={CV_C_DRY} pageSize={CV_PAGE}
+              note={`Harvests whose dry time from cut to first package ran past the owner-set longest `
+                + `acceptable dry time of ${dryMax.value} days`
+                + `${dryMax.setBy ? `, set by ${dryMax.setBy}` : ""}. Each of these is a harvest, listed `
+                + `by name — the figure is a count of harvests and this is that list.`}
+              footer={<button className="cc-btn" onClick={() => go("harvest_forensic")}>
+                Open the full harvest detail register →
+              </button>} />
+          )}
+
+          {openKpi === CV_KPI_CONVERSION && (
+            <DkRowDrill view="v_harvest_forensic" filters={CV_F_CONVERSION} order={CV_O_CONVERSION}
+              columns={CV_C_CONVERSION} pageSize={CV_PAGE}
+              note={"Every finished harvest, worst conversion first. The figure above is the average of "
+                + "the conversion column across exactly these rows. It averages over HARVESTS; the "
+                + "yield gap page averages over ROOMS, and the two answers are far enough apart that a "
+                + "yield claim must name which one it came from."}
+              footer={<button className="cc-btn" onClick={() => go("issue_yield_gap")}>
+                Open the yield gap page, which averages by room →
+              </button>} />
+          )}
+        </DkDrill>
+      )}
 
       <WidgetBoard layout={layout}>
         {layout.list.map((w) => {
