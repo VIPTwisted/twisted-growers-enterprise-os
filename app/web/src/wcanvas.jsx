@@ -74,7 +74,7 @@ const glyphOf = (icon) => (icon && !/^[a-z0-9_-]+$/i.test(icon) ? icon : null);
    anything is not finished.
    Every one is still freely movable and resizable; this is only where it lands. */
 const ARRIVES_AT = {
-  chart:     { w: 6, h: 4 },   // an axis, a line and two date labels need the width
+  chart:     { w: 6, h: 6 },   // dropdowns, a figure, the plot — all above the fold
   list:      { w: 6, h: 4 },   // rows carrying a certificate and a manifest
   feed:      { w: 6, h: 4 },   // a timestamp, the entry and who, on one line
   messaging: { w: 4, h: 4 },   // messages, plus somewhere to type

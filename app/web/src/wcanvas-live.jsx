@@ -263,7 +263,7 @@ function useWidth() {
    readings, the basis and the drill — so the plot takes the middle band. Clamped
    so a one-row panel still draws something legible and a twelve-row panel does
    not draw a chart taller than the screen. */
-const plotHeightFor = (rows) => Math.max(96, Math.min(300, (Number(rows) || 4) * 58 - 130));
+const plotHeightFor = (rows) => Math.max(90, Math.min(280, (Number(rows) || 6) * 58 - 160));
 
 /* One reader for every panel in this file: bind the error, count the total, never
    confuse "the read failed" with "there is nothing".
