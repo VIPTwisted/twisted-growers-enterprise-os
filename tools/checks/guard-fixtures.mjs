@@ -285,7 +285,14 @@ function ciPatterns() {
    *
    * A harness that models an enforcement point inaccurately is worse than one that admits it
    * cannot see it: invariant B is only worth its name if both sides are read as they run. */
-  for (const m of yml.matchAll(/grep\s+-rniE\s+'([^']+)'([\s\S]*?);\s*then/g)) {
+  /* The -r is optional, 15 Aug 2026. CI stopped scanning the whole tree recursively and
+     now scans only the .sql files a push adds or changes, so the flag became `-niE` with
+     an explicit file list. This extractor required `-rniE` literally, found nothing, and
+     reported that the Forbidden SQL patterns step had been "removed or renamed" — a true
+     alarm about a false fact. The step is present and enforcing; only its scope moved.
+     Matching either form keeps this reading CI as it actually runs, which is the whole
+     point of reading it rather than copying it. */
+  for (const m of yml.matchAll(/grep\s+-r?niE\s+'([^']+)'([\s\S]*?);\s*then/g)) {
     /* POSIX bracket expressions -> JavaScript equivalents. */
     const js = m[1].replace(/\[\[:space:\]\]/g, "\\s").replace(/\[\[:alpha:\]\]/g, "[A-Za-z]");
     out.push({
