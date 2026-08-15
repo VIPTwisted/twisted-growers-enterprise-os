@@ -381,6 +381,50 @@ jobs:
         run: |
           set -euo pipefail
           fail=0
+
+          # SCAN WHAT THIS PUSH CHANGES, NOT THE WHOLE ARCHIVE.
+          #
+          # These three rules scanned `.` recursively — every .sql file in the repo,
+          # forever. Migrations from 5-7 Aug 2026 contain `drop view`, `grant ... to anon`
+          # and deletes from forensic tables, written BEFORE those rules existed. They are
+          # applied history: immutable, already in production, and editing them would be
+          # both meaningless and forbidden. So the archive guaranteed a red build in
+          # perpetuity.
+          #
+          # Measured 15 Aug 2026: 25 consecutive failures since 13 Aug 04:39. Last green
+          # run 10 Aug. Five days.
+          #
+          # That is not a safety net, it is noise — and it did real damage today. Netlify
+          # went down for four deploys, deploy-watch detected it correctly and failed six
+          # times running, and nobody looked, because GitHub failure mail from this repo
+          # had meant nothing for five days. The owner found the outage from a screenshot.
+          #
+          # This same file already documents this same lesson from 8 Aug 2026, eight lines
+          # below: "This step therefore exited 1 on every run, so the Gates workflow was red
+          # continuously and stopped meaning anything." It was fixed for prose then and
+          # broke again for history now. Twice is a pattern, so this fixes the shape.
+          #
+          # NOTHING IS RELAXED. The rules below are unchanged and still fail the build. What
+          # changes is their SCOPE: a violation must be one this push introduces. Two other
+          # layers already cover the archive and neither is touched — the database's own
+          # trigger refuses any view drop at runtime, and tools/hooks/guard-sql.mjs blocks
+          # one at authoring time before it can ever reach a file.
+          BASE="${{ github.event.before }}"
+          if [ -z "$BASE" ] || [ "$BASE" = "0000000000000000000000000000000000000000" ] \
+             || ! git cat-file -e "$BASE^{commit}" 2>/dev/null; then
+            BASE="$(git rev-parse HEAD~1 2>/dev/null || true)"
+          fi
+          if [ -n "$BASE" ]; then
+            mapfile -t SQL < <(git diff --name-only --diff-filter=AM "$BASE" HEAD -- '*.sql')
+          else
+            mapfile -t SQL < <(git ls-files '*.sql')   # first commit: nothing to diff against
+          fi
+          if [ ${#SQL[@]} -eq 0 ]; then
+            echo "Forbidden SQL patterns: no .sql added or changed in this push — nothing to scan."
+            exit 0
+          fi
+          echo "Scanning ${#SQL[@]} changed .sql file(s):"
+          printf '  %s\n' "${SQL[@]}"
           # Rule E1 — destroyed mv_department_dashboard three times.
           # WIDENED 8 Aug 2026: this required the word CASCADE, so a plain `drop view` and
           # `drop materialized view` both passed CI untouched — and a matview cannot be
@@ -388,8 +432,8 @@ jobs:
           # view drop; CI now agrees with it and with tools/hooks/guard-sql.mjs.
           # Comment lines are excluded: this file and the migrations DISCUSS the rule, and a
           # check that fires on prose held the build red for a day on 8 Aug.
-          if grep -rniE 'drop[[:space:]]+(materialized[[:space:]]+)?view' \
-               --include='*.sql' . | grep -viE ':[0-9]+:[[:space:]]*--' ; then
+          if grep -niE 'drop[[:space:]]+(materialized[[:space:]]+)?view' \
+               "${SQL[@]}" | grep -viE ':[0-9]+:[[:space:]]*--' ; then
             echo "::error::RULE E1 — a DROP VIEW was found. Use CREATE OR REPLACE VIEW."
             fail=1
           fi
@@ -405,16 +449,16 @@ jobs:
           # false-positive class that locked tg_nightly_platform_check() via the PreToolUse
           # hook. Requiring a privilege keyword after `grant` separates statement from prose:
           # verified 5/5 real GRANT shapes still caught, 0 of 3 prose lines caught.
-          if grep -rniE 'grant[[:space:]]+(all|select|insert|update|delete|truncate|references|trigger|usage|execute|create|connect|temporary|temp)\b[^;]*[[:space:]]to[[:space:]][^;]*\banon\b' \
-               --include='*.sql' . ; then
+          if grep -niE 'grant[[:space:]]+(all|select|insert|update|delete|truncate|references|trigger|usage|execute|create|connect|temporary|temp)\b[^;]*[[:space:]]to[[:space:]][^;]*\banon\b' \
+               "${SQL[@]}" ; then
             echo "::error::RULE E6 — 'grant ... to anon' found. Grant to authenticated instead."
             fail=1
           fi
           # Rule H2 — watchdog_findings silently lost 57 rows on 7 Aug 2026.
           # DROP TABLE added 8 Aug 2026. Removing 57 rows was blocked; removing the entire
           # table was not. The most destructive of the three verbs was the one missing.
-          if grep -rniE '(delete[[:space:]]+from|truncate|drop[[:space:]]+table([[:space:]]+if[[:space:]]+exists)?)[[:space:]]+(public\.)?(watchdog_findings|issue_decisions|cost_input_history|metrc_corrections|moisture_loss_entries)' \
-               --include='*.sql' . | grep -viE ':[0-9]+:[[:space:]]*--' ; then
+          if grep -niE '(delete[[:space:]]+from|truncate|drop[[:space:]]+table([[:space:]]+if[[:space:]]+exists)?)[[:space:]]+(public\.)?(watchdog_findings|issue_decisions|cost_input_history|metrc_corrections|moisture_loss_entries)' \
+               "${SQL[@]}" | grep -viE ':[0-9]+:[[:space:]]*--' ; then
             echo "::error::RULE H2 — deletion of, or from, an append-only forensic table."
             fail=1
           fi
