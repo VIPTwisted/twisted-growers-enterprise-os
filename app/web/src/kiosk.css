@@ -1,0 +1,246 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   THE WALL TERMINAL — the stylesheet that never existed. Agent B, 15 Aug 2026.
+
+   kiosk.jsx was written on 8 Aug 2026 and every class it names — .kiosk, .kpad,
+   .kgo, .kdots, .kres — was defined nowhere in this repository. Measured before
+   this file: one match for anything beginning `.k` across all six stylesheets,
+   and it was `.tmk.kiosk`, a chip on a different page. So the terminal rendered
+   as unstyled block elements: a 26-letter alphabet as a wall of default-size
+   text, a keypad as a vertical list, no targets, no contrast. That is why it
+   was never mounted, and it is why mounting it needed this file first.
+
+   THIS IS A SCREEN BOLTED TO A WALL. It is used with gloves on, at 6:52 in the
+   morning, by somebody who has thirty seconds. Everything here follows from
+   that and from nothing else:
+
+     - Targets are 64px and up. Gloves do not hit 40px buttons. The letter grid
+       is the smallest thing on the page and it is still 56px.
+     - Type is large enough to read standing back from the wall, and the clock
+       is the largest thing on it because that is the question being asked.
+     - No hover-only affordance. Nobody hovers on a wall.
+     - :active is loud, because a capacitive screen through a glove needs to
+       confirm it registered the press.
+
+   LOCKED, exactly as dash-schedule.css and dashkit.css are:
+   - No :root rule. Every declaration is scoped under .kiosk, so nothing here
+     can cascade into the side menu, the top menu, or any frozen surface.
+   - No colour literal anywhere. Every colour is a var() the locked theme
+     already defines, or a color-mix() over one. The theme-lock ratchet forbids
+     a new literal and is right to.
+   - Layout only. The palette and both modes are untouched.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.kiosk {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 18px;
+  /* Fills the page area it is given rather than guessing at a viewport: this
+     renders inside the application shell, under the top bar, and a fixed 100vh
+     would push the footer off the bottom of the screen it is bolted to. */
+  min-height: calc(100vh - 190px);
+  padding: 22px clamp(16px, 4vw, 46px) 26px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  box-shadow: var(--shadow-md);
+  /* Nothing on a wall terminal is selectable text, and a long press that pops
+     a selection handle over the keypad is a punch that did not happen. */
+  user-select: none;
+}
+
+/* ── the clock, which is the first thing anybody looks at ─────────────────── */
+.kiosk .ktop { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; }
+.kiosk .kclock {
+  display: flex; flex-direction: column; gap: 2px;
+  font-size: clamp(38px, 6vw, 62px); font-weight: 800; line-height: 1;
+  letter-spacing: -0.02em; color: var(--ink); font-variant-numeric: tabular-nums;
+}
+.kiosk .kclock span {
+  font-size: clamp(12px, 1.4vw, 15px); font-weight: 600; letter-spacing: 0.04em;
+  text-transform: uppercase; color: var(--muted);
+}
+/* Which terminal this screen is. It is stated permanently, because a punch is
+   recorded against the terminal and the person has a right to see which one. */
+.kiosk .kwhich {
+  display: flex; flex-direction: column; align-items: flex-end; gap: 6px;
+  text-align: right; max-width: 46%;
+}
+.kiosk .kwhich b {
+  font-size: 14px; font-weight: 700; color: var(--ink-2);
+  /* Wraps, never clips. A terminal is named for where it is and those names
+     are long — "Packaging wall terminal, Room B gowning door". */
+  overflow-wrap: anywhere; line-height: 1.35;
+}
+.kiosk .kwhich i { font-style: normal; font-size: 12.5px; color: var(--muted); overflow-wrap: anywhere; line-height: 1.35; }
+
+/* ── the body of whichever step is showing ────────────────────────────────── */
+.kiosk .kbody {
+  flex: 1; display: flex; flex-direction: column; align-items: center;
+  justify-content: center; gap: 14px; text-align: center; padding: 8px 0 4px;
+}
+.kiosk .kbody h1 {
+  margin: 0; font-size: clamp(28px, 4.2vw, 44px); font-weight: 800;
+  letter-spacing: -0.01em; color: var(--ink); line-height: 1.1;
+  overflow-wrap: anywhere; max-width: 22ch;
+}
+.kiosk .ksub {
+  margin: 0; font-size: clamp(14px, 1.7vw, 18px); color: var(--ink-2);
+  line-height: 1.45; max-width: 54ch; overflow-wrap: anywhere;
+}
+/* What has been typed so far. It is shown, because a keypad you cannot read
+   back is a keypad you cannot correct. */
+.kiosk .kshow {
+  min-width: min(420px, 90%); min-height: 62px; display: flex;
+  align-items: center; justify-content: center; padding: 8px 18px;
+  font-size: clamp(26px, 3.4vw, 38px); font-weight: 800; letter-spacing: 0.12em;
+  color: var(--neon); background: var(--input-bg);
+  border: 2px solid var(--neon-line); border-radius: 8px;
+  overflow-wrap: anywhere; text-align: center;
+}
+.kiosk .kshow em { font-style: normal; font-size: 18px; font-weight: 600; letter-spacing: 0.06em; color: var(--muted); }
+
+/* ── the alphabet, for the login identifier ───────────────────────────────── */
+.kiosk .kletters {
+  display: grid; grid-template-columns: repeat(9, minmax(0, 1fr));
+  gap: 8px; width: min(720px, 100%);
+}
+@media (max-width: 720px) { .kiosk .kletters { grid-template-columns: repeat(6, minmax(0, 1fr)); } }
+
+/* ── the number pad ───────────────────────────────────────────────────────── */
+.kiosk .kpad {
+  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px; width: min(420px, 100%);
+}
+
+/* Every key on both grids. One definition, two grids. */
+.kiosk .kletters button,
+.kiosk .kpad button {
+  min-height: 56px; padding: 0 6px; font-size: 22px; font-weight: 700;
+  color: var(--ink); background: var(--surface-2);
+  border: 1px solid var(--line); border-radius: 8px; cursor: pointer;
+  transition: transform 90ms ease, background 90ms ease, border-color 90ms ease;
+}
+.kiosk .kpad button { min-height: 78px; font-size: 30px; }
+.kiosk .kletters button:active,
+.kiosk .kpad button:active {
+  transform: scale(0.95);
+  background: var(--neon-soft); border-color: var(--neon); color: var(--neon);
+}
+.kiosk .kletters button:focus-visible,
+.kiosk .kpad button:focus-visible,
+.kiosk .kgo:focus-visible,
+.kiosk .klink:focus-visible,
+.kiosk .kpickrow:focus-visible { outline: 3px solid var(--neon); outline-offset: 2px; }
+.kiosk .kalt { font-size: 16px !important; font-weight: 700 !important; color: var(--muted) !important; }
+
+/* ── the PIN dots. Length is feedback; the digits are never shown ─────────── */
+.kiosk .kdots { display: flex; gap: 16px; padding: 8px 0; }
+.kiosk .kdots i {
+  width: 22px; height: 22px; border-radius: 50%;
+  border: 2px solid var(--neon-line); background: transparent;
+  transition: background 120ms ease, transform 120ms ease;
+}
+.kiosk .kdots i.on { background: var(--neon); border-color: var(--neon); transform: scale(1.12); }
+
+/* ── the primary action and the quiet one ─────────────────────────────────── */
+.kiosk .kgo {
+  min-height: 68px; min-width: min(340px, 90%); padding: 0 34px;
+  font-size: 21px; font-weight: 800; letter-spacing: 0.02em;
+  color: var(--neon-ink); background: var(--neon);
+  border: none; border-radius: 8px; cursor: pointer;
+  box-shadow: var(--glow); transition: transform 90ms ease, opacity 120ms ease;
+}
+.kiosk .kgo:active { transform: scale(0.97); }
+.kiosk .kgo:disabled { opacity: 0.4; cursor: not-allowed; box-shadow: none; }
+.kiosk .klink {
+  min-height: 52px; padding: 0 20px; font-size: 16px; font-weight: 600;
+  color: var(--muted); background: transparent;
+  border: 1px solid var(--line); border-radius: 8px; cursor: pointer;
+}
+.kiosk .klink:active { color: var(--ink); border-color: var(--neon-line); }
+.kiosk .kbusy { font-size: 16px; font-weight: 600; color: var(--muted); }
+
+/* ── the result screen ────────────────────────────────────────────────────── */
+.kiosk .kres { gap: 16px; }
+.kiosk .kicon {
+  width: 92px; height: 92px; display: flex; align-items: center; justify-content: center;
+  font-size: 48px; font-weight: 800; line-height: 1; border-radius: 50%;
+  color: var(--neon-ink); background: var(--neon);
+}
+.kiosk .kres.bad .kicon { color: var(--ink); background: var(--red); }
+.kiosk .kicon.warn { color: var(--neon-ink); background: var(--amber); }
+/* The server's own sentence, kept apart from the headline so nobody has to
+   guess which words came from the system and which from the screen. */
+.kiosk .kmsg {
+  font-size: 15px; line-height: 1.5; color: var(--ink-2);
+  background: var(--surface-2); border: 1px solid var(--line);
+  border-left: 3px solid var(--neon); border-radius: 6px;
+  padding: 10px 14px; max-width: 62ch; overflow-wrap: anywhere; text-align: left;
+}
+
+/* ── explaining a late punch, at the moment, while the reason is fresh ────── */
+.kiosk .kreason {
+  display: flex; flex-direction: column; gap: 10px;
+  width: min(560px, 100%); text-align: left;
+}
+.kiosk .kreason select,
+.kiosk .kreason textarea {
+  width: 100%; padding: 14px 16px; font: inherit; font-size: 17px;
+  color: var(--ink); background: var(--input-bg);
+  border: 1px solid var(--line); border-radius: 8px;
+}
+.kiosk .kreason select { min-height: 62px; }
+.kiosk .kreason textarea { resize: vertical; min-height: 82px; line-height: 1.4; }
+.kiosk .kreason select:focus, .kiosk .kreason textarea:focus { outline: none; border-color: var(--neon); }
+.kiosk .krow { display: flex; gap: 12px; flex-wrap: wrap; align-items: stretch; }
+.kiosk .krow .kgo { min-width: 0; flex: 1 1 220px; }
+.kiosk .krow .klink { flex: 0 1 200px; }
+.kiosk .kerr {
+  font-size: 15px; font-weight: 600; color: var(--red);
+  background: var(--red-soft); border-radius: 6px; padding: 9px 12px;
+  overflow-wrap: anywhere;
+}
+
+/* ── choosing which registered terminal this screen is ────────────────────── */
+.kiosk .kpick { width: min(620px, 100%); display: flex; flex-direction: column; gap: 10px; text-align: left; }
+.kiosk .kpickrow {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 3px;
+  width: 100%; min-height: 74px; padding: 14px 18px; text-align: left;
+  color: var(--ink); background: var(--surface-2);
+  border: 1px solid var(--line); border-radius: 8px; cursor: pointer;
+}
+.kiosk .kpickrow:active { background: var(--neon-soft); border-color: var(--neon); }
+.kiosk .kpickrow b { font-size: 18px; font-weight: 700; overflow-wrap: anywhere; line-height: 1.3; }
+.kiosk .kpickrow i { font-style: normal; font-size: 13.5px; color: var(--muted); overflow-wrap: anywhere; line-height: 1.35; }
+
+/* An honest empty state and an honest failed read. Neither is a blank screen,
+   and neither is styled to look like the other. */
+.kiosk .knone,
+.kiosk .kfail {
+  width: min(620px, 100%); display: flex; flex-direction: column; gap: 8px;
+  padding: 20px 22px; border-radius: 8px; text-align: left;
+  font-size: 15.5px; line-height: 1.5; color: var(--ink-2); overflow-wrap: anywhere;
+}
+.kiosk .knone { background: var(--surface-2); border: 1px solid var(--line); border-left: 3px solid var(--amber); }
+.kiosk .kfail { background: var(--red-soft); border: 1px solid var(--red); }
+.kiosk .knone b, .kiosk .kfail b { font-size: 18px; font-weight: 700; color: var(--ink); }
+.kiosk .kfail code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px;
+  color: var(--ink); background: var(--input-bg);
+  border: 1px solid var(--line); border-radius: 5px; padding: 7px 9px;
+  overflow-wrap: anywhere; white-space: pre-wrap;
+}
+
+/* ── the standing footer ──────────────────────────────────────────────────── */
+.kiosk .kfoot {
+  display: flex; align-items: center; justify-content: space-between; gap: 14px;
+  flex-wrap: wrap; padding-top: 14px; border-top: 1px solid var(--line);
+  font-size: 13px; color: var(--muted); line-height: 1.45;
+}
+.kiosk .kfoot button {
+  min-height: 44px; padding: 0 16px; font-size: 13.5px; font-weight: 600;
+  color: var(--muted); background: transparent;
+  border: 1px solid var(--line); border-radius: 6px; cursor: pointer;
+}
+.kiosk .kfoot button:active { color: var(--ink); border-color: var(--neon-line); }

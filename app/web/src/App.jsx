@@ -54,6 +54,24 @@ const CommandCenter = lazy(() => import("./commandcenter.jsx"));
 import { TagEvidence, TagEvidenceProvider } from "./dashkit.jsx";
 const CultivationDashboard = lazy(() => import("./dash-cultivation.jsx"));
 const InventoryDashboard = lazy(() => import("./dash-inventory.jsx"));
+/* SCHEDULE ADHERENCE — written 13 Aug 2026 and, until now, mounted by nothing.
+   Vite tree-shakes what no route imports, so dash-schedule.jsx and its stylesheet
+   were excluded from every bundle we have shipped: 1,627 lines that passed every
+   gate and reached no screen. Committed and not routed is the same as not built.
+   Same prop contract as the Cultivation and Inventory dashboards above. */
+const ScheduleAdherenceDashboard = lazy(() => import("./dash-schedule.jsx"));
+/* PLANT CENSUS AND THE METRC MIRROR — 15 Aug 2026. The plant record was
+   reconciled against both of Metrc's paths on 14-15 Aug and v_plant_census and
+   v_plant_mirror_balance were named by no component in this tree, so none of it
+   reached a screen. Same prop contract as the dashboards above. */
+const PlantCensusDashboard = lazy(() => import("./dash-plants.jsx"));
+/* THE WALL TERMINAL. nav_registry has carried an ENABLED row for view_key
+   `kiosk` — "Wall Terminal", on the Human Resources menu — while App.jsx had no
+   entry for it, so the click fell through to `current` and rendered the generic
+   module screen over `time_entries`: a searchable table of other people's punches
+   where a gloved hand at 6:52am expects a keypad. Terminals & Credentials has a
+   button that goes to the same place. Both now reach the terminal itself. */
+const Kiosk = lazy(() => import("./kiosk.jsx"));
 
 // Laws: live numbers (2) · no fake data (3) · nothing hardwired (4) — navigation itself is DB rows.
 
@@ -11202,6 +11220,26 @@ export default function App() {
     dept_dash_inventory: <InventoryDashboard go={setView} session={session} reports={reports}
       role={role} viewAs={viewAsRole} onViewAs={switchViewAs}
       isAdmin={isAdmin} viewRoles={viewRoles} />,
+    /* SCHEDULE ADHERENCE. Cultivation's page for the one rule that is deliberately
+       asymmetric — a pull may come down early, never late. Same prop contract as
+       the two dashboards above; the page reads its own views and computes no
+       business figure. It needs a nav_registry row to appear on the rail; until
+       that row exists the address #schedule_adherence reaches it. */
+    schedule_adherence: <ScheduleAdherenceDashboard go={setView} session={session} reports={reports}
+      role={role} viewAs={viewAsRole} onViewAs={switchViewAs}
+      isAdmin={isAdmin} viewRoles={viewRoles} />,
+    /* PLANT CENSUS. Cultivation's proof of what is standing and which of Metrc's
+       two paths says so, with the per-room balance against Metrc's own dated
+       report. Needs a nav_registry row to reach the rail; until then the address
+       #plant_census reaches it. */
+    plant_census: <PlantCensusDashboard go={setView} session={session} reports={reports}
+      role={role} viewAs={viewAsRole} onViewAs={switchViewAs}
+      isAdmin={isAdmin} viewRoles={viewRoles} />,
+    /* The wall terminal, reached from its own Human Resources menu entry and from
+       the button on Terminals & Credentials. It takes no session on purpose — a
+       shared screen must never hold one — and it chooses which registered terminal
+       it is for itself, because nothing in this shell knows which tablet this is. */
+    kiosk: <Kiosk />,
     cfo_inventory_audit: <CfoInventoryAudit go={setView} session={session} />,
     assistant_settings: <AssistantSettings />,
     inventory_locator: <InventoryLocator go={setView} />,

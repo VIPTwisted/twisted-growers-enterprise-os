@@ -405,6 +405,18 @@
 .mwalert.warn b{color:var(--amber)}
 .mwmsg{background:var(--neon-soft);border:1px solid var(--neon-line);border-radius:6px;
   padding:11px 14px;font-size:12.5px;color:var(--ink-2)}
+/* Who owns the licence renewal, where an inert "Ask HR to start it" button used
+   to sit. It is a sentence, not a control, because an employee cannot raise the
+   item — hr_review_queue's insert policy is f_can_decide_hr() — and a control
+   that row-level security will refuse is the dead button all over again.
+   Wraps, never clips: it is a full sentence and the band is a flex row. */
+.mwwho{flex:1 1 260px;min-width:0;font-size:12.5px;line-height:1.5;color:var(--ink-2);
+  overflow-wrap:anywhere}
+/* The result of raising a renewal from the roster's blocked-people band. Full
+   width beneath the cards rather than squeezed onto the end of the header row,
+   because it carries a database error message when one comes back. */
+.bbmsg{flex-basis:100%;margin-top:10px;font-size:12.5px;line-height:1.5;
+  color:var(--ink-2);overflow-wrap:anywhere}
 
 .mwnext{background:linear-gradient(120deg,var(--surface),var(--surface-2));
   border:1px solid var(--neon-line);border-radius:10px;padding:20px 22px;

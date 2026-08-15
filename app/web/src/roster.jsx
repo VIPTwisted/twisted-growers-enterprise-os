@@ -43,6 +43,23 @@ const displayName = (name) => {
   return rest.trim() ? `${rest.trim()} ${last.trim()}` : last.trim();
 };
 
+/* THE RENEWAL BUTTON, WIRED 15 AUG 2026.
+   It was `<button className="btn small">Start renewal</button>` — no handler,
+   on the card of a person who CANNOT LEGALLY BE ON THE FLOOR. Pressed, it did
+   nothing, which to a non-technical reader is indistinguishable from "I have
+   started it". The most consequential inert control in the product.
+
+   It now raises a real row on the Human Resources review queue, the same queue
+   hrqueue.jsx works from, tagged to the hr_compliance agent that queue already
+   recognises. The evidence carries the badge number and the expiry so whoever
+   picks it up is not re-deriving what this screen already knew.
+
+   WHO MAY PRESS IT. hr_review_queue's insert policy is f_can_decide_hr(), so
+   anybody else would get a row-level-security refusal presented as a failure of
+   their own. The button is therefore disabled for them and SAYS WHY — which is
+   rule A3 done properly, not a dead control. */
+const RENEWAL_AGENT = "hr_compliance";
+
 export default function Roster() {
   const [people, setPeople] = useState(null);
   const [lk, setLk] = useState({ roles: {}, depts: {} });
@@ -50,6 +67,58 @@ export default function Roster() {
   const [q, setQ] = useState("");
   const [dept, setDept] = useState("");
   const [show, setShow] = useState("active");   /* active | all | attention */
+  const [canDo, setCanDo] = useState(false);
+  const [raised, setRaised] = useState(new Set());
+  const [busyId, setBusyId] = useState(null);
+  const [renewMsg, setRenewMsg] = useState(null);
+
+  /* May this person raise the item, and which renewals are already waiting?
+     `error` is bound on both: a refusal that reads as "nothing is queued" would
+     have somebody raise a second item for a renewal already in hand. */
+  useEffect(() => {
+    let live = true;
+    supabase.rpc("f_can_decide_hr").then(({ data, error }) => {
+      if (!live) return;
+      if (error) { setRenewMsg(`Could not check whether you may raise a renewal: ${error.message}`); return; }
+      setCanDo(data === true);
+      if (data !== true) return;
+      supabase.from("hr_review_queue")
+        .select("employee_id").eq("agent", RENEWAL_AGENT).eq("status", "pending")
+        .then(({ data: q2, error: e2 }) => {
+          if (!live) return;
+          if (e2) { setRenewMsg(`Could not read the renewals already queued: ${e2.message}`); return; }
+          setRaised(new Set((Array.isArray(q2) ? q2 : []).map((x) => x.employee_id).filter(Boolean)));
+        });
+    });
+    return () => { live = false; };
+  }, []);
+
+  async function startRenewal(r) {
+    setBusyId(r.id); setRenewMsg(null);
+    const { error } = await supabase.from("hr_review_queue").insert({
+      agent: RENEWAL_AGENT,
+      kind: "agent_registration_renewal",
+      employee_id: r.id,
+      severity: r.lic.key === "expired" || r.lic.key === "none" ? "high" : "warn",
+      headline: `Agent registration renewal — ${r.name}: ${r.lic.label}`,
+      rationale: `${r.lic.detail}. Raised from the roster, where this person is shown as unable to legally be on the floor. A Massachusetts agent registration renewal takes about three weeks.`,
+      /* The screen's own evidence, so nobody re-derives it. Never a summary of
+         it — the badge number and the recorded expiry, as they stand. */
+      evidence: {
+        raised_from: "roster",
+        licence_state: r.lic.key,
+        metrc_agent_badge: r.metrc_agent_badge ?? null,
+        badge_expires: r.badge_expires ?? null,
+        employee_code: r.employee_code ?? null,
+        position: r.role ?? null,
+        department: r.dept ?? null,
+      },
+    });
+    setBusyId(null);
+    if (error) { setRenewMsg(`${r.name}: the renewal was NOT raised — ${error.message}`); return; }
+    setRaised((s) => new Set(s).add(r.id));
+    setRenewMsg(`Renewal raised for ${r.name}. It is waiting on the Human Resources review queue.`);
+  }
 
   useEffect(() => {
     Promise.all([
@@ -157,10 +226,21 @@ export default function Roster() {
                   <span>{r.role ?? "No position set"}{r.dept ? ` · ${r.dept}` : ""}</span>
                   <span className="bbwhy">{r.lic.label} — {r.lic.detail}</span>
                 </div>
-                <button className="btn small">Start renewal</button>
+                {raised.has(r.id) ? (
+                  <span className="schip ok" title="An agent registration renewal is already waiting on the Human Resources review queue for this person. Raising a second one would not make it move faster.">Renewal raised</span>
+                ) : (
+                  <button className="btn small" disabled={!canDo || busyId === r.id}
+                    title={canDo
+                      ? "Raise an agent registration renewal on the Human Resources review queue, with this person's badge number and expiry attached."
+                      : "Only an owner, executive, administrator, Human Resources or finance chief can raise a renewal. Ask one of them, or open Human Resources → Review Queue."}
+                    onClick={() => startRenewal(r)}>
+                    {busyId === r.id ? "Raising…" : "Start renewal"}
+                  </button>
+                )}
               </div>
             ))}
           </div>
+          {renewMsg && <div className="bbmsg" role="status">{renewMsg}</div>}
         </section>
       )}
 

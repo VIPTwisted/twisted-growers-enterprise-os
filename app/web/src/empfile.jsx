@@ -22,6 +22,10 @@ const money = (n) => (n == null ? "—" : "$" + Number(n).toLocaleString(undefin
 const nameOf = (n) => { const [l="", r=""] = String(n||"").split(","); return r.trim() ? `${r.trim()} ${l.trim()}` : l.trim(); };
 const initials = (n) => { const [l="", r=""] = String(n||"").split(","); return ((r.trim()[0]||"")+(l.trim()[0]||"")).toUpperCase() || "?"; };
 const when = (d) => (d ? new Date(d).toLocaleDateString(undefined, { day:"numeric", month:"short", year:"numeric" }) : "—");
+/* The Human Resources review queue recognises a fixed set of agents and this is
+   the compliance one. The roster raises renewals under the same name, so the two
+   screens can never produce two different kinds of the same item. */
+const RENEWAL_AGENT = "hr_compliance";
 
 export default function EmployeeFile({ employeeId, go }) {
   const [id, setId] = useState(employeeId || null);
@@ -35,6 +39,17 @@ export default function EmployeeFile({ employeeId, go }) {
   const [sched, setSched] = useState([]);
   const [canSeePay, setCanSeePay] = useState(false);
   const [tab, setTab] = useState("record");
+  /* THE RENEWAL BUTTON, WIRED 15 AUG 2026. It was
+     `<button className="btn small">Start renewal</button>` with no handler, in
+     the alert band that says this person cannot legally be on the floor. It now
+     raises a real item on the Human Resources review queue — the same queue and
+     the same hr_compliance agent the roster raises to, so the two screens cannot
+     produce two different kinds of renewal. hr_review_queue's insert policy is
+     f_can_decide_hr(), so anyone else is told who can rather than shown a
+     row-level-security refusal they cannot act on. */
+  const [canDecide, setCanDecide] = useState(false);
+  const [renewState, setRenewState] = useState("idle");  /* idle | saving | raised */
+  const [renewMsg, setRenewMsg] = useState(null);
 
   useEffect(() => {
     supabase.from("employees").select("id, full_name, employee_code, status")
@@ -45,6 +60,10 @@ export default function EmployeeFile({ employeeId, go }) {
         if (data?.length) setId((cur) => cur ?? data[0].id);
       });
     supabase.rpc("f_can_read_hr").then(({ data }) => setCanSeePay(!!data));
+    supabase.rpc("f_can_decide_hr").then(({ data, error }) => {
+      if (error) { setRenewMsg(`Could not check whether you may raise a renewal: ${error.message}`); return; }
+      setCanDecide(data === true);
+    });
     Promise.all([
       supabase.from("roles_catalog").select("id, name"),
       supabase.from("departments").select("id, name"),
@@ -56,6 +75,19 @@ export default function EmployeeFile({ employeeId, go }) {
 
   useEffect(() => {
     if (!id) return;
+    /* A renewal already waiting belongs to the person, not to the screen, so it
+       is re-read whenever the person changes rather than carried across. */
+    setRenewState("idle"); setRenewMsg(null);
+    supabase.from("hr_review_queue")
+      .select("id").eq("agent", RENEWAL_AGENT).eq("employee_id", id).eq("status", "pending").limit(1)
+      .then(({ data, error }) => {
+        /* Not everyone may read this queue, and a refusal is NOT "none queued".
+           Saying so matters: a silent empty result invites a second renewal for
+           one already in hand. Only a successful read that came back empty
+           leaves the button offering to raise one. */
+        if (error) { setRenewMsg(`Could not check whether a renewal is already queued for this person: ${error.message}`); return; }
+        if (Array.isArray(data) && data.length) setRenewState("raised");
+      });
     supabase.from("employees").select("*").eq("id", id).maybeSingle()
       .then(({ data }) => setP(data));
     supabase.from("employee_rates").select("*").eq("employee_id", id)
@@ -84,6 +116,32 @@ export default function EmployeeFile({ employeeId, go }) {
 
   const points = occ.filter(o => o.status !== "excused" && (!o.clears_on || new Date(o.clears_on) > new Date()))
                     .reduce((s, o) => s + Number(o.points || 0), 0);
+
+  async function startRenewal() {
+    if (!p || !lic) return;
+    setRenewState("saving"); setRenewMsg(null);
+    const { error } = await supabase.from("hr_review_queue").insert({
+      agent: RENEWAL_AGENT,
+      kind: "agent_registration_renewal",
+      employee_id: p.id,
+      severity: lic.tone === "bad" ? "high" : "warn",
+      headline: `Agent registration renewal — ${nameOf(p.full_name)}: ${lic.label}`,
+      rationale: `${lic.sub}. Raised from this person's employee file. A Massachusetts agent registration renewal takes about three weeks.`,
+      /* The file's own evidence, as it stands, so the person who picks this up
+         is not re-deriving what this screen already had in front of it. */
+      evidence: {
+        raised_from: "employee_file",
+        licence_label: lic.label,
+        metrc_agent_badge: p.metrc_agent_badge ?? null,
+        badge_expires: p.badge_expires ?? null,
+        employee_code: p.employee_code ?? null,
+        status: p.status ?? null,
+      },
+    });
+    if (error) { setRenewState("idle"); setRenewMsg(`The renewal was NOT raised — ${error.message}`); return; }
+    setRenewState("raised");
+    setRenewMsg("Renewal raised. It is waiting on the Human Resources review queue.");
+  }
 
   if (!p) return <div className="efload">Select a person…</div>;
 
@@ -128,7 +186,18 @@ export default function EmployeeFile({ employeeId, go }) {
       {lic && lic.tone !== "ok" && (
         <div className={`efalert ${lic.tone}`}>
           <b>{lic.label}</b><span>{lic.sub}</span>
-          <button className="btn small">Start renewal</button>
+          {renewState === "raised" ? (
+            <span className="schip ok" title="An agent registration renewal for this person is waiting on the Human Resources review queue. Raising a second one would not make it move faster.">Renewal raised</span>
+          ) : (
+            <button className="btn small" disabled={!canDecide || renewState === "saving"}
+              title={canDecide
+                ? "Raise an agent registration renewal on the Human Resources review queue, with this person's badge number and recorded expiry attached."
+                : "Only an owner, executive, administrator, Human Resources or finance chief can raise a renewal. Ask one of them, or open Human Resources → Review Queue."}
+              onClick={startRenewal}>
+              {renewState === "saving" ? "Raising…" : "Start renewal"}
+            </button>
+          )}
+          {renewMsg && <span role="status">{renewMsg}</span>}
         </div>
       )}
 

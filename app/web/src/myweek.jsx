@@ -51,6 +51,11 @@ export default function MyWeek({ go }) {
   const [tick, setTick] = useState(0);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState(null);
+  /* Whether Human Resources has a renewal running for THIS person, where they
+     are allowed to see it. hr_review_queue's self-read policy exposes only
+     items already sent, so an empty result means "nothing you can see", never
+     "nothing has been started" — and this page must not claim the second. */
+  const [renewal, setRenewal] = useState(null);
 
   useEffect(() => { const t = setInterval(() => setTick(x => x + 1), 30000); return () => clearInterval(t); }, []);
 
@@ -80,6 +85,16 @@ export default function MyWeek({ go }) {
     setDocs(d.data ?? []);
     setPto(r.data ?? []);
     setOffers(of_.data ?? []);
+
+    /* Read separately rather than in the batch above: this is the one read on
+       the page whose EMPTY result is not a fact about the world, so it must not
+       be mistaken for one if it fails. `error` is bound and, on a refusal, the
+       banner simply says who to ask — which is true either way. */
+    const { data: hrq, error: hrqErr } = await supabase.from("hr_review_queue")
+      .select("id, kind, headline, status, filed_at, created_at")
+      .eq("employee_id", id).eq("agent", "hr_compliance")
+      .order("created_at", { ascending: false }).limit(1);
+    if (!hrqErr && Array.isArray(hrq) && hrq.length) setRenewal(hrq[0]);
   }, []);
   useEffect(() => { load(); }, [load]);
 
@@ -150,7 +165,29 @@ export default function MyWeek({ go }) {
       {licence && (
         <div className={`mwalert ${licence.tone}`}>
           <b>{licence.text}</b>
-          <button className="btn small">Ask HR to start it</button>
+          {/* THIS WAS AN INERT BUTTON. "Ask HR to start it" had no handler, so a
+              person whose registration had lapsed pressed it, nothing happened,
+              and they had every reason to believe they had asked.
+
+              It cannot become a working button here. The renewal is raised on
+              hr_review_queue and that table's insert policy is f_can_decide_hr()
+              — an employee is refused by row-level security, correctly, because
+              the renewal is Human Resources' action to own and to be accountable
+              for. So the screen tells the truth instead: it says who does it, and
+              where it is up to when there is something this person is allowed to
+              see. Rule A3 — absence explained, never a control that lies. */}
+          {renewal ? (
+            <span className="schip ok" title={renewal.headline}>
+              Human Resources has your renewal in hand
+              {renewal.filed_at ? ` — filed ${when(renewal.filed_at)}` : ""}
+            </span>
+          ) : (
+            <span className="mwwho">
+              Human Resources starts this renewal, not you — speak to them, or open
+              Human Resources from the top menu. Your file already carries the expiry
+              date they need.
+            </span>
+          )}
         </div>)}
 
       {msg && <div className="mwmsg">{msg}</div>}
