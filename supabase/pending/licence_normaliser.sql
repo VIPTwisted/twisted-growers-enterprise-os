@@ -78,17 +78,26 @@ language sql
 immutable
 parallel safe
 as $$
+  /* THE DIGITS MUST AGREE BEFORE ANY OTHER TEST IS ALLOWED TO SPEAK.
+     An earlier draft checked "suffix variant" on the normalised strings alone, so a
+     short licence could prefix-match an unrelated longer one. Verified read-only
+     against live data on 15 Aug 2026 before this was applied: that draft produced 163
+     pairs from 4 Apex licences - a fan-out, i.e. false matches. Requiring the digits
+     first gives 19 pairs from 17 Apex licences, and the only one-to-many left is the
+     real one: RMD705 against RMD705-C, -P and -R, which are three genuine sites of
+     one operator. */
   select case
     when p_apex is null or p_metrc is null                                then null
+    when public.f_licence_digits(p_apex) is null
+      or public.f_licence_digits(p_apex) is distinct from
+         public.f_licence_digits(p_metrc)                                 then null
     when public.f_licence_normalised(p_apex)
        = public.f_licence_normalised(p_metrc)                             then 'exact'
     when public.f_licence_normalised(p_metrc)
          like public.f_licence_normalised(p_apex) || '%'
       or public.f_licence_normalised(p_apex)
          like public.f_licence_normalised(p_metrc) || '%'                 then 'suffix variant'
-    when public.f_licence_digits(p_apex) is not null
-     and public.f_licence_digits(p_apex) = public.f_licence_digits(p_metrc)
-                                                                          then 'digits only'
+    else                                                                       'digits only'
   end
 $$;
 
