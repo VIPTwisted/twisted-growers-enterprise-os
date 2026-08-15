@@ -42,7 +42,30 @@ if (!existsSync(dir)) {
   fail("schema-baseline: FAIL - supabase/migrations does not exist.",
        "  The schema exists only in production.");
 }
-const files = readdirSync(dir).filter((f) => f.includes("baseline") && f.endsWith(".sql"));
+/* A BASELINE IS IDENTIFIED BY WHAT IT CONTAINS, NOT BY WHAT IT IS CALLED.
+ *
+ * This was `f.includes("baseline")` - a filename substring - until 15 Aug 2026, when it
+ * halted every production deploy for a day. The second "baseline" it found was
+ * 20260813112556_a_real_disruption_moves_the_baseline_v2.sql, which is 154 lines of
+ * harvest-schedule logic about a lights-out failure moving the SCHEDULE baseline. It has
+ * nothing to do with the schema. The word in the filename was the whole match.
+ *
+ * Four builds failed on "2 baselines present" while both files were exactly as intended.
+ *
+ * dump-schema.mjs stamps every real baseline with a BASELINE COUNTS header, and this gate
+ * already fails below if the file it selects has no such header - so the header was always
+ * the true test, and the filename was a proxy that could disagree with it.
+ *
+ * This is NARROWER than what it replaced, not looser: a file must now carry the generator's
+ * own header to count. A duplicate or stale REAL baseline still trips every check below,
+ * because a real baseline always carries it.
+ */
+const files = readdirSync(dir).filter((f) => {
+  if (!f.endsWith(".sql")) return false;
+  try {
+    return /BASELINE COUNTS: tables=\d+/.test(readFileSync(join(dir, f), "utf8").slice(0, 4000));
+  } catch { return false; }
+});
 if (!files.length) {
   fail("schema-baseline: FAIL - no baseline found.",
        "  Nothing can be rebuilt outside production.");

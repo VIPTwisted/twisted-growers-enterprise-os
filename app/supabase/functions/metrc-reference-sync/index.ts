@@ -1,7 +1,13 @@
-// RECOVERED FROM LIVE SUPABASE 2026-08-07 — deployed version 1 is the source of record.
-// Do not edit and redeploy without diffing against the live version first.
 // TG - Metrc reference and delivery sync: every remaining endpoint that answers,
 // including the per-transfer delivery walk that fills in customer names on manifests.
+//
+// v2, 14 August 2026: THE ADMIN KEY IS NO LONGER IN SOURCE. It was a literal here,
+// which meant the key could not be rotated - tg_call_function sends the copy held in
+// integration_secrets, so changing that row would have stopped the metrc-reference
+// cron (07:20 daily) while this function went on comparing against the stale literal.
+// The comparison now reads integration_secrets.TG_ADMIN_KEY at call time, so a
+// rotation is one row edit and no redeploy. Fails CLOSED: a missing or empty row
+// rejects every caller rather than admitting them. Nothing else changed.
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
@@ -10,7 +16,6 @@ const CORS = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-admin-key",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
-const ADMIN_KEY = "<REDACTED — lives in Supabase function secrets>";
 const json = (b: unknown, s = 200) =>
   new Response(JSON.stringify(b), { status: s, headers: { ...CORS, "Content-Type": "application/json" } });
 const supa = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
@@ -19,7 +24,16 @@ const basic = (a: string, b: string) => "Basic " + btoa(`${a}:${b}`);
 type Row = Record<string, unknown>;
 
 async function allowed(req: Request): Promise<boolean> {
-  if (req.headers.get("x-admin-key") === ADMIN_KEY) return true;
+  /* v2: looked up, never baked in. An empty header is rejected before the lookup,
+     and a missing or empty row leaves `real` empty so the comparison can never
+     succeed. A vanished secret locks the door, it does not open it. */
+  const presented = req.headers.get("x-admin-key");
+  if (presented) {
+    const { data: k } = await supa.from("integration_secrets")
+      .select("value").eq("name", "TG_ADMIN_KEY").maybeSingle();
+    const real = (k?.value as string | undefined) ?? "";
+    if (real && presented === real) return true;
+  }
   const token = (req.headers.get("Authorization") ?? "").replace("Bearer ", "");
   if (!token) return false;
   const { data } = await supa.auth.getUser(token);

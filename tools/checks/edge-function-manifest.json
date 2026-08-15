@@ -94,10 +94,10 @@
       "note": "Recovered from production with the shared admin key redacted. Production is the source of record; deploying this copy would break the function."
     },
     "metrc-documents": {
-      "deployed_version": 3,
-      "sha256": "7d4b2c79be71727e9f8fbb0b835e32936d1cf4cf49f6381817af7a673bcd4618",
-      "redacted": true,
-      "note": "Recovered from production with the shared admin key redacted. Production is the source of record; deploying this copy would break the function."
+      "deployed_version": 4,
+      "sha256": "a8ec8cd4635cabed0ce4e81935c0d8b97320999d8f936d01a93c05df96d3279b",
+      "redacted": false,
+      "note": "Real, deployable source. v4 removed the hardcoded admin key; reads integration_secrets.TG_ADMIN_KEY at call time and fails closed. Verified both ways: a real call returned 200, a wrong key returned 403. Re-pinned 15 Aug 2026."
     },
     "metrc-lab-backfill": {
       "deployed_version": 1,
@@ -118,10 +118,10 @@
       "note": "REAL SOURCE — no key in the file. Reads TG_ADMIN_KEY from integration_secrets at run time. First of the sixteen moved off the shared literal, 10 Aug 2026. Deployed v4 and verified: correct key 200, wrong key 403, no key 403."
     },
     "metrc-reference-sync": {
-      "deployed_version": 1,
-      "sha256": "b672045f9dfe1e15c09b92531e6ee5be67bea0338006b02c797029c03a27c8aa",
-      "redacted": true,
-      "note": "Recovered from production with the shared admin key redacted. Production is the source of record; deploying this copy would break the function."
+      "deployed_version": 2,
+      "sha256": "37fc850f1c890fa3894d78f3882d54dc18180fb52ad6bed87420455e6b1dcf1e",
+      "redacted": false,
+      "note": "Real, deployable source. v2 removed the hardcoded admin key; reads integration_secrets.TG_ADMIN_KEY at call time and fails closed. Verified both ways: run 3156 ok with 10 records, a wrong key returned 403. Re-pinned 15 Aug 2026."
     },
     "metrc-report-import": {
       "deployed_version": 1,
@@ -130,10 +130,10 @@
       "note": "Recovered from production with the shared admin key redacted. Production is the source of record; deploying this copy would break the function."
     },
     "metrc-sync": {
-      "deployed_version": 19,
-      "sha256": "bc8453d3981d106f7b37bcae3728bd7b9eb43f1d93cfb1c3cfbb98fc6cfba558",
-      "redacted": true,
-      "note": "Recovered from production with the shared admin key redacted. Production is the source of record; deploying this copy would break the function."
+      "deployed_version": 21,
+      "sha256": "ffba1a1148900dfff5cffcf950804b72e39ee5aaacba04b4b03fe1ed7ddc4d77",
+      "redacted": false,
+      "note": "Real, deployable source. v20 removed the hardcoded admin key; the function now reads integration_secrets.TG_ADMIN_KEY at call time, so there is no secret in this file to redact. v21 clamped PAGE_SIZE_MAX to 20, Metrc's measured ceiling. Re-pinned 15 Aug 2026 after the key was rotated."
     },
     "parse-documents": {
       "deployed_version": 7,

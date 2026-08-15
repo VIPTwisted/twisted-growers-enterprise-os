@@ -1,22 +1,82 @@
-// RECOVERED FROM LIVE SUPABASE 2026-08-07 — deployed version 15 is the source of record.
-// Do not edit and redeploy without diffing against the live version first.
-// TG Enterprise OS — Metrc sync worker v15.
+// TG Enterprise OS — Metrc sync worker v21.
 //
-// v15 changes, 7 August 2026, after 618 guaranteed-failing calls per cycle were
-// measured in metrc_sync_runs:
+// v21, 14 August 2026: one change and nothing else. PAGE_SIZE_MAX drops from 500 to
+// 20, because 20 is Metrc's actual ceiling, measured rather than assumed - a request
+// for 250 returned HTTP 400 "pageSize must be a positive number between 1 and 20."
+// on all four plant sub-states (run 3148). The clamp now cannot admit a value that
+// breaks every plant sync. See note 2 below: the 20 that was hardcoded for so long
+// was never a lazy default, and no amount of paging wider will speed a full sweep.
 //
-//   1. ?license= is HONOURED. v14 accepted the parameter and ignored it, looping
-//      every licence in METRC_LICENSES regardless. A caller scoping a run to one
-//      licence silently got both.
-//   2. Every licence/endpoint pair is checked against metrc_endpoint_capability
-//      before a request is made. Asking the manufacturing licence for plants is
-//      not an authorisation fault to retry - manufacturing grows nothing, so the
-//      401 is Metrc answering correctly. Those calls are now never sent, and the
-//      reason is recorded instead of an error.
+// v20 = v19 plus exactly three changes, 14 August 2026. Everything v19 proved stays
+// exactly as it was: the soft deadline, the beforeunload backstop, metrc_history_start
+// from config, the "(full sweep)" run labels and _elapsed_ms are all untouched.
 //
-// v14 behaviour otherwise unchanged: explicit history windows (winStart/winEnd)
-// let a driver walk complete history past Metrc's recent-window defaults, and
-// explicit-window runs do NOT advance delta cursors.
+//   1. THE ADMIN KEY IS NO LONGER IN SOURCE, AND THAT IS THE POINT OF THIS RELEASE.
+//      v19 compared the x-admin-key header against a literal baked into this file.
+//      That made the key impossible to rotate: tg_call_function sends the copy held
+//      in integration_secrets, so changing that row would have stopped every
+//      scheduled sync within minutes while this function went on comparing against
+//      the stale literal. The comparison now reads integration_secrets.TG_ADMIN_KEY
+//      at call time, so a rotation is one row edit and no redeploy. It fails CLOSED:
+//      a missing or empty row rejects every caller rather than admitting them.
+//
+//   2. PAGE SIZE IS A CONFIG ROW, READ ONCE PER REQUEST AND PASSED AS A PARAMETER.
+//      20 is why a full sweep cannot finish: 55,000 plant records at 20 a page with a
+//      200ms pause is over nine minutes of deliberate sleeping before a single byte
+//      of network time, against a platform that kills us far sooner. Metrc v2 accepts
+//      more. The real ceiling is MEASURED by moving configurations.metrc_page_size and
+//      watching a run - it is not guessed here, and the default stays at the value
+//      that demonstrably works. Deliberately NOT module state: an isolate is reused
+//      between invocations, so a mutated module-level binding would survive into the
+//      next request and leave a deleted or invalid config row still running at the
+//      last raised value instead of falling back.
+//
+//   3. THE CURSOR ONLY MOVES ON A GENUINELY COMPLETE RUN. v19 advanced on !ranOut
+//      alone, so a sub-state that ERRORED still moved the watermark past its records.
+//      A delta returns what changed SINCE the cursor, and those records changed
+//      before it - not late, gone. Truncation lost data the same way. Advancing now
+//      requires every sub-state answered AND nothing capped AND the deadline not hit.
+//      Re-asking for a window costs one API call. Skipping one costs the data.
+//
+// ---- v19 history, unchanged and still true ----
+//
+// v19 = v17 restored, byte-for-byte in logic.
+//
+// v18 was ROLLED BACK on 8 August 2026 and v19 is v17 put back unchanged.
+//   v18 added a resume cursor so a stopped sweep would continue from the page it
+//   reached. It was deployed and NOT verified before being reported as working.
+//   The first run then stayed open 183 seconds against a 110-second deadline with
+//   records = 0 and no progress saved: both the soft deadline AND the beforeunload
+//   backstop failed, the two defences v17 had proven. No data was harmed - packages
+//   held steady at 4,259 and the mirror guard stayed green - but a change that
+//   leaves runs open is worse than the honest limitation it replaced.
+//   The cause is unproven. Suspected: the deadline can only be checked BETWEEN
+//   pages, so it cannot interrupt an in-flight request, and v18 added an async
+//   write inside runSpec that may not survive being killed. Not confirmed.
+//
+//   KNOWN LIMITATION, stated honestly rather than papered over: a partial sweep
+//   does NOT resume. Each run re-walks from page 1. "Run again to continue" makes
+//   progress only because later runs get further before the deadline. Fixing that
+//   properly is a tracked task, not an untested edit.
+//
+// v17: a run always closes its own record. Measured: a full sweep of the cultivation
+//   licence finished in 105s while the manufacturing licence sat "running" at 1,255s
+//   with 677 packages
+//   already written - the work succeeded, the record never closed, because the
+//   platform killed the function mid-loop. A run stuck in "running" is invisible to
+//   every "did it fail?" check. Two defences, both observed working: a soft deadline
+//   that stops and closes as "partial" (fired at 138s), and a beforeunload backstop
+//   for when we are killed anyway (fired at 111s).
+//
+// v16: a FULL sweep states its own window. Sending no lastModified range does NOT
+//   mean everything - Metrc applies a narrow recent default, so /packages/v2/active
+//   returned 60 records across both licences while a 2024-to-now window returned
+//   553. Closing that recovered 677 packages.
+//   NOTE: /packages/v2/{label} fetches one package by tag and is proven to work.
+//   That is the fallback for any gap, whatever its cause, and needs no window.
+//
+// v15: ?license= is honoured, and every licence/endpoint pair is checked against
+//   metrc_endpoint_capability before a request is made.
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
@@ -25,22 +85,42 @@ const CORS = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-admin-key",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
-const ADMIN_KEY = "<REDACTED — lives in Supabase function secrets>";
 const json = (b: unknown, s = 200) =>
   new Response(JSON.stringify(b), { status: s, headers: { ...CORS, "Content-Type": "application/json" } });
 
 const supa = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 const csv = (v: string | undefined | null) => (v ?? "").split(",").map(s => s.trim()).filter(Boolean);
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-const PAGE_SIZE = 20;
+const FALLBACK_PAGE_SIZE = 20;
+const PAGE_SIZE_MIN = 20;
+/* v21, 14 Aug 2026: MEASURED, not assumed. Metrc v2 answers a request for more than
+   20 with HTTP 400 "pageSize must be a positive number between 1 and 20." - observed
+   on all four plant sub-states in run 3148. v20 clamped to 500, which let an operator
+   set a value that instantly broke every plant sync with only a comment warning them
+   off. A warning does not survive contact with a hurried operator; the clamp does. */
+const PAGE_SIZE_MAX = 20;
 const MAX_PAGES = 750;
 const PAGE_PAUSE_MS = 200;
 const MAX_429_RETRIES = 3;
+const FALLBACK_HISTORY_START = "2023-01-01T00:00:00Z";
+const FALLBACK_DEADLINE_MS = 110000;
 
 type Row = Record<string, unknown>;
 const d = (v: unknown) => (typeof v === "string" && v ? v.slice(0, 10) : null);
 const now = () => new Date().toISOString();
 const basic = (a: string, b: string) => "Basic " + btoa(`${a}:${b}`);
+
+// The run currently open, so the backstop can close it if we are killed.
+let OPEN_RUN: { id: number; records: number } | null = null;
+
+addEventListener("beforeunload", () => {
+  if (!OPEN_RUN) return;
+  supa.from("metrc_sync_runs").update({
+    status: "partial", records: OPEN_RUN.records, finished_at: new Date().toISOString(),
+    error: "Stopped by the platform before finishing. Rows already written were kept. "
+         + "Run again to continue - this is not a data fault.",
+  }).eq("id", OPEN_RUN.id).then(() => {});
+});
 
 async function loadCfg(): Promise<Record<string, string>> {
   const cfg: Record<string, string> = {};
@@ -52,8 +132,36 @@ async function loadCfg(): Promise<Record<string, string>> {
   return cfg;
 }
 
-// What each licence may be asked for. Config as rows, so a licensing change is a
-// row edit and never a code change.
+async function numberSetting(key: string, fallback: number): Promise<number> {
+  const { data } = await supa.from("configurations").select("value").eq("key", key).maybeSingle();
+  const v = (data?.value as Record<string, unknown> | undefined);
+  const n = Number(v?.ms ?? v?.value);
+  return Number.isFinite(n) && n > 0 ? n : fallback;
+}
+
+async function historyStart(): Promise<string> {
+  const { data } = await supa.from("configurations").select("value").eq("key", "metrc_history_start").maybeSingle();
+  const iso = (data?.value as Record<string, unknown> | undefined)?.iso;
+  return typeof iso === "string" && iso ? iso : FALLBACK_HISTORY_START;
+}
+
+/* v20: read once per request, returned as a value. Accepts either a bare JSON number
+   or an object carrying { size } / { pageSize }, so the row can also hold a "why" the
+   way metrc_history_start and metrc_sync_soft_deadline_ms already do. Anything absent,
+   non-numeric or out of range falls back to the proven default rather than to whatever
+   the previous request happened to use. */
+async function resolvePageSize(): Promise<number> {
+  const { data } = await supa.from("configurations").select("value").eq("key", "metrc_page_size").maybeSingle();
+  const v = data?.value as Record<string, unknown> | number | string | undefined | null;
+  if (v === undefined || v === null) return FALLBACK_PAGE_SIZE;
+  const raw = (typeof v === "object")
+    ? ((v as Record<string, unknown>).size ?? (v as Record<string, unknown>).pageSize)
+    : v;
+  const want = Number(raw);
+  if (!Number.isFinite(want)) return FALLBACK_PAGE_SIZE;
+  return Math.min(PAGE_SIZE_MAX, Math.max(PAGE_SIZE_MIN, Math.floor(want)));
+}
+
 async function loadCapability(): Promise<Record<string, boolean>> {
   const cap: Record<string, boolean> = {};
   const { data } = await supa.from("metrc_endpoint_capability").select("licence, endpoint, allowed");
@@ -69,7 +177,17 @@ async function loadDenialReasons(): Promise<Record<string, string>> {
 }
 
 async function callerIsExecutive(req: Request): Promise<boolean> {
-  if (req.headers.get("x-admin-key") === ADMIN_KEY) return true;
+  /* v20: the admin key is looked up, never baked in. Fails CLOSED - an empty header
+     is rejected before the lookup, and a missing or empty row leaves `real` empty so
+     the comparison can never succeed. A vanished secret locks the door, it does not
+     open it. This is what makes the key rotatable without a redeploy. */
+  const presented = req.headers.get("x-admin-key");
+  if (presented) {
+    const { data: k } = await supa.from("integration_secrets")
+      .select("value").eq("name", "TG_ADMIN_KEY").maybeSingle();
+    const real = (k?.value as string | undefined) ?? "";
+    if (real && presented === real) return true;
+  }
   const token = (req.headers.get("Authorization") ?? "").replace("Bearer ", "");
   if (!token) return false;
   const { data } = await supa.auth.getUser(token);
@@ -125,22 +243,24 @@ async function politeFetch(url: string, auth: string): Promise<Response> {
 }
 
 async function metrcGet(base: string, path: string, license: string, auth: string,
-  window?: { start: string; end: string }): Promise<{ rows: Row[]; truncated: boolean }> {
+  window: { start: string; end: string } | undefined,
+  outOfTime: () => boolean, pageSize: number): Promise<{ rows: Row[]; truncated: boolean; ranOut: boolean }> {
   const out: Row[] = [];
-  let page = 1; let truncated = false;
+  let page = 1; let truncated = false; let ranOut = false;
   const win = window ? `&lastModifiedStart=${encodeURIComponent(window.start)}&lastModifiedEnd=${encodeURIComponent(window.end)}` : "";
   for (;;) {
-    const res = await politeFetch(`${base}${path}?licenseNumber=${encodeURIComponent(license)}&pageNumber=${page}&pageSize=${PAGE_SIZE}${win}`, auth);
+    if (outOfTime()) { ranOut = true; break; }
+    const res = await politeFetch(`${base}${path}?licenseNumber=${encodeURIComponent(license)}&pageNumber=${page}&pageSize=${pageSize}${win}`, auth);
     if (!res.ok) throw new Error(`${path} ${res.status}: ${(await res.text()).slice(0, 200)}`);
     const body = await res.json();
     const rows: Row[] = Array.isArray(body) ? body : (body?.Data ?? []);
     out.push(...rows);
-    if (rows.length < PAGE_SIZE) break;
+    if (rows.length < pageSize) break;
     if (page >= MAX_PAGES) { truncated = true; break; }
     page++;
     await sleep(PAGE_PAUSE_MS);
   }
-  return { rows: out, truncated };
+  return { rows: out, truncated, ranOut };
 }
 
 type Spec = {
@@ -235,33 +355,55 @@ const SPECS: Spec[] = [
 ];
 
 async function runSpec(base: string, license: string, auth: string, spec: Spec,
-  window?: { start: string; end: string }): Promise<string> {
-  const label = window ? `${spec.key} (delta)` : spec.key;
-  const { data: run } = await supa.from("metrc_sync_runs").insert({ endpoint: label, license }).select("id").single();
+  window: { start: string; end: string } | undefined, label: string | undefined,
+  outOfTime: () => boolean, pageSize: number): Promise<{ summary: string; ranOut: boolean; complete: boolean }> {
+  const runLabel = label ?? (window ? `${spec.key} (delta)` : spec.key);
+  const { data: run } = await supa.from("metrc_sync_runs").insert({ endpoint: runLabel, license }).select("id").single();
+  OPEN_RUN = { id: run!.id as number, records: 0 };
   try {
-    let n = 0; let anyTrunc = false; const subErrors: string[] = [];
+    let n = 0; let anyTrunc = false; let ranOut = false; const subErrors: string[] = [];
     for (const p of spec.paths) {
+      if (outOfTime()) { ranOut = true; break; }
       try {
-        const { rows, truncated } = await metrcGet(base, p.path, license, auth, spec.delta ? window : undefined);
-        if (truncated) anyTrunc = true;
-        for (const r of rows) {
+        const got = await metrcGet(base, p.path, license, auth, spec.delta ? window : undefined, outOfTime, pageSize);
+        if (got.truncated) anyTrunc = true;
+        if (got.ranOut) ranOut = true;
+        for (const r of got.rows) {
           await supa.from(spec.table).upsert(spec.map(r, license, p.state), { onConflict: spec.conflict });
           n++;
+          if (OPEN_RUN) OPEN_RUN.records = n;
         }
       } catch (e) {
         subErrors.push(`${p.state}: ${String(e).slice(0, 90)}`);
       }
       await sleep(PAGE_PAUSE_MS);
     }
-    const ok = subErrors.length < spec.paths.length;
+    /* v20: COMPLETE MEANS EVERY SUB-STATE ANSWERED, NOTHING CAPPED, AND TIME LEFT OVER.
+       Anything less holds the cursor. See the header note 3. */
+    const failedEverything = subErrors.length >= spec.paths.length;
+    const complete = subErrors.length === 0 && !anyTrunc && !ranOut;
+    const status = failedEverything ? "error" : (complete ? "ok" : "partial");
     await supa.from("metrc_sync_runs").update({
-      status: ok ? "ok" : "error", records: n,
+      status, records: n,
       error: subErrors.length ? subErrors.join(" · ").slice(0, 480) : null,
+      note: complete ? null
+        : ranOut
+          ? `Stopped at the soft deadline with ${n} rows written. Not a fault. Cursor NOT advanced; the next run re-asks for this window.`
+          : anyTrunc
+            ? `CAPPED at ${MAX_PAGES} pages of ${pageSize}. Cursor NOT advanced; the next run re-asks for this window.`
+            : `${subErrors.length} of ${spec.paths.length} sub-states failed. Cursor NOT advanced; the next run re-asks for this window.`,
       finished_at: now(),
     }).eq("id", run!.id);
-    return `${n} new${anyTrunc ? " ⚠️ capped, run again" : ""}${subErrors.length ? ` (${subErrors.length} sub-state errors)` : ""}`;
+    OPEN_RUN = null;
+    return {
+      summary: `${n} new${anyTrunc ? " ⚠️ capped" : ""}`
+        + `${ranOut ? " ⏱ stopped at deadline, run again to continue" : ""}`
+        + `${subErrors.length ? ` (${subErrors.length} sub-state errors)` : ""}`,
+      ranOut, complete,
+    };
   } catch (e) {
     await supa.from("metrc_sync_runs").update({ status: "error", error: String(e).slice(0, 480), finished_at: now() }).eq("id", run!.id);
+    OPEN_RUN = null;
     throw e;
   }
 }
@@ -270,6 +412,7 @@ Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   if (!(await callerIsExecutive(req))) return json({ ok: false, error: "Executive access required." }, 403);
 
+  const startedAt = Date.now();
   const cfg = await loadCfg();
   const env = (cfg.METRC_ENV ?? "production").toLowerCase();
   const state = cfg.METRC_STATE ?? "ma";
@@ -279,8 +422,6 @@ Deno.serve(async (req: Request) => {
   const configured = csv(cfg.METRC_LICENSES);
   if (!configured.length) return json({ ok: false, error: "No licenses configured. Add METRC_LICENSES on the Integrations screen." }, 400);
 
-  // v15: honour ?license=. v14 accepted this and ignored it, so a run scoped to
-  // one licence silently ran both.
   const onlyLicence = params.get("license");
   const LIC = onlyLicence ? configured.filter((l) => l === onlyLicence) : configured;
   if (onlyLicence && !LIC.length) {
@@ -294,6 +435,10 @@ Deno.serve(async (req: Request) => {
 
   const capability = await loadCapability();
   const denialReason = await loadDenialReasons();
+  const HISTORY_START = await historyStart();
+  const DEADLINE_MS = await numberSetting("metrc_sync_soft_deadline_ms", FALLBACK_DEADLINE_MS);
+  const PAGE_SIZE = await resolvePageSize();
+  const outOfTime = () => (Date.now() - startedAt) > DEADLINE_MS;
 
   let facApi: string[] = [];
   try {
@@ -314,12 +459,17 @@ Deno.serve(async (req: Request) => {
   const cursors = await getCursors();
   const runStart = now();
   let skippedByCapability = 0;
+  let stoppedEarly = false;
+  let heldCursors = 0;
   const results: Record<string, unknown> = {
     _env: env,
     _auth_arrangement: resolved.label,
     _facilities_visible: facApi.length,
     _licences_run: LIC.join(", "),
-    _window: explicitWindow ? `${winStart} → ${winEnd}` : (full ? "full (recent default window)" : "delta since cursor"),
+    _soft_deadline_ms: DEADLINE_MS,
+    _page_size: PAGE_SIZE,
+    _window: explicitWindow ? `${winStart} → ${winEnd}`
+      : (full ? `full: ${HISTORY_START} → now (stated, not Metrc's default)` : "delta since cursor"),
     _licenses_matched: LIC.map((l) => `${l}:${facApi.includes(l) ? "visible" : "NOT VISIBLE — add this user to that facility in Metrc, then re-run"}`),
   };
   for (const license of LIC) {
@@ -327,26 +477,38 @@ Deno.serve(async (req: Request) => {
     for (const spec of specs) {
       const ck = `${license}:${spec.key}`;
       if (skipData) { results[ck] = "skipped — license not visible to this user key yet"; continue; }
-
-      // v15: never send a request this licence cannot answer.
       if (capability[ck] === false) {
         results[ck] = `not requested — ${denialReason[ck] ?? "this licence is not licensed for it"}`;
         skippedByCapability++;
         continue;
       }
+      if (outOfTime()) {
+        results[ck] = "not reached — the soft deadline was hit first. Run again to continue.";
+        stoppedEarly = true;
+        continue;
+      }
 
       let window: { start: string; end: string } | undefined = undefined;
+      let runLabel: string | undefined = undefined;
       if (explicitWindow && spec.delta) {
         window = explicitWindow;
+      } else if (full && spec.delta) {
+        window = { start: HISTORY_START, end: runStart };
+        runLabel = `${spec.key} (full sweep)`;
       } else {
-        const since = spec.delta && !full ? cursors[ck] : undefined;
+        const since = spec.delta ? cursors[ck] : undefined;
         window = since ? { start: since, end: runStart } : undefined;
       }
       try {
-        const r = await runSpec(BASE, license, resolved.auth, spec, window);
+        const r = await runSpec(BASE, license, resolved.auth, spec, window, runLabel, outOfTime, PAGE_SIZE);
+        if (r.ranOut) stoppedEarly = true;
         const { count } = await supa.from(spec.table).select("*", { count: "exact", head: true }).eq("license", license);
-        results[ck] = `${r}${window ? " (windowed)" : ""} · ${count ?? 0} total in OS`;
-        if (spec.delta && !explicitWindow) { cursors[ck] = runStart; await saveCursors(cursors); }
+        results[ck] = `${r.summary}${window ? " (windowed)" : ""} · ${count ?? 0} total in OS${r.complete ? "" : " · CURSOR HELD"}`;
+        /* v20: only a COMPLETE run moves the watermark. See runSpec. */
+        if (spec.delta && !explicitWindow) {
+          if (r.complete) { cursors[ck] = runStart; await saveCursors(cursors); }
+          else heldCursors++;
+        }
       } catch (e) {
         results[ck] = `ERROR: ${String(e).slice(0, 160)}`;
       }
@@ -354,5 +516,14 @@ Deno.serve(async (req: Request) => {
     }
   }
   results._calls_not_made = `${skippedByCapability} licence/endpoint pairs skipped because that licence cannot answer them`;
-  return json({ ok: true, state, results });
+  results._cursors_held = `${heldCursors} delta cursors NOT advanced because the run was not complete`;
+  results._elapsed_ms = Date.now() - startedAt;
+  if (stoppedEarly) {
+    results._incomplete = "This run stopped at its soft deadline. Rows written were kept and every "
+      + "run row was closed. NOTE: a partial sweep does NOT resume - the next call "
+      + "re-walks from the beginning and gets further before the deadline. A real "
+      + "resume cursor is a tracked task; v18 attempted it, was not verified, and was "
+      + "rolled back after leaving a run open for 183 seconds.";
+  }
+  return json({ ok: true, complete: !stoppedEarly, state, results });
 });

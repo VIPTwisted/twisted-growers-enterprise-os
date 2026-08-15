@@ -1,11 +1,19 @@
-// RECOVERED FROM LIVE SUPABASE 2026-08-07 — deployed version 3 is the source of record.
-// Do not edit and redeploy without diffing against the live version first.
 // TG - Metrc document library.
 // HARD RULE (owner-set 6 Aug 2026): anything that has ever had, or will ever have,
 // a manifest or a certificate of analysis must carry a link sitewide, and that link
 // must download, print and be shareable. Metrc's own URLs need a Metrc login, so
 // they do not satisfy the rule. We fetch the documents, store them, and hand back
 // a signed link that opens the real PDF in one click.
+//
+// v4, 14 August 2026: THE ADMIN KEY IS NO LONGER IN SOURCE. It was a literal here,
+// which meant the key could not be rotated - tg_call_function sends the copy held in
+// integration_secrets, so changing that row would have stopped both the
+// metrc-document-links cron (05:30 daily) and metrc-documents-backfill (every 15
+// minutes, 00:00-08:00) while this function went on comparing against the stale
+// literal. The comparison now reads integration_secrets.TG_ADMIN_KEY at call time,
+// so a rotation is one row edit and no redeploy. Fails CLOSED: a missing or empty
+// row rejects every caller rather than admitting them. The role check is unchanged -
+// owner, executive and cfo, and the same 403 message. Nothing else changed.
 //
 // v3: the pending lists come from tg_pending_coa / tg_pending_manifest. The old
 // code read the first 4,000 lab-result rows and deduplicated those, which found
@@ -20,7 +28,6 @@ const CORS = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-admin-key",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
-const ADMIN_KEY = "<REDACTED — lives in Supabase function secrets>";
 const BUCKET = "metrc-documents";
 const URL_TTL = 60 * 60 * 24 * 30; // 30 days, refreshed nightly
 const json = (b: unknown, s = 200) =>
@@ -41,7 +48,16 @@ async function signed(path: string, filename: string): Promise<string | null> {
 }
 
 async function allowed(req: Request): Promise<boolean> {
-  if (req.headers.get("x-admin-key") === ADMIN_KEY) return true;
+  /* v4: looked up, never baked in. An empty header is rejected before the lookup,
+     and a missing or empty row leaves `real` empty so the comparison can never
+     succeed. A vanished secret locks the door, it does not open it. */
+  const presented = req.headers.get("x-admin-key");
+  if (presented) {
+    const { data: k } = await supa.from("integration_secrets")
+      .select("value").eq("name", "TG_ADMIN_KEY").maybeSingle();
+    const real = (k?.value as string | undefined) ?? "";
+    if (real && presented === real) return true;
+  }
   const token = (req.headers.get("Authorization") ?? "").replace("Bearer ", "");
   if (!token) return false;
   const { data } = await supa.auth.getUser(token);
