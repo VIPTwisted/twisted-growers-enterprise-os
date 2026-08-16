@@ -429,14 +429,48 @@ function useNav(version, session, viewAsRole) {
   }, [version, session?.user?.id, viewAsRole]);
   return { nav, reports, apps, deep, finance, tax, hr };
 }
+/* A ROLE WE COULD NOT READ IS NOT A LOW ROLE.
+ *
+ * This was `.then(({ data }) => setRole(data?.role ?? "member"))`. The error was
+ * discarded, so ANY failure of that read - RLS, network, an expired token, .single()
+ * finding zero rows - silently became the string "member". "member" is
+ * visible = false on dept_dash_command, so the owner was shown "This page is
+ * restricted. The member role does not have view access." on his own Command Center,
+ * while app_users said owner and nav_role_visibility said owner may see it.
+ *
+ * The giveaway was that the MENU still listed the page: useNav resolves the role its
+ * own way and got it right, while this hook got it wrong. Two readers of one fact,
+ * disagreeing, and the failing one guessing DOWNWARD in silence.
+ *
+ * Guessing downward looks like the safe direction. It is not. It locks the owner out
+ * of his own platform and tells him the page does not exist, which is indistinguishable
+ * from the page having been deleted - and that is exactly how it was reported.
+ *
+ * Unknown is now its own state. `false` means we asked and the answer was no role;
+ * `null` means we have not finished asking; a string is a real answer. The error text
+ * is kept so the screen can say WHY instead of inventing a role.
+ */
 function useRole(session) {
   const [role, setRole] = useState(null);
+  const [roleError, setRoleError] = useState(null);
   useEffect(() => {
-    if (!session?.user?.id) { setRole(null); return; }
-    supabase.from("app_users").select("role").eq("user_id", session.user.id).single()
-      .then(({ data }) => setRole(data?.role ?? "member"));
+    let live = true;
+    if (!session?.user?.id) { setRole(null); setRoleError(null); return; }
+    supabase.from("app_users").select("role").eq("user_id", session.user.id).maybeSingle()
+      .then(({ data, error }) => {
+        if (!live) return;
+        if (error) {
+          /* Do NOT downgrade. Say what happened and let the caller decide. */
+          setRoleError(error.message || `${error.code ?? "unknown"} — the role lookup was refused and returned no message`);
+          setRole(null);
+          return;
+        }
+        setRoleError(data?.role ? null : "You are signed in, but no role is assigned to this account in app_users.");
+        setRole(data?.role ?? false);
+      });
+    return () => { live = false; };
   }, [session?.user?.id]);
-  return role;
+  return { role, roleError };
 }
 
 /* ---------- Menu Manager: admin shows/hides any item for all users, instantly ---------- */
@@ -8061,7 +8095,7 @@ function Integrations({ session }) {
   const [runs, setRuns] = useState(null);
   const [forceReport, setForceReport] = useState(null);
   const [openRun, setOpenRun] = useState(null);   // which run row is expanded
-  const role = useRole(session);
+  const { role } = useRole(session);
   /* Same roles that may write configuration elsewhere in this file. Forcing a sync is a
      configuration action, not a read. */
   const canForce = ["owner", "executive", "planner", "dept_head"].includes(role);
@@ -11052,7 +11086,7 @@ export default function App() {
   };
   const { nav, reports, apps, deep, finance, tax, hr } = useNav(navVersion, session, viewAsRole);
   const [repMenu, setRepMenu] = useState(false);
-  const role = useRole(session ?? null);
+  const { role, roleError } = useRole(session ?? null);
   /* Page gate from EXISTING page_permissions rows (no invented auth path): a row
      with can_view=false for the effective role blocks the page body and says so.
      Real enforcement stays server-side in row-level security — this is the
@@ -11338,9 +11372,19 @@ export default function App() {
   const blockedBody = (
     <div className="empty">
       <div className="eicon">{I.shield}</div>
-      <b>This page is restricted</b>
-      The {viewAsRole ?? role} role does not have view access to “{view}” — set by an
-      administrator in page permissions. Ask an owner or executive if you need it.
+      <b>{roleError && !viewAsRole ? "We could not read your role" : "This page is restricted"}</b>
+      {roleError && !viewAsRole
+        /* Never dress a failed lookup up as a permission decision. On 16 Aug 2026 the
+           owner was told the "member" role could not view his own Command Center,
+           because the role read had failed and the code substituted the lowest role.
+           He reported the page as deleted, and it was not - it had never been touched. */
+        ? <>Your access could not be checked, so nothing is being shown rather than the
+            wrong thing. This is NOT a permission decision and your access has not changed.
+            <div className="note" style={{ marginTop: 8 }}>{roleError}</div>
+            <div className="note" style={{ marginTop: 4 }}>Signing out and back in refreshes
+              an expired session, which is the usual cause.</div></>
+        : <>The {viewAsRole ?? role} role does not have view access to “{view}” — set by an
+            administrator in page permissions. Ask an owner or executive if you need it.</>}
       {viewAsRole && <div className="note" style={{ marginTop: 8 }}>You are seeing this because the design preview is
         showing you the {viewAsRole} role&rsquo;s view. Your own access is unchanged.</div>}
       <div style={{ marginTop: 14 }}>
