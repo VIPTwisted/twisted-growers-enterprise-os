@@ -141,6 +141,23 @@ function qualify(deptOf, room) {
 
 const NUM = (v) => (v === null || v === undefined ? null : Number(v).toLocaleString());
 
+/* A served error, turned into something a person can act on, WITHOUT ever
+   inventing what went wrong. An error object with a blank message is itself a
+   fact worth stating: it means the failure arrived with no explanation
+   attached, and "the database refused the count and gave no reason" is the
+   honest sentence for it. A blank string here would be read as "no error" by
+   every branch downstream, which is how a refused read becomes a spinner that
+   never stops. */
+function errText(error) {
+  const parts = [error.message, error.details, error.hint]
+    .map((s) => (typeof s === "string" ? s.trim() : ""))
+    .filter(Boolean);
+  if (parts.length) return `${parts.join(" — ")}${error.code ? ` (${error.code})` : ""}`;
+  return error.code
+    ? `The database refused this count and returned no message, only the code ${error.code}.`
+    : "The database refused this count and returned no message with it.";
+}
+
 /* ═══════════════════════════════════════════════════════════════════════════
    THE KEY FIGURES — rule 10, clause by clause.
 
@@ -458,21 +475,42 @@ export default function PlantCensusDashboard({ go, session, reports, role, viewA
   const reload = useCallback(() => setVer((v) => v + 1), []);
 
   /* THE TILES. One exact count per measure, issued to the database with the
-     measure's own filter and `head: true` so no row travels for a number. The
-     error is bound on every one: a refused count that fell back to zero would
-     read as "no plants in this state", which is a different fact and the more
-     comforting one — the exact shape this platform keeps being bitten by. */
+     measure's own filter. The error is bound on every one: a refused count that
+     fell back to zero would read as "no plants in this state", which is a
+     different fact and the more comforting one — the exact shape this platform
+     keeps being bitten by.
+
+     WHY `limit(0)` AND NOT `head: true`. The obvious way to ask for a count
+     without moving rows is a HEAD request, and it was written that way first.
+     A HEAD RESPONSE HAS NO BODY, so when the database refuses the read there is
+     nothing for PostgREST to put its message in: supabase-js resolves with an
+     error object whose `message` is the EMPTY STRING. Every branch that tests
+     the message then reads as "no error", and five tiles sat on "counting…"
+     for ever — a refused read presented as a slow one, on a page whose whole
+     subject is proving where a number came from. Caught in a render probe
+     against an unauthenticated browser before this page was ever mounted.
+
+     `limit(0)` moves no rows either, still returns the exact count in the
+     Content-Range header, and on refusal returns a JSON body carrying
+     "permission denied for view v_plant_census" and its SQLSTATE. The cost is
+     nothing and the failure becomes legible. */
   useEffect(() => {
     let live = true;
     for (const m of MEASURES) {
-      let q = supabase.from(CENSUS).select("tag", { count: "exact", head: true });
+      let q = supabase.from(CENSUS).select("tag", { count: "exact" }).limit(0);
       for (const f of listOf(m.filters)) {
         if (f.op === "not.is") q = q.not(f.col, "is", f.val);
         else q = q[f.op](f.col, f.val);
       }
       q.then(({ count, error }) => {
         if (!live) return;
-        setCounts((c) => ({ ...c, [m.col]: error ? { n: null, err: error.message } : { n: count, err: null } }));
+        setCounts((c) => ({ ...c, [m.col]: error ? { n: null, err: errText(error) } : { n: count, err: null } }));
+      }, (thrown) => {
+        /* A rejected promise — a dropped connection, a blocked request — is
+           still a failed count and must not leave the tile counting for ever.
+           Never `.catch(() => {})`: the reason reaches the screen. */
+        if (!live) return;
+        setCounts((c) => ({ ...c, [m.col]: { n: null, err: String((thrown && thrown.message) || thrown) } }));
       });
     }
     return () => { live = false; };
@@ -590,7 +628,7 @@ export default function PlantCensusDashboard({ go, session, reports, role, viewA
         )}
 
         <WidgetBoard layout={layout}>
-          {layout.order.map((w) => {
+          {layout.list.map((w) => {
             switch (w.key) {
               case "mirror": return (
                 <Widget key={w.key} w={w} layout={layout} store={store}

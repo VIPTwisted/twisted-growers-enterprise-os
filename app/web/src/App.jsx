@@ -2890,12 +2890,51 @@ const KPI_TABLES = [
   ["lots", "Lots", "#ff8a00", "lots", "flask"],
   ["employees", "Employees", "#ff2e9e", "people", "users"],
 ];
+/* THE CONTROL TOWER'S OWN COUNT TILES, AND THE ZERO THEY USED TO INVENT.
+ *
+ * This read was `.then(({ count }) => count ?? 0)`. `error` was never bound, so
+ * a permission denial, a dropped table and a statement timeout all arrived as
+ * `count === null` and were published to the landing page as the number ZERO,
+ * beside the word "records", on a card that drills into the table. Zero
+ * packages. Zero plants. Zero employees. Indistinguishable from the truth, and
+ * more alarming than it.
+ *
+ * IT IS WORSE WITH A HEAD REQUEST, WHICH IS WHAT THIS WAS. Measured in a live
+ * browser on 15 Aug 2026 against v_plant_census with an unauthorised key:
+ *
+ *     select(..., { count: "exact", head: true })  ->  { count: null, error: { message: "" } }
+ *     select(..., { count: "exact" }).limit(0)     ->  { count: null, error: { message:
+ *                                                       "permission denied for view …", code: "42501" } }
+ *
+ * A HEAD response carries no body, so PostgREST has nowhere to put its message
+ * and supabase-js hands back an error whose message is the EMPTY STRING. Any
+ * branch testing the message reads it as no error at all. `limit(0)` moves no
+ * rows either, still returns the exact count in the Content-Range header, and
+ * on refusal returns the reason and its SQLSTATE.
+ *
+ * So each tile now carries either a count or the reason there is none, and the
+ * card says which. Twenty more `head: true` count sites remain in this file and
+ * in commandcenter.jsx, wcanvas-kinds.jsx and wcanvas-live.jsx; they are
+ * reported rather than swept up here, because a sweeping edit across twenty
+ * unrelated components is how an unrelated page breaks.
+ */
 function useLiveCounts() {
   const [c, setC] = useState(null);
   useEffect(() => {
+    let live = true;
     Promise.all(KPI_TABLES.map(([t]) =>
-      supabase.from(t).select("*", { count: "exact", head: true }).then(({ count }) => count ?? 0)
-    )).then((counts) => setC(KPI_TABLES.map(([t, l, col, drill, icon], i) => ({ t, l, col, drill, icon, n: counts[i] }))));
+      supabase.from(t).select("*", { count: "exact" }).limit(0).then(
+        ({ count, error }) => (error
+          ? { n: null, err: error.message || `refused with no message${error.code ? ` (${error.code})` : ""}` }
+          : { n: count, err: null }),
+        (thrown) => ({ n: null, err: String((thrown && thrown.message) || thrown) }),
+      )
+    )).then((results) => {
+      if (!live) return;
+      setC(KPI_TABLES.map(([t, l, col, drill, icon], i) =>
+        ({ t, l, col, drill, icon, n: results[i].n, err: results[i].err })));
+    });
+    return () => { live = false; };
   }, []);
   return c;
 }
@@ -4869,7 +4908,13 @@ function ControlTower({ go, session }) {
                 <div className="chip" style={{ background: k.col, color: "#07130b" }}>{iconByName(k.icon)}</div>
                 <div className="body">
                   <div className="metric">{k.l}</div>
-                  <div className="vrow"><div className="value">{k.n.toLocaleString()}</div><div className="state">records</div></div>
+                  {/* A refused count is not a zero. It says so on the card, in the
+                      database's own words, rather than publishing the most alarming
+                      number in the range as though it had been measured. */}
+                  {k.err
+                    ? <div className="vrow"><div className="value">not counted</div><div className="state">read failed</div></div>
+                    : <div className="vrow"><div className="value">{Number(k.n ?? 0).toLocaleString()}</div><div className="state">records</div></div>}
+                  {k.err && <div className="note">This count could not be read: {k.err}. The card still opens the module, and nothing here is a zero.</div>}
                 </div>
               </div>
             ))}
