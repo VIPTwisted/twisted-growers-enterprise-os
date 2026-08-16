@@ -45,7 +45,7 @@ import {
   DkNarrative, DkReports, DkTasks,
 } from "./dashkit.jsx";
 import {
-  FinKpiStrip, FinMoney, FinBasis, FinDefect, FinCard, FinActions,
+  FinKpiStrip, FinMoney, FinBasis, FinDefect, FinCard, FinActions, FinAnswer,
   FinReading, FinCapped, finReadAll, useFinTargets, useFinRead,
 } from "./fin-kit.jsx";
 
@@ -283,13 +283,25 @@ export default function CustomersPage({ go, session, reports, role, viewAs, onVi
   const layout = useWidgetLayout(PAGE_KEY, WIDGETS);
 
   const d = useFinRead(async () => {
-    const [dir, cust, tasks, wholesale] = await Promise.all([
+    const [dir, cust, tasks, wholesale, fc] = await Promise.all([
       supabase.from("v_customer_directory").select("*"),
       supabase.from("customers").select("id,name,state_license,terms_days,credit_limit,active,contact_name,email,phone,metrc_facility_name,notes"),
       supabase.from("v_dashboard_tasks").select("*"),
       finReadAll("metrc_rpt_wholesale", "manifest_number,destination_licence,destination_facility,amount,voided,created_on"),
+      /* THE EMPTY CONTACT BOOK IS READ, NOT ASSERTED. An earlier draft printed a
+         literal 0 here because that is what I had measured at the terminal. A
+         measurement typed into a page is a fabricated figure the moment the data
+         moves, and the whole point of this card is that somebody will eventually
+         populate the table. `limit(1)` rather than `head: true` so a refusal
+         arrives as a message instead of an indistinguishable null. */
+      supabase.from("facility_contacts").select("facility_licence", { count: "exact" }).limit(1),
     ]);
-    return { dir: grab(dir), cust: grab(cust), tasks: grab(tasks), wholesale };
+    return {
+      dir: grab(dir), cust: grab(cust), tasks: grab(tasks), wholesale,
+      contacts: fc.error ? { count: null, err: fc.error.message }
+        : fc.count == null ? { count: null, err: "No count came back and no error was given." }
+        : { count: Number(fc.count), err: null },
+    };
   }, [], ver);
 
   if (d === null) return <div className="finpage"><FinReading what="the customer directory and both contact books" /></div>;
@@ -357,33 +369,45 @@ export default function CustomersPage({ go, session, reports, role, viewAs, onVi
   const T = (k) => tile === k;
   const toggle = (k) => setTile(tile === k ? null : k);
 
+  /* A refused read is not zero. Each tile names the read it cannot survive
+     without, and FinKpiStrip prints the reason in place of a figure. */
+  const wUnknown = d.wholesale.err && `Metrc's wholesale report could not be read: ${d.wholesale.err}.`;
+  const dirUnknown = d.dir.err && `The customer directory could not be read: ${d.dir.err}.`;
+  const custUnknown = d.cust.err && `The customers contact book could not be read: ${d.cust.err}.`;
+  const anyUnknown = wUnknown || dirUnknown || custUnknown;
+
   const tiles = [
     {
       key: "traded", label: "Facilities we have actually shipped priced goods to", value: traded.length, unit: "facilities",
-      tone: "plain", open: T("traded"), onOpen: () => toggle("traded"),
+      tone: "plain", open: T("traded"), onOpen: () => toggle("traded"), unknown: wUnknown,
       basis: "Distinct destination licences on metrc_rpt_wholesale. Opens exactly those accounts.",
     },
     {
       key: "norecord", label: "Traded with, and no row in the customer book", value: noRecord.length, unit: "facilities",
       tone: noRecord.length > 0 ? "bad" : "good", open: T("norecord"), onOpen: () => toggle("norecord"),
+      /* Needs BOTH sides: without either, the set difference is meaningless
+         rather than empty — and "0 customers missing a record" is the most
+         reassuring wrong answer this page could give. */
+      unknown: wUnknown || custUnknown,
       context: "Goods left the building to a counterparty this platform holds no account record for.",
       basis: "Destination licences on the wholesale report with no matching state_license in the customers table.",
     },
     {
       key: "reachable", label: "Accounts anybody could actually contact", value: reachable.length, unit: "accounts",
       tone: reachable.length === 0 ? "bad" : "plain", open: T("reachable"), onOpen: () => toggle("reachable"),
+      unknown: dirUnknown || custUnknown,
       context: "An email address in either contact book. facility_contacts is empty and the customers table holds none.",
       basis: "Accounts with a non-null email in v_customer_directory or in customers.",
     },
     {
       key: "labs", label: "Counterparties that are testing laboratories, not customers", value: labs.length, unit: "laboratories",
-      tone: "plain", open: T("labs"), onOpen: () => toggle("labs"),
+      tone: "plain", open: T("labs"), onOpen: () => toggle("labs"), unknown: dirUnknown,
       context: "Samples go to them; they buy nothing. They are separated here so they never inflate a customer count.",
       basis: "Facility type Independent Testing Laboratory, resolved from licence_type_prefix — the owner's own table.",
     },
     {
       key: "all", label: "Accounts on the books in total", value: accounts.length, unit: "accounts",
-      tone: "plain", open: T("all"), onOpen: () => toggle("all"),
+      tone: "plain", open: T("all"), onOpen: () => toggle("all"), unknown: anyUnknown,
       basis: "The union of v_customer_directory, the customers table and every destination licence on the wholesale report, joined on the state licence.",
     },
   ];
@@ -462,36 +486,30 @@ export default function CustomersPage({ go, session, reports, role, viewAs, onVi
             switch (w.key) {
               case "contactgap": return (
                 <Widget key={w.key} w={w} layout={layout} store={store}
-                  chips={<>
-                    <DkTag tone="crit">{reachable.length} of {accounts.length} reachable</DkTag>
-                    <DkTag tone="attn">{noRecord.length} traded with, no record</DkTag>
-                  </>}>
+                  chips={anyUnknown
+                    ? <DkTag tone="crit" title={anyUnknown}>read failed — no counts</DkTag>
+                    : <>
+                        <DkTag tone="crit">{reachable.length} of {accounts.length} reachable</DkTag>
+                        <DkTag tone="attn">{noRecord.length} traded with, no record</DkTag>
+                      </>}>
                   <div className="fin-answers">
-                    <div className="fin-answer">
-                      <span className="fin-answer-lbl">facility_contacts — the book the directory reads</span>
-                      <span className="fin-answer-val">0</span>
-                      <span className="fin-answer-note">
-                        Rows. Every contact column on v_customer_directory is therefore null for every
-                        account, and its record_status reads &ldquo;Nothing on file&rdquo; for all of them.
-                      </span>
-                    </div>
-                    <div className="fin-answer">
-                      <span className="fin-answer-lbl">customers — the book that has rows</span>
-                      <span className="fin-answer-val">{d.cust.rows.length.toLocaleString()}</span>
-                      <span className="fin-answer-note">
-                        Every one carries a state licence and payment terms of 30 days. None carries an email
-                        address, a telephone number, a named contact or a credit limit. Terms identical on
-                        every row is a default, not a negotiated term, and it is shown as one.
-                      </span>
-                    </div>
-                    <div className="fin-answer">
-                      <span className="fin-answer-lbl">Shipped to on Metrc&rsquo;s own report</span>
-                      <span className="fin-answer-val">{traded.length.toLocaleString()}</span>
-                      <span className="fin-answer-note">
-                        Facility licences that have received priced goods. {noRecord.length.toLocaleString()} of
-                        them appear in neither contact book.
-                      </span>
-                    </div>
+                    <FinAnswer
+                      label="facility_contacts — the book the directory reads"
+                      value={d.contacts.count}
+                      unknown={d.contacts.err && `The facility_contacts count could not be read: ${d.contacts.err}`}
+                      note={d.contacts.count === 0
+                        ? "Rows. Every contact column on v_customer_directory is therefore null for every account, and its record_status reads “Nothing on file” for all of them."
+                        : "Rows. The directory reads its contact columns from this table."} />
+                    <FinAnswer
+                      label="customers — the other book"
+                      value={d.cust.rows.length}
+                      unknown={d.cust.err && `The customers table could not be read: ${d.cust.err}`}
+                      note={`${d.cust.rows.filter((r) => r.email).length} carry an email address, ${d.cust.rows.filter((r) => r.phone).length} a telephone number, ${d.cust.rows.filter((r) => r.credit_limit != null).length} a credit limit. ${new Set(d.cust.rows.map((r) => r.terms_days)).size === 1 && d.cust.rows.length > 1 ? `Payment terms are identical on every row (${d.cust.rows[0].terms_days} days), which is a default rather than a negotiated term.` : "Payment terms vary by account."}`} />
+                    <FinAnswer
+                      label="Shipped to on Metrc's own report"
+                      value={traded.length}
+                      unknown={wUnknown}
+                      note={`Facility licences that have received priced goods. ${noRecord.length.toLocaleString()} of them appear in neither contact book.`} />
                   </div>
                   <div className="fin-neveradd">
                     <b>These are two books for one thing, and this page does not merge them behind your back.</b> Which
@@ -502,7 +520,9 @@ export default function CustomersPage({ go, session, reports, role, viewAs, onVi
               );
               case "accounts": return (
                 <Widget key={w.key} w={w} layout={layout} store={store}
-                  chips={<DkTag tone="neutral">{filtered.length.toLocaleString()} shown of {accounts.length.toLocaleString()}</DkTag>}>
+                  chips={anyUnknown
+                    ? <DkTag tone="crit" title={anyUnknown}>read failed — the list below is not the account book</DkTag>
+                    : <DkTag tone="neutral">{filtered.length.toLocaleString()} shown of {accounts.length.toLocaleString()}</DkTag>}>
                   <div className="fin-filters">
                     <label htmlFor="fin-cust-q">Search facility, licence, company or type</label>
                     <input id="fin-cust-q" className="cc-input fin-search" value={q}
@@ -525,8 +545,11 @@ export default function CustomersPage({ go, session, reports, role, viewAs, onVi
                 </Widget>
               );
               case "companies": return (
-                <Widget key={w.key} w={w} layout={layout} store={store} defaultOpen={false}>
-                  <CompanyBand accounts={accounts} wholesale={d.wholesale.rows} />
+                <Widget key={w.key} w={w} layout={layout} store={store} defaultOpen={false}
+                  chips={anyUnknown ? <DkTag tone="crit" title={anyUnknown}>read failed</DkTag> : null}>
+                  {anyUnknown
+                    ? <DkErr what="The company grouping" err={dirUnknown || custUnknown || wUnknown} />
+                    : <CompanyBand accounts={accounts} wholesale={d.wholesale.rows} />}
                 </Widget>
               );
               case "words": return (

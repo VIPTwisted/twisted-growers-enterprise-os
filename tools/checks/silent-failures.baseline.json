@@ -18,7 +18,7 @@
     "_the_exemplars": "BAD: ForensicAuditLedger, App.jsx:9097. Three lines, no error bound, `return null` on empty, so the whole section vanishes from the Command Center with no message and no trace in the DOM. GOOD: BrainFiles, App.jsx:4996, in the same file: binds error, keeps loading / error-with-message / genuinely-empty as three separate states, and its `?? []` sits on the ELSE branch of an explicit error check where it can only mean the query succeeded and returned nothing.",
     "limits": {
       "swallowOccurrences": 263,
-      "unguardedSupabaseReads": 117
+      "unguardedSupabaseReads": 113
     }
   }
 }

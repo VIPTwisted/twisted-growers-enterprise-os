@@ -9,11 +9,66 @@
    The .cc-* scope from the Command Center's own stylesheet arrives with
    dashkit. What is here is only what the Finance pages need and no page in the
    platform already has — and each of the four pages then lays ITSELF out.
+
+   THE DDC SCALE IS HELD HERE, from brain/DASHBOARD_SPEC.md section 2:
+     chrome 9–11px · body 12px · KPI figure 22px HARD CAP · padding ≤16px
+     table rows 26px · border radius ≤2px
+   The first draft of this file used 8–10px radii throughout. That is not a
+   preference I got wrong, it is a measured cap I had not read, and it made four
+   Finance pages visibly a different product from the Command Center sitting one
+   click away. Every radius here is 2px, matching commandcenter.css exactly.
+   Table rows are pinned to 26px rather than left to the content.
    ═══════════════════════════════════════════════════════════════════════════ */
 
 /* ── the page shell: uses the whole width, never a horizontal scrollbar ────── */
 .finpage { padding: 14px 16px 60px; max-width: 100%; }
 .finpage * { min-width: 0; }
+
+/* NARROW WIDTHS — measured at 375px with every read refused, not assumed.
+   The shared chrome these pages sit in (.cc-head, .cc-tools, .cc-panel-head,
+   .cc-wgrid) is laid out as non-wrapping flex rows, so a long section title or
+   a long chip pushed the document to 553px inside a 375px viewport on the
+   Customers page. That is a sideways scrollbar on the whole page, which F5
+   forbids: wrap, never clip.
+
+   Every rule below is SCOPED UNDER .finpage on purpose. Those classes live in
+   commandcenter.css, they are another lane's file, and the Command Center,
+   Cultivation and Inventory dashboards render the same anatomy. Widening the
+   fix to the shared class would change three pages nobody asked me to touch
+   (rule F6). The same measurement on those pages is reported to Agent I
+   instead — it is very likely theirs too, and it is theirs to decide. */
+.finpage .cc-head,
+.finpage .cc-tools,
+.finpage .cc-tools-l,
+.finpage .cc-tools-r,
+.finpage .cc-panel-head,
+.finpage .cc-whead,
+.finpage .cc-panel-chips { flex-wrap: wrap; }
+
+/* WRAPPING ALONE MAKES IT WORSE, AND IT DID. Caught in a screenshot at 375px:
+   the defect banner sat ON TOP of the toolbar buttons. Both shared containers
+   are height-constrained, so a second row does not push the page down —
+   .cc-tools is `height: 32px` and the wrapped row spills out over whatever
+   follows, and .cc-head is `max-height: 40px; overflow: hidden`, which CLIPS.
+   Wrapping into a clipped box is silent truncation, the very thing F5 forbids,
+   and it would have looked fine to me while hiding the page title's chips.
+   So the heights are released alongside the wrap, on these pages only. */
+.finpage .cc-head { max-height: none; overflow: visible; }
+/* The shared toolbar also carries `margin-top: -8px`, deliberately, to pull it
+   tight under a header the Command Center guarantees is ONE line. The moment
+   the header wraps, that -8px lands the toolbar on top of the header's last
+   line — measured at 375px as an 8px overlap on all four pages. These pages do
+   not cap their header height, so the assumption behind the negative margin is
+   not true here and it is removed rather than fought with. */
+.finpage .cc-tools {
+  height: auto; min-height: 32px; padding-top: 4px; padding-bottom: 4px; margin-top: 0;
+}
+.finpage .cc-panel-title { white-space: normal; overflow-wrap: anywhere; }
+/* .cc-title is `white-space: nowrap`, which beats overflow-wrap on its own. */
+.finpage .cc-title { white-space: normal; overflow-wrap: anywhere; }
+/* A grid track defaults to min-content, which refuses to shrink below its
+   widest word; 1fr alone is not enough. */
+.finpage .cc-wgrid > * { min-width: 0; }
 
 /* ── money and quantity cells ──────────────────────────────────────────────── */
 .fin-money { font-variant-numeric: tabular-nums; white-space: nowrap; }
@@ -29,7 +84,7 @@
   display: grid; grid-template-columns: auto 1fr; gap: 8px; align-items: start;
   margin: 8px 0 2px; padding: 7px 10px;
   border: 1px solid var(--line); border-left: 3px solid var(--neon);
-  border-radius: 8px; background: var(--surface-2);
+  border-radius: 2px; background: var(--surface-2);
   font-size: 11.5px; line-height: 1.45; color: var(--ink-2);
 }
 .fin-basis.caution { border-left-color: var(--amber); }
@@ -42,7 +97,7 @@
 
 /* ── a named defect in the data behind the page ────────────────────────────── */
 .fin-defect {
-  margin: 10px 0 14px; border: 1px solid var(--red); border-radius: 10px;
+  margin: 10px 0 14px; border: 1px solid var(--red); border-radius: 2px;
   background: var(--red-soft); padding: 11px 13px;
 }
 .fin-defect-h { display: flex; gap: 9px; align-items: center; flex-wrap: wrap; margin-bottom: 6px; }
@@ -54,16 +109,44 @@
 
 /* ── the finance tile strip ────────────────────────────────────────────────── */
 .fin-kpiwrap .fin-kpi { position: relative; }
+/* THE STRIP HEAD MUST WRAP. Measured at 768px with every read refused: the
+   shared .cc-striphead is a non-wrapping flex row, and the chip saying five
+   figures could not be read pushed it to 846px inside a 685px column — a
+   sideways scrollbar on the whole page, which rule F5 forbids.
+   commandcenter.css owns that class and it is another lane's file, so the wrap
+   is scoped to .fin-kpiwrap and the Command Center is untouched. Chips wrap
+   onto a second line rather than the page growing a horizontal scrollbar. */
+.fin-kpiwrap .cc-striphead { flex-wrap: wrap; }
+.fin-kpiwrap .cc-striphead > * { max-width: 100%; }
+.fin-kpiwrap .cc-tag { white-space: normal; overflow-wrap: anywhere; }
 .fin-kpi-basis {
   display: block; margin-top: 5px; font-size: 10px; line-height: 1.4;
   color: var(--muted); overflow-wrap: anywhere; white-space: normal;
+}
+/* A TILE WHOSE READ FAILED. Deliberately NOT a small caveat under a large
+   number — there is no number. The red spine is the same --red the platform
+   uses for a breach, because an unreadable money figure is at least as
+   serious as one that is off target. */
+.fin-kpi.unknown { border-left: 3px solid var(--red); background: var(--red-soft); }
+.fin-kpi-unknown { display: grid; gap: 3px; margin: 4px 0 2px; }
+.fin-kpi-unknown b { font-size: 12px; line-height: 1.35; color: var(--ink); }
+.fin-kpi-unknown-why {
+  font-size: 11px; line-height: 1.4; color: var(--ink-2);
+  overflow-wrap: anywhere; white-space: normal;
+}
+.fin-kpi-unknown-rule { font-size: 10px; line-height: 1.4; color: var(--muted); }
+/* The same refusal, inside a reconciliation answer card. */
+.fin-answer.unknown { border-top-color: var(--red); }
+.fin-answer-unknown {
+  font-size: 12px; line-height: 1.45; color: var(--ink);
+  overflow-wrap: anywhere; white-space: normal;
 }
 
 /* ── entity cards ──────────────────────────────────────────────────────────── */
 .fin-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 9px; }
 .fin-card {
   display: grid; gap: 5px; text-align: left; width: 100%;
-  padding: 11px 12px; border: 1px solid var(--line); border-radius: 10px;
+  padding: 11px 12px; border: 1px solid var(--line); border-radius: 2px;
   background: var(--surface); color: var(--ink); cursor: pointer;
   font: inherit; border-left: 3px solid var(--line);
 }
@@ -78,10 +161,14 @@
 .fin-card-chips { display: flex; gap: 5px; flex-wrap: wrap; }
 
 /* ── the finance tables. Wrap, never clip; scroll the TABLE, never the page ── */
-.fin-tablewrap { width: 100%; overflow-x: auto; border: 1px solid var(--line); border-radius: 10px; }
+.fin-tablewrap { width: 100%; overflow-x: auto; border: 1px solid var(--line); border-radius: 2px; }
 .fin-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+/* 26px rows, per the DDC scale: 12px body at 1.35 leading is ~16px, plus 5px
+   above and below. A row that grows because one cell wrapped is still allowed
+   to grow — wrap never clips (rule F5) — this is the floor, not a ceiling. */
 .fin-table th, .fin-table td {
-  padding: 7px 10px; text-align: left; vertical-align: top;
+  padding: 5px 10px; line-height: 1.35; min-height: 26px;
+  text-align: left; vertical-align: top;
   border-bottom: 1px solid var(--line); overflow-wrap: anywhere;
 }
 .fin-table thead th {
@@ -108,7 +195,7 @@
   display: grid; grid-template-columns: minmax(120px, auto) repeat(4, minmax(90px, 1fr));
   gap: 10px; align-items: center; width: 100%; text-align: left;
   padding: 9px 11px; border: 1px solid var(--line); border-left: 3px solid var(--line);
-  border-radius: 9px; background: var(--surface); color: var(--ink); font: inherit; cursor: pointer;
+  border-radius: 2px; background: var(--surface); color: var(--ink); font: inherit; cursor: pointer;
 }
 .fin-month:hover { background: var(--row-hover); border-left-color: var(--neon-line); }
 .fin-month.on { border-left-color: var(--neon); background: var(--neon-soft); }
@@ -124,14 +211,14 @@
 .fin-answers { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; }
 .fin-answer {
   border: 1px solid var(--line); border-top: 3px solid var(--gold);
-  border-radius: 10px; padding: 11px 12px; background: var(--surface); display: grid; gap: 5px;
+  border-radius: 2px; padding: 11px 12px; background: var(--surface); display: grid; gap: 5px;
 }
 .fin-answer-lbl { font-size: 11px; color: var(--muted); overflow-wrap: anywhere; }
 .fin-answer-val { font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; }
 .fin-answer-note { font-size: 11px; line-height: 1.45; color: var(--ink-2); overflow-wrap: anywhere; }
 .fin-neveradd {
   margin-top: 8px; padding: 8px 11px; border: 1px dashed var(--amber);
-  border-radius: 8px; font-size: 11.5px; line-height: 1.45; color: var(--ink-2);
+  border-radius: 2px; font-size: 11.5px; line-height: 1.45; color: var(--ink-2);
 }
 
 /* ── the document room grid on Customer Manifests ──────────────────────────── */
@@ -147,7 +234,7 @@
 /* ── the "more rows exist" line. Never a silent slice. ─────────────────────── */
 .fin-more {
   margin-top: 9px; padding: 9px 11px; border: 1px solid var(--line);
-  border-left: 3px solid var(--amber); border-radius: 8px;
+  border-left: 3px solid var(--amber); border-radius: 2px;
   font-size: 11.5px; line-height: 1.45; color: var(--ink-2);
   display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
 }

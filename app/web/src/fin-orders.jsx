@@ -270,15 +270,28 @@ export default function OrdersPage({ go, session, reports, role, viewAs, onViewA
       supabase.from("v_apex_order_metrc_link").select("*").order("order_date", { ascending: false, nullsFirst: false }),
       finReadAll("metrc_rpt_wholesale", "manifest_number,invoice_number,amount,voided,created_on,destination_facility,destination_licence"),
       supabase.from("v_dashboard_tasks").select("*"),
-      ...OWN_TABLES.map(([t]) => supabase.from(t).select("*", { count: "exact", head: true })),
+      /* NOT `head: true`. A HEAD request has no response body, so PostgREST's
+         error message never arrives and supabase-js can hand back error null
+         AND count null together — a refused read that looks exactly like a
+         successful count of nothing. That shape is what put "0 records" on the
+         Control Tower when permission was denied, and it stuck five tiles on
+         "counting…" tonight. Asking for one real row costs one row and makes
+         the refusal arrive as a message that can be printed. */
+      ...OWN_TABLES.map(([t]) => supabase.from(t).select("*", { count: "exact" }).limit(1)),
     ]);
     return {
       orders: grab(orders), wholesale, tasks: grab(tasks),
-      own: OWN_TABLES.map(([t, label], i) => ({
-        table: t, label,
-        count: own[i].error ? null : own[i].count,
-        err: own[i].error ? own[i].error.message : null,
-      })),
+      /* THREE STATES, NEVER TWO. A count that is refused, a count that came
+         back empty without an error, and a count of zero are three different
+         facts and only the last one is "nothing here". `count` stays null for
+         the first two and `state` says which, so no branch can turn an absent
+         number into a zero. */
+      own: OWN_TABLES.map(([t, label], i) => {
+        const r = own[i];
+        if (r.error) return { table: t, label, count: null, state: "refused", err: r.error.message };
+        if (r.count == null) return { table: t, label, count: null, state: "no-count", err: null };
+        return { table: t, label, count: Number(r.count), state: "counted", err: null };
+      }),
     };
   }, [], ver);
 
@@ -310,34 +323,39 @@ export default function OrdersPage({ go, session, reports, role, viewAs, onViewA
   const T = (k) => tile === k;
   const toggle = (k) => setTile(tile === k ? null : k);
 
+  /* A refused read is not zero. Every tile on this page counts the Apex book;
+     without it there is no order book to describe, and "0 orders" would say the
+     company sold nothing rather than that the read failed. */
+  const ordUnknown = d.orders.err && `The Apex order book could not be read: ${d.orders.err}.`;
+
   const tiles = [
     {
       key: "all", label: "Orders in the Apex order book", value: orders.length, unit: "orders",
-      tone: "plain", open: T("all"), onOpen: () => toggle("all"),
+      tone: "plain", open: T("all"), onOpen: () => toggle("all"), unknown: ordUnknown,
       basis: "Every row of v_apex_order_metrc_link, which is apex_raw entity shipping-orders. Opens all of them.",
     },
     {
       key: "matched", label: "Orders matched to a Metrc manifest", value: money(matched, "total_dollars"), unit: "$",
-      tone: "good", open: T("matched"), onOpen: () => toggle("matched"),
+      tone: "good", open: T("matched"), onOpen: () => toggle("matched"), unknown: ordUnknown,
       context: `${matched.length.toLocaleString()} orders. Matched on the invoice number with every non-digit stripped from both sides.`,
       basis: "Order value from total_dollars, already converted from minor units by the owner-set conversion factor.",
     },
     {
       key: "unexplained", label: "Order value with no shipment behind it", value: money(unexplained, "total_dollars"), unit: "$",
-      tone: "bad", open: T("unexplained"), onOpen: () => toggle("unexplained"),
+      tone: "bad", open: T("unexplained"), onOpen: () => toggle("unexplained"), unknown: ordUnknown,
       context: `${unexplained.length.toLocaleString()} orders that are not cancelled, not empty and not zero, and that match no manifest.`,
       basis: "link_status APEX ONLY — UNEXPLAINED. Each one opens to show that nothing on the Metrc report carries its invoice number.",
     },
     {
       key: "cancelled", label: "Cancelled in Apex", value: cancelled.length, unit: "orders",
-      tone: "plain", open: T("cancelled"), onOpen: () => toggle("cancelled"),
+      tone: "plain", open: T("cancelled"), onOpen: () => toggle("cancelled"), unknown: ordUnknown,
       context: `Worth ${Math.round(money(cancelled, "total_dollars")).toLocaleString()} dollars had they gone ahead. Correctly absent from the shipment record.`,
       basis: "link_status EXPLAINED — cancelled.",
     },
     {
       key: "unmatchable", label: "Orders that can never be matched", value: ambiguous.length + noInvoice.length, unit: "orders",
       tone: (ambiguous.length + noInvoice.length) > 0 ? "warn" : "good",
-      open: T("unmatchable"), onOpen: () => toggle("unmatchable"),
+      open: T("unmatchable"), onOpen: () => toggle("unmatchable"), unknown: ordUnknown,
       context: "Either two orders share one invoice number, or the order carries none at all.",
       basis: "link_status AMBIGUOUS INVOICE NUMBER or NO INVOICE NUMBER. The invoice number is the only bridge between the two systems.",
     },
@@ -371,7 +389,10 @@ export default function OrdersPage({ go, session, reports, role, viewAs, onViewA
         <FinDefect
           object="sales_orders is empty"
           what="This page is registered against the sales_orders table, and that table holds nothing. Neither does any other order table this platform owns. The real order book is Apex, mirrored into apex_raw and reconciled to Metrc's own reports by v_apex_order_metrc_link."
-          measured={`Counted live on this page load: ${d.own.map((o) => `${o.table} ${o.err ? "could not be read" : o.count}`).join(" · ")}. Against that, the Apex book holds ${orders.length.toLocaleString()} orders.`}
+          measured={`Counted live on this page load: ${d.own.map((o) => `${o.table} ${
+            o.state === "counted" ? o.count
+              : o.state === "refused" ? "REFUSED, not zero"
+              : "no count returned — unknown, not zero"}`).join(" · ")}. Against that, the Apex book holds ${orders.length.toLocaleString()} orders.`}
           instead="Every order below comes from the Apex book. The empty platform tables are listed in their own section rather than rendered as a blank grid, because an empty grid reads as “no orders exist”."
           filed="Whether the platform should own its own order records or continue mirroring Apex is an owner decision. It is stated here rather than decided here." />
 
@@ -415,7 +436,9 @@ export default function OrdersPage({ go, session, reports, role, viewAs, onViewA
             switch (w.key) {
               case "states": return (
                 <Widget key={w.key} w={w} layout={layout} store={store}
-                  chips={<DkTag tone="neutral">{states.length} states</DkTag>}>
+                  chips={ordUnknown
+                    ? <DkTag tone="crit" title={ordUnknown}>read failed — no states</DkTag>
+                    : <DkTag tone="neutral">{states.length} states</DkTag>}>
                   <FinBasis source="v_apex_order_metrc_link.link_status — the view's own classification, not one computed here"
                     included="every order in the Apex book"
                     caution="These values are never added into one revenue figure. A cancelled order and a shipped one are both real rows with a value on them, and only one of them is money." />
@@ -441,7 +464,9 @@ export default function OrdersPage({ go, session, reports, role, viewAs, onViewA
               );
               case "orders": return (
                 <Widget key={w.key} w={w} layout={layout} store={store}
-                  chips={<DkTag tone="neutral">{filtered.length.toLocaleString()} shown of {orders.length.toLocaleString()}</DkTag>}>
+                  chips={ordUnknown
+                    ? <DkTag tone="crit" title={ordUnknown}>read failed — the list below is not the order book</DkTag>
+                    : <DkTag tone="neutral">{filtered.length.toLocaleString()} shown of {orders.length.toLocaleString()}</DkTag>}>
                   <div className="fin-filters">
                     <label htmlFor="fin-ord-q">Search invoice number, buyer licence or state</label>
                     <input id="fin-ord-q" className="cc-input fin-search" value={q}
@@ -459,7 +484,14 @@ export default function OrdersPage({ go, session, reports, role, viewAs, onViewA
               );
               case "own": return (
                 <Widget key={w.key} w={w} layout={layout} store={store} defaultOpen={false}
-                  chips={<DkTag tone="attn">{d.own.filter((o) => o.count === 0).length} of {d.own.length} empty</DkTag>}>
+                  chips={<>
+                    <DkTag tone="attn">{d.own.filter((o) => o.state === "counted" && o.count === 0).length} of {d.own.length} counted and empty</DkTag>
+                    {d.own.some((o) => o.state !== "counted") && (
+                      <DkTag tone="crit" title="A table whose count could not be read is not an empty table. These are shown as unknown, never folded into the empty count.">
+                        {d.own.filter((o) => o.state !== "counted").length} could not be counted
+                      </DkTag>
+                    )}
+                  </>}>
                   <FinBasis source="an exact row count taken against each table on this page load"
                     included="the nine order and sales tables this platform owns"
                     caution="These are counted, not assumed. An empty table and a table nobody read look the same on a screen, and only one of them is a fact." />
@@ -471,11 +503,15 @@ export default function OrdersPage({ go, session, reports, role, viewAs, onViewA
                           <tr key={o.table}>
                             <td>{o.table}</td>
                             <td>{o.label}</td>
-                            <td className="num">{o.err
-                              ? <span className="fin-docwhy">Could not be read: {o.err}</span>
-                              : o.count === 0
-                                ? <span className="fin-docwhy">Empty — nothing has ever been written to it.</span>
-                                : Number(o.count).toLocaleString()}</td>
+                            <td className="num">{
+                              o.state === "refused"
+                                ? <span className="fin-docwhy">The read was REFUSED, which is not zero: {o.err}</span>
+                                : o.state === "no-count"
+                                  ? <span className="fin-docwhy">No count came back and no error was given. This is a failed or refused read, not an empty table — it is shown as unknown rather than as zero.</span>
+                                  : o.count === 0
+                                    ? <span className="fin-docwhy">Empty — the count was read successfully and it is zero.</span>
+                                    : o.count.toLocaleString()
+                            }</td>
                           </tr>
                         ))}
                       </tbody>

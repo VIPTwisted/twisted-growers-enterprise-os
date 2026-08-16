@@ -49,7 +49,7 @@ import {
   TagEvidence, TagEvidenceProvider, DkNarrative, DkReports, DkTasks,
 } from "./dashkit.jsx";
 import {
-  FinKpiStrip, FinQty, FinMoney, FinBasis, FinDefect, FinActions,
+  FinKpiStrip, FinQty, FinMoney, FinBasis, FinDefect, FinActions, FinAnswer,
   FinReading, FinCapped, finReadAll, useFinTargets, useFinRead,
 } from "./fin-kit.jsx";
 
@@ -312,33 +312,42 @@ export default function CustomerManifestsPage({ go, session, reports, role, view
   const T = (k) => tile === k;
   const toggle = (k) => setTile(tile === k ? null : k);
 
+  /* A refused read is not zero. Every tile here needs BOTH the manifest report
+     and the document index; with either missing, "0 manifests with no copy held"
+     is the most reassuring wrong answer this page could give. */
+  const manUnknown = d.man.err && `Metrc's outbound manifest report could not be read: ${d.man.err}.`;
+  const docUnknown = d.docs.err && `The stored document index could not be read: ${d.docs.err}.`;
+
   const tiles = [
     {
       key: "copy", label: "Outbound manifests with a copy of the paperwork held", value: withCopy.length, unit: "manifests",
-      tone: "good", open: T("copy"), onOpen: () => toggle("copy"),
+      tone: "good", open: T("copy"), onOpen: () => toggle("copy"), unknown: manUnknown || docUnknown,
       basis: "metrc_documents rows of type manifest that carry a storage path, matched to Metrc's own outbound manifest report.",
     },
     {
       key: "nocopy", label: "Outbound manifests with no copy held", value: withoutCopy.length, unit: "manifests",
       tone: withoutCopy.length > 0 ? "bad" : "good", open: T("nocopy"), onOpen: () => toggle("nocopy"),
+      unknown: manUnknown || docUnknown,
       context: "Nothing to hand an inspector for these shipments without going back into Metrc.",
       basis: "Outbound manifests with no metrc_documents row of type manifest carrying a storage path. Each row states which of the two reasons applies.",
     },
     {
       key: "coa", label: "Certificates of Analysis stored in the platform", value: coaCount, unit: "certificates",
-      tone: "plain", open: T("coa"), onOpen: () => toggle("coa"),
+      tone: "plain", open: T("coa"), onOpen: () => toggle("coa"), unknown: docUnknown,
       context: "Held against a package tag, so any manifest carrying that package can produce it.",
       basis: "metrc_documents rows of type coa that carry a storage path.",
     },
     {
       key: "countoff", label: "Manifests where the package count received differs", value: countOff.length, unit: "manifests",
       tone: countOff.length > 0 ? "bad" : "good", open: T("countoff"), onOpen: () => toggle("countoff"),
+      unknown: manUnknown,
       context: "A different number of packages arrived from the number that left. Every one is a real exception.",
       basis: "metrc_rpt_transfer_manifests.count_variance, parsed from text, where it is a number other than zero.",
     },
     {
       key: "weightoff", label: "Manifests where the weight received differs", value: weightOff.length, unit: "manifests",
       tone: weightOff.length > 0 ? "warn" : "good", open: T("weightoff"), onOpen: () => toggle("weightoff"),
+      unknown: manUnknown,
       context: "The receiver weighed it differently from us. Small differences are scales; large ones are not.",
       basis: "metrc_rpt_transfer_manifests.weight_variance, parsed from text, where it is a number other than zero.",
     },
@@ -445,11 +454,13 @@ export default function CustomerManifestsPage({ go, session, reports, role, view
             switch (w.key) {
               case "manifests": return (
                 <Widget key={w.key} w={w} layout={layout} store={store}
-                  chips={<>
-                    <DkTag tone="neutral">{manifests.length.toLocaleString()} outbound manifests</DkTag>
-                    <DkTag tone={withoutCopy.length ? "crit" : "ok"}>{withoutCopy.length.toLocaleString()} with no copy held</DkTag>
-                    {voidedMan.length > 0 && <DkTag tone="attn">{voidedMan.length} voided</DkTag>}
-                  </>}>
+                  chips={(manUnknown || docUnknown)
+                    ? <DkTag tone="crit" title={manUnknown || docUnknown}>read failed — no counts</DkTag>
+                    : <>
+                        <DkTag tone="neutral">{manifests.length.toLocaleString()} outbound manifests</DkTag>
+                        <DkTag tone={withoutCopy.length ? "crit" : "ok"}>{withoutCopy.length.toLocaleString()} with no copy held</DkTag>
+                        {voidedMan.length > 0 && <DkTag tone="attn">{voidedMan.length} voided</DkTag>}
+                      </>}>
                   <div className="fin-filters">
                     <label htmlFor="fin-man-q">Search manifest number, destination or invoice number</label>
                     <input id="fin-man-q" className="cc-input fin-search" value={q}
@@ -470,30 +481,22 @@ export default function CustomerManifestsPage({ go, session, reports, role, view
               );
               case "variance": return (
                 <Widget key={w.key} w={w} layout={layout} store={store}
-                  chips={<>
-                    <DkTag tone={countOff.length ? "crit" : "ok"}>{countOff.length} count differences</DkTag>
-                    <DkTag tone={weightOff.length ? "attn" : "ok"}>{weightOff.length} weight differences</DkTag>
-                  </>}>
+                  chips={manUnknown
+                    ? <DkTag tone="crit" title={manUnknown}>read failed — no counts</DkTag>
+                    : <>
+                        <DkTag tone={countOff.length ? "crit" : "ok"}>{countOff.length} count differences</DkTag>
+                        <DkTag tone={weightOff.length ? "attn" : "ok"}>{weightOff.length} weight differences</DkTag>
+                      </>}>
                   <FinBasis source="metrc_rpt_transfer_manifests count_variance and weight_variance, both stored as text and parsed here"
                     included="outbound manifests only"
                     caution="These two are never combined into one number. A package-count difference means something did not arrive; a weight difference usually means two scales disagreed. They are different problems with different owners." />
                   <div className="fin-answers">
-                    <div className="fin-answer">
-                      <span className="fin-answer-lbl">Packages: a different number arrived</span>
-                      <span className="fin-answer-val">{countOff.length}</span>
-                      <span className="fin-answer-note">
-                        Press the tile above to open every one. Each opens further to the packages on the manifest,
-                        with each tag&rsquo;s certificate and manifest on its row.
-                      </span>
-                    </div>
-                    <div className="fin-answer">
-                      <span className="fin-answer-lbl">Weight: the receiver weighed it differently</span>
-                      <span className="fin-answer-val">{weightOff.length}</span>
-                      <span className="fin-answer-note">
-                        Shown as recorded. No tolerance is applied, because nobody has set one — a tolerance is an
-                        owner decision and this page will not invent a threshold to hide rows behind.
-                      </span>
-                    </div>
+                    <FinAnswer label="Packages: a different number arrived" value={countOff.length}
+                      unknown={manUnknown}
+                      note="Press the tile above to open every one. Each opens further to the packages on the manifest, with each tag's certificate and manifest on its row." />
+                    <FinAnswer label="Weight: the receiver weighed it differently" value={weightOff.length}
+                      unknown={manUnknown}
+                      note="Shown as recorded. No tolerance is applied, because nobody has set one — a tolerance is an owner decision and this page will not invent a threshold to hide rows behind." />
                   </div>
                 </Widget>
               );

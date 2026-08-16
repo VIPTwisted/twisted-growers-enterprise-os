@@ -53,7 +53,7 @@ import {
   TagEvidence, TagEvidenceProvider, DkNarrative, DkReports, DkTasks,
 } from "./dashkit.jsx";
 import {
-  FinKpiStrip, FinMoney, FinQty, FinBasis, FinDefect, FinCard, FinActions,
+  FinKpiStrip, FinMoney, FinQty, FinBasis, FinDefect, FinCard, FinActions, FinAnswer,
   FinReading, FinCapped, finReadAll, finTotalsByUnit, useFinTargets, useFinRead,
 } from "./fin-kit.jsx";
 
@@ -73,37 +73,24 @@ const uniq = (rows, field) => new Set(listOf(rows).map((r) => r[field]).filter(B
 const ymd = (v) => (v ? String(v).slice(0, 10) : null);
 
 /* ═══════════ the three answers, side by side, never added ═══════════ */
-function FinAnswers({ live, apex }) {
+function FinAnswers({ live, apex, wholesaleErr }) {
+  const wUnknown = wholesaleErr && `Metrc's wholesale report could not be read: ${wholesaleErr}.`;
   return (
     <>
       <div className="fin-answers">
-        <div className="fin-answer">
-          <span className="fin-answer-lbl">Metrc wholesale report — the shipper&rsquo;s own stated price</span>
-          <span className="fin-answer-val"><FinMoney value={live.shipperValue} /></span>
-          <span className="fin-answer-note">
-            {live.lines.toLocaleString()} priced lines on {live.manifests.toLocaleString()} manifests,
-            voided lines excluded. This is Metrc&rsquo;s own report of what left the building and what we said it was worth.
-          </span>
-        </div>
-        <div className="fin-answer">
-          <span className="fin-answer-lbl">The same report — the RECEIVER&rsquo;s stated price</span>
-          <span className="fin-answer-val"><FinMoney value={live.receiverValue} /></span>
-          <span className="fin-answer-note">
-            The counterparty&rsquo;s own declaration on the same lines. It is far smaller because most receivers
-            state nothing; it is shown because a blank is not a zero and the reader should see which it is.
-          </span>
-        </div>
-        <div className="fin-answer">
-          <span className="fin-answer-lbl">Apex orders matched to a Metrc manifest</span>
-          <span className="fin-answer-val">
-            {apex.err ? <span className="cc-evwhy crit">could not be read</span> : <FinMoney value={apex.matchedValue} />}
-          </span>
-          <span className="fin-answer-note">
-            {apex.err
-              ? `v_apex_order_metrc_link could not be read: ${apex.err}`
-              : `${apex.matched.toLocaleString()} orders matched by invoice number. A further ${apex.unexplained.toLocaleString()} Apex orders worth ${Math.round(apex.unexplainedValue).toLocaleString()} dollars match no manifest at all — they are on the Orders page.`}
-          </span>
-        </div>
+        <FinAnswer
+          label="Metrc wholesale report — the shipper's own stated price"
+          value={live.shipperValue} unit="$" unknown={wUnknown}
+          note={`${live.lines.toLocaleString()} priced lines on ${live.manifests.toLocaleString()} manifests, voided lines excluded. This is Metrc's own report of what left the building and what we said it was worth.`} />
+        <FinAnswer
+          label="The same report — the RECEIVER's stated price"
+          value={live.receiverValue} unit="$" unknown={wUnknown}
+          note="The counterparty's own declaration on the same lines. It is far smaller because most receivers state nothing; it is shown because a blank is not a zero and the reader should see which it is." />
+        <FinAnswer
+          label="Apex orders matched to a Metrc manifest"
+          value={apex.matchedValue} unit="$"
+          unknown={apex.err && `v_apex_order_metrc_link could not be read: ${apex.err}.`}
+          note={`${apex.matched.toLocaleString()} orders matched by invoice number. A further ${apex.unexplained.toLocaleString()} Apex orders worth ${Math.round(apex.unexplainedValue).toLocaleString()} dollars match no manifest at all — they are on the Orders page.`} />
       </div>
       <div className="fin-neveradd">
         <b>These are three answers to one question and they are never added together.</b> They
@@ -523,33 +510,49 @@ export default function SalesHistoryPage({ go, session, reports, role, viewAs, o
   const T = (k) => tile === k;
   const toggle = (k) => setTile(tile === k ? null : k);
 
+  /* WHICH READ EACH TILE DEPENDS ON. A tile whose source did not come back
+     prints no number at all — the reason goes here and FinKpiStrip renders it
+     instead of a figure. Fault injection with no session found five tiles on
+     this page publishing $0 and 0 manifests while every read behind them had
+     been refused, which on a money surface reads as "we shipped nothing". */
+  const wUnknown = d.w.err && `Metrc's wholesale report could not be read: ${d.w.err}.`;
+  const prefixUnknown = d.prefixes.err
+    && `The owner's licence-type table could not be read: ${d.prefixes.err}. Without it no destination licence can be resolved to a facility type, so a transporter cannot be told from a customer.`;
+  const outUnknown = d.out.err && `Metrc's outgoing transfer record could not be read: ${d.out.err}.`;
+
   const tiles = [
     {
       key: "value", label: "Value shipped, shipper's own price", value: live.shipperValue, unit: "$",
-      tone: "plain", open: T("value"), onOpen: () => toggle("value"),
+      tone: "plain", open: T("value"), onOpen: () => toggle("value"), unknown: wUnknown,
       context: "Not a revenue figure. Three answers exist and they are never added — see the section below.",
       basis: `Sum of metrc_rpt_wholesale.amount over ${live.lines.toLocaleString()} non-voided lines. Opens exactly those lines.`,
     },
     {
       key: "manifests", label: "Manifests priced on the wholesale report", value: live.manifests, unit: "manifests",
-      tone: "plain", open: T("manifests"), onOpen: () => toggle("manifests"),
+      tone: "plain", open: T("manifests"), onOpen: () => toggle("manifests"), unknown: wUnknown,
       basis: "Distinct manifest numbers in metrc_rpt_wholesale.",
     },
     {
       key: "transporter", label: "Value consigned to a transporter, not sold", value: money(transporterRows, "amount"), unit: "$",
       tone: "bad", open: T("transporter"), onOpen: () => toggle("transporter"),
+      unknown: wUnknown || prefixUnknown,
       context: "A custody leg on the way somewhere else. Counting it as revenue is open defect CD-2.",
       basis: "Destination licences whose facility type is Transporter in licence_type_prefix — the owner's own table.",
     },
     {
       key: "voided", label: "Voided lines on the report", value: voidedLines.length, unit: "lines",
       tone: voidedLines.length > 0 ? "warn" : "good", open: T("voided"), onOpen: () => toggle("voided"),
+      unknown: wUnknown,
       context: "Excluded from every value on this page, and shown so the exclusion is visible rather than assumed.",
       basis: "metrc_rpt_wholesale rows where voided is true.",
     },
     {
       key: "unpriced", label: "Outgoing manifests with no price, not internal", value: unpricedExternal.length, unit: "manifests",
       tone: unpricedExternal.length > 0 ? "warn" : "good", open: T("unpriced"), onOpen: () => toggle("unpriced"),
+      /* This one needs BOTH reads: the transfer record for the population and
+         the wholesale report for what is priced. Either missing makes the
+         difference between them meaningless rather than zero. */
+      unknown: outUnknown || wUnknown,
       context: "Left the building, went to somebody else, and Metrc's wholesale report puts no price on it.",
       basis: `${unpriced.length.toLocaleString()} of ${outByManifest.size.toLocaleString()} outgoing manifests are unpriced; ${(unpriced.length - unpricedExternal.length).toLocaleString()} of those are moves to ourselves and are excluded here.`,
     },
@@ -652,31 +655,45 @@ export default function SalesHistoryPage({ go, session, reports, role, viewAs, o
               case "answers": return (
                 <Widget key={w.key} w={w} layout={layout} store={store}
                   chips={<DkTag tone="attn" title="The Sales & Cash dashboard publishes this as a standing instruction and this page does not overrule it.">do not quote a revenue figure yet</DkTag>}>
-                  <FinAnswers live={live} apex={apexAgg} />
+                  <FinAnswers live={live} apex={apexAgg} wholesaleErr={d.w.err} />
                 </Widget>
               );
               case "months": return (
                 <Widget key={w.key} w={w} layout={layout} store={store}
-                  chips={<DkTag tone="neutral">{live.manifests.toLocaleString()} manifests priced</DkTag>}>
+                  chips={d.w.err
+                    ? <DkTag tone="crit" title={d.w.err}>read failed — no count</DkTag>
+                    : <DkTag tone="neutral">{live.manifests.toLocaleString()} manifests priced</DkTag>}>
                   {d.w.err ? <DkErr what="The ledger" err={d.w.err} /> : <MonthLedger rows={wRows} />}
                 </Widget>
               );
               case "who": return (
                 <Widget key={w.key} w={w} layout={layout} store={store}
-                  chips={<DkTag tone="info" title="Resolved from the destination licence against licence_type_prefix.">typed from the owner&rsquo;s licence table</DkTag>}>
-                  <CounterpartyBand rows={wRows} prefixes={d.prefixes.rows} />
+                  chips={(d.w.err || d.prefixes.err)
+                    ? <DkTag tone="crit" title={d.w.err || d.prefixes.err}>read failed — nothing can be typed</DkTag>
+                    : <DkTag tone="info" title="Resolved from the destination licence against licence_type_prefix.">typed from the owner&rsquo;s licence table</DkTag>}>
+                  {d.w.err ? <DkErr what="The Metrc wholesale report" err={d.w.err} />
+                    : d.prefixes.err ? <DkErr what="The owner's licence-type prefixes" err={d.prefixes.err} />
+                    : <CounterpartyBand rows={wRows} prefixes={d.prefixes.rows} />}
                 </Widget>
               );
               case "unpriced": return (
                 <Widget key={w.key} w={w} layout={layout} store={store} defaultOpen={false}
-                  chips={<DkTag tone={unpricedExternal.length ? "attn" : "ok"}>{unpricedExternal.length.toLocaleString()} to somebody else</DkTag>}>
-                  <FinBasis source="metrc_transfers outgoing, less the manifests metrc_rpt_wholesale prices"
-                    included={`${unpriced.length.toLocaleString()} unpriced manifests in total`}
-                    excluded={`${(unpriced.length - unpricedExternal.length).toLocaleString()} moves between our own two licences`} />
-                  <div className="cc-fine">
-                    Press the tile above named &ldquo;Outgoing manifests with no price, not internal&rdquo; to
-                    open the list. It is the same set of rows this section counts, read once.
-                  </div>
+                  chips={(d.out.err || d.w.err)
+                    ? <DkTag tone="crit" title={d.out.err || d.w.err}>read failed — no count</DkTag>
+                    : <DkTag tone={unpricedExternal.length ? "attn" : "ok"}>{unpricedExternal.length.toLocaleString()} to somebody else</DkTag>}>
+                  {(d.out.err || d.w.err)
+                    ? <DkErr what="The unpriced-manifest comparison" err={d.out.err || d.w.err} />
+                    : (
+                      <>
+                        <FinBasis source="metrc_transfers outgoing, less the manifests metrc_rpt_wholesale prices"
+                          included={`${unpriced.length.toLocaleString()} unpriced manifests in total`}
+                          excluded={`${(unpriced.length - unpricedExternal.length).toLocaleString()} moves between our own two licences`} />
+                        <div className="cc-fine">
+                          Press the tile above named &ldquo;Outgoing manifests with no price, not internal&rdquo; to
+                          open the list. It is the same set of rows this section counts, read once.
+                        </div>
+                      </>
+                    )}
                 </Widget>
               );
               case "words": return (
