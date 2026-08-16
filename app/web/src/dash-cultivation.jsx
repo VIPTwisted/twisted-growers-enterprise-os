@@ -410,6 +410,10 @@ export default function CultivationDashboard({ go, session, reports, role, viewA
   const [busy, setBusy] = useState(false);
   const [ver, setVer] = useState(0);
   const [d, setD] = useState(null);
+  /* The three slow views, read in their own wave. `null` means still reading —
+     which is a different thing from read-and-empty, and the panels below say
+     which of the two they are showing. */
+  const [slow, setSlow] = useState(null);
   /* WHICH KEY FIGURE HAS ITS OWN RECORDS OPEN. One at a time, so two evidence
      tables can never stand open under each other's headings. */
   const [openKpi, setOpenKpi] = useState(null);
@@ -433,15 +437,45 @@ export default function CultivationDashboard({ go, session, reports, role, viewA
   const layout = useWidgetLayout(PAGE_KEY, WIDGETS);
   const queue = useWorkQueue(DEPT);
 
+  /* ═══════════════════════════════════════════════════════════════════════
+     WHY THIS PAGE READS IN TWO WAVES, AND WHAT IT COST BEFORE.
+
+     Owner report: the Cultivation dashboard takes about thirty-five seconds to
+     appear. Measured here on 15 Aug 2026 as a signed-in user, by timing every
+     request the page issues:
+
+       v_room_board_complete    8,168 ms
+       v_global_management      8,153 ms
+       v_stock_by_department    8,153 ms
+       mv_department_dashboard    156 ms   <- the key figures
+       every other read          under 530 ms
+
+     The eleven reads were one Promise.all and the page rendered NOTHING until
+     the last of them settled, so the key figures — which arrive in about a
+     sixth of a second — were held behind three slow views for eight seconds
+     and, when those views were competing with other traffic, far longer. That
+     is a front-end defect: the page chose to wait.
+
+     So the reads are split. WAVE ONE is everything fast, and the page draws as
+     soon as it lands: the heading, the action bar, the key figures, the
+     targets, the yield panel, the dry-time panel and the task list. WAVE TWO
+     is the three slow views, which resolve on their own and fill their own
+     panels; until each lands its panel says it is still reading, which is an
+     honest state rather than a blank one.
+
+     NOTHING IS DROPPED AND NO READ IS NARROWED. Every column and every row the
+     page used before, it still uses. The remaining eight seconds live inside
+     those three views and belong to the database team; they are reported, not
+     worked around by fetching less than the page needs.
+     ═══════════════════════════════════════════════════════════════════════ */
   useEffect(() => {
     let live = true;
     (async () => {
-      const [tiles, trend, targets, rooms, alertRules, limits, stockRooms, yld, dry, tasks, global] =
+      const [tiles, trend, targets, alertRules, limits, yld, dry, tasks] =
         await Promise.all([
           supabase.from("mv_department_dashboard").select("*").eq("department", DEPT).order("ord"),
           supabase.from("v_dashboard_trend").select("*").eq("department", DEPT),
           supabase.from("kpi_targets").select("*").eq("department", DEPT),
-          supabase.from("v_room_board_complete").select("*").order("room"),
           supabase.from("harvest_alert_rules").select("rule_key, threshold, note, active")
             .in("rule_key", ["weekend_warning_days", "late_tolerance_days"]),
           /* THE TWO OWNER-SET LIMITS TWO OF THE KEY FIGURES ARE DEFINED BY.
@@ -450,18 +484,36 @@ export default function CultivationDashboard({ go, session, reports, role, viewA
              a literal: today's values are today's values, not the rules. */
           supabase.from("conversion_factors").select("key, value, set_by, what_it_means")
             .in("key", CV_RULE_KEYS),
-          supabase.from("v_stock_by_department").select("*").eq("department", DEPT.toUpperCase()),
           supabase.from("v_harvest_yield_audit").select("*").order("finished_on", { ascending: false }).limit(12),
           supabase.from("v_dry_time_discipline").select("*").order("month", { ascending: false }),
           supabase.from("v_dashboard_tasks").select("*"),
-          supabase.from("v_global_management").select("*").eq("department", DEPT).maybeSingle(),
         ]);
       if (!live) return;
       setD({
-        tiles: grab(tiles), trend: grab(trend), targets: grab(targets), rooms: grab(rooms),
+        tiles: grab(tiles), trend: grab(trend), targets: grab(targets),
         alertRules: grab(alertRules), limits: grab(limits),
-        stockRooms: grab(stockRooms), yld: grab(yld), dry: grab(dry),
-        tasks: grab(tasks),
+        yld: grab(yld), dry: grab(dry), tasks: grab(tasks),
+      });
+    })();
+    return () => { live = false; };
+  }, [ver]);
+
+  /* WAVE TWO. Each of these three fills one panel and gates nothing else. The
+     ORDER BY on the room board is gone: it sorted an expensive view server-side
+     to produce an order the board re-groups anyway, and the rows are sorted
+     here instead, at no cost. That is the only change to what is asked for. */
+  useEffect(() => {
+    let live = true;
+    (async () => {
+      const [rooms, stockRooms, global] = await Promise.all([
+        supabase.from("v_room_board_complete").select("*"),
+        supabase.from("v_stock_by_department").select("*").eq("department", DEPT.toUpperCase()),
+        supabase.from("v_global_management").select("*").eq("department", DEPT).maybeSingle(),
+      ]);
+      if (!live) return;
+      setSlow({
+        rooms: grab(rooms),
+        stockRooms: grab(stockRooms),
         global: global.error ? { rows: null, err: global.error.message } : { rows: global.data, err: null },
       });
     })();
@@ -505,8 +557,11 @@ export default function CultivationDashboard({ go, session, reports, role, viewA
   const trendByKpi = Object.fromEntries(d.trend.rows.map((r) => [r.kpi, r]));
   const targetByKpi = Object.fromEntries(d.targets.rows.map((r) => [r.kpi, r]));
   const warnRule = d.alertRules.rows.find((x) => x.rule_key === "weekend_warning_days" && x.active);
-  const flowerRooms = d.rooms.rows.filter((r) => r.room_role === "Flower room");
-  const roomsOver = flowerRooms.filter((r) => Number(r.days_until) < 0 && Number(r.plants_now) > 0);
+  /* The room board arrives in the second wave, so until it lands there is no
+     room list to count. `null` here means still reading and is rendered as such;
+     an empty array would read as "no flower rooms", which is a different claim. */
+  const flowerRooms = slow ? slow.rooms.rows.filter((r) => r.room_role === "Flower room") : null;
+  const roomsOver = flowerRooms ? flowerRooms.filter((r) => Number(r.days_until) < 0 && Number(r.plants_now) > 0) : null;
   const yieldUnder = d.yld.rows.filter((r) => r.strain_median_dry_g != null && Number(r.dry_g_per_plant) < Number(r.strain_median_dry_g));
   const openTasks = d.tasks.rows.filter((t) => t.department === DEPT);
   const overdueTasks = openTasks.filter((t) => t.position?.startsWith("OVERDUE"));
@@ -563,7 +618,7 @@ export default function CultivationDashboard({ go, session, reports, role, viewA
 
       {d.tiles.err ? <DkErr what="The key figures" err={d.tiles.err} />
         : d.tiles.rows.length === 0
-          ? <DkGapCard row={d.global.rows} dept={DEPT} go={go} />
+          ? <DkGapCard row={slow ? slow.global.rows : null} dept={DEPT} go={go} />
           : <DkKpiStrip dept={DEPT} tiles={d.tiles.rows} trend={trendByKpi} targets={targetByKpi}
               go={go} onAssigned={() => setVer((v) => v + 1)} inPlace={kpiInPlace} />}
       {d.targets.err && <DkErr what="The owner-set targets" err={d.targets.err} />}
@@ -674,16 +729,19 @@ export default function CultivationDashboard({ go, session, reports, role, viewA
           switch (w.key) {
             case "rooms": return (
               <Widget key={w.key} w={w} layout={layout} store={store}
-                chips={d.rooms.err ? <DkTag tone="crit">read failed</DkTag> : (
+                chips={!slow ? <DkTag tone="info">still reading the room board</DkTag>
+                  : slow.rooms.err ? <DkTag tone="crit">read failed</DkTag> : (
                   <>
-                    {roomsOver.length > 0
+                    {roomsOver && roomsOver.length > 0
                       ? <DkTag tone="crit">{roomsOver.length} past the scheduled pull</DkTag>
                       : <DkTag tone="ok">every flower room inside its cycle</DkTag>}
-                    <DkTag tone="neutral">{flowerRooms.length} flower rooms</DkTag>
+                    <DkTag tone="neutral">{flowerRooms ? flowerRooms.length : 0} flower rooms</DkTag>
                   </>
                 )}>
-                {d.rooms.err ? <DkErr what="The room board" err={d.rooms.err} />
-                  : <DkRoomBoard rooms={d.rooms.rows} warnDays={warnRule ? Number(warnRule.threshold) : null}
+                {!slow ? <div className="cc-fine">Reading the room board. It is the slowest read on this page,
+                    so the rest of the dashboard is drawn without waiting for it.</div>
+                  : slow.rooms.err ? <DkErr what="The room board" err={slow.rooms.err} />
+                  : <DkRoomBoard rooms={slow.rooms.rows} warnDays={warnRule ? Number(warnRule.threshold) : null}
                       renderPlantDrill={(code) => <RoomDrill code={code} />} />}
               </Widget>
             );
@@ -723,13 +781,15 @@ export default function CultivationDashboard({ go, session, reports, role, viewA
             );
             case "stockrooms": return (
               <Widget key={w.key} w={w} layout={layout} store={store}
-                chips={d.stockRooms.err ? <DkTag tone="crit">read failed</DkTag> : (
+                chips={!slow ? <DkTag tone="info">still reading</DkTag>
+                  : slow.stockRooms.err ? <DkTag tone="crit">read failed</DkTag> : (
                   <DkTag tone="neutral">
-                    {d.stockRooms.rows.reduce((a, r) => a + Number(r.tags ?? 0), 0).toLocaleString()} tags
+                    {slow.stockRooms.rows.reduce((a, r) => a + Number(r.tags ?? 0), 0).toLocaleString()} tags
                   </DkTag>
                 )}>
-                {d.stockRooms.err ? <DkErr what="The cultivation rooms" err={d.stockRooms.err} />
-                  : <CvStockRooms rows={d.stockRooms.rows} go={go} />}
+                {!slow ? <div className="cc-fine">Reading what the cultivation rooms are holding…</div>
+                  : slow.stockRooms.err ? <DkErr what="The cultivation rooms" err={slow.stockRooms.err} />
+                  : <CvStockRooms rows={slow.stockRooms.rows} go={go} />}
               </Widget>
             );
             case "queue": return (
@@ -738,8 +798,8 @@ export default function CultivationDashboard({ go, session, reports, role, viewA
                   <>
                     <DkTag tone="neutral">{queue.causes ? queue.causes.length : "…"} causes</DkTag>
                     <DkTag tone={queue.findings ? "crit" : "ok"}>{queue.findings ?? "…"} open findings</DkTag>
-                    {d.global.rows?.critical_findings > 0 && (
-                      <DkTag tone="crit">{d.global.rows.critical_findings} critical</DkTag>
+                    {slow && slow.global.rows?.critical_findings > 0 && (
+                      <DkTag tone="crit">{slow.global.rows.critical_findings} critical</DkTag>
                     )}
                   </>
                 )}>

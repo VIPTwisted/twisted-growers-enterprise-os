@@ -1,0 +1,203 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   CULTIVATION PAGE LAYOUT. Agent B, 15 Aug 2026.
+
+   GEOMETRY ONLY. Every colour in this file is a token that already exists in
+   the .ccpage scope — --ccok, --ccwarn, --ccattn, --cccrit, --ccinfo, --cc0..3,
+   --cct0..2, --ccline. Not one colour literal appears below, and none may be
+   added: the palette is the owner's and it is locked.
+
+   WHY NINE PAGES NEED NINE LAYOUTS. A takedown register reads down a severity
+   band; a loss ledger reads down a date spine; a strain catalogue reads across
+   a card grid; a room turn audit reads across one column per room. Giving them
+   one grid is how 522 pages ended up behind one screen. The panel, the chip and
+   the drill are shared. The arrangement of the body never is.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── shared small parts (the kit) ─────────────────────────────────────────── */
+.cult-bar {
+  display: inline-block; width: 100%; min-width: 60px; height: 8px;
+  background: var(--cc3); border-radius: 5px; overflow: hidden; vertical-align: middle;
+}
+.cult-bar-fill { display: block; height: 100%; border-radius: 5px; background: var(--ccinfo); }
+.cult-bar-fill.ok { background: var(--ccok); }
+.cult-bar-fill.warn { background: var(--ccwarn); }
+.cult-bar-fill.attn { background: var(--ccattn); }
+.cult-bar-fill.crit { background: var(--cccrit); }
+.cult-bar-none { font-size: 11px; color: var(--cct2); }
+
+.cult-feed { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.cult-feed-row {
+  display: grid; grid-template-columns: 92px minmax(0, 1fr) auto; gap: 10px;
+  align-items: baseline; padding: 6px 8px; border-left: 3px solid var(--ccline);
+  background: var(--cc1); border-radius: 0 6px 6px 0;
+}
+.cult-feed-row.ok { border-left-color: var(--ccok); }
+.cult-feed-row.warn { border-left-color: var(--ccwarn); }
+.cult-feed-row.crit { border-left-color: var(--cccrit); }
+.cult-feed-when { font-family: var(--ccmono); font-size: 11px; color: var(--cct2); }
+.cult-feed-what { font-size: 12px; color: var(--cct0); overflow-wrap: anywhere; }
+.cult-feed-detail { font-size: 11px; color: var(--cct2); text-align: right; overflow-wrap: anywhere; }
+
+/* The text-style expander a register row uses. It is a real <button>, so it is
+   reachable from the keyboard without any role or tabIndex being bolted on. */
+.cult-rowbtn {
+  background: none; border: 0; padding: 0; margin: 0; cursor: pointer; text-align: left;
+  color: var(--cct0); font: inherit; font-size: 12px; overflow-wrap: anywhere;
+}
+.cult-rowbtn:hover { color: var(--ccok); }
+.cult-rowbtn:focus-visible { outline: 2px solid var(--ccok); outline-offset: 2px; }
+
+/* A nested drill inside a register row: indented, so it reads as belonging to
+   the row above it rather than as a new section. */
+.cult-pkgs {
+  margin: 0 0 10px 18px; padding: 8px 10px; border-left: 2px solid var(--ccok);
+  background: var(--cc0); border-radius: 0 8px 8px 0;
+}
+
+/* Every page body uses the full width and wraps rather than clipping. */
+.cult-body { display: grid; gap: 12px; width: 100%; }
+.cult-note { font-size: 11px; color: var(--cct2); line-height: 1.5; overflow-wrap: anywhere; }
+.cult-figure { font-family: var(--ccmono); font-variant-numeric: tabular-nums; }
+
+/* ── HARVESTS · severity bands, worst band first ──────────────────────────── */
+.cult-band { border: 1px solid var(--ccline); border-radius: 10px; overflow: hidden; }
+.cult-band + .cult-band { margin-top: 10px; }
+.cult-band-head {
+  display: flex; flex-wrap: wrap; gap: 10px; align-items: baseline;
+  padding: 8px 12px; background: var(--cc2); border-left: 5px solid var(--ccinfo);
+}
+.cult-band.crit .cult-band-head { border-left-color: var(--cccrit); }
+.cult-band.warn .cult-band-head { border-left-color: var(--ccwarn); }
+.cult-band.ok .cult-band-head { border-left-color: var(--ccok); }
+.cult-band-title { font-weight: 700; font-size: 13px; color: var(--cct0); }
+.cult-band-body { padding: 6px 8px; display: grid; gap: 4px; }
+.cult-hrow {
+  display: grid; grid-template-columns: minmax(180px, 2fr) repeat(4, minmax(84px, 1fr)) auto;
+  gap: 10px; align-items: baseline; padding: 7px 6px; border-bottom: 1px solid var(--ccline);
+}
+.cult-hrow:last-child { border-bottom: 0; }
+.cult-hrow-name { font-size: 12px; color: var(--cct0); overflow-wrap: anywhere; }
+.cult-hrow-sub { display: block; font-size: 11px; color: var(--cct2); overflow-wrap: anywhere; }
+@media (max-width: 1100px) { .cult-hrow { grid-template-columns: 1fr 1fr; } }
+
+/* ── LIFECYCLE · a stage track per harvest, deadlines on the track ────────── */
+.cult-life { display: grid; gap: 8px; }
+.cult-lifecard { border: 1px solid var(--ccline); border-radius: 10px; padding: 10px 12px; background: var(--cc1); }
+.cult-lifecard.crit { border-color: var(--cccrit); }
+.cult-lifecard.warn { border-color: var(--ccwarn); }
+.cult-lifehead { display: flex; flex-wrap: wrap; gap: 8px; align-items: baseline; justify-content: space-between; }
+.cult-lifename { font-weight: 600; font-size: 13px; color: var(--cct0); overflow-wrap: anywhere; }
+.cult-track { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; margin-top: 8px; }
+.cult-step {
+  border-top: 3px solid var(--ccline); padding-top: 6px; font-size: 11px; color: var(--cct2);
+  overflow-wrap: anywhere;
+}
+.cult-step.done { border-top-color: var(--ccok); color: var(--cct1); }
+.cult-step.late { border-top-color: var(--cccrit); color: var(--cct0); }
+.cult-step.now { border-top-color: var(--ccwarn); color: var(--cct0); }
+.cult-step b { display: block; color: var(--cct0); font-size: 12px; }
+@media (max-width: 900px) { .cult-track { grid-template-columns: 1fr 1fr; } }
+
+/* ── HARVEST DETAIL · one card per scheduled pull, cultivars nested ───────── */
+.cult-pulls { display: grid; gap: 10px; }
+.cult-pull { border: 1px solid var(--ccline); border-radius: 10px; background: var(--cc1); overflow: hidden; }
+.cult-pullhead {
+  display: flex; flex-wrap: wrap; gap: 12px; align-items: baseline;
+  padding: 9px 12px; background: var(--cc2); border-bottom: 1px solid var(--ccline);
+}
+.cult-pullno { font-family: var(--ccmono); font-size: 16px; font-weight: 700; color: var(--cct0); }
+.cult-cvs { display: grid; gap: 2px; padding: 6px 10px; }
+.cult-cv {
+  display: grid; grid-template-columns: minmax(140px, 2fr) repeat(3, minmax(80px, 1fr));
+  gap: 10px; align-items: baseline; padding: 5px 0; border-bottom: 1px solid var(--ccline);
+  font-size: 12px; color: var(--cct1);
+}
+.cult-cv:last-child { border-bottom: 0; }
+.cult-shifts {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 8px 12px 12px;
+  border-top: 1px dashed var(--ccline);
+}
+@media (max-width: 900px) { .cult-cv, .cult-shifts { grid-template-columns: 1fr; } }
+
+/* ── LOSS LEDGER · a date spine ───────────────────────────────────────────── */
+.cult-spine { display: grid; gap: 0; }
+.cult-day { display: grid; grid-template-columns: 116px minmax(0, 1fr); gap: 14px; }
+.cult-daymark {
+  font-family: var(--ccmono); font-size: 12px; color: var(--cct0); font-weight: 700;
+  padding: 10px 0 0; text-align: right;
+}
+.cult-dayitems { border-left: 2px solid var(--ccline); padding: 4px 0 12px 14px; display: grid; gap: 4px; }
+.cult-lossrow {
+  display: grid; grid-template-columns: minmax(150px, 1.6fr) minmax(120px, 1fr) minmax(110px, 1fr) auto;
+  gap: 10px; align-items: baseline; padding: 6px 8px; background: var(--cc1);
+  border-radius: 6px; border-left: 3px solid var(--ccattn); font-size: 12px; color: var(--cct1);
+}
+.cult-lossrow.crit { border-left-color: var(--cccrit); }
+@media (max-width: 1000px) { .cult-lossrow { grid-template-columns: 1fr 1fr; } .cult-day { grid-template-columns: 1fr; } .cult-daymark { text-align: left; } }
+
+/* ── LOSS ANALYSIS · a ranking, worst first ───────────────────────────────── */
+.cult-rank { display: grid; gap: 3px; }
+.cult-rankrow {
+  display: grid; grid-template-columns: 28px minmax(150px, 1.4fr) minmax(120px, 1fr) minmax(140px, 1.2fr) minmax(90px, 0.7fr) auto;
+  gap: 10px; align-items: center; padding: 7px 8px; border-radius: 6px; background: var(--cc1);
+  font-size: 12px; color: var(--cct1);
+}
+.cult-rankno { font-family: var(--ccmono); font-size: 12px; color: var(--cct2); text-align: right; }
+@media (max-width: 1100px) { .cult-rankrow { grid-template-columns: 28px 1fr 1fr; } }
+
+/* ── GENETICS · a searched card grid ──────────────────────────────────────── */
+.cult-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 10px; }
+.cult-card { border: 1px solid var(--ccline); border-radius: 10px; padding: 11px 12px; background: var(--cc1); }
+.cult-cardname { font-weight: 700; font-size: 14px; color: var(--cct0); overflow-wrap: anywhere; }
+.cult-cardline {
+  display: flex; justify-content: space-between; gap: 10px; font-size: 12px;
+  color: var(--cct2); padding: 3px 0; border-bottom: 1px solid var(--ccline);
+}
+.cult-cardline:last-child { border-bottom: 0; }
+.cult-cardline b { color: var(--cct0); font-family: var(--ccmono); }
+.cult-alias { display: inline-block; font-size: 11px; color: var(--cct2); }
+
+/* ── ROOM TURN AUDIT · one column per room ────────────────────────────────── */
+.cult-rooms { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px; align-items: start; }
+.cult-roomcol { border: 1px solid var(--ccline); border-radius: 10px; background: var(--cc1); overflow: hidden; }
+.cult-roomhead { padding: 9px 12px; background: var(--cc2); border-bottom: 1px solid var(--ccline); }
+.cult-roomname { font-weight: 700; font-size: 13px; color: var(--cct0); overflow-wrap: anywhere; }
+.cult-turns { display: grid; gap: 2px; padding: 6px 8px; }
+.cult-turn {
+  display: grid; grid-template-columns: 84px minmax(0, 1fr) auto; gap: 8px; align-items: baseline;
+  padding: 5px 6px; border-left: 3px solid var(--ccline); font-size: 12px; color: var(--cct1);
+}
+.cult-turn.pass { border-left-color: var(--ccok); }
+.cult-turn.fail { border-left-color: var(--cccrit); }
+.cult-turn.none { border-left-color: var(--ccattn); }
+
+/* ── MOISTURE REGISTER · two bands, action first ──────────────────────────── */
+.cult-act { display: grid; gap: 8px; }
+.cult-actcard {
+  display: grid; grid-template-columns: minmax(200px, 1.6fr) repeat(3, minmax(90px, 1fr)) auto;
+  gap: 12px; align-items: center; padding: 10px 12px; border-radius: 10px;
+  border: 1px solid var(--ccline); background: var(--cc1);
+}
+.cult-actcard.crit { border-left: 5px solid var(--cccrit); }
+.cult-actcard.ok { border-left: 5px solid var(--ccok); }
+@media (max-width: 1100px) { .cult-actcard { grid-template-columns: 1fr 1fr; } }
+
+/* ── GRADING · the category split ─────────────────────────────────────────── */
+.cult-grades { display: grid; gap: 3px; }
+.cult-graderow {
+  display: grid; grid-template-columns: minmax(170px, 1.4fr) minmax(120px, 1fr) minmax(90px, 0.6fr) minmax(90px, 0.6fr);
+  gap: 12px; align-items: center; padding: 7px 8px; background: var(--cc1); border-radius: 6px;
+  font-size: 12px; color: var(--cct1);
+}
+.cult-split { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px; }
+.cult-splitcard { border: 1px solid var(--ccline); border-radius: 10px; padding: 10px 12px; background: var(--cc1); }
+.cult-splitbig { font-family: var(--ccmono); font-size: 22px; font-weight: 700; color: var(--cct0); display: block; }
+.cult-splitlbl { font-size: 11px; color: var(--cct2); display: block; overflow-wrap: anywhere; }
+@media (max-width: 1000px) { .cult-graderow { grid-template-columns: 1fr 1fr; } }
+
+/* ── the search field every catalogue page shares ─────────────────────────── */
+.cult-search { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 10px; }
+.cult-search input {
+  flex: 1 1 220px; min-width: 0; padding: 7px 10px; border-radius: 8px;
+  border: 1px solid var(--ccline); background: var(--cc0); color: var(--cct0); font-size: 13px;
+}

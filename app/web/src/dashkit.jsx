@@ -737,12 +737,24 @@ export function WidgetBoard({ layout, children }) {
    and ReportScreen clears every filter on arrival. C1 wants "the exact records,
    not a general report", so the exact records open here and the general report
    stays one press further in, inside the drill. */
-export function DkKpiStrip({ dept, tiles, trend, targets, go, onAssigned, caveats, pairs, inPlace }) {
+/* `sourceNote` and `emptyNote` name WHERE this strip's figures came from.
+   They default to the department-dashboard wording this component was written
+   for, so every existing caller renders exactly the sentence it rendered
+   before. They exist because the strip is now also mounted by pages whose
+   figures are counted from the very records listed below the tile rather than
+   read from mv_department_dashboard — and on those pages the default sentence,
+   which says the figures ignore the date range because they come from a
+   snapshot matview, is simply untrue. A primitive that states the wrong
+   provenance is worse than one that states none, and duplicating the strip so
+   each page can print its own sentence would give this platform two
+   definitions of a key figure. One primitive, told where it is. */
+export function DkKpiStrip({ dept, tiles, trend, targets, go, onAssigned, caveats, pairs, inPlace,
+                             sourceNote, emptyNote }) {
   if (!tiles.length) {
     return (
       <DkEmpty
         why={`No key figures are published for ${dept}.`}
-        fills="Tiles are rows in mv_department_dashboard, computed on the ten-minute cycle — a figure appears here the moment the department publishes one. Nothing is hidden and nothing is being computed in the browser."
+        fills={emptyNote ?? "Tiles are rows in mv_department_dashboard, computed on the ten-minute cycle — a figure appears here the moment the department publishes one. Nothing is hidden and nothing is being computed in the browser."}
       />
     );
   }
@@ -770,9 +782,10 @@ export function DkKpiStrip({ dept, tiles, trend, targets, go, onAssigned, caveat
             {noTarget} with no owner-set target ⓘ
           </DkTag>
         )}
-        <DkTag tone="info"
-          title="These figures are read from mv_department_dashboard, one pre-computed row per figure with no date on it, refreshed on the ten-minute cycle. They cover all data, all time, whatever range is picked above. The fix belongs in the view: it must carry the date its own facts hold.">
-          all data, all time — does not honour the date range ⓘ
+        <DkTag tone="info" title={sourceNote
+          ? sourceNote.why
+          : "These figures are read from mv_department_dashboard, one pre-computed row per figure with no date on it, refreshed on the ten-minute cycle. They cover all data, all time, whatever range is picked above. The fix belongs in the view: it must carry the date its own facts hold."}>
+          {sourceNote ? sourceNote.label : "all data, all time — does not honour the date range"} ⓘ
         </DkTag>
       </div>
       <div className="cc-kpi-strip">

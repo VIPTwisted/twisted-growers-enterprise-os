@@ -60,6 +60,27 @@ const InventoryDashboard = lazy(() => import("./dash-inventory.jsx"));
    gate and reached no screen. Committed and not routed is the same as not built.
    Same prop contract as the Cultivation and Inventory dashboards above. */
 const ScheduleAdherenceDashboard = lazy(() => import("./dash-schedule.jsx"));
+/* THE NINE CULTIVATION REGISTERS, Agent B, 15 Aug 2026. Each of these view keys
+   already had an ENABLED nav_registry row and no component, so every one of them
+   fell through to the generic data browser and rendered as a flat grid: no key
+   figure, no owner-set target, no drill, nothing assignable. Registered and
+   rendering a grid is not the same as built.
+
+   Each is its own module and its own layout, sharing only primitives from
+   dashkit and cult-kit. That is the whole point of the ruling against one
+   template: a take-down register reads by severity, a loss ledger reads down a
+   date spine, a catalogue reads across a card grid, and a turn audit reads one
+   column per room. Same import cycle as the dashboards above, and safe for the
+   same reason: every binding is used at render time only. */
+const HarvestsRegister = lazy(() => import("./cult-harvests.jsx"));
+const HarvestLifecycle = lazy(() => import("./cult-harvest-lifecycle.jsx"));
+const HarvestDetailPlan = lazy(() => import("./cult-harvest-detail.jsx"));
+const LossLedger = lazy(() => import("./cult-loss-ledger.jsx"));
+const LossAnalysis = lazy(() => import("./cult-loss-analysis.jsx"));
+const Genetics = lazy(() => import("./cult-genetics.jsx"));
+const RoomTurnAudit = lazy(() => import("./cult-room-turn-audit.jsx"));
+const MoistureRegister = lazy(() => import("./cult-moisture-register.jsx"));
+const Grading = lazy(() => import("./cult-grading.jsx"));
 /* PLANT CENSUS AND THE METRC MIRROR — 15 Aug 2026. The plant record was
    reconciled against both of Metrc's paths on 14-15 Aug and v_plant_census and
    v_plant_mirror_balance were named by no component in this tree, so none of it
@@ -11355,6 +11376,19 @@ export default function App() {
     cfo_inventory_audit: <CfoInventoryAudit go={setView} session={session} />,
     assistant_settings: <AssistantSettings />,
     inventory_locator: <InventoryLocator go={setView} />,
+    /* THE NINE CULTIVATION REGISTERS. Each view key below already carried an
+       enabled navigation row pointing at a real view, and each rendered through
+       the generic data browser until now. Grow Rooms is deliberately NOT in this
+       list: it already has its own page above and was not asked to change. */
+    harvests: <HarvestsRegister go={setView} session={session} role={role} viewAs={viewAsRole} />,
+    harvest_lifecycle: <HarvestLifecycle go={setView} session={session} role={role} viewAs={viewAsRole} />,
+    harvest_detail: <HarvestDetailPlan go={setView} session={session} role={role} viewAs={viewAsRole} />,
+    loss_ledger: <LossLedger go={setView} session={session} role={role} viewAs={viewAsRole} />,
+    loss_analysis: <LossAnalysis go={setView} session={session} role={role} viewAs={viewAsRole} />,
+    genetics: <Genetics go={setView} session={session} role={role} viewAs={viewAsRole} />,
+    room_turn_audit: <RoomTurnAudit go={setView} session={session} role={role} viewAs={viewAsRole} />,
+    moisture_loss_register: <MoistureRegister go={setView} session={session} role={role} viewAs={viewAsRole} />,
+    grading: <Grading go={setView} session={session} role={role} viewAs={viewAsRole} />,
     menu_manager: isExec
       ? <MenuManager onChanged={() => setNavVersion((v) => v + 1)} />
       : <div className="empty"><div className="eicon">{I.shield}</div><b>Admin area</b>Menu Manager is restricted to executives. Ask an owner if a menu change is needed.</div>,
