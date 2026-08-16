@@ -114,6 +114,7 @@ were listed here, so the index described less than half the brain it indexes.*
 #### Specifications — designed, not yet built
 | File | What it specifies |
 |---|---|
+| [DASHBOARD_SPEC.md](DASHBOARD_SPEC.md) | **Everything the owner has ever said about dashboards, gathered once** — the six hard rules, the DDC scale, the arrangeable section on *every* dashboard, drill-down navigation, the honesty rules for a tile, and what is still his to decide. Written 16 Aug 2026 because he was tired of repeating it: *"i do not want to repeat all that again."* Read it before building or changing any dashboard. |
 | [SENTINEL_SPEC.md](SENTINEL_SPEC.md) | The watcher that cannot go quiet. Commissioned after the Metrc sync was dead **7 h 16 min while every dashboard reported success.** |
 | [OS_WATCHDOG_SPEC.md](OS_WATCHDOG_SPEC.md) | Oversight that lives *inside* the OS, because agents A–D are external build crew on a desktop. |
 | [SHADOW_LOG_SPEC.md](SHADOW_LOG_SPEC.md) | The evidence engine behind AI_BRAINS_2027: the AI commits to a decision **before** the human does, sealed, then both are scored against what happened. |
