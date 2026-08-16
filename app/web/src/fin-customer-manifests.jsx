@@ -288,7 +288,7 @@ export default function CustomerManifestsPage({ go, session, reports, role, view
   const docsByManifest = new Map();
   for (const x of d.docs.rows) {
     if (!x.manifest_number) continue;
-    const a = docsByManifest.get(x.manifest_number) ?? [];
+    const a = listOf(docsByManifest.get(x.manifest_number));
     a.push(x);
     docsByManifest.set(x.manifest_number, a);
   }

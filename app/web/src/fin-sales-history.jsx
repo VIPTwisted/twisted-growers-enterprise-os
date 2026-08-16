@@ -385,10 +385,11 @@ function MonthLedger({ rows }) {
 function CounterpartyBand({ rows, prefixes }) {
   const [open, setOpen] = useState(null);
   const typeOf = useMemo(() => {
-    /* Licence prefixes are OWNER-EDITABLE ROWS in licence_type_prefix. Nothing
-       here hardcodes a prefix or a licence — G1/G4, and the reason MC281714 and
-       MP281909 appear nowhere in this file. Longest prefix wins, exactly as
-       f_facility_type does it in the database. */
+    /* Licence prefixes are OWNER-EDITABLE ROWS in licence_type_prefix, and our
+       own licences are rows in company_licenses. Neither a prefix nor a licence
+       number is written into this file — rule G2, and the literal-licences gate
+       caught the two that were in this very comment, which is the point of it.
+       Longest prefix wins, exactly as f_facility_type does it in the database. */
     const sorted = [...listOf(prefixes)].sort((a, b) => String(b.prefix).length - String(a.prefix).length);
     return (lic) => {
       const up = String(lic ?? "").trim().toUpperCase();

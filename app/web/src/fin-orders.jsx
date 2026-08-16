@@ -293,7 +293,7 @@ export default function OrdersPage({ go, session, reports, role, viewAs, onViewA
     byStatus.set(o.link_status, g);
   }
   const states = [...byStatus.values()].sort((a, b) => b.value - a.value);
-  const pick = (s) => byStatus.get(s)?.orders ?? [];
+  const pick = (s) => listOf(byStatus.get(s)?.orders);
 
   const matched = pick("MATCHED");
   const unexplained = pick("APEX ONLY — UNEXPLAINED");

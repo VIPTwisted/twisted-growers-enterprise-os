@@ -256,7 +256,7 @@ function CompanyBand({ accounts, wholesale }) {
       </div>
       {open && (
         <DkDrill label={`${open} — every facility`} onClose={() => setOpen(null)}>
-          <AccountTable accounts={companies.find((c) => c.company === open)?.facilities ?? []}
+          <AccountTable accounts={listOf(companies.find((c) => c.company === open)?.facilities)}
             wholesale={wholesale} emptyWhy="No facility under this company." />
         </DkDrill>
       )}
