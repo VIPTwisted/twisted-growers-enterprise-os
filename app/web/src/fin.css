@@ -1,0 +1,155 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   FINANCE PAGES — layout only. Agent B, 15 Aug 2026.
+
+   THEME IS LOCKED and this file does not touch it: there is not one colour
+   literal below. Every colour is an existing token from styles.css — --neon,
+   --red, --amber, --gold, --blue, --ink, --muted, --line, --surface. Layout,
+   spacing, grid and geometry are free (theme-lock.mjs, rule 1 and rule 2).
+
+   The .cc-* scope from the Command Center's own stylesheet arrives with
+   dashkit. What is here is only what the Finance pages need and no page in the
+   platform already has — and each of the four pages then lays ITSELF out.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── the page shell: uses the whole width, never a horizontal scrollbar ────── */
+.finpage { padding: 14px 16px 60px; max-width: 100%; }
+.finpage * { min-width: 0; }
+
+/* ── money and quantity cells ──────────────────────────────────────────────── */
+.fin-money { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.fin-money.muted { color: var(--muted); }
+.fin-qty { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.fin-qty em { font-style: normal; color: var(--muted); margin-left: 3px; font-size: 11px; }
+/* An unrecorded quantity or unit is a statement, so it wraps and is readable
+   rather than clipped to a column width. */
+.fin-qty.none { white-space: normal; color: var(--muted); font-size: 11px; line-height: 1.35; }
+
+/* ── the basis line that sits under every figure block ─────────────────────── */
+.fin-basis {
+  display: grid; grid-template-columns: auto 1fr; gap: 8px; align-items: start;
+  margin: 8px 0 2px; padding: 7px 10px;
+  border: 1px solid var(--line); border-left: 3px solid var(--neon);
+  border-radius: 8px; background: var(--surface-2);
+  font-size: 11.5px; line-height: 1.45; color: var(--ink-2);
+}
+.fin-basis.caution { border-left-color: var(--amber); }
+.fin-basis-k {
+  text-transform: uppercase; letter-spacing: .07em; font-size: 9.5px;
+  font-weight: 700; color: var(--muted); padding-top: 2px;
+}
+.fin-basis-v { overflow-wrap: anywhere; }
+.fin-basis-caution { margin-top: 4px; color: var(--ink); }
+
+/* ── a named defect in the data behind the page ────────────────────────────── */
+.fin-defect {
+  margin: 10px 0 14px; border: 1px solid var(--red); border-radius: 10px;
+  background: var(--red-soft); padding: 11px 13px;
+}
+.fin-defect-h { display: flex; gap: 9px; align-items: center; flex-wrap: wrap; margin-bottom: 6px; }
+.fin-defect-b { font-size: 12px; line-height: 1.5; color: var(--ink-2); }
+.fin-defect-b p { margin: 0 0 6px; overflow-wrap: anywhere; }
+.fin-defect-b p:last-child { margin-bottom: 0; }
+.fin-defect-m { color: var(--ink); }
+.fin-fine { font-size: 11px; color: var(--muted); }
+
+/* ── the finance tile strip ────────────────────────────────────────────────── */
+.fin-kpiwrap .fin-kpi { position: relative; }
+.fin-kpi-basis {
+  display: block; margin-top: 5px; font-size: 10px; line-height: 1.4;
+  color: var(--muted); overflow-wrap: anywhere; white-space: normal;
+}
+
+/* ── entity cards ──────────────────────────────────────────────────────────── */
+.fin-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 9px; }
+.fin-card {
+  display: grid; gap: 5px; text-align: left; width: 100%;
+  padding: 11px 12px; border: 1px solid var(--line); border-radius: 10px;
+  background: var(--surface); color: var(--ink); cursor: pointer;
+  font: inherit; border-left: 3px solid var(--line);
+}
+.fin-card:hover { background: var(--row-hover); border-left-color: var(--neon-line); }
+.fin-card.on { border-left-color: var(--neon); background: var(--neon-soft); }
+.fin-card-name { display: flex; gap: 6px; align-items: center; font-weight: 650; font-size: 13px; overflow-wrap: anywhere; }
+.fin-card-sub { font-size: 11px; color: var(--muted); overflow-wrap: anywhere; }
+.fin-card-figs { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 2px; }
+.fin-card-fig { display: grid; }
+.fin-card-fig em { font-style: normal; font-size: 9.5px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+.fin-card-fig b { font-size: 15px; font-variant-numeric: tabular-nums; }
+.fin-card-chips { display: flex; gap: 5px; flex-wrap: wrap; }
+
+/* ── the finance tables. Wrap, never clip; scroll the TABLE, never the page ── */
+.fin-tablewrap { width: 100%; overflow-x: auto; border: 1px solid var(--line); border-radius: 10px; }
+.fin-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.fin-table th, .fin-table td {
+  padding: 7px 10px; text-align: left; vertical-align: top;
+  border-bottom: 1px solid var(--line); overflow-wrap: anywhere;
+}
+.fin-table thead th {
+  position: sticky; top: 0; z-index: 1; background: var(--thead);
+  font-size: 10px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted);
+  font-weight: 700; white-space: nowrap;
+}
+.fin-table tbody tr:hover { background: var(--row-hover); }
+.fin-table tbody tr:last-child td { border-bottom: none; }
+.fin-table td.num, .fin-table th.num { text-align: right; font-variant-numeric: tabular-nums; }
+.fin-table tfoot td {
+  background: var(--surface-2); font-weight: 700; border-top: 2px solid var(--neon-line);
+  font-variant-numeric: tabular-nums;
+}
+.fin-table .fin-rowbtn {
+  background: none; border: none; padding: 0; font: inherit; color: var(--neon);
+  cursor: pointer; text-align: left; text-decoration: underline; overflow-wrap: anywhere;
+}
+.fin-voided { text-decoration: line-through; color: var(--muted); }
+
+/* ── the month ledger spine on the Sales History page ──────────────────────── */
+.fin-months { display: grid; gap: 6px; }
+.fin-month {
+  display: grid; grid-template-columns: minmax(120px, auto) repeat(4, minmax(90px, 1fr));
+  gap: 10px; align-items: center; width: 100%; text-align: left;
+  padding: 9px 11px; border: 1px solid var(--line); border-left: 3px solid var(--line);
+  border-radius: 9px; background: var(--surface); color: var(--ink); font: inherit; cursor: pointer;
+}
+.fin-month:hover { background: var(--row-hover); border-left-color: var(--neon-line); }
+.fin-month.on { border-left-color: var(--neon); background: var(--neon-soft); }
+.fin-month-k { display: flex; gap: 6px; align-items: center; font-weight: 650; }
+.fin-month-v { display: grid; }
+.fin-month-v em { font-style: normal; font-size: 9.5px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+.fin-month-v b { font-size: 14px; font-variant-numeric: tabular-nums; }
+@media (max-width: 900px) {
+  .fin-month { grid-template-columns: 1fr 1fr; }
+}
+
+/* ── the reconciliation board: two or three answers, side by side, never added ── */
+.fin-answers { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; }
+.fin-answer {
+  border: 1px solid var(--line); border-top: 3px solid var(--gold);
+  border-radius: 10px; padding: 11px 12px; background: var(--surface); display: grid; gap: 5px;
+}
+.fin-answer-lbl { font-size: 11px; color: var(--muted); overflow-wrap: anywhere; }
+.fin-answer-val { font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.fin-answer-note { font-size: 11px; line-height: 1.45; color: var(--ink-2); overflow-wrap: anywhere; }
+.fin-neveradd {
+  margin-top: 8px; padding: 8px 11px; border: 1px dashed var(--amber);
+  border-radius: 8px; font-size: 11.5px; line-height: 1.45; color: var(--ink-2);
+}
+
+/* ── the document room grid on Customer Manifests ──────────────────────────── */
+.fin-docrow { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.fin-docwhy { font-size: 11px; line-height: 1.4; color: var(--muted); overflow-wrap: anywhere; }
+
+/* ── the search and filter row each page owns ──────────────────────────────── */
+.fin-filters { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 10px; }
+.fin-filters label { display: flex; gap: 5px; align-items: center; font-size: 11px; color: var(--muted); }
+.fin-search { min-width: 230px; flex: 1 1 230px; }
+.fin-count { font-size: 11px; color: var(--muted); }
+
+/* ── the "more rows exist" line. Never a silent slice. ─────────────────────── */
+.fin-more {
+  margin-top: 9px; padding: 9px 11px; border: 1px solid var(--line);
+  border-left: 3px solid var(--amber); border-radius: 8px;
+  font-size: 11.5px; line-height: 1.45; color: var(--ink-2);
+  display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
+}
+
+.fin-reading { padding: 10px 2px; }

@@ -72,6 +72,20 @@ const PlantCensusDashboard = lazy(() => import("./dash-plants.jsx"));
    where a gloved hand at 6:52am expects a keypad. Terminals & Credentials has a
    button that goes to the same place. Both now reach the terminal itself. */
 const Kiosk = lazy(() => import("./kiosk.jsx"));
+/* THE FINANCE MONEY SURFACES — 15 Aug 2026. Four pages that nav_registry has
+   carried enabled rows for since the menu was built, every one of them falling
+   through to the generic module screen over its registered table. Three of those
+   four registered objects are defective or empty and the grid could not say so:
+   v_sales_history reads three Metrc fields at the wrong JSON depth,
+   v_customer_manifests can no longer be read in full since metrc_packages
+   quadrupled, and sales_orders holds nothing at all. Each page now reads a source
+   that is correct, states its basis under every figure, and names the defect in
+   its own registered object rather than rendering it silently.
+   Four leaves, four routes, split like every other page here. */
+const SalesHistoryPage = lazy(() => import("./fin-sales-history.jsx"));
+const CustomersPage = lazy(() => import("./fin-customers.jsx"));
+const CustomerManifestsPage = lazy(() => import("./fin-customer-manifests.jsx"));
+const OrdersPage = lazy(() => import("./fin-orders.jsx"));
 
 // Laws: live numbers (2) · no fake data (3) · nothing hardwired (4) — navigation itself is DB rows.
 
@@ -11285,6 +11299,25 @@ export default function App() {
        shared screen must never hold one — and it chooses which registered terminal
        it is for itself, because nothing in this shell knows which tablet this is. */
     kiosk: <Kiosk />,
+    /* THE FOUR FINANCE MONEY SURFACES. Same prop contract as the department
+       dashboards above, and each one its OWN layout: a ledger, a directory, a
+       document room and an order book. They share dashkit's primitives and
+       fin-kit's money, quantity and basis cells, and share no page shape with
+       each other — 522 pages behind one screen is the cause of the bugs here,
+       never the cure. These four keys already exist and are enabled in
+       nav_registry, so mounting them changes no menu, no order and no wording. */
+    sales_history: <SalesHistoryPage go={setView} session={session} reports={reports}
+      role={role} viewAs={viewAsRole} onViewAs={switchViewAs}
+      isAdmin={isAdmin} viewRoles={viewRoles} />,
+    customers: <CustomersPage go={setView} session={session} reports={reports}
+      role={role} viewAs={viewAsRole} onViewAs={switchViewAs}
+      isAdmin={isAdmin} viewRoles={viewRoles} />,
+    customer_manifests: <CustomerManifestsPage go={setView} session={session} reports={reports}
+      role={role} viewAs={viewAsRole} onViewAs={switchViewAs}
+      isAdmin={isAdmin} viewRoles={viewRoles} />,
+    orders: <OrdersPage go={setView} session={session} reports={reports}
+      role={role} viewAs={viewAsRole} onViewAs={switchViewAs}
+      isAdmin={isAdmin} viewRoles={viewRoles} />,
     cfo_inventory_audit: <CfoInventoryAudit go={setView} session={session} />,
     assistant_settings: <AssistantSettings />,
     inventory_locator: <InventoryLocator go={setView} />,
