@@ -29,6 +29,12 @@ import {
   DkNarrative, DkReports, DkTasks, DkGapCard, DkHead, DkStreamDrill, useWidgetLayout,
   Widget, WidgetBoard, WidgetBarControls, useSectionStore, DkCaret, DkDrill, DrillRoot,
 } from "./dashkit.jsx";
+/* THE ARRANGEABLE SECTION, mounted not copied. Owner, 15 Aug 2026: "every single
+   dashboard need to have section as I stated where i can drag and put where i want
+   to arreange dash for user preference." One implementation of drag, resize and
+   persistence serves every dashboard; this page contributes a page key and a
+   starting set of panels and nothing else. */
+import { ArrangeableSection } from "./wcanvas.jsx";
 
 const DEPT = "Inventory";
 const VIEW_KEY = "dept_dash_inventory";
@@ -131,6 +137,10 @@ export default function InventoryDashboard({ go, session, reports, role, viewAs,
     { key: "targets", title: "Owner-set targets with no published figure", span: 1 },
     { key: "tasks", title: "Tasks raised from this dashboard", span: 1 },
     { key: "reports", title: "Reports — by group", span: 2 },
+    /* APPENDED, deliberately. useWidgetLayout keeps a saved position for every key
+       a user has already arranged and appends only the keys they have never seen,
+       so adding this moves nothing on anybody's existing board. */
+    { key: "arrange", title: "Arrange your own — drag, resize, and it stays where you put it", span: 2 },
   ], []);
   const layout = useWidgetLayout(PAGE_KEY, WIDGETS);
   const queue = useWorkQueue(DEPT);
@@ -313,6 +323,21 @@ export default function InventoryDashboard({ go, session, reports, role, viewAs,
             case "reports": return (
               <Widget key={w.key} w={w} layout={layout} store={store} defaultOpen={false}>
                 <DkReports reports={reports} dept={DEPT} go={go} />
+              </Widget>
+            );
+            /* THE SAME COMPONENT My Dashboard runs, pinned to this page's own key.
+               Its panels are moved with the mouse or the arrow keys and saved to
+               dashboard_layout the moment the drag ends; every user arranges their
+               own and nobody else's view moves. */
+            case "arrange": return (
+              <Widget key={w.key} w={w} layout={layout} store={store} defaultOpen={false}
+                chips={<DkTag tone="info">yours only · saved on drop</DkTag>}>
+                {/* WHICH PANELS IT OPENS WITH IS A DATABASE ANSWER, not a list frozen
+                    here: every enabled widget_catalog row whose category is this
+                    department. §7 — a hardcoded list means a new widget needs a
+                    deploy, so it never gets one. Registering a widget against
+                    Inventory is now the whole of putting it on this section. */}
+                <ArrangeableSection page={VIEW_KEY} startsWith={DEPT} go={go} />
               </Widget>
             );
             default: return null;

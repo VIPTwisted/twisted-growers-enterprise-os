@@ -90,6 +90,24 @@ const ARRIVES_AT = {
   lookup:    { w: 4, h: 3 },
 };
 
+/* ONE DEFINITION of "a catalogue row placed on a board", used by the picker and
+   by the starting arrangement a section arrives with when it is mounted on a page
+   the user has never arranged. Two definitions of this would drift the moment the
+   catalogue grew a column, which is the DDC defect the owner counts. */
+function placeFromCatalogue(cat, instance_id, among) {
+  const size = ARRIVES_AT[cat.widget_kind] ? ARRIVES_AT[cat.widget_kind] : { w: 3, h: 2 };
+  const slot = firstFreeSlot(among, size.w, size.h);
+  return clampItem({
+    uid: uidOf(cat.key, instance_id),
+    widget_key: cat.key, instance_id,
+    x: slot.x, y: slot.y, w: size.w, h: size.h, visible: true,
+    config: {}, title_override: null,
+    label: cat.label, catalogue_label: cat.label, category: cat.category,
+    icon: cat.icon, source: cat.source, drill: cat.drill, format: cat.format, hot: cat.hot,
+    widget_kind: cat.widget_kind, multi_instance: cat.multi_instance, options_schema: cat.options_schema,
+  });
+}
+
 /* ═══════════════════════════════════════════════════════════════════════════
    SETTINGS RENDERED FROM options_schema — never a hardcoded dropdown.
    The choices are data precisely so a new calendar is a database row and not a
@@ -180,8 +198,16 @@ function SchemaField({ id, name, def, value, onChange, onCommit }) {
 /* ═══════════════════════════════════════════════════════════════════════════
    ONE PANEL
    ═══════════════════════════════════════════════════════════════════════════ */
-function Panel({
-  item, spec, target, trend, targets, trends, roomMap, options, go, canRemove,
+/* MEMOISED, and that is a correctness matter here rather than a nicety.
+   A drag recomputes the arrangement on every pointer movement. Without this the
+   panels the gesture never touched re-rendered too — an SVG chart, a record table
+   and a message list, forty times a second — and the tab stopped answering for
+   about forty seconds on a single drag (measured on the deployed site, 16 Aug
+   2026). Paired with the identity-preserving clampItem/resolve/compact in
+   wcanvas-data.js, only the panel being dragged and any panel it displaces are
+   redrawn. Every prop below is either a scalar or held stable by the canvas. */
+const Panel = React.memo(function Panel({
+  item, spec, target, trend, targets, trends, roomMap, go, canRemove,
   onPointerGesture, onKeyGesture, onPatch, onPatchLocal, onSaveNow, onRemove, onDrill,
   held, settingsOpen, onToggleSettings,
 }) {
@@ -238,7 +264,7 @@ function Panel({
         <span className="tgwc-ptitle" title={item.label}>{item.label}</span>
         {item.hot && <span className="tgwc-chip crit" title="The catalogue flags this figure as one to watch.">watch</span>}
         <button type="button" className={`tgwc-btn${settingsOpen ? " on" : ""}`}
-          aria-expanded={settingsOpen} onClick={onToggleSettings}
+          aria-expanded={settingsOpen} onClick={() => onToggleSettings(item.uid)}
           title="Rename this panel, change what it shows, set its exact position and size, or take it off the dashboard.">
           settings
         </button>
@@ -310,7 +336,7 @@ function Panel({
               <button type="button" className="tgwc-btn danger" disabled={!canRemove} onClick={() => onRemove(item.uid)}>
                 Take it off this dashboard
               </button>
-              <button type="button" className="tgwc-btn on" onClick={onToggleSettings}>Done</button>
+              <button type="button" className="tgwc-btn on" onClick={() => onToggleSettings(item.uid)}>Done</button>
             </div>
           </div>
         ) : (
@@ -324,7 +350,6 @@ function Panel({
             roomMap={roomMap}
             cfg={cfg}
             setCfg={setCfg}
-            options={options}
             go={go}
             onDrill={drill}
           />
@@ -342,12 +367,12 @@ function Panel({
         onPointerDown={(e) => onPointerGesture(e, item, "se")} tabIndex={-1} />
     </section>
   );
-}
+});
 
 /* ═══════════════════════════════════════════════════════════════════════════
    THE CANVAS
    ═══════════════════════════════════════════════════════════════════════════ */
-export function WidgetCanvas({ page, go, heading }) {
+export function WidgetCanvas({ page, go, heading, startsWith }) {
   const [boot, setBoot] = useState(null);
   const [bootNonce, setBootNonce] = useState(0);
   const [active, setActive] = useState(page ?? null);
@@ -365,7 +390,20 @@ export function WidgetCanvas({ page, go, heading }) {
   const gridRef = useRef(null);
   const dragRef = useRef(null);
   const itemsRef = useRef(null);
-  itemsRef.current = items;
+
+  /* ═══ THE ARRANGEMENT IS RECORDED THE INSTANT IT IS COMPUTED ═══
+     This ref used to be assigned in the render body — `itemsRef.current = items`
+     — which is a whole render late. React 18 batches state, so a pointerup that
+     lands in the same task as the last pointermove read the arrangement as it was
+     BEFORE the drag. The panel visibly moved, snapped back the moment the button
+     was released, and tg_save_layout dutifully wrote the OLD position.
+     Measured on the deployed site, 16 Aug 2026, signed in as the owner: the chart
+     panel was dragged six columns right, dashboard_layout.updated_at moved to
+     05:52:42 and x stayed 0. A write that fires and saves the wrong value is worse
+     than one that fails, because nothing on screen says anything went wrong — and
+     it is the whole of "I move it and it does not stay".
+     Every arrangement now goes through here, so the ref can never trail the truth. */
+  const putItems = useCallback((next) => { itemsRef.current = next; setItems(next); }, []);
 
   const saver = useMemo(() => makeSaver(setSaveErr), []);
 
@@ -399,11 +437,11 @@ export function WidgetCanvas({ page, go, heading }) {
 
   /* ── the arrangement ──────────────────────────────────────────────────── */
   const readLayout = useCallback((key) => {
-    if (!key) { setItems(null); return; }
-    setItems(null);
+    if (!key) { putItems(null); return; }
+    putItems(null);
     setLayoutErr(null);
     loadLayout(key).then((r) => {
-      if (r.err) { setLayoutErr(r.err); setItems(null); return; }
+      if (r.err) { setLayoutErr(r.err); putItems(null); return; }
       const mapped = r.rows.map((row) => clampItem({
         uid: uidOf(row.widget_key, row.instance_id),
         widget_key: row.widget_key,
@@ -426,9 +464,9 @@ export function WidgetCanvas({ page, go, heading }) {
       }));
       const vis = mapped.filter((i) => i.visible);
       const hid = mapped.filter((i) => !i.visible);
-      setItems([...resolve(vis, null), ...hid]);
+      putItems([...resolve(vis, null), ...hid]);
     });
-  }, []);
+  }, [putItems]);
 
   useEffect(() => { readLayout(active); }, [active, readLayout]);
 
@@ -440,16 +478,16 @@ export function WidgetCanvas({ page, go, heading }) {
   }, []);
 
   /* Preview moves the panels on screen and writes nothing. */
-  const preview = useCallback((list, heldUid) => setItems(arrange(list, heldUid)), [arrange]);
+  const preview = useCallback((list, heldUid) => putItems(arrange(list, heldUid)), [arrange, putItems]);
 
   /* Commit is ONE write, at the end of the gesture. The saver coalesces and is
      single-flight, so a drag across the whole board posts once, not forty
      times. */
   const commit = useCallback((list, heldUid) => {
     const next = arrange(list, heldUid);
-    setItems(next);
+    putItems(next);
     if (active) saver.save(active, next);
-  }, [active, arrange, saver]);
+  }, [active, arrange, putItems, saver]);
 
   const applyTo = useCallback((uid, fields) =>
     (itemsRef.current ? itemsRef.current : []).map((i) => (i.uid === uid ? clampItem({ ...i, ...fields }) : i)), []);
@@ -459,7 +497,7 @@ export function WidgetCanvas({ page, go, heading }) {
 
   /* Change and DO NOT write. What a field being typed into uses; the write
      follows on blur through saveNow. */
-  const patchLocal = useCallback((uid, fields) => setItems(arrange(applyTo(uid, fields), uid)), [applyTo, arrange]);
+  const patchLocal = useCallback((uid, fields) => putItems(arrange(applyTo(uid, fields), uid)), [applyTo, arrange, putItems]);
 
   const saveNow = useCallback(() => {
     if (active && itemsRef.current) saver.save(active, itemsRef.current);
@@ -489,28 +527,37 @@ export function WidgetCanvas({ page, go, heading }) {
     dragRef.current = {
       mode, uid: item.uid, startX: e.clientX, startY: e.clientY,
       base: { x: item.x, y: item.y, w: item.w, h: item.h },
+      /* The arrangement the gesture STARTED from. Every frame is computed from
+         this plus the distance travelled, so the preview is not cumulative and
+         cannot drift, and the write at the end is the same arithmetic run once
+         more rather than a reading taken off the screen. */
+      from: itemsRef.current ? itemsRef.current : [],
       colW: colW + gap, rowH: rowH + gap,
-      node: e.currentTarget, pointerId: e.pointerId, moved: false,
+      node: e.currentTarget, pointerId: e.pointerId, moved: false, dx: 0, dy: 0,
     };
     setHeld(item.uid);
   }, []);
 
   useEffect(() => {
+    /* THE GESTURE IS THE AUTHORITY. One pure function, used by the preview and by
+       the write, so the two can never disagree about where the panel ended up. */
+    const applyGesture = (d) => d.from.map((i) => {
+      if (i.uid !== d.uid) return i;
+      if (d.mode === "move") return clampItem({ ...i, x: d.base.x + d.dx, y: d.base.y + d.dy });
+      const w = d.mode === "s" ? d.base.w : d.base.w + d.dx;
+      const h = d.mode === "e" ? d.base.h : d.base.h + d.dy;
+      return clampItem({ ...i, w, h });
+    });
     const move = (e) => {
       const d = dragRef.current;
       if (!d) return;
       const dx = Math.round((e.clientX - d.startX) / d.colW);
       const dy = Math.round((e.clientY - d.startY) / d.rowH);
-      if (dx === 0 && dy === 0 && !d.moved) return;
-      d.moved = true;
-      const list = (itemsRef.current ? itemsRef.current : []).map((i) => {
-        if (i.uid !== d.uid) return i;
-        if (d.mode === "move") return clampItem({ ...i, x: d.base.x + dx, y: d.base.y + dy });
-        const w = d.mode === "s" ? i.w : d.base.w + dx;
-        const h = d.mode === "e" ? i.h : d.base.h + dy;
-        return clampItem({ ...i, w, h });
-      });
-      preview(list, d.uid);
+      if (dx === d.dx && dy === d.dy) return;      // the panel is already drawn there
+      d.dx = dx;
+      d.dy = dy;
+      if (dx !== 0 || dy !== 0) d.moved = true;
+      preview(applyGesture(d), d.uid);
     };
     const up = () => {
       const d = dragRef.current;
@@ -518,7 +565,11 @@ export function WidgetCanvas({ page, go, heading }) {
       setHeld(null);
       if (!d) return;
       d.node?.releasePointerCapture?.(d.pointerId);
-      if (d.moved) commit(itemsRef.current ? itemsRef.current : [], d.uid);   // ← the single write
+      /* ← the single write, computed from the gesture rather than read back from
+         the rendered state. Reading it back is what silently saved the position
+         the panel had before the drag. */
+      if (d.dx !== 0 || d.dy !== 0) commit(applyGesture(d), d.uid);
+      else if (d.moved) preview(d.from, null);     // dragged out and back: restore, write nothing
     };
     window.addEventListener("pointermove", move);
     window.addEventListener("pointerup", up);
@@ -556,17 +607,7 @@ export function WidgetCanvas({ page, go, heading }) {
     const existing = list.filter((i) => i.widget_key === cat.key);
     if (existing.length && !cat.multi_instance) return;
     const instance_id = existing.reduce((m, i) => Math.max(m, i.instance_id), 0) + 1;
-    const size = ARRIVES_AT[cat.widget_kind] ? ARRIVES_AT[cat.widget_kind] : { w: 3, h: 2 };
-    const slot = firstFreeSlot(list.filter((i) => i.visible !== false), size.w, size.h);
-    const item = clampItem({
-      uid: uidOf(cat.key, instance_id),
-      widget_key: cat.key, instance_id,
-      x: slot.x, y: slot.y, w: size.w, h: size.h, visible: true,
-      config: {}, title_override: null,
-      label: cat.label, catalogue_label: cat.label, category: cat.category,
-      icon: cat.icon, source: cat.source, drill: cat.drill, format: cat.format, hot: cat.hot,
-      widget_kind: cat.widget_kind, multi_instance: cat.multi_instance, options_schema: cat.options_schema,
-    });
+    const item = placeFromCatalogue(cat, instance_id, list.filter((i) => i.visible !== false));
     commit([...list, item], item.uid);
     setPicker(false);
     setAnnounce(`${cat.label} added at column ${item.x + 1}, row ${item.y + 1}.`);
@@ -598,6 +639,65 @@ export function WidgetCanvas({ page, go, heading }) {
     setBootNonce((n) => n + 1);
   }, [page]);
 
+  /* ═══ THE ARRANGEMENT A MOUNTED SECTION ARRIVES WITH ═══
+     A department dashboard mounts this pinned to its own page key, and that page
+     has never been arranged by anybody, so v_my_layout returns nought rows. Nought
+     rows is honest and it is also useless on a page the user did not come to build
+     — so the host names the panels it wants the section to start with and they are
+     placed here.
+
+     WHICH PANELS IS A DATABASE ANSWER. The host names a widget_catalog CATEGORY,
+     not a list of keys, so registering a widget against that category is the whole
+     of putting it on that department's section — no deploy, no list to keep in step
+     with the catalogue. §7: filters and column lists are data, never JSX.
+
+     NOTHING IS WRITTEN. The starting arrangement lives in the browser until the
+     user's first drag, so simply opening a dashboard never puts a row in
+     dashboard_layout claiming they arranged it. The moment they move anything, the
+     whole section is saved and it is theirs from then on.
+
+     A CATEGORY WITH NOTHING REGISTERED AGAINST IT IS SAID OUT LOUD, never left as a
+     blank section that looks finished. */
+  const seed = useMemo(() => {
+    if (!page || !startsWith || !boot || !boot.cat.rows) return null;
+    const wanted = boot.cat.rows.filter((c) => String(c.category).toLowerCase() === String(startsWith).toLowerCase());
+    const placed = [];
+    for (const cat of wanted) placed.push(placeFromCatalogue(cat, 1, placed));
+    return { placed, category: startsWith };
+  }, [page, startsWith, boot]);
+
+  /* ONCE, and only while the section has never been arranged. Without the latch a
+     user who deliberately took every panel off a section would watch them all come
+     straight back, and would have no way to empty it. */
+  const seededRef = useRef(null);
+  useEffect(() => {
+    if (!seed || !seed.placed.length || items === null) return;
+    if (seededRef.current === page) return;
+    seededRef.current = page;
+    if (items.length === 0) putItems(seed.placed);
+  }, [seed, items, page, putItems]);
+
+  /* One panel's settings pop-out at a time, opened by uid. A stable function
+     rather than an arrow built per panel per render, because an arrow rebuilt
+     every render defeats the memo on Panel and puts every body back in the
+     re-render path of a drag. */
+  const toggleSettings = useCallback((uid) => setSettingsFor((c) => (c === uid ? null : uid)), []);
+
+  /* THE THREE LOOKUPS ARE BUILT ONCE PER BOOT, not once per render.
+     They were rebuilt in the render body, so every panel received three brand-new
+     Maps on every pointer movement of a drag — which is a memo that can never
+     hold. Hoisted above the early returns because a hook cannot live below one. */
+  const lookups = useMemo(() => {
+    if (!boot) return null;
+    const byKpi = (rows) => new Map((rows ? rows : [])
+      .map((t) => [`${String(t.department).toLowerCase()}|${String(t.kpi).toLowerCase()}`, t]));
+    return {
+      specByKey: new Map(boot.specs.rows.map((s) => [s.key, s])),
+      targetByKey: byKpi(boot.targets.rows),
+      trendByKey: byKpi(boot.trend.rows),
+    };
+  }, [boot]);
+
   /* ═══════════ render ═══════════ */
 
   if (!boot) return <div className="tgwc"><p className="tgwc-say">Reading your dashboards…</p></div>;
@@ -619,9 +719,7 @@ export function WidgetCanvas({ page, go, heading }) {
 
   const dashboards = boot.dash.rows;
   const catalogue = boot.cat.rows;
-  const specByKey = new Map(boot.specs.rows.map((s) => [s.key, s]));
-  const targetByKey = new Map((boot.targets.rows ? boot.targets.rows : []).map((t) => [`${String(t.department).toLowerCase()}|${String(t.kpi).toLowerCase()}`, t]));
-  const trendByKey = new Map((boot.trend.rows ? boot.trend.rows : []).map((t) => [`${String(t.department).toLowerCase()}|${String(t.kpi).toLowerCase()}`, t]));
+  const { specByKey, targetByKey, trendByKey } = lookups;
   const roomMap = boot.rooms.map;
   const noDrill = catalogue.filter((c) => c.has_no_drill);
   /* Moved above the no-dashboards branch on 13 Aug 2026 so the confirm dialog,
@@ -811,6 +909,14 @@ export function WidgetCanvas({ page, go, heading }) {
       {boot.targets.err && <WcErr what="The owner-set targets" err={boot.targets.err} />}
       {boot.trend.err && <WcErr what="The daily snapshots" err={boot.trend.err} />}
       {boot.rooms.err && <WcErr what="The room directory" err={boot.rooms.err} />}
+      {seed && seed.placed.length === 0 && (
+        <div className="tgwc-err">
+          <b>Nothing is registered in the widget catalogue under &quot;{seed.category}&quot;,</b> so this section
+          has no panels of its own to start you off. That is a gap in widget_catalog, not a failed read — add a
+          panel below from any area and it is yours from then on. Said out loud because an empty section and a
+          finished one look identical.
+        </div>
+      )}
       {noDrill.length > 0 && (
         <div className="tgwc-err">
           <b>{noDrill.length} widget(s) in the catalogue have no drill target:</b>{" "}
@@ -904,12 +1010,11 @@ export function WidgetCanvas({ page, go, heading }) {
                 targets={targetByKey}
                 trends={trendByKey}
                 roomMap={roomMap}
-                options={{ which_schedule: normaliseOptions(item.options_schema?.which_schedule?.options) }}
                 go={go}
                 canRemove
                 held={held === item.uid}
                 settingsOpen={settingsFor === item.uid}
-                onToggleSettings={() => setSettingsFor((c) => (c === item.uid ? null : item.uid))}
+                onToggleSettings={toggleSettings}
                 onPointerGesture={onPointerGesture}
                 onKeyGesture={onKeyGesture}
                 onPatch={patch}
@@ -947,5 +1052,41 @@ export function WidgetCanvas({ page, go, heading }) {
     </div>
   );
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   THE ARRANGEABLE SECTION — the plain name every dashboard mounts.
+
+   Owner, 15 Aug 2026: "every single dashboard need to have section as I stated
+   where i can drag and put where i want to arreange dash for user preference."
+
+   THIS IS AN ALIAS, NOT A SECOND COMPONENT, and that is the whole point. There is
+   one implementation of drag, resize, persistence and visibility on this platform's
+   canvas, and mounting it on a twelfth dashboard must never mean a twelfth copy of
+   it — "share primitives, never layouts". Rename this and you rename the one thing;
+   there is nothing else to keep in step.
+
+     <ArrangeableSection
+        page="dept_dash_inventory"      // the dashboard_layout page key. REQUIRED —
+                                        // it is what makes the arrangement this
+                                        // page's arrangement and not another's.
+        startsWith="Inventory"          // a widget_catalog CATEGORY. Every enabled
+                                        // widget registered under it is placed on a
+                                        // page nobody has arranged yet. A category,
+                                        // never a list of keys: a frozen list means a
+                                        // new widget needs a deploy, so it never gets
+                                        // one. Nothing is written until the first drag.
+        go={go} />                      // the host's router, so a panel can open the
+                                        // full records page behind it.
+
+   With `page` set the dashboard switcher, rename and delete are hidden: the host
+   page owns its own chrome and a department dashboard is not a place to delete a
+   dashboard from.
+
+   IT PERSISTS TO dashboard_layout, through tg_save_layout, keyed (user_id, page).
+   Every user arranges their own; nobody else's view moves. RLS policy dl_own
+   (authenticated, ALL, user_id = auth.uid()) is what enforces that, verified
+   16 Aug 2026 rather than assumed.
+   ═══════════════════════════════════════════════════════════════════════════ */
+export const ArrangeableSection = WidgetCanvas;
 
 export default WidgetCanvas;

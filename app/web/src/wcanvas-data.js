@@ -67,11 +67,21 @@ const num = (v, dflt) => {
   return Number.isFinite(n) ? n : dflt;
 };
 
+/* A PANEL THAT DID NOT MOVE COMES BACK AS THE SAME OBJECT, and that is not a
+   micro-optimisation — it is what makes a drag usable.
+   These three functions run on every pointer movement. While they copied every
+   panel unconditionally, every panel on the board got a new identity forty times
+   a second, so React re-rendered all of them: four bodies, an SVG chart and a
+   message list, per mouse move. Measured on the live site 16 Aug 2026 the tab
+   stopped answering for about forty seconds on one drag. Returning the untouched
+   object lets React skip the panels the gesture did not touch. The arithmetic and
+   the resulting arrangement are byte-for-byte what they were. */
 export const clampItem = (it) => {
   const w = Math.min(GRID_COLS, Math.max(1, Math.round(num(it.w, 3))));
   const h = Math.min(MAX_H, Math.max(1, Math.round(num(it.h, 2))));
   const x = Math.min(GRID_COLS - w, Math.max(0, Math.round(num(it.x, 0))));
   const y = Math.max(0, Math.round(num(it.y, 0)));
+  if (it.x === x && it.y === y && it.w === w && it.h === h) return it;
   return { ...it, x, y, w, h };
 };
 
@@ -85,9 +95,9 @@ export function compact(items) {
   const order = [...items].sort((a, b) => a.y - b.y || a.x - b.x);
   const out = [];
   for (const raw of order) {
-    const it = { ...raw };
-    while (it.y > 0 && !out.some((p) => overlaps(p, { ...it, y: it.y - 1 }))) it.y -= 1;
-    out.push(it);
+    let y = raw.y;
+    while (y > 0 && !out.some((p) => overlaps(p, { ...raw, y: y - 1 }))) y -= 1;
+    out.push(y === raw.y ? raw : { ...raw, y });
   }
   return out;
 }
@@ -101,9 +111,10 @@ export function resolve(items, heldUid) {
   const order = [...items].sort((a, b) => bias(a) - bias(b) || a.x - b.x);
   const placed = [];
   for (const raw of order) {
-    const it = clampItem({ ...raw });
-    while (placed.some((p) => overlaps(p, it))) it.y += 1;
-    placed.push(it);
+    const base = clampItem(raw);
+    let y = base.y;
+    while (placed.some((p) => overlaps(p, { ...base, y }))) y += 1;
+    placed.push(y === base.y ? base : { ...base, y });
   }
   return compact(placed);
 }
