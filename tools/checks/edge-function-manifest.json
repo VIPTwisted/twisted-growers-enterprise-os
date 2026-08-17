@@ -179,9 +179,9 @@
     },
     "alert-email": {
       "deployed_version": 0,
-      "sha256": "7715c766982ed45fefa73a8cdf3cfc23ad4c51f66cd1f309aacc9d1caa83189a",
+      "sha256": "f0c15a8557a04b31fa00ef080697534367f8f64cceade8ed527a1586ecc441af",
       "redacted": false,
-      "note": "Real source, WRITTEN AND NOT YET DEPLOYED - deployed_version 0 says so rather than implying a deploy that never happened. Sends the missed-sync alerts the owner asked for on 12 Aug 2026 (\"I NEED TO GET AN ALERT EVERY TIME A SYNC IS MISSED\"). It reads ALERT_EMAIL_API_KEY from the secret store at run time and contains no literal, and it FAILS CLOSED with a readable reason when the secret is unset - which it is, until the owner pastes a Resend key into Settings then Keys & Connections. Pinned here because an unpinned function is invisible to edge-function-drift, which is exactly how twenty sources once differed from production unnoticed. Deploy with verify_jwt=true."
+      "note": "Deployed 17 Aug 2026 v1: reads ALERT_EMAIL_API_KEY from app_secrets (Settings > Keys & Connections) instead of Deno.env. First function to deliver a real email."
     }
   }
 }
