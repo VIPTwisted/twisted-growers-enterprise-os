@@ -44271,8 +44271,8 @@ create policy tg_desktop_read on public.metrc_lab_test_types as permissive for s
 create policy cfo_read on public.metrc_locations as permissive for select to authenticated using (is_finance_reader());
 create policy exec_all on public.metrc_locations as permissive for all to public using (is_executive()) with check (is_executive());
 create policy tg_desktop_read on public.metrc_locations as permissive for select to tg_desktop_reader using (true);
-create policy cfo_read on public.metrc_packages as permissive for select to authenticated using (is_finance_reader());
-create policy exec_all on public.metrc_packages as permissive for all to public using (is_executive()) with check (is_executive());
+create policy cfo_read on public.metrc_packages as permissive for select to authenticated using (( SELECT is_finance_reader() AS is_finance_reader));
+create policy exec_all on public.metrc_packages as permissive for all to public using (( SELECT is_executive() AS is_executive)) with check (( SELECT is_executive() AS is_executive));
 create policy tg_desktop_read on public.metrc_packages as permissive for select to tg_desktop_reader using (true);
 create policy cfo_read on public.metrc_plant_batches as permissive for select to authenticated using (is_finance_reader());
 create policy exec_all on public.metrc_plant_batches as permissive for all to public using (is_executive()) with check (is_executive());
