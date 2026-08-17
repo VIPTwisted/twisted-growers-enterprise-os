@@ -13,11 +13,13 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // CREDENTIALS. There is no key in this file and there must never be one.
 //
-//   ALERT_EMAIL_API_KEY  — read from the Edge Function secret store at runtime via
-//                          Deno.env. Set once by the owner in Supabase Studio under
-//                          Edge Functions > Secrets. Never in the repository, never
-//                          in a migration, never in a log line, never in a comment,
-//                          and not as a placeholder that looks real enough to copy.
+//   ALERT_EMAIL_API_KEY  — read at runtime from app_secrets, which the owner sets in
+//                          the OS at Settings > Keys & Connections. Owner ruling,
+//                          17 Aug 2026: keys are entered in the platform, not in the
+//                          Supabase dashboard. Never in the repository, never in a
+//                          migration, never in a log line, never in a comment, and not
+//                          as a placeholder that looks real enough to copy.
+//                          Deno.env is kept only as a last-resort fallback.
 //
 // If it is unset this function returns 503 and sends nothing. It does NOT fall back,
 // does not retry, and does not report success. An unconfigured channel that claims
@@ -158,7 +160,27 @@ Deno.serve(async (req: Request) => {
   const provider = String(cfg.provider ?? "").trim().toLowerCase();
   const from = String(cfg.from_address ?? "").trim();
 
-  const apiKey = (Deno.env.get("ALERT_EMAIL_API_KEY") ?? "").trim();
+  /* The key lives in app_secrets, written by Settings > Keys & Connections through
+     tg_set_secret. Owner instruction 17 Aug 2026: keys are entered in the OS, not in
+     the Supabase dashboard, and that screen is the place.
+
+     NOTE FOR WHOEVER READS THIS NEXT: this platform currently has TWO credential
+     vaults. app_secrets holds ALERT_EMAIL_API_KEY and ANTHROPIC_API_KEY and has the
+     screen, the audit trail and the owner/executive check inside the database.
+     integration_secrets holds METRC_*, APEX_API_KEY, CLICKUP_TOKEN and TG_ADMIN_KEY
+     and is read by about a dozen edge functions. That is two definitions of one
+     primitive and it is a real defect — it is why the first version of this change
+     read the wrong table and would have reported "key not set" while the owner was
+     looking at a screen saying "Set". Consolidating them is tracked separately; until
+     then, each key is read from the vault it is actually in, and this comment exists
+     so nobody has to rediscover which is which.
+
+     The environment is kept as a last resort so an already-configured deployment does
+     not break the moment this ships. The vault wins where both exist. */
+  const { data: appSecretRow } = await service
+    .from("app_secrets").select("value").eq("key", "ALERT_EMAIL_API_KEY").maybeSingle();
+  const apiKey = String(appSecretRow?.value ?? "").trim()
+    || (Deno.env.get("ALERT_EMAIL_API_KEY") ?? "").trim();
 
   /* Each refusal below names exactly what is missing and who fixes it. "Send
      failed" would put us back where we started: a channel that is quiet for a
@@ -168,8 +190,8 @@ Deno.serve(async (req: Request) => {
     return json({
       ok: false,
       error:
-        "ALERT_EMAIL_API_KEY is not set on this function. Nothing was sent. The owner " +
-        "adds it once in Supabase Studio under Edge Functions > Secrets. Until then " +
+        "ALERT_EMAIL_API_KEY is not set. Nothing was sent. Set it in the OS at " +
+        "Settings > Keys & Connections, which stores it in app_secrets. Until then " +
         "alerts continue to queue in the platform and are not lost.",
     }, 503);
   }
