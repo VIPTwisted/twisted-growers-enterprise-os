@@ -11914,11 +11914,11 @@ CREATE OR REPLACE FUNCTION public.f_to_pounds(qty numeric, uom text)
  SET search_path TO 'public', 'pg_temp'
 AS $function$
   select case lower(coalesce(uom,''))
-    when 'g' then qty / 453.592
-    when 'grams' then qty / 453.592
-    when 'kg' then qty * 2.20462
-    when 'kilograms' then qty * 2.20462
-    when 'mg' then qty / 453592.0
+    when 'g' then qty / 453.59237
+    when 'grams' then qty / 453.59237
+    when 'kg' then qty * 2.2046226218
+    when 'kilograms' then qty * 2.2046226218
+    when 'mg' then qty / 453592.37
     when 'oz' then qty / 16.0
     when 'ounces' then qty / 16.0
     when 'lb' then qty
@@ -30930,7 +30930,7 @@ create or replace view public.v_stock_ageing as
           ORDER BY d.tag, (COALESCE(d.quantity, 0::numeric) > 0::numeric AND NOT COALESCE((d.raw ->> 'IsFinished'::text)::boolean, false)) DESC, (d.source_state = 'active'::text) DESC NULLS LAST, d.synced_at DESC NULLS LAST) p
      LEFT JOIN stock_ageing_policy pol ON pol.category = COALESCE(p.raw #>> '{Item,ProductCategoryName}'::text[], '(uncategorised)'::text)
      LEFT JOIN holding_room hold ON hold.suspends_ageing AND hold.room = p.location
-  WHERE COALESCE(p.quantity, 0::numeric) > 0::numeric AND COALESCE(p.finished, false) = false;
+  WHERE COALESCE(p.quantity, 0::numeric) > 0::numeric AND COALESCE(p.finished, false) = false AND (p.source_state = ANY (ARRAY['active'::text, 'onhold'::text, 'intransit'::text]));
 create or replace view public.v_stock_headline as
  WITH base AS (
          SELECT COALESCE(NULLIF(metrc_packages.raw #>> '{Item,ProductCategoryName}'::text[], ''::text), '(none)'::text) AS category,
@@ -30952,7 +30952,7 @@ create or replace view public.v_stock_headline as
                     mp.report_as_of
                    FROM metrc_packages mp
                   ORDER BY mp.tag, (COALESCE(mp.quantity, 0::numeric) > 0::numeric AND NOT COALESCE((mp.raw ->> 'IsFinished'::text)::boolean, false)) DESC, (mp.source_state = 'active'::text) DESC NULLS LAST, mp.synced_at DESC NULLS LAST) metrc_packages
-          WHERE NOT COALESCE((metrc_packages.raw ->> 'IsFinished'::text)::boolean, false) AND COALESCE((metrc_packages.raw ->> 'Quantity'::text)::numeric, 0::numeric) > 0::numeric AND (lower(COALESCE(metrc_packages.raw ->> 'UnitOfMeasureName'::text, ''::text)) = ANY (ARRAY['grams'::text, 'g'::text]))
+          WHERE (metrc_packages.source_state = ANY (ARRAY['active'::text, 'onhold'::text, 'intransit'::text])) AND NOT COALESCE((metrc_packages.raw ->> 'IsFinished'::text)::boolean, false) AND COALESCE((metrc_packages.raw ->> 'Quantity'::text)::numeric, 0::numeric) > 0::numeric AND (lower(COALESCE(metrc_packages.raw ->> 'UnitOfMeasureName'::text, ''::text)) = ANY (ARRAY['grams'::text, 'g'::text]))
         ), f AS (
          SELECT conversion_factors.value AS ratio
            FROM conversion_factors
@@ -31025,8 +31025,8 @@ create or replace view public.v_stock_on_hand as
                             ELSE COALESCE(p_1.raw #>> '{Item,ProductCategoryName}'::text[], '(uncategorised)'::text)
                         END AS stream
                    FROM metrc_packages p_1
-                  WHERE COALESCE(p_1.quantity, 0::numeric) > 0::numeric AND COALESCE((p_1.raw ->> 'IsFinished'::text)::boolean, false) = false
-                  ORDER BY p_1.tag, (p_1.source_state = 'active'::text) DESC NULLS LAST, p_1.synced_at DESC NULLS LAST
+                  WHERE COALESCE(p_1.quantity, 0::numeric) > 0::numeric AND COALESCE((p_1.raw ->> 'IsFinished'::text)::boolean, false) = false AND (p_1.source_state = ANY (ARRAY['active'::text, 'onhold'::text, 'intransit'::text]))
+                  ORDER BY p_1.tag, (COALESCE(p_1.quantity, 0::numeric) > 0::numeric AND NOT COALESCE((p_1.raw ->> 'IsFinished'::text)::boolean, false)) DESC, (p_1.source_state = 'active'::text) DESC NULLS LAST, p_1.synced_at DESC NULLS LAST
                 )
          SELECT p.origin,
             p.stream,
@@ -31040,7 +31040,7 @@ create or replace view public.v_stock_on_hand as
                 END) AS supplier,
             p.origin_license,
             count(*) AS packages,
-            round(sum(p.quantity) FILTER (WHERE lower(p.uom) = ANY (ARRAY['g'::text, 'grams'::text]))) AS grams,
+            sum(p.quantity) FILTER (WHERE lower(p.uom) = ANY (ARRAY['g'::text, 'grams'::text])) AS grams,
             round(sum(p.lb), 1) AS pounds,
             max(CURRENT_DATE - p.packaged_on) AS oldest_days,
             min(p.packaged_on) AS oldest_packaged,
@@ -34530,7 +34530,7 @@ UNION ALL
             d.report_as_of
            FROM metrc_packages d
           ORDER BY d.tag, (COALESCE(d.quantity, 0::numeric) > 0::numeric AND NOT COALESCE((d.raw ->> 'IsFinished'::text)::boolean, false)) DESC, (d.source_state = 'active'::text) DESC NULLS LAST, d.synced_at DESC NULLS LAST) p
-  WHERE (p.source_state = ANY (ARRAY['active'::text, 'onhold'::text])) AND COALESCE(p.quantity, 0::numeric) > 0::numeric AND COALESCE(p.finished, false) = false
+  WHERE (p.source_state = ANY (ARRAY['active'::text, 'onhold'::text])) AND COALESCE(p.quantity, 0::numeric) > 0::numeric AND COALESCE(p.finished, false) = false AND (p.raw ->> 'ArchivedDate'::text) IS NULL AND (p.raw ->> 'FinishedDate'::text) IS NULL
 UNION ALL
  SELECT 'In transit'::text AS category,
     4 AS stage_no,
@@ -34563,7 +34563,7 @@ UNION ALL
             d.report_as_of
            FROM metrc_packages d
           ORDER BY d.tag, (COALESCE(d.quantity, 0::numeric) > 0::numeric AND NOT COALESCE((d.raw ->> 'IsFinished'::text)::boolean, false)) DESC, (d.source_state = 'active'::text) DESC NULLS LAST, d.synced_at DESC NULLS LAST) p
-  WHERE p.source_state = 'intransit'::text AND COALESCE(p.quantity, 0::numeric) > 0::numeric AND COALESCE(p.finished, false) = false
+  WHERE p.source_state = 'intransit'::text AND COALESCE(p.quantity, 0::numeric) > 0::numeric AND COALESCE(p.finished, false) = false AND (p.raw ->> 'ArchivedDate'::text) IS NULL AND (p.raw ->> 'FinishedDate'::text) IS NULL
 UNION ALL
  SELECT 'State conflict'::text AS category,
     5 AS stage_no,
@@ -34596,7 +34596,7 @@ UNION ALL
             d.report_as_of
            FROM metrc_packages d
           ORDER BY d.tag, (COALESCE(d.quantity, 0::numeric) > 0::numeric AND NOT COALESCE((d.raw ->> 'IsFinished'::text)::boolean, false)) DESC, (d.source_state = 'active'::text) DESC NULLS LAST, d.synced_at DESC NULLS LAST) p
-  WHERE (p.source_state <> ALL (ARRAY['active'::text, 'onhold'::text, 'intransit'::text])) AND COALESCE(p.quantity, 0::numeric) > 0::numeric AND COALESCE(p.finished, false) = false;
+  WHERE (p.source_state <> ALL (ARRAY['active'::text, 'onhold'::text, 'intransit'::text])) AND COALESCE(p.quantity, 0::numeric) > 0::numeric AND COALESCE(p.finished, false) = false AND (p.raw ->> 'ArchivedDate'::text) IS NULL AND (p.raw ->> 'FinishedDate'::text) IS NULL;
 create or replace view public.v_issue_attribution as
  WITH failed AS (
          SELECT 'Failed testing'::text AS issue,
@@ -40229,7 +40229,7 @@ create or replace view public.v_stock_packages as
           WHERE t.package_tag = p.tag AND NOT f_is_ours(COALESCE(NULLIF(t.source_row ->> 'Dest. Lic.'::text, ''::text), t.destination_licence))
           ORDER BY t.as_of_date DESC NULLS LAST
          LIMIT 1) "out" ON true
-  WHERE COALESCE(p.quantity, 0::numeric) > 0::numeric AND COALESCE((p.raw ->> 'IsFinished'::text)::boolean, false) = false
+  WHERE COALESCE(p.quantity, 0::numeric) > 0::numeric AND COALESCE((p.raw ->> 'IsFinished'::text)::boolean, false) = false AND (p.source_state = ANY (ARRAY['active'::text, 'onhold'::text, 'intransit'::text]))
   ORDER BY p.tag, (p.source_state = 'active'::text) DESC NULLS LAST, p.synced_at DESC NULLS LAST;
 create or replace view public.v_supply_reorder as
  SELECT supply_item_id,
