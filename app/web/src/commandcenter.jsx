@@ -1470,7 +1470,18 @@ export default function CommandCenter({ go, session, reports, role, viewAs, onVi
         .order("work_date", { ascending: false }).limit(200);
       const [tiles, trend, targets, flow, split, global, goals, yld, rooms, alertRules, openRule, stockRooms,
              stock, money, tasks, headline, restock, forecast, compliance, zones, staffing, people, sched] = await Promise.all([
-        supabase.from("mv_department_dashboard").select("*").eq("department", "Command").order("ord"),
+        /* Owner, 18 Aug 2026, after days of asking: the KEY FIGURES strip must
+           honour the date range like every department dashboard already does.
+           f_department_dashboard recomputes the FLOW tiles for the window
+           (0.01s measured as a signed-in user) and each tile's context carries
+           its own range truth; positions state "as at today". Null range =
+           the same figures the matview served, so nothing regresses. The
+           matview remains only as the fallback if the RPC itself fails. */
+        supabase.rpc("f_department_dashboard",
+          { p_dept: "Command", p_from: range.from || null, p_to: range.to || null })
+          .then((r) => (r.error || !r.data || !r.data.length)
+            ? supabase.from("mv_department_dashboard").select("*").eq("department", "Command").order("ord")
+            : r),
         supabase.from("v_dashboard_trend").select("*").eq("department", "Command"),
         supabase.from("kpi_targets").select("*").eq("department", "Command"),
         supabase.from("mv_flow_stages").select("*").order("stage_no"),
@@ -1523,7 +1534,9 @@ export default function CommandCenter({ go, session, reports, role, viewAs, onVi
       });
     })();
     return () => { live = false; };
-  }, [ver]);
+    /* range.from / range.to: the strip re-queries the moment the user moves a
+       date chip — the whole page reflects the window, no refresh needed. */
+  }, [ver, range.from, range.to]);
 
   const recompute = async () => {
     setBusy(true);
@@ -1697,6 +1710,11 @@ export default function CommandCenter({ go, session, reports, role, viewAs, onVi
       {/* ── order 9 · KPI strip ── */}
       {d.tiles.err ? <CcErr what="The key figures" err={d.tiles.err} /> : (
         <DkKpiStrip dept="Command" tiles={d.tiles.rows} trend={trendByKpi} targets={targetByKpi}
+          sourceNote={range.from && range.to
+            ? { label: `honouring ${range.from} → ${range.to}`,
+                why: "Flow figures are recomputed live for exactly this window by f_department_dashboard. Positions (on hand) cannot be restated to a past date — each says 'as at today' in its own context. Clear the dates to see all time." }
+            : { label: "all time — pick dates above to range these figures",
+                why: "No date range is set, so every figure covers all data. The moment you pick dates, the flow figures recompute for that window and each tile states its own basis." }}
           go={go} onAssigned={() => setVer((v) => v + 1)} pairs={kpiPairs} inPlace={kpiInPlace} />
       )}
       {d.headline.err && <CcErr what="The split stock headline" err={d.headline.err} />}
