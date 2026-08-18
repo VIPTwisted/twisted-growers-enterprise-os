@@ -13456,6 +13456,48 @@ begin
                  else v_closed || ' run(s) had started and never reported back. They now read as failed rather than as still running.' end);
 end $function$
 ;
+CREATE OR REPLACE FUNCTION public.tg_command_range(p_from date, p_to date)
+ RETURNS TABLE(metric text, value numeric, unit text, basis text)
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select 'Harvests started', count(*)::numeric, 'harvests',
+         'metrc_harvests.harvest_start within the window'
+    from metrc_harvests where harvest_start between p_from and p_to
+  union all
+  select 'Wet weight harvested', round((sum(wet_weight)/453.59237)::numeric,1), 'lb',
+         'metrc_harvests.wet_weight, grams converted, harvest_start within the window'
+    from metrc_harvests where harvest_start between p_from and p_to
+  union all
+  select 'Packages created', count(*)::numeric, 'packages',
+         'metrc_packages.packaged_on within the window, one row per tag'
+    from (select distinct on (tag) tag, packaged_on from metrc_packages
+           where tag is not null order by tag, synced_at desc) p
+   where p.packaged_on between p_from and p_to
+  union all
+  select 'Sold to customers', round(coalesce(sum(pounds),0)::numeric,1), 'lb',
+         'v_forensic_sold_by_tag, counts_as_sale only — internal moves, labs and transport legs excluded'
+    from v_forensic_sold_by_tag
+   where counts_as_sale and shipped_on between p_from and p_to
+  union all
+  select 'Invoiced', round(coalesce(sum(distinct_usd),0)::numeric,0), 'USD',
+         'Apex invoice totals on manifests shipped in the window, counted once per invoice'
+    from (select distinct invoice_number, max(total_usd) as distinct_usd
+            from v_forensic_sold_by_tag
+           where counts_as_sale and invoice_number is not null
+             and shipped_on between p_from and p_to
+           group by invoice_number) x
+  union all
+  select 'Lab samples sent', count(*)::numeric, 'samples',
+         'v_lab_samples_out.sent_on within the window'
+    from v_lab_samples_out where sent_on between p_from and p_to
+  union all
+  select 'Findings raised', count(*)::numeric, 'findings',
+         'watchdog_findings.observed_at within the window'
+    from watchdog_findings where observed_at::date between p_from and p_to
+$function$
+;
 CREATE OR REPLACE FUNCTION public.tg_confirm_alert_emails()
  RETURNS jsonb
  LANGUAGE plpgsql
