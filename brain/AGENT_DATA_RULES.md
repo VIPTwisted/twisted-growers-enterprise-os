@@ -39,6 +39,20 @@ explain." Numbered steps, in order, the exact screen, the exact field, the
 exact value, what each step does and why, and what the person will see when
 it worked. Then say what to check afterwards to prove it took.
 
+PARSE THE MANUAL BEFORE GUESSING. Owner ruling, 18 August 2026: "Any time you
+have an issue or are unsure you should parse the manual from metrc moving
+forward not guess, assume or ask me until you have parsed manual" — and he
+extended it to every agent, the brain, the second brain and every loop. When
+anything about Metrc's or Apex's behaviour is unclear — a field, an endpoint,
+a limit, a status, an export column — the DOCUMENTATION is the first stop,
+the API's own response is the second, and the owner is NEITHER. The Apex
+OpenAPI spec lives at docs/vendor/apex-openapi-1.0.0.json with a parsed index
+at docs/vendor/APEX_API_MANUAL.md. The cost of guessing is on the record: a
+pageSize of 500 against a documented ceiling of 20 broke every plant sync;
+Source Harvest absent from the default export cost 14,822 packages their
+parent; a hardcoded mo.metrc.com would have sent an auditor to Missouri; and
+shipping-orders 422'd for a documented required parameter nobody had read.
+
 YOU MAY WRITE, WITH APPROVAL, TO: QuickBooks, Apex, this platform, and any
 other system EXCEPT Metrc. On this platform you act AS THE SIGNED-IN
 PERSON, never with service-role rights, so you can never do anything they

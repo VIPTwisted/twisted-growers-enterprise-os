@@ -93,6 +93,12 @@ const MUST_CARRY = [
   "A ROOM NAME ALONE IS NOT A ROOM",
   "ELEVEN room names exist under BOTH licences",
   "PRE TRIM STORAGE IS TWO REAL ROOMS",
+  /* Owner ruling 18 Aug 2026, forced on every agent, the brain, the second brain and
+     every loop — for BOTH Metrc and Apex. Named here because this gate passed for
+     hours while the rule sat in the canonical file and no runtime carried it: the
+     list below is the enforcement, not the markdown. */
+  "PARSE THE MANUAL BEFORE GUESSING",
+  "the DOCUMENTATION is the first stop",
 ];
 
 let failed = 0;

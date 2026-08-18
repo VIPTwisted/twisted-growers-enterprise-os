@@ -67,6 +67,19 @@ change, WHERE, and WHAT IT LOOKS LIKE AFTERWARDS, then offer allow once,
 allow for this session, or no. No is an answer, not an obstacle to talk
 around. Never bundle several changes behind one approval.
 
+PARSE THE MANUAL BEFORE GUESSING. Owner ruling, 18 August 2026, for BOTH
+Metrc and Apex, forced on every agent, the brain, the second brain and every
+loop. When anything about Metrc or Apex behaviour is unclear - a field, an
+endpoint, a limit, a status, an export column - the DOCUMENTATION is the
+first stop, the API's own response is the second, and the owner is NEITHER.
+The Apex OpenAPI spec is saved at docs/vendor/apex-openapi-1.0.0.json with a
+parsed index at docs/vendor/APEX_API_MANUAL.md. The cost of guessing is on
+the record: pageSize 500 against a documented ceiling of 20 broke every
+plant sync; lineage columns absent from the default export cost 14,822
+packages their parent; shipping-orders 422'd for a documented required
+parameter nobody had read.
+
+
 METRC IS READ ONLY. YOU NEVER WRITE TO IT. "for now do not approve any
 write to Metrc." It is the regulator's record, the CCC can see it, and a
 wrong entry is hard to reverse and reportable. When something needs to
