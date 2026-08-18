@@ -41350,12 +41350,44 @@ UNION ALL
     80 AS ord,
     'On a truck right now'::text AS kpi,
     ( SELECT round(sum(f_to_pounds(metrc_packages.quantity, metrc_packages.uom)), 1) AS round
-           FROM metrc_packages
+           FROM ( SELECT DISTINCT ON (d.tag) d.id,
+                    d.license,
+                    d.tag,
+                    d.item_name,
+                    d.quantity,
+                    d.uom,
+                    d.location,
+                    d.packaged_on,
+                    d.lab_testing_state,
+                    d.finished,
+                    d.raw,
+                    d.synced_at,
+                    d.source_state,
+                    d.provenance,
+                    d.report_as_of
+                   FROM metrc_packages d
+                  ORDER BY d.tag, (COALESCE(d.quantity, 0::numeric) > 0::numeric AND NOT COALESCE((d.raw ->> 'IsFinished'::text)::boolean, false)) DESC, (d.source_state = 'active'::text) DESC NULLS LAST, d.synced_at DESC NULLS LAST) metrc_packages
           WHERE metrc_packages.source_state = 'intransit'::text AND NOT COALESCE(metrc_packages.finished, false)) AS value,
     'lb'::text AS unit,
     'watch'::text AS tone,
     ( SELECT count(*)::text || ' packages on active transfers, ours until the destination accepts (owner ruling). Stuck transfers live in this number - the oldest is months past any truck ride.'::text
-           FROM metrc_packages
+           FROM ( SELECT DISTINCT ON (d.tag) d.id,
+                    d.license,
+                    d.tag,
+                    d.item_name,
+                    d.quantity,
+                    d.uom,
+                    d.location,
+                    d.packaged_on,
+                    d.lab_testing_state,
+                    d.finished,
+                    d.raw,
+                    d.synced_at,
+                    d.source_state,
+                    d.provenance,
+                    d.report_as_of
+                   FROM metrc_packages d
+                  ORDER BY d.tag, (COALESCE(d.quantity, 0::numeric) > 0::numeric AND NOT COALESCE((d.raw ->> 'IsFinished'::text)::boolean, false)) DESC, (d.source_state = 'active'::text) DESC NULLS LAST, d.synced_at DESC NULLS LAST) metrc_packages
           WHERE metrc_packages.source_state = 'intransit'::text AND NOT COALESCE(metrc_packages.finished, false)) AS context,
     'in_transit'::text AS drill,
     now() AS computed_at
@@ -44193,6 +44225,21 @@ create or replace view public.mv_department_dashboard as
             WHEN b.department = 'Settings'::text AND b.ord = 2 THEN ( SELECT count(*)::numeric AS count
                FROM conversion_factors cf
               WHERE cf.set_by !~* '(owner|vinny)'::text)
+            WHEN b.department = 'Inventory'::text AND b.ord = 1 THEN ( SELECT round(sum(
+                    CASE
+                        WHEN v.stream = 'Fresh frozen'::text THEN v.grams / f_rule('fresh_frozen_wet_to_dry'::text)
+                        ELSE v.grams
+                    END) / 453.59237, 1) AS round
+               FROM v_stock_on_hand v)
+            WHEN b.department = 'Inventory'::text AND b.ord = 2 THEN ( SELECT round(sum(v.grams) FILTER (WHERE v.lab_state = 'TestPassed'::text) / 453.59237, 1) AS round
+               FROM v_stock_on_hand v)
+            WHEN b.department = 'Inventory'::text AND b.ord = 3 THEN ( SELECT round(sum(v.grams) FILTER (WHERE v.lab_state = 'NotSubmitted'::text) / 453.59237, 1) AS round
+               FROM v_stock_on_hand v)
+            WHEN b.department = 'Inventory'::text AND b.ord = 4 THEN ( SELECT round(sum(v.grams) FILTER (WHERE v.origin = 'Bought in'::text) / 453.59237, 1) AS round
+               FROM v_stock_on_hand v)
+            WHEN b.department = 'Inventory'::text AND b.ord = 5 THEN ( SELECT round(sum(a.lb), 1) AS round
+               FROM v_stock_ageing a
+              WHERE a.ageing_verdict ~~ 'STALE%'::text)
             WHEN b.kpi = 'Moisture loss not recorded'::text THEN COALESCE(b.value, 0::numeric)
             ELSE b.value
         END AS value,
@@ -44203,6 +44250,11 @@ create or replace view public.mv_department_dashboard as
                FROM v_stock_headline))) || ' lb is held separately at wet weight and is never added to this.'::text
             WHEN b.department = 'Metrc'::text AND b.ord = 1 THEN 'Distinct tags. 715 tags appear twice because the package moved between our two licences — that is one package, not two.'::text
             WHEN b.department = 'Settings'::text AND b.ord = 2 THEN 'Conversion factors not set by the owner. Each one is a number the platform is using that he has not confirmed.'::text
+            WHEN b.department = 'Inventory'::text AND b.ord = 1 THEN ( SELECT ((('Fresh frozen counted at dry-equivalent (wet ÷ '::text || f_rule('fresh_frozen_wet_to_dry'::text)) || ', owner-set). Wet-basis total: '::text) || to_char(sum(v.grams) / 453.59237, 'FM999999.0'::text)) || ' lb.'::text
+               FROM v_stock_on_hand v)
+            WHEN b.department = 'Inventory'::text AND b.ord = 5 THEN ( SELECT ('Per the owner ageing policy: categories that age, past their own limit, holding rooms suspend. '::text || count(*)) || ' packages. A raw 180-day age with no policy would say far more — that is not the ruling.'::text
+               FROM v_stock_ageing a
+              WHERE a.ageing_verdict ~~ 'STALE%'::text)
             ELSE b.context
         END AS context,
     b.drill,
