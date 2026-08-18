@@ -30911,7 +30911,23 @@ create or replace view public.v_stock_ageing as
         END AS remnant_verdict,
     hold.room IS NOT NULL AS in_a_holding_room,
     hold.why_held
-   FROM metrc_packages p
+   FROM ( SELECT DISTINCT ON (d.tag) d.id,
+            d.license,
+            d.tag,
+            d.item_name,
+            d.quantity,
+            d.uom,
+            d.location,
+            d.packaged_on,
+            d.lab_testing_state,
+            d.finished,
+            d.raw,
+            d.synced_at,
+            d.source_state,
+            d.provenance,
+            d.report_as_of
+           FROM metrc_packages d
+          ORDER BY d.tag, (COALESCE(d.quantity, 0::numeric) > 0::numeric AND NOT COALESCE((d.raw ->> 'IsFinished'::text)::boolean, false)) DESC, (d.source_state = 'active'::text) DESC NULLS LAST, d.synced_at DESC NULLS LAST) p
      LEFT JOIN stock_ageing_policy pol ON pol.category = COALESCE(p.raw #>> '{Item,ProductCategoryName}'::text[], '(uncategorised)'::text)
      LEFT JOIN holding_room hold ON hold.suspends_ageing AND hold.room = p.location
   WHERE COALESCE(p.quantity, 0::numeric) > 0::numeric AND COALESCE(p.finished, false) = false;
@@ -38969,37 +38985,36 @@ create or replace view public.v_harvest_forensic as
            FROM h
              LEFT JOIN mv_harvest_pkg_rollup pk ON pk.harvest_name = h.harvest_name) q;
 create or replace view public.v_inventory_aging as
- SELECT category,
-    stage,
-    location,
-    license,
-    item,
-    identifier,
-    quantity,
-    uom,
-    days_here,
+ SELECT l.category,
+    l.stage,
+    l.location,
+    l.license,
+    l.item,
+    l.identifier,
+    l.quantity,
+    l.uom,
+    l.days_here,
         CASE
-            WHEN category = 'Harvest lots'::text AND stage ~~ 'Drying%'::text AND days_here > 14::numeric THEN 'critical'::text
-            WHEN category = 'Harvest lots'::text AND days_here > 30::numeric THEN 'elevated'::text
-            WHEN category = 'Packages'::text AND stage = 'Awaiting laboratory'::text AND days_here > 7::numeric THEN 'elevated'::text
-            WHEN category = 'Packages'::text AND stage = 'FAILED TESTING'::text THEN 'critical'::text
-            WHEN category = 'Packages'::text AND days_here > 90::numeric THEN 'elevated'::text
-            WHEN category = 'Packages'::text AND days_here > 60::numeric THEN 'watch'::text
-            WHEN stage = 'ON HOLD'::text THEN 'critical'::text
+            WHEN l.category = 'Harvest lots'::text AND l.stage ~~ 'Drying%'::text AND l.days_here > f_rule('dry_window_max_days'::text) THEN 'critical'::text
+            WHEN l.category = 'Harvest lots'::text AND l.days_here > f_rule('harvest_open_max_days'::text) THEN 'elevated'::text
+            WHEN l.category = 'Packages'::text AND l.stage = 'Awaiting laboratory'::text AND l.days_here > f_rule('lab_wait_alert_days'::text) THEN 'elevated'::text
+            WHEN l.category = 'Packages'::text AND l.stage = 'FAILED TESTING'::text THEN 'critical'::text
+            WHEN sa.tag IS NOT NULL THEN 'elevated'::text
+            WHEN l.stage = 'ON HOLD'::text THEN 'critical'::text
             ELSE NULL::text
         END AS severity,
         CASE
-            WHEN category = 'Harvest lots'::text AND stage ~~ 'Drying%'::text AND days_here > 14::numeric THEN 'Past the 14-day dry limit - move it or record the weights'::text
-            WHEN category = 'Harvest lots'::text AND days_here > 30::numeric THEN 'Harvest lot open more than 30 days - the room turn is at risk'::text
-            WHEN category = 'Packages'::text AND stage = 'Awaiting laboratory'::text AND days_here > 7::numeric THEN 'Waiting on a laboratory result more than 7 days - chase the laboratory'::text
-            WHEN category = 'Packages'::text AND stage = 'FAILED TESTING'::text THEN 'Failed testing - decide remediation or destruction'::text
-            WHEN category = 'Packages'::text AND days_here > 90::numeric THEN 'Packaged more than 90 days ago - cash is sitting on the shelf'::text
-            WHEN category = 'Packages'::text AND days_here > 60::numeric THEN 'Packaged more than 60 days ago - prioritize it for sale'::text
-            WHEN stage = 'ON HOLD'::text THEN 'On hold in Metrc - resolve the hold'::text
+            WHEN l.category = 'Harvest lots'::text AND l.stage ~~ 'Drying%'::text AND l.days_here > f_rule('dry_window_max_days'::text) THEN ('Past the '::text || f_rule('dry_window_max_days'::text)) || '-day dry limit - move it or record the weights'::text
+            WHEN l.category = 'Harvest lots'::text AND l.days_here > f_rule('harvest_open_max_days'::text) THEN ('Harvest lot open more than '::text || f_rule('harvest_open_max_days'::text)) || ' days - the room turn is at risk'::text
+            WHEN l.category = 'Packages'::text AND l.stage = 'Awaiting laboratory'::text AND l.days_here > f_rule('lab_wait_alert_days'::text) THEN ('Waiting on a laboratory result more than '::text || f_rule('lab_wait_alert_days'::text)) || ' days - chase the laboratory'::text
+            WHEN l.category = 'Packages'::text AND l.stage = 'FAILED TESTING'::text THEN 'Failed testing - decide remediation or destruction'::text
+            WHEN sa.tag IS NOT NULL THEN ('Past its category ageing limit ('::text || sa.stale_after) || ') under the owner policy - sell, discount or write off'::text
+            WHEN l.stage = 'ON HOLD'::text THEN 'On hold in Metrc - resolve the hold'::text
             ELSE NULL::text
         END AS action
-   FROM v_inventory_locator
-  WHERE days_here IS NOT NULL;
+   FROM v_inventory_locator l
+     LEFT JOIN v_stock_ageing sa ON sa.tag = l.identifier AND sa.ageing_verdict ~~ 'STALE%'::text
+  WHERE l.days_here IS NOT NULL;
 create or replace view public.v_inventory_report as
  WITH p AS (
          SELECT DISTINCT ON (metrc_packages.tag) metrc_packages.tag,
@@ -39128,6 +39143,33 @@ create or replace view public.v_inventory_report as
    FROM p
      LEFT JOIN v_ownership_by_custody oc ON oc.package_tag = p.tag
      LEFT JOIN v_certificate_resolved cr ON cr.package_tag = p.tag;
+create or replace view public.v_issue_aging as
+ SELECT COALESCE(l.category, 'Packages'::text) AS category,
+    COALESCE(l.item, a.item_name) AS item,
+    a.tag AS identifier,
+    a.location,
+    COALESCE(l.stage, 'On hand'::text) AS stage,
+    a.license,
+    l.quantity,
+    l.uom,
+    round(COALESCE(f_to_pounds(l.quantity, l.uom), a.lb), 3) AS pounds,
+    a.packaged_on AS harvested_or_packaged_on,
+    COALESCE(l.days_here, a.days_held::numeric) AS days_sitting,
+    round(COALESCE(f_to_pounds(l.quantity, l.uom), a.lb) * (( SELECT cost_model.cost_per_pound
+           FROM cost_model
+          WHERE cost_model.scope = 'cultivation'::text
+          ORDER BY cost_model.effective_from DESC
+         LIMIT 1)), 0) AS value_at_cost,
+    l.lab_state AS laboratory_state,
+    l.source_lineage AS came_from,
+    l.detail AS extra_detail,
+    'elevated'::text AS severity,
+    'THE ISSUE: '::text || a.ageing_verdict AS what_is_wrong,
+    ((('Sitting '::text || a.days_held) || ' days against its category limit of '::text) || a.stale_after) || '. Decide: sell, discount, or write off.'::text AS what_to_do
+   FROM v_stock_ageing a
+     LEFT JOIN v_inventory_locator l ON l.identifier = a.tag
+  WHERE a.ageing_verdict ~~ 'STALE%'::text
+  ORDER BY a.days_held DESC;
 create or replace view public.v_issue_attribution_summary as
  SELECT issue,
     round(COALESCE(sum(pounds) FILTER (WHERE origin = 'Grown by us'::text), 0::numeric), 1) AS ours_lb,
@@ -41883,45 +41925,6 @@ create or replace view public.v_harvest_still_in_room as
    FROM v_harvest_forensic h
   WHERE harvest_closed IS NULL
   ORDER BY total_days_start_to_now DESC;
-create or replace view public.v_issue_aging as
- SELECT l.category,
-    l.item,
-    l.identifier,
-    l.location,
-    l.stage,
-    l.license,
-    l.quantity,
-    l.uom,
-    round(
-        CASE
-            WHEN lower(COALESCE(l.uom, ''::text)) = ANY (ARRAY['g'::text, 'grams'::text]) THEN l.quantity / 453.592
-            ELSE NULL::numeric
-        END, 2) AS pounds,
-    l.since_date AS harvested_or_packaged_on,
-    l.days_here AS days_sitting,
-    round(
-        CASE
-            WHEN lower(COALESCE(l.uom, ''::text)) = ANY (ARRAY['g'::text, 'grams'::text]) THEN l.quantity / 453.592 * (( SELECT cost_model.cost_per_pound
-               FROM cost_model
-              WHERE cost_model.scope = 'cultivation'::text
-              ORDER BY cost_model.effective_from DESC
-             LIMIT 1))
-            ELSE NULL::numeric
-        END, 0) AS value_at_cost,
-    l.lab_state AS laboratory_state,
-    l.source_lineage AS came_from,
-    l.detail AS extra_detail,
-    a.severity,
-    'THE ISSUE: '::text || a.action AS what_is_wrong,
-        CASE
-            WHEN a.severity = 'critical'::text THEN 'Act today - this is past every threshold'::text
-            WHEN l.days_here > 90::numeric THEN 'Decide this week: sell, discount, or write off'::text
-            ELSE 'Prioritise for sale ahead of newer stock'::text
-        END AS what_to_do
-   FROM v_inventory_locator l
-     JOIN v_inventory_aging a ON a.identifier = l.identifier AND a.location = l.location
-  WHERE a.severity IS NOT NULL
-  ORDER BY l.days_here DESC NULLS LAST;
 create or replace view public.v_issue_late as
  SELECT event_type,
     room,
