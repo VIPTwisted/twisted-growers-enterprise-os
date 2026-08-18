@@ -8690,7 +8690,12 @@ export const DEPT_BY_VIEW = {
   dept_dash_cultivation: "Cultivation",
   dept_dash_inventory: "Inventory",
   dept_dash_quality: "Quality",
-  dept_dash_sales: "Finance",
+  /* Was "Finance" until 18 Aug 2026 — which left NO view owning the "Sales & Cash"
+     department, so its 238 findings sat under NOBODY OWNS THESE on Global Management
+     and the sales page rendered Finance's tiles instead of its own. The data spine
+     (mv_department_dashboard, finding_lane_owner) has used "Sales & Cash" throughout;
+     only this map disagreed. */
+  dept_dash_sales: "Sales & Cash",
   dept_dash_mfg: "Manufacturing",
   dept_dash_metrc: "Metrc",
   dept_dash_workspace: "Workspace",
@@ -11380,15 +11385,15 @@ export default function App() {
        enabled navigation row pointing at a real view, and each rendered through
        the generic data browser until now. Grow Rooms is deliberately NOT in this
        list: it already has its own page above and was not asked to change. */
-    harvests: <HarvestsRegister go={setView} session={session} role={role} viewAs={viewAsRole} />,
-    harvest_lifecycle: <HarvestLifecycle go={setView} session={session} role={role} viewAs={viewAsRole} />,
-    harvest_detail: <HarvestDetailPlan go={setView} session={session} role={role} viewAs={viewAsRole} />,
-    loss_ledger: <LossLedger go={setView} session={session} role={role} viewAs={viewAsRole} />,
-    loss_analysis: <LossAnalysis go={setView} session={session} role={role} viewAs={viewAsRole} />,
-    genetics: <Genetics go={setView} session={session} role={role} viewAs={viewAsRole} />,
-    room_turn_audit: <RoomTurnAudit go={setView} session={session} role={role} viewAs={viewAsRole} />,
-    moisture_loss_register: <MoistureRegister go={setView} session={session} role={role} viewAs={viewAsRole} />,
-    grading: <Grading go={setView} session={session} role={role} viewAs={viewAsRole} />,
+    harvests: <HarvestsRegister go={setView} session={session} role={role} viewAs={viewAsRole} reports={reports} />,
+    harvest_lifecycle: <HarvestLifecycle go={setView} session={session} role={role} viewAs={viewAsRole} reports={reports} />,
+    harvest_detail: <HarvestDetailPlan go={setView} session={session} role={role} viewAs={viewAsRole} reports={reports} />,
+    loss_ledger: <LossLedger go={setView} session={session} role={role} viewAs={viewAsRole} reports={reports} />,
+    loss_analysis: <LossAnalysis go={setView} session={session} role={role} viewAs={viewAsRole} reports={reports} />,
+    genetics: <Genetics go={setView} session={session} role={role} viewAs={viewAsRole} reports={reports} />,
+    room_turn_audit: <RoomTurnAudit go={setView} session={session} role={role} viewAs={viewAsRole} reports={reports} />,
+    moisture_loss_register: <MoistureRegister go={setView} session={session} role={role} viewAs={viewAsRole} reports={reports} />,
+    grading: <Grading go={setView} session={session} role={role} viewAs={viewAsRole} reports={reports} />,
     menu_manager: isExec
       ? <MenuManager onChanged={() => setNavVersion((v) => v + 1)} />
       : <div className="empty"><div className="eicon">{I.shield}</div><b>Admin area</b>Menu Manager is restricted to executives. Ask an owner if a menu change is needed.</div>,
