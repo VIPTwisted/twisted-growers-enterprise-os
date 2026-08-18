@@ -19,7 +19,7 @@
       "deployed_version": 1,
       "sha256": "9bc3f2b54164dd4729162b8802806a0004b43bfc0dc777c1199cef8f4b1428e5",
       "redacted": false,
-      "note": "Real source, read-only GET probe, admin-key gated. Deployed v1 on 10 Aug 2026 and recovered into the repo in 4222e85 because the source existed only in the deployment. Reads TG_ADMIN_KEY from integration_secrets at run time — no literal in the file, so this is the real source and not a redacted recovery copy. verify_jwt true."
+      "note": "Real source, read-only GET probe, admin-key gated. Deployed v1 on 10 Aug 2026 and recovered into the repo in 4222e85 because the source existed only in the deployment. Reads TG_ADMIN_KEY from integration_secrets at run time \u2014 no literal in the file, so this is the real source and not a redacted recovery copy. verify_jwt true."
     },
     "apex-sync": {
       "deployed_version": 5,
@@ -34,10 +34,10 @@
       "note": "Real source. If the hash changes, deploy it or record why not."
     },
     "budz-chat": {
-      "deployed_version": 5,
-      "sha256": "50de57a1a2c75ac7406dfe6e7c1f1b874b2fd9dd78be043fb0e4482c099db332",
+      "deployed_version": 6,
+      "sha256": "e9f0f8aebb8ce36a21c79f081892dfd582c07f4bac08e5f7de09394c8600313e",
       "redacted": false,
-      "note": "Real source, and now genuinely byte-deployed. Deployed v5 on 11 Aug 2026. Production had been running v4 for days: the OLD system prompt that argued grams per square foot of canopy against the owner's locked facts, Haiku with a 900-token ceiling, a 24k context slice, no seat catalogue, no report catalogue and no web search. Every one of those corrections was committed and never shipped. verify_jwt stays TRUE - the function reads the caller identity out of the verified header to bind asCaller and call tg_ai_gate; flipping it false would break its whole auth model."
+      "note": "Real source. Deployed v6 on 18 Aug 2026 by Agent I: the only change since v5 is the PARSE THE MANUAL BEFORE GUESSING block (owner ruling, 18 Aug 2026, Metrc AND Apex) injected into SYSTEM. The committed-but-undeployed gap between this rule landing in the repo at 07:02 and this deploy is what turned the edge-function-drift gate red inside the Netlify build and killed EVERY site deploy for five hours - eight red builds, the site frozen at f002993 while the owner refreshed and saw nothing. The gate was right; the redeploy was the missing step. verify_jwt stays TRUE - the function reads the caller identity out of the verified JWT."
     },
     "clickup-customize": {
       "deployed_version": 4,
@@ -115,7 +115,7 @@
       "deployed_version": 4,
       "sha256": "391edd8813c76660acc31baed678b52e2cef949ab11eafaf684d1f62bd3f9050",
       "redacted": false,
-      "note": "REAL SOURCE — no key in the file. Reads TG_ADMIN_KEY from integration_secrets at run time. First of the sixteen moved off the shared literal, 10 Aug 2026. Deployed v4 and verified: correct key 200, wrong key 403, no key 403."
+      "note": "REAL SOURCE \u2014 no key in the file. Reads TG_ADMIN_KEY from integration_secrets at run time. First of the sixteen moved off the shared literal, 10 Aug 2026. Deployed v4 and verified: correct key 200, wrong key 403, no key 403."
     },
     "metrc-reference-sync": {
       "deployed_version": 2,
