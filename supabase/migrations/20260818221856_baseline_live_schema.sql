@@ -34513,8 +34513,24 @@ UNION ALL
     COALESCE(p.raw ->> 'ProductCategoryName'::text, 'package'::text) AS detail,
     p.lab_testing_state AS lab_state,
     NULLIF(p.raw ->> 'SourceHarvestNames'::text, ''::text) AS source_lineage
-   FROM metrc_packages p
-  WHERE p.source_state = ANY (ARRAY['active'::text, 'onhold'::text])
+   FROM ( SELECT DISTINCT ON (d.tag) d.id,
+            d.license,
+            d.tag,
+            d.item_name,
+            d.quantity,
+            d.uom,
+            d.location,
+            d.packaged_on,
+            d.lab_testing_state,
+            d.finished,
+            d.raw,
+            d.synced_at,
+            d.source_state,
+            d.provenance,
+            d.report_as_of
+           FROM metrc_packages d
+          ORDER BY d.tag, (COALESCE(d.quantity, 0::numeric) > 0::numeric AND NOT COALESCE((d.raw ->> 'IsFinished'::text)::boolean, false)) DESC, (d.source_state = 'active'::text) DESC NULLS LAST, d.synced_at DESC NULLS LAST) p
+  WHERE (p.source_state = ANY (ARRAY['active'::text, 'onhold'::text])) AND COALESCE(p.quantity, 0::numeric) > 0::numeric AND COALESCE(p.finished, false) = false
 UNION ALL
  SELECT 'In transit'::text AS category,
     4 AS stage_no,
@@ -34530,8 +34546,57 @@ UNION ALL
     'On a transfer manifest'::text AS detail,
     p.lab_testing_state AS lab_state,
     NULLIF(p.raw ->> 'SourceHarvestNames'::text, ''::text) AS source_lineage
-   FROM metrc_packages p
-  WHERE p.source_state = 'intransit'::text;
+   FROM ( SELECT DISTINCT ON (d.tag) d.id,
+            d.license,
+            d.tag,
+            d.item_name,
+            d.quantity,
+            d.uom,
+            d.location,
+            d.packaged_on,
+            d.lab_testing_state,
+            d.finished,
+            d.raw,
+            d.synced_at,
+            d.source_state,
+            d.provenance,
+            d.report_as_of
+           FROM metrc_packages d
+          ORDER BY d.tag, (COALESCE(d.quantity, 0::numeric) > 0::numeric AND NOT COALESCE((d.raw ->> 'IsFinished'::text)::boolean, false)) DESC, (d.source_state = 'active'::text) DESC NULLS LAST, d.synced_at DESC NULLS LAST) p
+  WHERE p.source_state = 'intransit'::text AND COALESCE(p.quantity, 0::numeric) > 0::numeric AND COALESCE(p.finished, false) = false
+UNION ALL
+ SELECT 'State conflict'::text AS category,
+    5 AS stage_no,
+    'INACTIVE with quantity'::text AS stage,
+    COALESCE(p.location, '(no location)'::text) AS location,
+    p.license,
+    COALESCE(p.item_name, '(unnamed item)'::text) AS item,
+    p.tag AS identifier,
+    COALESCE(p.quantity, 0::numeric) AS quantity,
+    COALESCE(p.uom, 'ea'::text) AS uom,
+    p.packaged_on AS since_date,
+    (CURRENT_DATE - p.packaged_on)::numeric AS days_here,
+    'Metrc marks this package inactive while it still carries quantity — find it in the last recorded room, or close it out in Metrc'::text AS detail,
+    p.lab_testing_state AS lab_state,
+    NULLIF(p.raw ->> 'SourceHarvestNames'::text, ''::text) AS source_lineage
+   FROM ( SELECT DISTINCT ON (d.tag) d.id,
+            d.license,
+            d.tag,
+            d.item_name,
+            d.quantity,
+            d.uom,
+            d.location,
+            d.packaged_on,
+            d.lab_testing_state,
+            d.finished,
+            d.raw,
+            d.synced_at,
+            d.source_state,
+            d.provenance,
+            d.report_as_of
+           FROM metrc_packages d
+          ORDER BY d.tag, (COALESCE(d.quantity, 0::numeric) > 0::numeric AND NOT COALESCE((d.raw ->> 'IsFinished'::text)::boolean, false)) DESC, (d.source_state = 'active'::text) DESC NULLS LAST, d.synced_at DESC NULLS LAST) p
+  WHERE (p.source_state <> ALL (ARRAY['active'::text, 'onhold'::text, 'intransit'::text])) AND COALESCE(p.quantity, 0::numeric) > 0::numeric AND COALESCE(p.finished, false) = false;
 create or replace view public.v_issue_attribution as
  WITH failed AS (
          SELECT 'Failed testing'::text AS issue,
