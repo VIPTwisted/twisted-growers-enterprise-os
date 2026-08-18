@@ -27273,7 +27273,24 @@ create or replace view public.v_onhand_by_room_stage as
     count(*) FILTER (WHERE NOT (EXISTS ( SELECT 1
            FROM coa_extract c
           WHERE c.package_tag = (p.raw ->> 'Label'::text)))) AS no_coa
-   FROM metrc_packages p
+   FROM ( SELECT DISTINCT ON (mp.tag) mp.id,
+            mp.license,
+            mp.tag,
+            mp.item_name,
+            mp.quantity,
+            mp.uom,
+            mp.location,
+            mp.packaged_on,
+            mp.lab_testing_state,
+            mp.finished,
+            mp.raw,
+            mp.synced_at,
+            mp.source_state,
+            mp.provenance,
+            mp.report_as_of
+           FROM metrc_packages mp
+          WHERE COALESCE((mp.raw ->> 'Quantity'::text)::numeric, 0::numeric) > 0::numeric AND COALESCE((mp.raw ->> 'IsFinished'::text)::boolean, false) = false
+          ORDER BY mp.tag, (mp.source_state = 'active'::text) DESC NULLS LAST, mp.synced_at DESC NULLS LAST) p
      LEFT JOIN room_roles r ON r.room_name = NULLIF(p.raw ->> 'LocationName'::text, ''::text)
   WHERE COALESCE((p.raw ->> 'Quantity'::text)::numeric, 0::numeric) > 0::numeric AND COALESCE((p.raw ->> 'IsFinished'::text)::boolean, false) = false
   GROUP BY p.license, (
@@ -30321,7 +30338,23 @@ create or replace view public.v_stock_headline as
  WITH base AS (
          SELECT COALESCE(NULLIF(metrc_packages.raw #>> '{Item,ProductCategoryName}'::text[], ''::text), '(none)'::text) AS category,
             ((metrc_packages.raw ->> 'Quantity'::text)::numeric) / 453.59237 AS lb
-           FROM metrc_packages
+           FROM ( SELECT DISTINCT ON (mp.tag) mp.id,
+                    mp.license,
+                    mp.tag,
+                    mp.item_name,
+                    mp.quantity,
+                    mp.uom,
+                    mp.location,
+                    mp.packaged_on,
+                    mp.lab_testing_state,
+                    mp.finished,
+                    mp.raw,
+                    mp.synced_at,
+                    mp.source_state,
+                    mp.provenance,
+                    mp.report_as_of
+                   FROM metrc_packages mp
+                  ORDER BY mp.tag, (COALESCE(mp.quantity, 0::numeric) > 0::numeric AND NOT COALESCE((mp.raw ->> 'IsFinished'::text)::boolean, false)) DESC, (mp.source_state = 'active'::text) DESC NULLS LAST, mp.synced_at DESC NULLS LAST) metrc_packages
           WHERE NOT COALESCE((metrc_packages.raw ->> 'IsFinished'::text)::boolean, false) AND COALESCE((metrc_packages.raw ->> 'Quantity'::text)::numeric, 0::numeric) > 0::numeric AND (lower(COALESCE(metrc_packages.raw ->> 'UnitOfMeasureName'::text, ''::text)) = ANY (ARRAY['grams'::text, 'g'::text]))
         ), f AS (
          SELECT conversion_factors.value AS ratio
@@ -30367,7 +30400,7 @@ create or replace view public.v_stock_on_hand as
             ELSE pounds
         END AS pounds_dry_equivalent
    FROM ( WITH p AS (
-                 SELECT p_1.license,
+                 SELECT DISTINCT ON (p_1.tag) p_1.license,
                     p_1.raw #>> '{Item,StrainName}'::text[] AS strain,
                     p_1.raw ->> 'LabTestingState'::text AS lab_state,
                     COALESCE(p_1.location, '(not recorded)'::text) AS location,
@@ -30396,6 +30429,7 @@ create or replace view public.v_stock_on_hand as
                         END AS stream
                    FROM metrc_packages p_1
                   WHERE COALESCE(p_1.quantity, 0::numeric) > 0::numeric AND COALESCE((p_1.raw ->> 'IsFinished'::text)::boolean, false) = false
+                  ORDER BY p_1.tag, (p_1.source_state = 'active'::text) DESC NULLS LAST, p_1.synced_at DESC NULLS LAST
                 )
          SELECT p.origin,
             p.stream,
@@ -39400,7 +39434,7 @@ create or replace view public.v_schedule_variance as
      LEFT JOIN reason_code_catalog rc ON rc.code = v.reason_code
   WHERE sc.scheduled_date IS NOT NULL;
 create or replace view public.v_stock_packages as
- SELECT p.tag AS package_tag,
+ SELECT DISTINCT ON (p.tag) p.tag AS package_tag,
     p.item_name,
     p.raw #>> '{Item,StrainName}'::text[] AS strain,
         CASE
@@ -39487,7 +39521,8 @@ create or replace view public.v_stock_packages as
           WHERE t.package_tag = p.tag AND NOT f_is_ours(COALESCE(NULLIF(t.source_row ->> 'Dest. Lic.'::text, ''::text), t.destination_licence))
           ORDER BY t.as_of_date DESC NULLS LAST
          LIMIT 1) "out" ON true
-  WHERE COALESCE(p.quantity, 0::numeric) > 0::numeric AND COALESCE((p.raw ->> 'IsFinished'::text)::boolean, false) = false;
+  WHERE COALESCE(p.quantity, 0::numeric) > 0::numeric AND COALESCE((p.raw ->> 'IsFinished'::text)::boolean, false) = false
+  ORDER BY p.tag, (p.source_state = 'active'::text) DESC NULLS LAST, p.synced_at DESC NULLS LAST;
 create or replace view public.v_supply_reorder as
  SELECT supply_item_id,
     supply_item,
