@@ -25544,20 +25544,36 @@ create or replace view public.v_inventory_reconciliation as
             COALESCE((p.raw ->> 'InitialQuantity'::text)::numeric, COALESCE(p.quantity, 0::numeric)) AS initial_qty,
             (p.raw ->> 'IsOnHold'::text)::boolean AS on_hold,
             p.raw ->> 'ArchivedDate'::text AS archived
-           FROM metrc_packages p
+           FROM ( SELECT DISTINCT ON (d.tag) d.id,
+                    d.license,
+                    d.tag,
+                    d.item_name,
+                    d.quantity,
+                    d.uom,
+                    d.location,
+                    d.packaged_on,
+                    d.lab_testing_state,
+                    d.finished,
+                    d.raw,
+                    d.synced_at,
+                    d.source_state,
+                    d.provenance,
+                    d.report_as_of
+                   FROM metrc_packages d
+                  ORDER BY d.tag, (COALESCE(d.quantity, 0::numeric) > 0::numeric AND NOT COALESCE((d.raw ->> 'IsFinished'::text)::boolean, false)) DESC, (d.source_state = 'active'::text) DESC NULLS LAST, d.synced_at DESC NULLS LAST) p
         )
  SELECT license,
     item,
     round(sum(initial_qty), 1) AS packaged_originally,
-    round(sum(qty) FILTER (WHERE source_state = 'active'::text AND NOT COALESCE(on_hold, false)), 1) AS in_stock_sellable,
-    round(sum(qty) FILTER (WHERE COALESCE(on_hold, false) OR source_state = 'onhold'::text), 1) AS on_hold,
+    round(sum(qty) FILTER (WHERE source_state = 'active'::text AND NOT COALESCE(on_hold, false) AND lab_testing_state IS DISTINCT FROM 'TestFailed'::text), 1) AS in_stock_sellable,
+    round(sum(qty) FILTER (WHERE (COALESCE(on_hold, false) OR source_state = 'onhold'::text) AND source_state <> 'inactive'::text AND source_state <> 'intransit'::text AND lab_testing_state IS DISTINCT FROM 'TestFailed'::text), 1) AS on_hold,
     round(sum(qty) FILTER (WHERE source_state = 'intransit'::text), 1) AS in_transit,
     round(sum(initial_qty) FILTER (WHERE source_state = 'inactive'::text), 1) AS closed_or_sold,
-    round(sum(qty) FILTER (WHERE lab_testing_state = 'TestFailed'::text), 1) AS failed_testing_held,
+    round(sum(qty) FILTER (WHERE lab_testing_state = 'TestFailed'::text AND source_state <> 'inactive'::text AND source_state <> 'intransit'::text), 1) AS failed_testing_held,
     round(sum(initial_qty - qty) FILTER (WHERE source_state = ANY (ARRAY['active'::text, 'onhold'::text])), 1) AS reduced_without_reason,
         CASE
             WHEN sum(initial_qty - qty) FILTER (WHERE source_state = ANY (ARRAY['active'::text, 'onhold'::text])) > 0::numeric THEN ('UNACCOUNTED - '::text || round(sum(initial_qty - qty) FILTER (WHERE source_state = ANY (ARRAY['active'::text, 'onhold'::text])), 1)) || ' reduced with no recorded reason'::text
-            WHEN sum(qty) FILTER (WHERE lab_testing_state = 'TestFailed'::text) > 0::numeric THEN 'FAILED TESTING still on hand - decide destruction or remediation'::text
+            WHEN sum(qty) FILTER (WHERE lab_testing_state = 'TestFailed'::text AND source_state <> 'inactive'::text AND source_state <> 'intransit'::text) > 0::numeric THEN 'FAILED TESTING still on hand - decide destruction or remediation'::text
             WHEN sum(qty) FILTER (WHERE COALESCE(on_hold, false)) > 0::numeric THEN 'Quantity on hold in Metrc'::text
             ELSE 'Reconciled'::text
         END AS reconciliation_status
