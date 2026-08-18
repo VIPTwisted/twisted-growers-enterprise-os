@@ -21991,7 +21991,18 @@ create or replace view public.v_cross_license_tags as
   GROUP BY tag
  HAVING count(DISTINCT license) > 1;
 create or replace view public.v_cross_source_reconciliation as
- WITH revenue AS (
+ WITH asof AS (
+         SELECT COALESCE(max(r.as_of_date), CURRENT_DATE) AS d
+           FROM metrc_rpt_harvests r
+        ), api_asof AS (
+         SELECT h.name,
+            h.wet_weight,
+            h.package_count,
+            h.source_state
+           FROM metrc_harvests h
+             CROSS JOIN asof
+          WHERE h.harvest_start <= asof.d
+        ), revenue AS (
          SELECT 'Wholesale revenue'::text AS fact,
             'dollars'::text AS unit,
             'metrc_rpt_wholesale.amount'::text AS source_a,
@@ -22020,63 +22031,78 @@ create or replace view public.v_cross_source_reconciliation as
             ( SELECT round(sum(w.amount)) AS round
                    FROM metrc_rpt_wholesale w
                   WHERE NOT COALESCE(w.voided, false) AND NOT (w.manifest_number IN ( SELECT metrc_rpt_package_transfers.manifest_number
-                           FROM metrc_rpt_package_transfers))) AS value_not_covered
+                           FROM metrc_rpt_package_transfers))) AS value_not_covered,
+            0::bigint AS after_export
         ), harvest_wet AS (
-         SELECT 'Harvest wet weight'::text AS "?column?",
-            'lb'::text AS "?column?",
-            'metrc_harvests.wet_weight (grams, API)'::text AS "?column?",
-            'metrc_rpt_harvests.wet_lb (pounds, report)'::text AS "?column?",
-            round((( SELECT sum(metrc_harvests.wet_weight) AS sum
-                   FROM metrc_harvests)) / 453.592, 1) AS round,
-            round(( SELECT sum(metrc_rpt_harvests.wet_lb) AS sum
-                   FROM metrc_rpt_harvests), 1) AS round,
+         SELECT 'Harvest wet weight'::text AS text,
+            'lb'::text AS text,
+            'metrc_harvests.wet_weight (grams, API, as at the export date)'::text AS text,
+            'metrc_rpt_harvests.wet_lb (pounds, report)'::text AS text,
+            round((( SELECT sum(a.wet_weight) AS sum
+                   FROM api_asof a)) / 453.592, 1) AS round,
+            round(( SELECT sum(r.wet_lb) AS sum
+                   FROM metrc_rpt_harvests r), 1) AS round,
             ( SELECT count(*) AS count
-                   FROM ( SELECT metrc_harvests.name
-                           FROM metrc_harvests
+                   FROM ( SELECT a.name
+                           FROM api_asof a
                         EXCEPT
-                         SELECT metrc_rpt_harvests.harvest_name
-                           FROM metrc_rpt_harvests) x) AS count,
+                         SELECT r.harvest_name
+                           FROM metrc_rpt_harvests r) x) AS count,
             ( SELECT count(*) AS count
-                   FROM ( SELECT metrc_rpt_harvests.harvest_name
-                           FROM metrc_rpt_harvests
+                   FROM ( SELECT r.harvest_name
+                           FROM metrc_rpt_harvests r
                         EXCEPT
-                         SELECT metrc_harvests.name
-                           FROM metrc_harvests) y) AS count,
-            NULL::numeric AS "numeric"
+                         SELECT h.name
+                           FROM metrc_harvests h) y) AS count,
+            NULL::numeric AS "numeric",
+            ( SELECT count(*) AS count
+                   FROM metrc_harvests h
+                     CROSS JOIN asof
+                  WHERE h.harvest_start > asof.d) AS count
         ), harvest_pkgs AS (
-         SELECT 'Harvest package count'::text AS "?column?",
-            'packages'::text AS "?column?",
-            'metrc_harvests.package_count (API)'::text AS "?column?",
-            'metrc_rpt_harvests.package_count (report)'::text AS "?column?",
-            ( SELECT sum(metrc_harvests.package_count) AS sum
-                   FROM metrc_harvests) AS sum,
-            round(( SELECT sum(metrc_rpt_harvests.package_count) AS sum
-                   FROM metrc_rpt_harvests)) AS round,
-            0 AS "?column?",
-            0 AS "?column?",
-            NULL::numeric AS "numeric"
-        ), harvest_rows AS (
-         SELECT 'Harvests held'::text AS "?column?",
-            'harvests'::text AS "?column?",
-            'metrc_harvests (API)'::text AS "?column?",
-            'metrc_rpt_harvests (report)'::text AS "?column?",
+         SELECT 'Harvest package count'::text AS text,
+            'packages'::text AS text,
+            'metrc_harvests.package_count (API, live)'::text AS text,
+            'metrc_rpt_harvests.package_count (report, point in time)'::text AS text,
+            ( SELECT sum(a.package_count) AS sum
+                   FROM api_asof a
+                     JOIN metrc_rpt_harvests r ON r.harvest_name = a.name) AS sum,
+            ( SELECT round(sum(r.package_count)) AS round
+                   FROM api_asof a
+                     JOIN metrc_rpt_harvests r ON r.harvest_name = a.name) AS round,
+            0::bigint AS int8,
+            0::bigint AS int8,
+            NULL::numeric AS "numeric",
             ( SELECT count(*) AS count
-                   FROM metrc_harvests) AS count,
+                   FROM metrc_harvests h
+                     JOIN metrc_rpt_harvests r ON r.harvest_name = h.name
+                  WHERE COALESCE(h.package_count, 0)::numeric <> COALESCE(r.package_count, 0::numeric) AND h.source_state <> 'active'::text) AS count
+        ), harvest_rows AS (
+         SELECT 'Harvests held'::text AS text,
+            'harvests'::text AS text,
+            'metrc_harvests (API, as at the export date)'::text AS text,
+            'metrc_rpt_harvests (report)'::text AS text,
+            ( SELECT count(*) AS count
+                   FROM api_asof) AS count,
             ( SELECT count(*) AS count
                    FROM metrc_rpt_harvests) AS count,
             ( SELECT count(*) AS count
-                   FROM ( SELECT metrc_harvests.name
-                           FROM metrc_harvests
+                   FROM ( SELECT a.name
+                           FROM api_asof a
                         EXCEPT
-                         SELECT metrc_rpt_harvests.harvest_name
-                           FROM metrc_rpt_harvests) x) AS count,
+                         SELECT r.harvest_name
+                           FROM metrc_rpt_harvests r) x) AS count,
             ( SELECT count(*) AS count
-                   FROM ( SELECT metrc_rpt_harvests.harvest_name
-                           FROM metrc_rpt_harvests
+                   FROM ( SELECT r.harvest_name
+                           FROM metrc_rpt_harvests r
                         EXCEPT
-                         SELECT metrc_harvests.name
-                           FROM metrc_harvests) y) AS count,
-            NULL::numeric AS "numeric"
+                         SELECT h.name
+                           FROM metrc_harvests h) y) AS count,
+            NULL::numeric AS "numeric",
+            ( SELECT count(*) AS count
+                   FROM metrc_harvests h
+                     CROSS JOIN asof
+                  WHERE h.harvest_start > asof.d) AS count
         ), all_facts AS (
          SELECT revenue.fact,
             revenue.unit,
@@ -22086,41 +22112,45 @@ create or replace view public.v_cross_source_reconciliation as
             revenue.overlap_b,
             revenue.only_in_a,
             revenue.only_in_b,
-            revenue.value_not_covered
+            revenue.value_not_covered,
+            revenue.after_export
            FROM revenue
         UNION ALL
-         SELECT harvest_wet."?column?",
-            harvest_wet."?column?_1" AS "?column?",
-            harvest_wet."?column?_2" AS "?column?",
-            harvest_wet."?column?_3" AS "?column?",
-            harvest_wet.round,
-            harvest_wet.round_1 AS round,
-            harvest_wet.count,
-            harvest_wet.count_1 AS count,
-            harvest_wet."numeric"
-           FROM harvest_wet harvest_wet("?column?", "?column?_1", "?column?_2", "?column?_3", round, round_1, count, count_1, "numeric")
+         SELECT hw.f,
+            hw.u,
+            hw.sa,
+            hw.sb,
+            hw.oa,
+            hw.ob,
+            hw.oia,
+            hw.oib,
+            hw.vnc,
+            hw.ae
+           FROM harvest_wet hw(f, u, sa, sb, oa, ob, oia, oib, vnc, ae)
         UNION ALL
-         SELECT harvest_pkgs."?column?",
-            harvest_pkgs."?column?_1" AS "?column?",
-            harvest_pkgs."?column?_2" AS "?column?",
-            harvest_pkgs."?column?_3" AS "?column?",
-            harvest_pkgs.sum,
-            harvest_pkgs.round,
-            harvest_pkgs."?column?_4" AS "?column?",
-            harvest_pkgs."?column?_5" AS "?column?",
-            harvest_pkgs."numeric"
-           FROM harvest_pkgs harvest_pkgs("?column?", "?column?_1", "?column?_2", "?column?_3", sum, round, "?column?_4", "?column?_5", "numeric")
+         SELECT hp.f,
+            hp.u,
+            hp.sa,
+            hp.sb,
+            hp.oa,
+            hp.ob,
+            hp.oia,
+            hp.oib,
+            hp.vnc,
+            hp.ae
+           FROM harvest_pkgs hp(f, u, sa, sb, oa, ob, oia, oib, vnc, ae)
         UNION ALL
-         SELECT harvest_rows."?column?",
-            harvest_rows."?column?_1" AS "?column?",
-            harvest_rows."?column?_2" AS "?column?",
-            harvest_rows."?column?_3" AS "?column?",
-            harvest_rows.count,
-            harvest_rows.count_1 AS count,
-            harvest_rows.count_2 AS count,
-            harvest_rows.count_3 AS count,
-            harvest_rows."numeric"
-           FROM harvest_rows harvest_rows("?column?", "?column?_1", "?column?_2", "?column?_3", count, count_1, count_2, count_3, "numeric")
+         SELECT hr.f,
+            hr.u,
+            hr.sa,
+            hr.sb,
+            hr.oa,
+            hr.ob,
+            hr.oia,
+            hr.oib,
+            hr.vnc,
+            hr.ae
+           FROM harvest_rows hr(f, u, sa, sb, oa, ob, oia, oib, vnc, ae)
         )
  SELECT fact,
     unit,
@@ -22138,10 +22168,15 @@ create or replace view public.v_cross_source_reconciliation as
     value_not_covered,
         CASE
             WHEN overlap_a IS NULL OR overlap_b IS NULL THEN 'CANNOT COMPARE'::text
-            WHEN overlap_a = overlap_b AND COALESCE(only_in_a, 0::bigint) = 0 AND COALESCE(only_in_b, 0::bigint) = 0 THEN 'RECONCILED — identical, and both sources cover the same population'::text
-            WHEN overlap_a = overlap_b THEN 'VALUES AGREE — but the sources cover different populations, see only_in_a / only_in_b'::text
+            WHEN overlap_a = overlap_b AND COALESCE(only_in_a, 0::bigint) = 0 AND COALESCE(only_in_b, 0::bigint) = 0 THEN 'RECONCILED — identical on the same population'::text ||
+            CASE
+                WHEN after_export > 0 THEN (', compared at the export date. '::text || after_export) || ' newer rows exist in the API; that is lag, not a defect.'::text
+                ELSE ''::text
+            END
             WHEN abs(overlap_b - overlap_a) < 1::numeric THEN 'RECONCILED — agree to within rounding'::text
-            ELSE 'DISAGREES — the same fact has two different values on the SAME population. This is a bug.'::text
+            WHEN fact = 'Harvest package count'::text AND after_export = 0 THEN (('ATTRIBUTE MOVED SINCE EXPORT — every harvest that differs is still OPEN and '::text || 'package_count rises as it is packaged out. A photograph cannot match a live '::text) || 'count on an unfinished harvest. Expected. It becomes a bug the day a FINISHED '::text) || 'harvest differs.'::text
+            WHEN overlap_a = overlap_b THEN 'VALUES AGREE — but the sources cover different populations, see only_in_a / only_in_b'::text
+            ELSE 'DISAGREES — survives time-alignment, so this is a real value difference. Investigate.'::text
         END AS verdict
    FROM all_facts
   ORDER BY fact;
