@@ -1,0 +1,28 @@
+#!/bin/sh
+# pre-push — the poison-commit guard. Installed via `git config core.hooksPath tools/githooks`.
+#
+# WHY THIS EXISTS. On 18 Aug 2026 a commit changed an edge function's source
+# (budz-chat) without the deploy being recorded in the manifest. The gates caught
+# it — but only AFTER the push, inside the Netlify build, so all eight builds that
+# morning died and the live site froze five hours behind main. The owner refreshed,
+# saw nothing, and was the detector again. His ruling: FIX PROPERLY.
+#
+# This runs the same edge-function-drift gate BEFORE the push leaves the machine,
+# in --committed mode: it judges what is actually being pushed (HEAD), never the
+# working tree, so agents' in-progress edits that are not in the push can never
+# block it. If this blocks you, the fix is exactly what the gate prints:
+# deploy the function, re-pin its hash in tools/checks/edge-function-manifest.json,
+# commit the pin, push again. Do NOT delete this hook to get a push through —
+# the same gate runs in the Netlify build and will freeze the site for everyone.
+set -e
+ROOT="$(git rev-parse --show-toplevel)"
+if ! node "$ROOT/tools/checks/edge-function-drift.mjs" --committed; then
+  echo ""
+  echo "pre-push: PUSH BLOCKED — the commit you are pushing changes an edge function"
+  echo "without recording its deploy. Pushed as-is, this exact state killed every"
+  echo "Netlify build for five hours on 18 Aug 2026. Fix it here, where it is cheap:"
+  echo "  1. deploy the changed function (or revert the source change)"
+  echo "  2. update its sha256 + deployed_version in tools/checks/edge-function-manifest.json"
+  echo "  3. commit the pin, then push again"
+  exit 1
+fi

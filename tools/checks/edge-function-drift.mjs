@@ -45,6 +45,7 @@
 import { readFileSync, existsSync, readdirSync } from "node:fs";
 import { Buffer } from "node:buffer";
 import { createHash } from "node:crypto";
+import { execFileSync } from "node:child_process";
 import { resolve, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -53,14 +54,42 @@ const root = resolve(here, "../..");
 const FN_DIR = join(root, "app/supabase/functions");
 const MANIFEST = join(here, "edge-function-manifest.json");
 
-if (!existsSync(MANIFEST)) {
+/* --committed: judge the COMMITTED tree (HEAD), not the working tree.
+ *
+ * WHY TWO MODES EXIST. On 18 Aug 2026 a commit changed budz-chat's source without
+ * the deploy being recorded. This gate caught it — in CI and inside the Netlify
+ * build, AFTER the push — so every one of the next eight site builds died and the
+ * live site froze for five hours while the owner refreshed and saw nothing.
+ *
+ * The pre-push hook (tools/githooks/pre-push) runs this mode BEFORE the push
+ * leaves the machine, so the poison commit is rejected while it is one keystroke
+ * to fix instead of a frozen production site. It must judge HEAD, not the working
+ * tree: agents keep in-progress edits in the tree that are not being pushed, and
+ * blocking a push over work that is not in it would teach everyone to bypass the
+ * hook. Default mode (working tree) stays for CI and Netlify, where tree == commit. */
+const COMMITTED = process.argv.includes("--committed");
+const gitShow = (p) => {
+  try {
+    return execFileSync("git", ["show", `HEAD:${p}`], { cwd: root, maxBuffer: 16 * 1024 * 1024, stdio: ["ignore", "pipe", "ignore"] })
+      .toString("utf8");
+  } catch { return null; }
+};
+
+/* In committed mode the manifest comes from HEAD too — judging HEAD's sources
+   against a working-tree manifest would let an uncommitted pin edit skew the verdict
+   in either direction. */
+const manifestRaw = COMMITTED
+  ? gitShow("tools/checks/edge-function-manifest.json")
+  : (existsSync(MANIFEST) ? readFileSync(MANIFEST, "utf8") : null);
+
+if (manifestRaw === null) {
   console.error("edge-function-drift: FAIL — no manifest.");
   console.error("      tools/checks/edge-function-manifest.json pins each function's source hash.");
   console.error("      Without it nothing can tell a deployed function from a stale one.\n");
   process.exit(1);
 }
 
-const manifest = JSON.parse(readFileSync(MANIFEST, "utf8"));
+const manifest = JSON.parse(manifestRaw);
 const pinned = manifest.functions ?? {};
 
 /* HASH THE CONTENT, NOT THE LINE ENDINGS.
@@ -78,10 +107,17 @@ const pinned = manifest.functions ?? {};
  *
  * Normalising CRLF to LF makes the answer identical everywhere. It changes no pinned
  * value: every hash already in the manifest was recorded from an LF checkout. */
-const sha = (p) =>
+const shaOf = (content) =>
   createHash("sha256")
-    .update(Buffer.from(readFileSync(p).toString("utf8").replace(/\r\n/g, "\n"), "utf8"))
+    .update(Buffer.from(content.replace(/\r\n/g, "\n"), "utf8"))
     .digest("hex");
+
+/* In committed mode the source of truth is HEAD; in default mode it is the tree. */
+const readSource = (slug) => {
+  if (COMMITTED) return gitShow(`app/supabase/functions/${slug}/index.ts`);
+  const p = join(FN_DIR, slug, "index.ts");
+  return existsSync(p) ? readFileSync(p).toString("utf8") : null;
+};
 
 const drifted = [];
 const untracked = [];
@@ -90,12 +126,12 @@ let redactedCount = 0;
 let matched = 0;
 
 for (const [slug, rec] of Object.entries(pinned)) {
-  const p = join(FN_DIR, slug, "index.ts");
-  if (!existsSync(p)) {
+  const body = readSource(slug);
+  if (body === null) {
     missing.push(slug);
     continue;
   }
-  const now = sha(p);
+  const now = shaOf(body);
   if (rec.redacted) redactedCount++;
   if (rec.sha256 && now !== rec.sha256) {
     drifted.push({ slug, redacted: !!rec.redacted, was: rec.sha256.slice(0, 12), now: now.slice(0, 12) });
@@ -105,14 +141,27 @@ for (const [slug, rec] of Object.entries(pinned)) {
 }
 
 /* A function added to the repo but never pinned is invisible to this check, which
-   is how the previous gate stayed green. Catch it. */
-for (const d of readdirSync(FN_DIR, { withFileTypes: true })) {
-  if (!d.isDirectory()) continue;
-  if (!existsSync(join(FN_DIR, d.name, "index.ts"))) continue;
-  if (!pinned[d.name]) untracked.push(d.name);
+   is how the previous gate stayed green. Catch it — in the same tree being judged. */
+if (COMMITTED) {
+  let names = [];
+  try {
+    /* trailing slash = list the directory's CHILDREN, not the directory itself */
+    names = execFileSync("git", ["ls-tree", "-d", "--name-only", "HEAD", "app/supabase/functions/"], { cwd: root })
+      .toString("utf8").split("\n").filter(Boolean).map((l) => l.split("/").pop());
+  } catch { /* no functions dir in HEAD — nothing to scan */ }
+  for (const name of names) {
+    if (gitShow(`app/supabase/functions/${name}/index.ts`) === null) continue;
+    if (!pinned[name]) untracked.push(name);
+  }
+} else {
+  for (const d of readdirSync(FN_DIR, { withFileTypes: true })) {
+    if (!d.isDirectory()) continue;
+    if (!existsSync(join(FN_DIR, d.name, "index.ts"))) continue;
+    if (!pinned[d.name]) untracked.push(d.name);
+  }
 }
 
-console.log(`edge-function-drift: ${Object.keys(pinned).length} pinned · ${matched} unchanged · ${redactedCount} redacted recovery copies`);
+console.log(`edge-function-drift: ${COMMITTED ? "judging COMMITTED tree (HEAD) · " : ""}${Object.keys(pinned).length} pinned · ${matched} unchanged · ${redactedCount} redacted recovery copies`);
 
 if (missing.length) {
   console.error(`\nedge-function-drift: FAIL — ${missing.length} pinned function(s) have no source file:\n`);

@@ -106,6 +106,22 @@ try {
   out.push("=".repeat(78));
 
   process.stdout.write(out.join("\n") + "\n");
+
+  /* SELF-ARM THE PRE-PUSH GUARD. tools/githooks/pre-push blocks the poison-commit
+     class that froze the site for five hours on 18 Aug 2026 (edge-function source
+     committed without its deploy recorded — eight red builds, owner was the
+     detector). core.hooksPath is per-clone config, so a fresh clone or a new
+     machine ships UNARMED unless something arms it. Every agent session starts
+     here, so this is the one place that reaches them all. Silent, idempotent,
+     and never blocks a session. */
+  try {
+    const { execFileSync } = await import("node:child_process");
+    const { fileURLToPath } = await import("node:url");
+    const { dirname, resolve } = await import("node:path");
+    const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
+    execFileSync("git", ["-C", repoRoot, "config", "core.hooksPath", "tools/githooks"],
+      { stdio: "ignore" });
+  } catch { /* not a git checkout, or git missing — nothing to arm */ }
 } catch (err) {
   /* Never block a session because the reminder failed. Say so and carry on. */
   process.stdout.write(
