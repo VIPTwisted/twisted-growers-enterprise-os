@@ -22,7 +22,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { supabase } from "./lib/supabase.js";
 import { DateRangeSelect } from "./App.jsx";
 import {
-  grab, listOf, DkTag, DkErr, DkEmpty, DkKpiStrip, DkDrill, DrillRoot, DkHead, useSectionStore,
+  useDefaultRange, grab, listOf, DkTag, DkErr, DkEmpty, DkKpiStrip, DkDrill, DrillRoot, DkHead, useSectionStore,
   useWidgetLayout, Widget, WidgetBoard, WidgetBarControls, DkReports,
 } from "./dashkit.jsx";
 import {
@@ -109,6 +109,9 @@ export default function HarvestLifecycle({ go, session, role, viewAs, reports })
   const layout = useWidgetLayout(PAGE_KEY, WIDGETS);
   const measures = useCultMeasures();
   const [range, setRange] = useState({ from: "", to: "" });
+  /* Opens on the company default (this month) rather than all history —
+     owner charter, 19 Aug 2026: no page may show all history by default. */
+  useDefaultRange(session, VIEW_KEY, setRange);
   const [d, setD] = useState(null);
   const [openKpi, setOpenKpi] = useState(null);
   const [ver, setVer] = useState(0);

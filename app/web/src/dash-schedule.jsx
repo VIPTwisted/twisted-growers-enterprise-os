@@ -83,7 +83,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "./lib/supabase.js";
 import { DateRangeSelect, AssignTask } from "./App.jsx";
 import {
-  grab, listOf, DkTag, DkErr, DkEmpty, DkDrill, DrillRoot, DkCaret, DkHead, dkFmt,
+  useDefaultRange, grab, listOf, DkTag, DkErr, DkEmpty, DkDrill, DrillRoot, DkCaret, DkHead, dkFmt,
   dkRoomQualified, useWidgetLayout, Widget, WidgetBoard, WidgetBarControls,
   useSectionStore, DkNarrative, DkTasks, DkReports,
 } from "./dashkit.jsx";
@@ -1295,6 +1295,9 @@ function DrillContract({ rows, err }) {
 export default function ScheduleAdherenceDashboard({ go, session, reports, role, viewAs, onViewAs, isAdmin, viewRoles }) {
   const store = useSectionStore(session && session.user ? session.user.id : null, VIEW_KEY);
   const [range, setRange] = useState({ from: "", to: "" });
+  /* Opens on the company default (this month) rather than all history —
+     owner charter, 19 Aug 2026: no page may show all history by default. */
+  useDefaultRange(session, VIEW_KEY, setRange);
   const [period, setPeriod] = useState("year");
   const [trendPeriod, setTrendPeriod] = useState("quarter");
   const [trendMeasure, setTrendMeasure] = useState("days_late");
