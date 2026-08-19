@@ -5,7 +5,9 @@ import { fileURLToPath } from "node:url";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const read = (path) => readFileSync(resolve(root, path), "utf8");
-const migration = read("supabase/migrations/20260819195000_moisture_basis_is_explicit_and_goal_is_editable.sql");
+const migration = read("supabase/migrations/20260819195737_moisture_basis_is_explicit_and_goal_is_editable.sql");
+const hardening = read("supabase/migrations/20260819195858_business_rule_surface_is_read_only_configuration.sql");
+const indexMigration = read("supabase/migrations/20260819200109_index_business_rule_surface_rule_key.sql");
 const register = read("app/web/src/cult-moisture-register.jsx");
 const editor = read("app/web/src/business-rule-editor.jsx");
 const app = read("app/web/src/App.jsx");
@@ -25,6 +27,10 @@ requireText(migration, "f_rule('moisture_loss_goal_pct')", "moisture consumers s
 requireText(migration, "f_rule('fresh_frozen_wet_to_dry')", "fresh-frozen dry-equivalent stopped reading the editable ratio");
 requireText(migration, "null::numeric as evaporated_lb", "legacy evaporation total is no longer quarantined");
 requireText(migration, "DERIVED RESIDUAL", "database stopped disclosing that moisture is derived rather than sensed");
+requireText(hardening, "revoke all on table public.business_rule_surface from anon", "anonymous privileges remain on the rule-surface registry");
+requireText(hardening, "revoke insert, update, delete, truncate, references, trigger", "authenticated rule-surface access is broader than read-only");
+requireText(hardening, "grant select on table public.business_rule_surface to authenticated", "authenticated users cannot read the data-owned rule mapping");
+requireText(indexMigration, "business_rule_surface_rule_key_idx", "rule-surface foreign key has no covering index");
 
 if (/coalesce\s*\(\s*m\.moisture_loss_lb\s*,\s*0\s*\)\s*=\s*0[\s\S]{0,100}fresh frozen/i.test(migration)) {
   failures.push("zero residual again classifies fresh frozen; six live freezer/FF rows disprove that rule");

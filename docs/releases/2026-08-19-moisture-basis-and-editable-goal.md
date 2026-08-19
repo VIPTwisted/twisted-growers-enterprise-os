@@ -15,7 +15,7 @@ The editable company goal is therefore 74.9%. The existing 70–77% management t
 
 ## Files and behavior
 
-### `supabase/migrations/20260819195000_moisture_basis_is_explicit_and_goal_is_editable.sql`
+### `supabase/migrations/20260819195737_moisture_basis_is_explicit_and_goal_is_editable.sql`
 
 **Before:** Fresh frozen was inferred from zero residual, packaged wet pounds could be labelled dry yield, residual was called evaporated water, and several unit/yield thresholds were SQL literals.
 
@@ -30,6 +30,10 @@ The editable company goal is therefore 74.9%. The existing 70–77% management t
 **Change:** Rule membership is Supabase data, ordered by rows in `business_rule_surface`.
 
 **Behavior now:** Adding or removing a moisture rule from this section is a governed data change. The frontend reads the registered surface.
+
+The follow-up migration `20260819195858_business_rule_surface_is_read_only_configuration.sql` removes Supabase's default anonymous and authenticated write privileges from the new registry and view. Application users receive SELECT only; governance/service operations own configuration changes.
+
+The post-DDL performance advisor identified the registry's rule-key foreign key as unindexed. `20260819200109_index_business_rule_surface_rule_key.sql` adds the covering index before release.
 
 ### `app/web/src/business-rule-editor.jsx`
 
