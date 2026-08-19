@@ -15,6 +15,7 @@ keeps it growing. Plain English throughout.
 | [OWNER_CHARTER.md](OWNER_CHARTER.md) | **What the OS is,** issued 19 Aug 2026, and the measured state of each engine against it. Where an object contradicts the charter, the object is wrong. |
 | [OPERATING_LAWS.md](OPERATING_LAWS.md) | **How an agent is permitted to work,** issued 19 Aug 2026. Ten laws: never invent structure, live numbers only, no fake data, nothing hardwired, state defects plainly, never hallucinate. Includes the written reading of where Law 1 binds and where it does not. |
 | [MASTER_BUILD.md](MASTER_BUILD.md) | The owner's master build document with measured status per section. |
+| [PAGE_TEMPLATE.md](PAGE_TEMPLATE.md) | **How every page is built.** The owner's template of 19 Aug 2026, corrected against the live source — the issued draft called `grab` as a fetcher, named five drills that do not exist, and omitted the one prop that makes the stale-figure guard fire. Build from this, not from memory. |
 
 The brain never restates their numbers. Numbers go stale within a day here —
 HANDOFF.md says so itself. The brain tells you **where the truth lives** and
