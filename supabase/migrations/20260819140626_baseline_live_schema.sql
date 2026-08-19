@@ -7241,7 +7241,7 @@ alter table public.supply_consumption_rule add constraint consumption_scope_key_
 alter table public.supply_consumption_rule add constraint supply_consumption_rule_driver_check CHECK ((driver = ANY (ARRAY['units_sold'::text, 'units_manufactured'::text, 'plants_grown'::text, 'lb_packaged'::text, 'lb_harvested'::text])));
 alter table public.supply_consumption_rule add constraint supply_consumption_rule_scope_check CHECK ((scope = ANY (ARRAY['brand'::text, 'product_line'::text, 'category'::text, 'global'::text])));
 alter table public.supply_items add constraint supply_items_cadence_kind_check CHECK ((cadence_kind = ANY (ARRAY['on_demand'::text, 'daily'::text, 'weekly'::text, 'monthly'::text, 'quarterly'::text, 'annually'::text, 'per_harvest'::text, 'per_pull'::text, 'per_batch'::text])));
-alter table public.tag_event add constraint tag_event_event_type_check CHECK ((event_type = ANY (ARRAY['packaged'::text, 'received'::text, 'shipped'::text, 'tested'::text, 'location_change'::text, 'sold'::text, 'trade'::text, 'adjusted'::text])));
+alter table public.tag_event add constraint tag_event_event_type_check CHECK ((event_type = ANY (ARRAY['packaged'::text, 'received'::text, 'shipped'::text, 'tested'::text, 'location_change'::text, 'sold'::text, 'trade'::text, 'adjusted'::text, 'planting'::text, 'harvest'::text, 'destruction'::text])));
 alter table public.task_comment add constraint task_comment_body_check CHECK ((length(btrim(body)) > 0));
 alter table public.task_dependencies add constraint task_dependencies_dep_type_check CHECK ((dep_type = ANY (ARRAY['finish_to_start'::text, 'start_to_start'::text, 'finish_to_finish'::text])));
 alter table public.task_dependencies add constraint task_dependencies_no_self_reference CHECK ((task_id IS DISTINCT FROM depends_on_id));
@@ -9186,35 +9186,6 @@ where e.tag = p_tag
 order by e.event_at, e.id;
 $function$
 ;
-CREATE OR REPLACE FUNCTION public.f_drill_events(p_tag text)
- RETURNS TABLE(seq integer, event_at timestamp with time zone, event_type text, what text, stage text, room text, qty numeric, uom text, counterparty text, manifest_no text, document_link text, source_system text, recorded_by text)
- LANGUAGE sql
- STABLE PARALLEL SAFE
- SET search_path TO 'public', 'pg_temp'
-AS $function$
-select row_number() over (order by e.event_at, e.id)::integer as seq,
-       e.event_at, e.event_type,
-       case e.event_type
-         when 'packaged'        then 'Package created and tagged'
-         when 'tested'          then 'Laboratory result recorded'
-         when 'received'        then 'Received under a manifest'
-         when 'location_change' then 'Moved to ' || coalesce(e.location,'another room')
-         else initcap(replace(e.event_type,'_',' ')) end as what,
-       e.stage, e.location as room, e.qty, e.uom,
-       coalesce(e.counterparty_licence, e.cultivator_name, e.manufacturer_name) as counterparty,
-       e.manifest_number as manifest_no,
-       coalesce(
-         (select d.storage_path from metrc_documents d
-           where d.manifest_number = e.manifest_number and d.doc_type ilike '%manifest%' limit 1),
-         case when e.event_type='tested' then (select td.coa_document_link from mv_tag_documents td where td.tag = e.tag) end
-       ) as document_link,
-       e.source as source_system,
-       coalesce(e.attribution_source, e.source) as recorded_by
-from tag_event e
-where e.tag = p_tag
-order by e.event_at, e.id;
-$function$
-;
 CREATE OR REPLACE FUNCTION public.f_drill_stays(p_tag text, p_from date DEFAULT NULL::date, p_to date DEFAULT NULL::date)
  RETURNS SETOF v_tag_stay
  LANGUAGE sql
@@ -9229,13 +9200,6 @@ AS $function$
     and (p_to   is null or s.start_timestamp < (p_to + 1)::timestamptz)
   order by s.stay_no;
 $function$
-;
-CREATE OR REPLACE FUNCTION public.f_drill_stays(p_tag text)
- RETURNS SETOF v_tag_stay
- LANGUAGE sql
- STABLE PARALLEL SAFE
- SET search_path TO 'public', 'pg_temp'
-AS $function$ select * from public.v_tag_stay where tag = p_tag order by stay_no $function$
 ;
 CREATE OR REPLACE FUNCTION public.f_drill_tags(p_filter jsonb DEFAULT '{}'::jsonb)
  RETURNS TABLE(tag text, item_name text, category text, strain text, licence text, room text, stage text, lab_state text, lb numeric, units numeric, packaged_on date, days_held integer, closed boolean, origin text, source_harvest text, coa_certificate_id text, coa_document_link text, manifest_no text, manifest_document_link text, apex_invoice_no text, apex_invoice_usd numeric, where_to_audit text)
@@ -18014,22 +17978,6 @@ begin
   return v_id;
 end $function$
 ;
-CREATE OR REPLACE FUNCTION public.tg_refresh_dashboards()
- RETURNS void
- LANGUAGE plpgsql
- SECURITY DEFINER
- SET search_path TO 'public'
-AS $function$
-begin
-  refresh materialized view concurrently mv_department_dashboard_base;
-  refresh materialized view concurrently mv_dept_dash_supplement;
-  refresh materialized view concurrently mv_global_management;
-  refresh materialized view concurrently mv_harvest_dry_stats;
-  refresh materialized view concurrently mv_flow_stages;
-  refresh materialized view concurrently mv_room_board;
-  refresh materialized view concurrently mv_tag_evidence;
-end $function$
-;
 CREATE OR REPLACE FUNCTION public.tg_refresh_dashboards(p_by text DEFAULT 'cron'::text)
  RETURNS jsonb
  LANGUAGE plpgsql
@@ -18071,6 +18019,22 @@ begin
     'note', case when v_fail = 0 then 'all views current'
                  else 'One or more views are STALE and the page must say so. '
                       || 'See matview_refresh_run for the error.' end);
+end $function$
+;
+CREATE OR REPLACE FUNCTION public.tg_refresh_dashboards()
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  refresh materialized view concurrently mv_department_dashboard_base;
+  refresh materialized view concurrently mv_dept_dash_supplement;
+  refresh materialized view concurrently mv_global_management;
+  refresh materialized view concurrently mv_harvest_dry_stats;
+  refresh materialized view concurrently mv_flow_stages;
+  refresh materialized view concurrently mv_room_board;
+  refresh materialized view concurrently mv_tag_evidence;
 end $function$
 ;
 CREATE OR REPLACE FUNCTION public.tg_refresh_harvest_links()
@@ -41801,6 +41765,9 @@ create or replace view public.v_gap_system as
                     WHEN 'package_create'::text THEN 'packaged'::text
                     WHEN 'lab_test'::text THEN 'tested'::text
                     WHEN 'transfer_in'::text THEN 'received'::text
+                    WHEN 'transfer_out'::text THEN 'shipped'::text
+                    WHEN 'sale'::text THEN 'sold'::text
+                    WHEN 'adjustment'::text THEN 'adjusted'::text
                     ELSE r.spec_type
                 END AS ledger_type
            FROM required_types r
@@ -41808,7 +41775,7 @@ create or replace view public.v_gap_system as
  SELECT 'missing_event_types'::text AS gap_type,
     'critical'::text AS severity,
     m.spec_type AS subject,
-    (((('The specification requires a '::text || m.spec_type) || ' event; the ledger has recorded none '::text) || '(expected as "'::text) || m.ledger_type) || '").'::text AS description,
+    (((('The specification requires a '::text || m.spec_type) || ' event; the ledger has recorded none '::text) || '(this schema calls it "'::text) || m.ledger_type) || '").'::text AS description,
     'Promote this fact from the mirror into tag_event so the tag timeline is complete. Every '::text || 'gate that depends on it stays blind until then.'::text AS required_action
    FROM mapped m
   WHERE NOT (EXISTS ( SELECT 1
