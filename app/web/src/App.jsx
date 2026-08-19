@@ -6,6 +6,7 @@ import {
   saveDateDefault as persistDateDefault,
 } from "./lib/date-range.js";
 import {
+  dateSelectionLabel,
   dateUpperExclusive,
   matchingDatePreset,
   normaliseDateRange,
@@ -1413,7 +1414,7 @@ export function DateRangeSelect({
     } catch (error) { setSaveStatus(`The date default was not saved: ${error.message}`); }
   };
   const customActive = !quick.some((row) => row.preset_key === activeKey);
-  const customLabel = customActive && (from || to) ? `${from || "…"} → ${to || "…"}` : "Custom";
+  const customLabel = dateSelectionLabel(selected, customActive, from, to);
   const groups = presets ? [...new Set(presets.map((row) => row.group_label || "Other"))] : [];
   const seeded = useRef(false);
   useEffect(() => {

@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
+  dateSelectionLabel,
   dateUpperExclusive,
   matchingDatePreset,
   normaliseDateRange,
@@ -34,6 +35,19 @@ test("validates and matches the database-owned preset catalog", () => {
   assert.equal(matchingDatePreset(rows, "2026-08-01", "2026-08-31", "this_month").preset_key, "this_month");
   assert.equal(matchingDatePreset(rows, "2026-08-04", "2026-08-20", null), null);
   assert.throws(() => validateDatePresetCatalog([...catalog, catalog[0]]), /Duplicate/);
+});
+
+test("shows the governed preset label instead of calling its dates Custom", () => {
+  assert.equal(dateSelectionLabel({
+    preset_key: "this_month_td",
+    label: "This Month-to-date",
+    manual_mode: "none",
+  }, true, "2026-08-01", "2026-08-19"), "This Month-to-date");
+  assert.equal(dateSelectionLabel({
+    preset_key: "custom",
+    label: "Custom",
+    manual_mode: "both",
+  }, true, "2026-08-03", "2026-08-12"), "2026-08-03 → 2026-08-12");
 });
 
 test("rejects a malformed governed default instead of querying all history", () => {

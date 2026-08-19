@@ -59,6 +59,13 @@ export function matchingDatePreset(rows, from, to, preferredKey) {
   return rows.find((row) => row.manual_mode === "none" && matches(row)) ?? null;
 }
 
+export function dateSelectionLabel(selected, customActive, from, to) {
+  if (!customActive) return "Custom";
+  if (selected?.manual_mode === "none" && selected.label) return selected.label;
+  if (from || to) return `${from || "…"} → ${to || "…"}`;
+  return selected?.label || "Custom";
+}
+
 export function validateResolvedDefault(data) {
   const governedKey = data?.governed_preset_key ?? data?.preset_key;
   if (!data || typeof governedKey !== "string" || !governedKey) {

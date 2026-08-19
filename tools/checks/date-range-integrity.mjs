@@ -79,6 +79,9 @@ export function inspectDateIntegrity(files) {
     for (const line of dateInputs) if (!/editDate\(["'](?:from|to)["']/.test(line)) {
       findings.push("a manual date edit bypasses the shared preset/save state");
     }
+    if (!/dateSelectionLabel\(selected, customActive, from, to\)/.test(app.source)) {
+      findings.push("the shared date control can label a governed preset as Custom");
+    }
     if (!/f_schedule_cost_range/.test(app.source)) {
       const schedule = files.find((file) => file.name.endsWith("dash-schedule.jsx"));
       if (!schedule || !/f_schedule_cost_range/.test(schedule.source)) {
@@ -97,6 +100,7 @@ function selfTest() {
     { name: "App.jsx", source: [
       '<input aria-label="From date" onChange={() => editDate("from")} />',
       '<input aria-label="To date" onChange={() => editDate("to")} />',
+      'dateSelectionLabel(selected, customActive, from, to)',
     ].join("\n") },
   ];
   const badFallback = [
@@ -107,11 +111,19 @@ function selfTest() {
     name: "App.jsx",
     source: '<input aria-label="From date" onChange={setFrom} />\n<input aria-label="To date" onChange={setTo} />',
   }];
+  const badLabel = [good[0], good[1], good[2], {
+    name: "App.jsx",
+    source: [
+      '<input aria-label="From date" onChange={() => editDate("from")} />',
+      '<input aria-label="To date" onChange={() => editDate("to")} />',
+    ].join("\n"),
+  }];
 
   const failures = [];
   if (inspectDateIntegrity(good).length) failures.push("rejected the valid contract");
   if (!inspectDateIntegrity(badFallback).some((item) => item.includes("all-time"))) failures.push("missed the forbidden fallback");
   if (!inspectDateIntegrity(badCustom).some((item) => item.includes("preset/save state"))) failures.push("missed unsaved custom dates");
+  if (!inspectDateIntegrity(badLabel).some((item) => item.includes("governed preset as Custom"))) failures.push("missed a mislabeled governed preset");
   if (failures.length) throw new Error(`date-range-integrity self-test failed: ${failures.join("; ")}`);
   console.log("date-range-integrity: detector self-test passed (positive and negative fixtures).\n");
 }
