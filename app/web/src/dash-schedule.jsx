@@ -81,6 +81,7 @@
    ═══════════════════════════════════════════════════════════════════════════ */
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "./lib/supabase.js";
+import { dateUpperExclusive } from "./lib/date-range-core.js";
 import { DateRangeSelect, AssignTask } from "./App.jsx";
 import {
   useDefaultRange, grab, listOf, DkTag, DkErr, DkEmpty, DkDrill, DrillRoot, DkCaret, DkHead, dkFmt,
@@ -151,22 +152,6 @@ const PERIODS = [
   { key: "quarter", label: "This quarter" },
   { key: "year", label: "This year" },
 ];
-
-/* Which period each chip means, resolved from this device's clock. It picks
-   WHICH SERVED ROW to show and computes no figure. The three period columns on
-   v_schedule_cost_detail are truncated to the first of the month, of the
-   quarter and of the year, so the same three keys address both views. */
-const MONTHS_IN_QUARTER = 3;
-function currentPeriodStarts(now) {
-  const yr = now.getFullYear();
-  const mo = now.getMonth();
-  const first = (y, m) => `${y}-${String(m + 1).padStart(2, "0")}-01`;
-  return {
-    month: first(yr, mo),
-    quarter: first(yr, Math.floor(mo / MONTHS_IN_QUARTER) * MONTHS_IN_QUARTER),
-    year: first(yr, 0),
-  };
-}
 
 const D = (v) => (v === null || v === undefined || v === "" ? null : String(v).slice(0, 10));
 const NUM1 = (v) => Number(v).toLocaleString(undefined, { maximumFractionDigits: 1 });
@@ -251,22 +236,22 @@ function OpenCorrections({ rows, err }) {
    stood · and, where a period carries no row at all, the WORD for that rather
    than a zero this page made up.
    ═══════════════════════════════════════════════════════════════════════════ */
-function KeyFigures({ row, periodKey, periodStart, targets, openKey, onOpen, onAssigned, pastDue }) {
+function KeyFigures({ row, periodKey, periodStart, periodLabel, targets, openKey, onOpen, onAssigned, pastDue }) {
   const present = MEASURES.filter((m) => row === null || Object.prototype.hasOwnProperty.call(row, m.col));
   /* Anything the view serves that this page cannot render. Named, never dropped. */
   const unrendered = row
     ? Object.keys(row).filter((k) => !KNOWN_COLS.has(k) && !k.endsWith("_basis"))
     : [];
   const noTarget = present.filter((m) => !m.targetKpi || !targets[m.targetKpi] || targets[m.targetKpi].target == null).length;
-  const periodName = periodText(periodKey, periodStart);
+  const periodName = periodLabel ?? periodText(periodKey, periodStart);
   return (
     <div className="cc-kpiwrap">
       <div className="cc-striphead">
         <span className="cc-striplabel">Key figures — {periodName}</span>
         <DkTag tone="neutral">{present.length + 1} figures</DkTag>
         <DkTag tone="info"
-          title="Read from v_schedule_cost_by_period, one row per period, computed by the database at the moment this page asked for it. They honour the period picked above. Nothing on this page is aggregated in the browser.">
-          period-scoped, computed by the database ⓘ
+          title="Read from f_schedule_cost_range, recomputed by the database from the cost-detail rows for the exact dates showing above. Nothing on this page is aggregated in the browser.">
+          date-scoped, computed by the database ⓘ
         </DkTag>
         {noTarget > 0 && (
           <DkTag tone="attn"
@@ -276,7 +261,7 @@ function KeyFigures({ row, periodKey, periodStart, targets, openKey, onOpen, onA
         )}
         {unrendered.map((k) => (
           <DkTag key={k} tone="crit"
-            title={`v_schedule_cost_by_period now serves a column called “${k}” and this page has no tile for it, so its figure is NOT on screen. Nothing was dropped quietly — this chip is the reason it is missing. Add it to the MEASURES registry in dash-schedule.jsx.`}>
+            title={`f_schedule_cost_range now serves a column called “${k}” and this page has no tile for it, so its figure is NOT on screen. Nothing was dropped quietly — this chip is the reason it is missing. Add it to the MEASURES registry in dash-schedule.jsx.`}>
             served but not rendered: “{k}” ⓘ
           </DkTag>
         ))}
@@ -325,7 +310,7 @@ function KeyFigures({ row, periodKey, periodStart, targets, openKey, onOpen, onA
                 )}
                 <span className="cc-kpi-ctx">
                   {missing
-                    ? `No pull was harvested late in ${periodName}. v_schedule_cost_by_period carries a row only for a period in which one was, so this is an ABSENCE OF ROWS and not a zero this page worked out. Press to see that for yourself.`
+                    ? `No pull was harvested late in ${periodName}. The database aggregate found no cost-detail rows in that exact range. Press to see the empty evidence list for yourself.`
                     : m.what}
                 </span>
                 {m.unit === "$" && !basis && (
@@ -411,14 +396,16 @@ function KeyFigures({ row, periodKey, periodStart, targets, openKey, onOpen, onA
    shows the VIEW'S OWN sentence saying so — never a blank and never a dash.
    ═══════════════════════════════════════════════════════════════════════════ */
 const DETAIL_PAGE = 100;
-function useLatePulls(filterCol, filterVal) {
+function useLatePulls(filterCol, filterVal, from, to) {
   const [state, setState] = useState({ rows: null, total: null, err: null });
   const [pages, setPages] = useState(1);
-  useEffect(() => { setPages(1); }, [filterCol, filterVal]);
+  useEffect(() => { setPages(1); }, [filterCol, filterVal, from, to]);
   useEffect(() => {
     let live = true;
     let q = supabase.from("v_schedule_cost_detail").select("*", { count: "exact" });
     if (filterCol && filterVal) q = q.eq(filterCol, filterVal);
+    if (from) q = q.gte("scheduled_date", from);
+    if (to) q = q.lt("scheduled_date", dateUpperExclusive(to));
     q.order("scheduled_date", { ascending: false })
       .range(0, pages * DETAIL_PAGE - 1)
       .then(({ data, error, count }) => {
@@ -427,7 +414,7 @@ function useLatePulls(filterCol, filterVal) {
         setState({ rows: listOf(data), total: count === null ? null : Number(count), err: null });
       });
     return () => { live = false; };
-  }, [filterCol, filterVal, pages]);
+  }, [filterCol, filterVal, from, to, pages]);
   const more = useCallback(() => setPages((p) => p + 1), []);
   return { rows: state.rows, total: state.total, err: state.err, more };
 }
@@ -513,8 +500,8 @@ function LatePullTable({ rows, total, err, onMore, deptOf, variance, onRecord, w
   );
 }
 
-function LatePulls({ filterCol, filterVal, what, deptOf, variance, onRecord }) {
-  const q = useLatePulls(filterCol, filterVal);
+function LatePulls({ filterCol, filterVal, from, to, what, deptOf, variance, onRecord }) {
+  const q = useLatePulls(filterCol, filterVal, from, to);
   return (
     <LatePullTable rows={q.rows} total={q.total} err={q.err} onMore={q.more}
       deptOf={deptOf} variance={variance} onRecord={onRecord} what={what} />
@@ -1297,8 +1284,7 @@ export default function ScheduleAdherenceDashboard({ go, session, reports, role,
   const [range, setRange] = useState({ from: "", to: "" });
   /* Opens on the company default (this month) rather than all history —
      owner charter, 19 Aug 2026: no page may show all history by default. */
-  useDefaultRange(session, VIEW_KEY, setRange);
-  const [period, setPeriod] = useState("year");
+  const dateDefault = useDefaultRange(session, VIEW_KEY, setRange);
   const [trendPeriod, setTrendPeriod] = useState("quarter");
   const [trendMeasure, setTrendMeasure] = useState("days_late");
   const [openKey, setOpenKey] = useState(null);
@@ -1323,22 +1309,33 @@ export default function ScheduleAdherenceDashboard({ go, session, reports, role,
     { key: "reports", title: "Reports — by group", span: 2 },
   ], []);
   const layout = useWidgetLayout(PAGE_KEY, WIDGETS);
-  const starts = useMemo(() => currentPeriodStarts(new Date()), []);
   const reload = useCallback(() => setVer((v) => v + 1), []);
 
   useEffect(() => {
+    if (!dateDefault.ready) return undefined;
     let live = true;
     (async () => {
-      const [periods, compliance, adherence, variance, revisions, rooms, turns, takedowns,
+      const ranged = (query, column) => {
+        let result = query;
+        if (range.from) result = result.gte(column, range.from);
+        if (range.to) result = result.lt(column, dateUpperExclusive(range.to));
+        return result;
+      };
+      const [periods, rangeCost, compliance, adherence, variance, revisions, rooms, turns, takedowns,
         codes, targets, corrections, contract, tasks, planned] = await Promise.all([
         supabase.from("v_schedule_cost_by_period").select("*"),
-        supabase.from("v_schedule_compliance").select("*").order("scheduled_date", { ascending: false }),
-        supabase.from("v_schedule_adherence").select("adherence").eq("is_unmeasured", true).limit(1),
-        supabase.from("v_schedule_variance").select("*"),
-        supabase.from("v_schedule_revisions").select("*").order("revised_at", { ascending: false, nullsFirst: false }),
+        supabase.rpc("f_schedule_cost_range", { p_from: range.from || null, p_to: range.to || null }),
+        ranged(supabase.from("v_schedule_compliance").select("*"), "scheduled_date")
+          .order("scheduled_date", { ascending: false }),
+        ranged(supabase.from("v_schedule_adherence").select("adherence").eq("is_unmeasured", true), "scheduled_date").limit(1),
+        ranged(supabase.from("v_schedule_variance").select("*"), "scheduled_date"),
+        ranged(supabase.from("v_schedule_revisions").select("*"), "revised_at")
+          .order("revised_at", { ascending: false, nullsFirst: false }),
         supabase.from("v_room_board_complete").select("room, department, licence, is_flower_room"),
-        supabase.from("v_room_turn_audit").select("*").order("harvest_started", { ascending: false }),
-        supabase.from("v_harvest_takedown").select("*").order("takedown_start", { ascending: false }),
+        ranged(supabase.from("v_room_turn_audit").select("*"), "harvest_started")
+          .order("harvest_started", { ascending: false }),
+        ranged(supabase.from("v_harvest_takedown").select("*"), "takedown_start")
+          .order("takedown_start", { ascending: false }),
         supabase.from("reason_code_catalog").select("*").contains("applies_to", ["schedule_variance"]).eq("active", true).order("sort_order"),
         supabase.from("kpi_targets").select("*").eq("department", DEPT),
         supabase.from("correction_proposal").select("*").ilike("target_object", CORRECTION_TARGET).is("applied_at", null).order("raised_at", { ascending: false }),
@@ -1348,7 +1345,7 @@ export default function ScheduleAdherenceDashboard({ go, session, reports, role,
       ]);
       if (!live) return;
       setD({
-        periods: grab(periods), compliance: grab(compliance), adherence: grab(adherence),
+        periods: grab(periods), rangeCost: grab(rangeCost), compliance: grab(compliance), adherence: grab(adherence),
         variance: grab(variance), revisions: grab(revisions), rooms: grab(rooms),
         turns: grab(turns), takedowns: grab(takedowns), codes: grab(codes), targets: grab(targets),
         corrections: grab(corrections), contract: grab(contract), tasks: grab(tasks),
@@ -1356,9 +1353,12 @@ export default function ScheduleAdherenceDashboard({ go, session, reports, role,
       });
     })();
     return () => { live = false; };
-  }, [ver]);
+  }, [ver, range.from, range.to, dateDefault.ready]);
 
-  if (d === null) {
+  if (dateDefault.error) {
+    return <div className="ccpage"><DkErr what="The governed date range" err={dateDefault.error} /></div>;
+  }
+  if (!dateDefault.ready || d === null) {
     return (
       <div className="ccpage">
         <div className="cc-fine" style={{ padding: 16 }}>
@@ -1372,8 +1372,10 @@ export default function ScheduleAdherenceDashboard({ go, session, reports, role,
   const flowerRooms = d.rooms.rows.filter((r) => r.is_flower_room === true);
   const varianceByKey = new Map(d.variance.rows.map((r) => [rowKey(r.room, D(r.scheduled_date)), r]));
   const targetByKpi = Object.fromEntries(d.targets.rows.map((r) => [r.kpi, r]));
-  const periodStart = starts[period];
-  const periodRow = d.periods.rows.find((r) => r.period_type === period && D(r.period_start) === periodStart);
+  const rangeLabel = range.from || range.to
+    ? `${range.from || "earliest record"} through ${range.to || "latest record"}`
+    : "all dates";
+  const periodRow = d.rangeCost.rows[0] ?? null;
   const openMeasure = MEASURES.find((m) => m.col === openKey);
   const trendM = MEASURES.find((m) => m.col === trendMeasure);
   const openTasks = d.tasks.rows.filter((t) => t.department === DEPT);
@@ -1432,7 +1434,8 @@ export default function ScheduleAdherenceDashboard({ go, session, reports, role,
           <div className="cc-tools-c">
             <DateRangeSelect label="Dates" from={range.from} to={range.to}
               onFrom={(v) => setRange((p) => ({ ...p, from: v }))}
-              onTo={(v) => setRange((p) => ({ ...p, to: v }))} />
+              onTo={(v) => setRange((p) => ({ ...p, to: v }))}
+              presetKey={dateDefault.presetKey} session={session} viewKey={VIEW_KEY} allowSave />
           </div>
           <div className="cc-tools-r">
             <button className="cc-btn" type="button" onClick={reload} title="Read every view on this page again">↻ refresh</button>
@@ -1444,23 +1447,10 @@ export default function ScheduleAdherenceDashboard({ go, session, reports, role,
         {/* THE CAVEAT COMES FIRST, ABOVE THE FIGURES IT QUALIFIES. */}
         <OpenCorrections rows={d.corrections.rows} err={d.corrections.err} />
 
-        <div className="sch-pickrow">
-          <span className="sch-picklab">Show</span>
-          {PERIODS.map((p) => (
-            <button key={p.key} className={`cc-btn ${period === p.key ? "primary" : ""}`} type="button"
-              onClick={() => { setPeriod(p.key); setOpenKey(null); }}
-              aria-pressed={period === p.key}
-              title={`${p.label} — ${periodText(p.key, starts[p.key])}. Resolved from this device's clock, then matched against the periods the database serves.`}>
-              {p.label}
-            </button>
-          ))}
-          <span className="sch-picklab">{periodText(period, periodStart)}</span>
-        </div>
-
-        {d.periods.err
-          ? <DkErr what="The period figures" err={d.periods.err} />
+        {d.rangeCost.err
+          ? <DkErr what="The selected-range figures" err={d.rangeCost.err} />
           : (
-            <KeyFigures row={periodRow ?? null} periodKey={period} periodStart={periodStart}
+            <KeyFigures row={periodRow} periodKey="custom" periodStart={range.from} periodLabel={rangeLabel}
               targets={targetByKpi} openKey={openKey} onOpen={setOpenKey} onAssigned={reload}
               pastDue={pastDue} />
           )}
@@ -1468,15 +1458,15 @@ export default function ScheduleAdherenceDashboard({ go, session, reports, role,
         {d.compliance.err && <DkErr what="The schedule and how it landed" err={d.compliance.err} />}
 
         {openMeasure && (
-          <DkDrill label={`${periodText(period, periodStart)} — the records behind “${openMeasure.label}”`}
+          <DkDrill label={`${rangeLabel} — the records behind “${openMeasure.label}”`}
             onClose={() => setOpenKey(null)}>
             <div className="sch-said">
               The figure you pressed is computed from exactly these rows, read from
-              v_schedule_cost_detail with the same period filter. Nothing is summarised away and
+              v_schedule_cost_detail with the same selected-date filter. Nothing is summarised away and
               nothing is capped.
             </div>
-            <LatePulls filterCol={period} filterVal={periodStart}
-              what={periodText(period, periodStart)} deptOf={deptOf} variance={varianceByKey}
+            <LatePulls filterCol={null} filterVal={null} from={range.from} to={range.to}
+              what={rangeLabel} deptOf={deptOf} variance={varianceByKey}
               onRecord={setRecordTarget} />
           </DkDrill>
         )}
@@ -1530,8 +1520,8 @@ export default function ScheduleAdherenceDashboard({ go, session, reports, role,
               );
               case "report": return (
                 <Widget key={w.key} w={w} layout={layout} store={store}
-                  chips={<DkTag tone="info" title="The same list every cost tile opens, with no period filter on it.">every late pull on the record</DkTag>}>
-                  <LatePulls filterCol={null} filterVal={null} what="the whole record"
+                  chips={<DkTag tone="info" title="The same selected dates as the cost tiles above.">every late pull in range</DkTag>}>
+                  <LatePulls filterCol={null} filterVal={null} from={range.from} to={range.to} what={rangeLabel}
                     deptOf={deptOf} variance={varianceByKey} onRecord={setRecordTarget} />
                 </Widget>
               );

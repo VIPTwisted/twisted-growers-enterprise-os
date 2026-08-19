@@ -24,6 +24,7 @@
    ═══════════════════════════════════════════════════════════════════════════ */
 import React, { useEffect, useMemo, useState } from "react";
 import { supabase } from "./lib/supabase.js";
+import { dateUpperExclusive } from "./lib/date-range-core.js";
 import { DateRangeSelect } from "./App.jsx";
 import {
   useDefaultRange, grab, listOf, DkTag, DkErr, DkEmpty, DkKpiStrip, DkDrill, DrillRoot, DkHead, useSectionStore,
@@ -74,19 +75,22 @@ export default function LossLedger({ go, session, role, viewAs, reports }) {
   const [range, setRange] = useState({ from: "", to: "" });
   /* Opens on the company default (this month) rather than all history —
      owner charter, 19 Aug 2026: no page may show all history by default. */
-  useDefaultRange(session, VIEW_KEY, setRange);
+  const dateDefault = useDefaultRange(session, VIEW_KEY, setRange);
   const [kind, setKind] = useState("");
   const [d, setD] = useState(null);
   const [openKpi, setOpenKpi] = useState(null);
   const [ver, setVer] = useState(0);
 
   useEffect(() => {
+    if (!dateDefault.ready) return undefined;
     let live = true;
-    supabase.from("v_loss_ledger").select("*")
-      .order("occurred_on", { ascending: false, nullsFirst: false })
+    let query = supabase.from("v_loss_ledger").select("*");
+    if (range.from) query = query.gte("occurred_on", range.from);
+    if (range.to) query = query.lt("occurred_on", dateUpperExclusive(range.to));
+    query.order("occurred_on", { ascending: false, nullsFirst: false })
       .then((res) => { if (live) setD({ l: grab(res) }); });
     return () => { live = false; };
-  }, [ver]);
+  }, [ver, range.from, range.to, dateDefault.ready]);
 
   const targets = useMemo(() => cultTargetMap(measures), [measures]);
   const trend = useMemo(() => cultTrendMap(measures), [measures]);
@@ -156,7 +160,10 @@ export default function LossLedger({ go, session, role, viewAs, reports }) {
     tone: "crit",
   })), [inRange, licMap]);
 
-  if (d === null) {
+  if (dateDefault.error) {
+    return <div className="ccpage"><DkErr what="The governed date range" err={dateDefault.error} /></div>;
+  }
+  if (!dateDefault.ready || d === null) {
     return <div className="ccpage"><div className="cc-fine" style={{ padding: 16 }}>Reading the loss and destruction ledger…</div></div>;
   }
 
@@ -201,7 +208,8 @@ export default function LossLedger({ go, session, role, viewAs, reports }) {
           <div className="cc-tools-c">
             <DateRangeSelect label="Occurred between" from={range.from} to={range.to}
               onFrom={(v) => setRange((p) => ({ ...p, from: v }))}
-              onTo={(v) => setRange((p) => ({ ...p, to: v }))} />
+              onTo={(v) => setRange((p) => ({ ...p, to: v }))}
+              presetKey={dateDefault.presetKey} session={session} viewKey={VIEW_KEY} allowSave />
           </div>
           <div className="cc-tools-r">
             <button type="button" className="cc-btn" onClick={() => go("loss_analysis")}

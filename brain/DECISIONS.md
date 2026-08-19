@@ -898,3 +898,14 @@ Eagle Eyes only, Buds only, priced ≥ $1, and missed MMM entirely.
 manifest names the transporter as destination, not the final recipient.
 $78,333 of delivered product with no identified customer. `document_sends` and
 Apex would settle it; neither is available.
+
+**2026-08-19 — DATE AUTHORITY: Supabase owns the QuickBooks calendar.** The
+browser carried 16 presets while `date_range_presets` carried 27, used different
+keys for rolling windows, and started weeks on a different day. That is no
+longer an acceptable duplication. `f_date_presets(anchor)` resolves the governed
+catalogue; `f_date_default(user,page)` resolves user+page → user-global → page
+rule → company fallback. Pages consume the resolved endpoints and do no calendar
+math. Reads wait for that result; an error blocks the read instead of opening all
+history. The current production browser receives a temporary `custom` bridge for
+newer preset keys while the new browser reads `governed_preset_key`, allowing an
+atomic rollout without a period mismatch.

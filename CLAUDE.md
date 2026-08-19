@@ -627,6 +627,11 @@ binds the KPI, chart, table, export and drill-down population together. A failed
 date-aware read is shown as a failed read; it must never fall back to plausible
 all-time figures beneath the selected dates. Enforced for department dashboard
 reads and the shared date control by `tools/checks/date-range-integrity.mjs`.
+The executable preset catalogue and all calendar boundaries come from
+`f_date_presets`; browser code may not carry a second preset list or calculate
+week/month/quarter/year boundaries. The inclusive **To** date is queried as an
+exclusive next-day boundary on timestamp columns, so the final day is never
+cut off at midnight. Data reads wait for the governed default and fail closed.
 
 **⚠ L-GAP. WHAT IS NOT TRUE TODAY, measured 10 August 2026.** This section is a
 mandate, not a description. Against it, right now:
