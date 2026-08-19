@@ -190,6 +190,10 @@ jobs:
       - name: Money grain (line reports cannot multiply invoice totals)
         run: node tools/checks/money-grain.mjs
 
+      # ---- Measure grain: numeric does not mean additive -----------------------------
+      - name: Report measure grain (only verified row-grain measures can total)
+        run: node tools/checks/report-measure-grain.mjs
+
       # ---- Metrc authority: read failures and empty mirrors are not source facts ------
       - name: Metrc reads fail closed (no false absence or invented scan figures)
         run: node tools/checks/metrc-read-integrity.mjs
