@@ -21,6 +21,7 @@
    ═══════════════════════════════════════════════════════════════════════════ */
 import React, { useEffect, useState } from "react";
 import { supabase } from "./lib/supabase.js";
+import { fetchDepartmentDashboard } from "./lib/dashboard-range.js";
 import {
   DateRangeSelect, rowsOr, StockByStreamCards, StockProofTable, RoomStockDrill, InTransitDrill,
 } from "./App.jsx";
@@ -152,10 +153,9 @@ export default function InventoryDashboard({ go, session, reports, role, viewAs,
     let live = true;
     (async () => {
       const [tiles, trend, targets, stock, stockRooms, tasks, global] = await Promise.all([
-        supabase.rpc("f_department_dashboard", { p_dept: DEPT, p_from: range.from || null, p_to: range.to || null })
-          .then((r) => (r.error || !r.data || !r.data.length)
-            ? supabase.from("mv_department_dashboard").select("*").eq("department", DEPT).order("ord")
-            : r),
+        fetchDepartmentDashboard(supabase, {
+          department: DEPT, from: range.from, to: range.to,
+        }),
         supabase.from("v_dashboard_trend").select("*").eq("department", DEPT),
         supabase.from("kpi_targets").select("*").eq("department", DEPT),
         supabase.from("v_stock_summary").select("*"),

@@ -619,6 +619,15 @@ unexplained movement of product.** Measured 10 Aug 2026: 4,414 adjustments all
 carry a reason and a person, but **1,356 carry no remark at all**, 984 of them
 under "Over/Under Pulled".
 
+**L8. THE DATE LABEL AND THE DATA MUST BE THE SAME WINDOW.** *(Owner, 19 Aug
+2026.)* Every page opens on **This month** unless the page is explicitly governed
+as year-to-date or the user saved another default. A manually entered range is
+**Custom**, and both dates travel with that saved choice. The selected window
+binds the KPI, chart, table, export and drill-down population together. A failed
+date-aware read is shown as a failed read; it must never fall back to plausible
+all-time figures beneath the selected dates. Enforced for department dashboard
+reads and the shared date control by `tools/checks/date-range-integrity.mjs`.
+
 **⚠ L-GAP. WHAT IS NOT TRUE TODAY, measured 10 August 2026.** This section is a
 mandate, not a description. Against it, right now:
 - **The OS holds ZERO sales.** `sales_orders`, `sales_order_lines`, `invoices` and

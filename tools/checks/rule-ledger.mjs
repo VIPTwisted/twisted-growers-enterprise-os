@@ -41,7 +41,7 @@ if (!claudeMd) {
   process.exit(1);
 }
 /* Rules are declared as "**A1. Never invent a number.**" at the start of a line. */
-const RULES = [...claudeMd.matchAll(/^\*\*([A-I]\d+[a-z]?)\./gm)].map((m) => m[1]);
+const RULES = [...claudeMd.matchAll(/^\*\*([A-L]\d+[a-z]?)\./gm)].map((m) => m[1]);
 const UNIQUE = [...new Set(RULES)];
 
 /* Section titles, so the report reads in plain English rather than as letters. */
@@ -49,6 +49,7 @@ const SECTION = {
   A: "Data honesty", B: "Weights, units and conversions", C: "Traceability and proof",
   D: "Metrc", E: "Database safety", F: "Front-end safety", G: "Configuration",
   H: "Issues and accountability", I: "Brand and voice",
+  J: "Balance integrity", K: "Governing instructions", L: "CCC and seed-to-sale",
 };
 
 /* ------------------------------------------------------------- the enforcers --- */
@@ -92,10 +93,10 @@ function claimed(text) {
   const found = new Set();
   /* "and" is a separator too — guard-protected-files.mjs writes "CLAUDE.md rules 9 and
      I1", and reading only "/" and "," missed it, so the theme lock looked unenforced. */
-  for (const m of text.matchAll(/\brules?\s+((?:\d+|[A-I]\d+[a-z]?)(?:\s*(?:[/,]|and)\s*(?:\d+|[A-I]\d+[a-z]?))*)/gi)) {
+  for (const m of text.matchAll(/\brules?\s+((?:\d+|[A-L]\d+[a-z]?)(?:\s*(?:[/,]|and)\s*(?:\d+|[A-L]\d+[a-z]?))*)/gi)) {
     for (const tok of m[1].split(/[/,]|\band\b/i)) {
       const t = tok.trim().toUpperCase();
-      if (/^[A-I]\d+[A-Z]?$/.test(t)) found.add(t);
+      if (/^[A-L]\d+[A-Z]?$/.test(t)) found.add(t);
     }
   }
   return found;

@@ -31,6 +31,7 @@
    ═══════════════════════════════════════════════════════════════════════════ */
 import React, { useEffect, useState, useCallback, useMemo } from "react";
 import { supabase } from "./lib/supabase.js";
+import { fetchDepartmentDashboard } from "./lib/dashboard-range.js";
 import {
   DateRangeSelect, useSectionStore, rowsOr,
   MoneyBar, StockByStreamCards, StockProofTable, OpenHarvestDetail, InTransitDrill, BatchList,
@@ -1473,18 +1474,12 @@ export default function CommandCenter({ go, session, reports, role, viewAs, onVi
         .order("work_date", { ascending: false }).limit(200);
       const [tiles, trend, targets, flow, split, global, goals, yld, rooms, alertRules, openRule, stockRooms,
              stock, money, tasks, headline, restock, forecast, compliance, zones, staffing, people, sched] = await Promise.all([
-        /* Owner, 18 Aug 2026, after days of asking: the KEY FIGURES strip must
-           honour the date range like every department dashboard already does.
-           f_department_dashboard recomputes the FLOW tiles for the window
-           (0.01s measured as a signed-in user) and each tile's context carries
-           its own range truth; positions state "as at today". Null range =
-           the same figures the matview served, so nothing regresses. The
-           matview remains only as the fallback if the RPC itself fails. */
-        supabase.rpc("f_department_dashboard",
-          { p_dept: "Command", p_from: range.from || null, p_to: range.to || null })
-          .then((r) => (r.error || !r.data || !r.data.length)
-            ? supabase.from("mv_department_dashboard").select("*").eq("department", "Command").order("ord")
-            : r),
+        /* A failed date-aware read stays failed. The former all-time matview
+           fallback could put a valid old number under a newly selected range,
+           which is worse than showing that the figures are unavailable. */
+        fetchDepartmentDashboard(supabase, {
+          department: "Command", from: range.from, to: range.to,
+        }),
         supabase.from("v_dashboard_trend").select("*").eq("department", "Command"),
         supabase.from("kpi_targets").select("*").eq("department", "Command"),
         supabase.from("mv_flow_stages").select("*").order("stage_no"),
