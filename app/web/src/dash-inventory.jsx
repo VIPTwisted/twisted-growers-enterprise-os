@@ -25,7 +25,7 @@ import {
   DateRangeSelect, rowsOr, StockByStreamCards, StockProofTable, RoomStockDrill, InTransitDrill,
 } from "./App.jsx";
 import {
-  grab, DkTag, DkErr, DkEmpty, DkKpiStrip, DkOrphanTargets, DkWorkQueue, useWorkQueue,
+  useDefaultRange, grab, DkTag, DkErr, DkEmpty, DkKpiStrip, DkOrphanTargets, DkWorkQueue, useWorkQueue,
   DkNarrative, DkReports, DkTasks, DkGapCard, DkHead, DkStreamDrill, useWidgetLayout,
   Widget, WidgetBoard, WidgetBarControls, useSectionStore, DkCaret, DkDrill, DrillRoot,
 } from "./dashkit.jsx";
@@ -121,6 +121,9 @@ function InvRooms({ rows }) {
 export default function InventoryDashboard({ go, session, reports, role, viewAs, onViewAs, isAdmin, viewRoles }) {
   const store = useSectionStore(session?.user?.id, VIEW_KEY);
   const [range, setRange] = useState({ from: "", to: "" });
+  /* Opens on the company default (this month) instead of all history —
+     owner ruling 19 Aug 2026. Seeds once, then the user owns the range. */
+  useDefaultRange(session, VIEW_KEY, setRange);
   const [busy, setBusy] = useState(false);
   const [ver, setVer] = useState(0);
   const [d, setD] = useState(null);

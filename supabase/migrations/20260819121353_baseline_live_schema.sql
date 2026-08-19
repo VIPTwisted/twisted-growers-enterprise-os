@@ -8744,10 +8744,6 @@ AS $function$
         (select p.preset_key from user_page_date_default p
           where p.user_id = p_user and p.view_key = p_view_key),
         (select u.default_date_preset from user_settings u where u.user_id = p_user),
-        (select case when r.date_column is null then 'all' else 'this_month' end
-           from report_registry r
-           join nav_registry n on n.table_ref = r.fact_view
-          where n.view_key = p_view_key limit 1),
         'this_month'),
     'custom_from', (select p.custom_from from user_page_date_default p
                      where p.user_id = p_user and p.view_key = p_view_key),
@@ -8761,9 +8757,9 @@ AS $function$
             then 'this user, this page'
        when exists (select 1 from user_settings u
                      where u.user_id = p_user and u.default_date_preset is not null)
-            then 'this user, everywhere'
-       else 'page default' end
-  );
+            then 'this user''s own default'
+       else 'the company default — this month (owner ruling, 19 Aug 2026)'
+     end);
 $function$
 ;
 CREATE OR REPLACE FUNCTION public.f_department_dashboard(p_dept text, p_from date DEFAULT NULL::date, p_to date DEFAULT NULL::date)
@@ -14446,8 +14442,26 @@ begin
                               'newest_migration', v_mig, 'lag_minutes', round(coalesce(v_lag,0),1),
                               'status_code', p.status_code))
         returning id into v_id;
-        perform f_alert_all_admins(v_id);
-        v_out := v_out || 'RAISED ' || v_fp || ' finding ' || v_id || '. ';
+        if v_id is not null then
+          perform f_alert_all_admins(v_id);
+          v_out := v_out || 'RAISED ' || v_fp || ' finding ' || v_id || '. ';
+        else
+          /* trg_watchdog_upsert_by_fingerprint folded this into the existing
+             finding and returned NULL. Find the row it kept and alert on that:
+             a re-observed failure is still a failure somebody must see. */
+          select f.id into v_id from watchdog_findings f
+           where f.fingerprint = v_fp and f.cleared_at is null
+           order by f.id desc limit 1;
+          if v_id is not null then
+            perform f_alert_all_admins(v_id);
+            v_out := v_out || 'RE-OBSERVED ' || v_fp || ' on existing finding ' || v_id || '. ';
+          else
+            v_out := v_out || 'DETECTED ' || v_fp || ' but no finding row could be found or created. '
+                           || 'The gap is REAL and UNALERTED — investigate the watchdog_findings '
+                           || 'triggers. Reported rather than thrown: a watcher that dies on its own '
+                           || 'alarm tells nobody anything. ';
+          end if;
+        end if;
       end if;
     elsif v_verdict = 'OK' then
       /* recovery: clear open deploy findings and resolve any queued-but-unsent alarms

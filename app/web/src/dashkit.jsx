@@ -499,6 +499,59 @@ export function TagEvidence({ tag, compact = false }) {
    an empty page.
    ═══════════════════════════════════════════════════════════════════════════ */
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   THE DATE RANGE A PAGE OPENS ON — one hook, every dashboard.
+
+   Owner, 19 Aug 2026: "we want default on all pages to be THIS MONTH and then
+   fully change and pull dates. We don't want to see, when we log in, fully
+   history."
+
+   Every dashboard initialised its own range to { from: "", to: "" }, which
+   means ALL TIME, so signing in put two and a half years on the screen and
+   called it the current position. The company default now lives in the
+   database (f_date_default, precedence: this user on this page, then this
+   user's own default, then THIS MONTH) and this hook is what makes a page
+   honour it.
+
+   IT SEEDS ONCE AND THEN GETS OUT OF THE WAY. After the first application the
+   user owns the range for that visit — a later re-render must never yank them
+   back to this month while they are reading a quarter. All history is still
+   one press of All away.
+
+   THE PRESET MATHS IS LOCAL ON PURPOSE. App.jsx already exports presetRange,
+   but dashkit is imported BY App.jsx and the pages both; importing back would
+   close a cycle. These four presets are the ones the server can return as a
+   default, and each is a plain calendar boundary with no house rule in it.
+   ═══════════════════════════════════════════════════════════════════════════ */
+export function useDefaultRange(session, viewKey, setRange) {
+  const [applied, setApplied] = React.useState(false);
+  React.useEffect(() => {
+    let live = true;
+    if (applied || !session?.user?.id || !viewKey) return;
+    supabase.rpc("f_date_default", { p_user: session.user.id, p_view_key: viewKey })
+      .then(({ data, error }) => {
+        if (!live || error || !data) return;
+        setApplied(true);
+        const iso = (x) => `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, "0")}-${String(x.getDate()).padStart(2, "0")}`;
+        const d = new Date(), y = d.getFullYear(), m = d.getMonth();
+        const k = data.preset_key ?? "this_month";
+        if (k === "all") return;                       // deliberate: all time, leave empty
+        if (k === "custom") {
+          if (data.custom_from || data.custom_to) setRange({ from: data.custom_from ?? "", to: data.custom_to ?? "" });
+          return;
+        }
+        const r = {
+          today:        [iso(d), iso(d)],
+          this_month:   [iso(new Date(y, m, 1)), iso(new Date(y, m + 1, 0))],
+          this_quarter: [iso(new Date(y, Math.floor(m / 3) * 3, 1)), iso(new Date(y, Math.floor(m / 3) * 3 + 3, 0))],
+          this_year:    [iso(new Date(y, 0, 1)), iso(new Date(y, 11, 31))],
+        }[k] ?? [iso(new Date(y, m, 1)), iso(new Date(y, m + 1, 0))];
+        setRange({ from: r[0], to: r[1] });
+      });
+    return () => { live = false; };
+  }, [session?.user?.id, viewKey, applied, setRange]);
+}
+
 export function useWidgetLayout(page, defs) {
   /* defs: [{ key, title, span }] in the order the page declares them. */
   const declared = useMemo(() => defs.map((d, i) => ({ ...d, position: i })), [defs]);

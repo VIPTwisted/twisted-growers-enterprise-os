@@ -37,7 +37,7 @@ import {
   RoomStockDrill, ForensicAuditLedger, DEPT_BY_VIEW,
 } from "./App.jsx";
 import {
-  DkKpiStrip, DkRoomBoard, DkRoomPlantDrill, DkWorkQueue, useWorkQueue, DkCaret, DkDrill, DrillRoot,
+  useDefaultRange, DkKpiStrip, DkRoomBoard, DkRoomPlantDrill, DkWorkQueue, useWorkQueue, DkCaret, DkDrill, DrillRoot,
   DkStreamDrill, DkRowDrill, DkEmpty, dkRoomQualified,
 } from "./dashkit.jsx";
 import "./commandcenter.css";
@@ -1427,6 +1427,9 @@ export default function CommandCenter({ go, session, reports, role, viewAs, onVi
   const SEC_IDS = ["flow", "words", "global", "people", "production", "queue",
                    "yield", "rooms", "money", "stock", "audit", "tasks", "reports"];
   const [range, setRange] = useState({ from: "", to: "" });
+  /* Opens on the company default (this month) instead of all history —
+     owner ruling 19 Aug 2026. Seeds once, then the user owns the range. */
+  useDefaultRange(session, "dept_dash_command", setRange);
   const [busy, setBusy] = useState(false);
   const [ver, setVer] = useState(0);
   const [d, setD] = useState(null);   // { key: { rows, err } }
