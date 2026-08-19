@@ -172,6 +172,10 @@ jobs:
       - name: Money grain (line reports cannot multiply invoice totals)
         run: node tools/checks/money-grain.mjs
 
+      # ---- Metrc authority: read failures and empty mirrors are not source facts ------
+      - name: Metrc reads fail closed (no false absence or invented scan figures)
+        run: node tools/checks/metrc-read-integrity.mjs
+
       # ---- Rule E4 / C2: counting an aggregate view counts the wrong thing ------------
       # HANDOFF.md §5 lists it among the five ways this project has actually broken:
       # count(*) on v_stock_on_hand returns the number of STREAMS, not packages. No

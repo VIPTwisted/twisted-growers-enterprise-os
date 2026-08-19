@@ -984,25 +984,42 @@ function TestingDates({ row }) {
   );
 }
 
+function ReadFailure({ what, error, onRetry }) {
+  return (
+    <div className="boundary" role="alert" style={{ margin: "10px 0" }}>
+      <b>{what} could not be read.</b>
+      <div className="note">No empty result or compliance conclusion has been substituted.</div>
+      <div className="note" style={{ marginTop: 6 }}>{error?.message || String(error)}</div>
+      {onRetry && <button type="button" className="btn small ghost" style={{ marginTop: 10 }} onClick={onRetry}>Retry read</button>}
+    </div>
+  );
+}
+
 function LocationHistory({ term, tag }) {
-  const [rows, setRows] = useState(undefined);
+  const [read, setRead] = useState({ rows: null, error: null });
+  const [attempt, setAttempt] = useState(0);
   useEffect(() => {
     let live = true;
+    setRead({ rows: null, error: null });
     (async () => {
       let q = supabase.from("v_location_history").select("*").limit(12);
       q = tag ? q.eq("package_tag", tag)
               : q.or(`package_tag.ilike.%${term}%,item_name.ilike.%${term}%,strain.ilike.%${term}%`);
-      const { data } = await q;
-      if (live) setRows(data ?? []);
+      const { data, error } = await q;
+      if (!live) return;
+      if (error) { setRead({ rows: null, error }); return; }
+      setRead({ rows: Array.isArray(data) ? data : [], error: null });
     })();
     return () => { live = false; };
-  }, [term, tag]);
-  if (rows === undefined) return <span className="note">Reading the movement record…</span>;
+  }, [term, tag, attempt]);
+  if (read.error) return <ReadFailure what="The Metrc movement mirror" error={read.error} onRetry={() => setAttempt((n) => n + 1)} />;
+  if (read.rows === null) return <span className="note">Reading the movement record…</span>;
+  const rows = read.rows;
   if (!rows.length)
     return (
       <span className="lochnone">
-        No location record. <b>Why:</b> nothing in Metrc is currently held under this name. If it is a room, open an
-        individual package instead — locations attach to package tags.
+        No matching movement row was returned by the OS mirror. <b>This is not proof Metrc has no record.</b>{" "}
+        Search the exact package tag, or verify the Metrc sync before declaring a location or lineage gap.
       </span>
     );
   return (
@@ -1030,22 +1047,32 @@ function LocationHistory({ term, tag }) {
 }
 
 function SeedToSaleSummary({ term }) {
-  const [d, setD] = useState(undefined);
+  const [d, setD] = useState({ loading: true, error: null });
+  const [attempt, setAttempt] = useState(0);
   useEffect(() => {
     let live = true;
+    setD({ loading: true, error: null });
     (async () => {
-      const [{ data: life }, { data: grade }, { data: alloc }, { data: locs }] = await Promise.all([
+      const results = await Promise.all([
         supabase.from("v_harvest_lifecycle").select("*").ilike("harvest", `%${term}%`).limit(1),
         supabase.from("harvest_weights").select("*").ilike("metrc_harvest_batch", `%${term}%`).limit(1),
         supabase.from("v_allocation_queue").select("*").or(`material_name.ilike.%${term}%,source_ref.ilike.%${term}%`).limit(4),
         supabase.from("v_inventory_locator").select("location,stage,quantity,uom,days_here,category")
           .or(`item.ilike.%${term}%,identifier.ilike.%${term}%,source_lineage.ilike.%${term}%`).limit(6),
       ]);
-      if (live) setD({ life: life?.[0] ?? null, grade: grade?.[0] ?? null, alloc: alloc ?? [], locs: locs ?? [] });
+      if (!live) return;
+      const readErrors = results.map((result) => result.error).filter(Boolean);
+      if (readErrors.length) {
+        setD({ loading: false, error: new Error(readErrors.map((error) => error.message).join(" · ")) });
+        return;
+      }
+      const [life, grade, alloc, locs] = results.map((result) => Array.isArray(result.data) ? result.data : []);
+      setD({ loading: false, error: null, life: life[0] || null, grade: grade[0] || null, alloc, locs });
     })();
     return () => { live = false; };
-  }, [term]);
-  if (d === undefined) return <div className="note" style={{ margin: "10px 0" }}>Loading the seed to sale picture…</div>;
+  }, [term, attempt]);
+  if (d.error) return <ReadFailure what="The seed-to-sale mirror" error={d.error} onRetry={() => setAttempt((n) => n + 1)} />;
+  if (d.loading) return <div className="note" style={{ margin: "10px 0" }}>Loading the seed to sale picture…</div>;
   const L = d.life, G = d.grade;
   const nothing = !L && !G && d.alloc.length === 0 && d.locs.length === 0;
   if (nothing) {
@@ -1056,18 +1083,18 @@ function SeedToSaleSummary({ term }) {
         <b className="stsnb">
           {isPlace
             ? `"${term}" is a place, not a product — a room cannot have a seed-to-sale history.`
-            : `No seed-to-sale chain is recorded for ${term}.`}
+            : `No matching seed-to-sale row was returned for ${term}.`}
         </b>
         <p>
           {isPlace
             ? "Open an individual package from Stock Detail and trace that instead. Every package carries its own Metrc tag, which is what the chain follows."
-            : "That is a finding, not a blank. It means one of the following, and the Traceability column on Stock Detail says which:"}
+            : "This is not proof Metrc lacks the strain, package, manifest, or lineage. The OS mirror may be incomplete or stale. Search the exact tag or manifest and verify source freshness before opening a compliance finding."}
         </p>
         {!isPlace && (
           <ul>
-            <li><b>Bought in.</b> We did not grow it, so there is no harvest of ours behind it. Its cultivation history sits with the supplier — the Supplier and Inbound manifest columns name who to ask.</li>
-            <li><b>No source recorded in Metrc.</b> Neither a source harvest nor a parent package. That is a real lineage gap and should be corrected in Metrc.</li>
-            <li><b>Weights never entered.</b> The harvest exists but wet, waste and grade weights were never recorded, so there is nothing to show. Enter them in Weights and Grading and they appear here.</li>
+            <li><b>Use an exact identifier.</b> Package tag, harvest name, or manifest number is stronger than an item or room label.</li>
+            <li><b>Check mirror freshness.</b> A successful empty read says only that these OS views returned no match.</li>
+            <li><b>Escalate only after source verification.</b> Metrc absence must be proved from the legal source, never inferred from an empty mirror result.</li>
           </ul>
         )}
       </div>
@@ -1111,10 +1138,19 @@ function SeedToSaleSummary({ term }) {
   );
 }
 function TraceDrawer({ term, onClose }) {
-  const [rows, setRows] = useState(null);
+  const [read, setRead] = useState({ rows: null, error: null });
+  const [attempt, setAttempt] = useState(0);
   useEffect(() => {
-    supabase.rpc("tg_trace", { p_term: term }).then(({ data, error }) => setRows(error ? [] : (data ?? [])));
-  }, [term]);
+    let live = true;
+    setRead({ rows: null, error: null });
+    supabase.rpc("tg_trace", { p_term: term }).then(({ data, error }) => {
+      if (!live) return;
+      if (error) { setRead({ rows: null, error }); return; }
+      setRead({ rows: Array.isArray(data) ? data : [], error: null });
+    });
+    return () => { live = false; };
+  }, [term, attempt]);
+  const rows = read.rows;
   const phases = rows ? [...new Set(rows.map((r) => r.phase))].sort() : [];
   return (
     <div className="vedrawerwrap" onClick={onClose}>
@@ -1123,17 +1159,18 @@ function TraceDrawer({ term, onClose }) {
           <span className="srtitle">Seed to sale history — {term}</span>
           <button className="btn small ghost" onClick={onClose}>✕</button>
         </div>
-        {rows === null ? <div className="note" style={{ padding: 14 }}>Tracing every record…</div>
+        {read.error ? <ReadFailure what="The Metrc lineage RPC" error={read.error} onRetry={() => setAttempt((n) => n + 1)} />
+          : rows === null ? <div className="note" style={{ padding: 14 }}>Tracing every record…</div>
           : rows.length === 0 ? (
             <div className="tracenone">
-              <b>No chain recorded in Metrc for {term}</b>
-              <p>That is a finding, not a blank. It means one of these:</p>
+              <b>No matching chain was returned by the OS mirror for {term}</b>
+              <p>This is not proof Metrc lacks the chain. Before opening a compliance finding:</p>
               <ul>
-                <li><b>It was bought in.</b> We did not grow it, so there is no harvest of ours to trace to. Its cultivation history sits with the supplier — ask them for the certificate and grow record. Check the Supplier and Inbound manifest columns on the row.</li>
-                <li><b>Metrc holds no source link.</b> The package records neither a source harvest nor a parent package. That is a genuine lineage gap and should be corrected in Metrc.</li>
-                <li><b>The value is not an identifier.</b> Rooms, locations and aggregate rows cannot be traced — only a package tag, harvest name or manifest number can.</li>
+                <li><b>Search the exact package tag, harvest name, or manifest number.</b></li>
+                <li><b>Verify the Metrc mirror is current and the required source export has loaded.</b></li>
+                <li><b>Have an agent inspect the legal Metrc source and linked manifest before declaring absence.</b></li>
               </ul>
-              <p className="tracehint">The Traceability column on Stock Detail states which of these applies to each package, in plain words.</p>
+              <p className="tracehint">A failed read is an error. A successful empty mirror read is an unverified gap. Neither is a Metrc diagnosis.</p>
             </div>
           )
           : (
@@ -7634,7 +7671,7 @@ const TGSS_CSS = `
 .tgss .lede{color:var(--dim);font-size:14px;margin:0 0 18px;max-width:64ch}
 .tgss .scroll{overflow-x:auto;border:1px solid var(--ln);border-radius:3px;background:var(--pnl)}
 .tgss .tl{min-width:720px;padding:20px 22px 8px}
-.tgss .tlrow{display:grid;grid-template-columns:132px repeat(12,1fr);align-items:center;
+.tgss .tlrow{display:grid;align-items:center;
   min-height:38px;border-bottom:1px solid var(--ln)}
 .tgss .tlrow:last-child{border-bottom:0}
 .tgss .tlhead{min-height:30px}
@@ -7670,150 +7707,114 @@ const TGSS_CSS = `
 .tgss .rule{height:1px;background:var(--ln);border:0;margin:0}
 .tgss footer{color:var(--faint);font-size:12px;font-family:var(--mono);letter-spacing:.02em}
 `;
-const TGSS_HOURS = [7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18];
-const tgssHourLabel = (h) => (h === 12 ? "12pm" : h === 7 ? "7am" : h === 18 ? "6pm" : h > 12 ? String(h - 12) : String(h));
+const tgssTimeKey = (t) => String(t || "").slice(0, 5);
 const tgssTimeLabel = (t) => {
-  const h = Number(String(t).slice(0, 2));
-  return h === 12 ? "12pm" : h > 12 ? `${h - 12}pm` : `${h}am`;
+  const [rawHour, rawMinute = "00"] = tgssTimeKey(t).split(":");
+  const hour = Number(rawHour);
+  if (!Number.isFinite(hour)) return String(t || "—");
+  const suffix = hour >= 12 ? "pm" : "am";
+  const displayHour = hour % 12 || 12;
+  return `${displayHour}:${rawMinute}${suffix}`;
 };
 function MetrcScanSchedule() {
-  const [rows, setRows] = useState(null);
+  const [read, setRead] = useState({ rows: null, error: null });
+  const [attempt, setAttempt] = useState(0);
   useEffect(() => {
+    let live = true;
+    setRead({ rows: null, error: null });
     supabase.from("v_metrc_scan_settings").select("*").order("sort_order")
-      .then(({ data, error }) => setRows(error ? [] : (data ?? [])));
-  }, []);
-  const live = rows ?? [];
-  const on = live.filter((r) => r.enabled);
-  const scheduled = on.reduce((a, r) => a + (r.calls_per_day ?? 0), 0);
-  const daytime = scheduled + 10;
-  const total = daytime + 1099;
-  const hoursOf = (r) => new Set((r.run_times ?? []).map((t) => Number(String(t).slice(0, 2))));
+      .then(({ data, error }) => {
+        if (!live) return;
+        if (error) { setRead({ rows: null, error }); return; }
+        setRead({ rows: Array.isArray(data) ? data : [], error: null });
+      });
+    return () => { live = false; };
+  }, [attempt]);
+  const rows = read.rows || [];
+  const enabledRows = rows.filter((row) => row.enabled);
+  const scheduledScans = enabledRows.reduce((sum, row) => sum + Number(row.scans_per_day || 0), 0);
+  const scheduledCalls = enabledRows.reduce((sum, row) => sum + Number(row.calls_per_day || 0), 0);
+  const timelineTimes = [...new Set(enabledRows.flatMap((row) => (row.run_times || []).map(tgssTimeKey)).filter(Boolean))].sort();
+  const timelineGrid = { gridTemplateColumns: `132px repeat(${Math.max(timelineTimes.length, 1)}, minmax(52px, 1fr))` };
   return (
     <div className="tgss">
       <style>{TGSS_CSS}</style>
       <header>
         <p className="eyebrow">Twisted Growers · Metrc integration</p>
         <h1>Scan schedule</h1>
-        <p className="sub">Every call this platform makes to Metrc, and when. All times Eastern —
-          stored as local wall-clock, so 9am stays 9am through daylight saving.</p>
+        <p className="sub">The Metrc scan groups, run times, and call counts returned by the governed
+          scan-settings view. This page does not estimate activity that the view does not provide.</p>
       </header>
 
-      <section className="headline">
-        <div className="stat was"><p className="k">Calls per day — before</p><p className="v">5,141</p>
-          <p className="n">Polling every 10–15 minutes, around the clock</p></div>
-        <div className="stat now"><p className="k">Calls per day — after</p>
-          <p className="v">{total.toLocaleString()}</p>
-          <p className="n">Scheduled scans plus the nightly reconcile</p></div>
-        <div className="stat cut"><p className="k">Daytime scanning cut</p>
-          <p className="v">{Math.round((1 - daytime / 4032) * 100)}%</p>
-          <p className="n">4,032 → {daytime.toLocaleString()} calls between scans</p></div>
-      </section>
+      {read.error ? (
+        <ReadFailure what="The Metrc scan settings" error={read.error} onRetry={() => setAttempt((n) => n + 1)} />
+      ) : read.rows === null ? (
+        <div className="note">Reading the governed scan schedule…</div>
+      ) : rows.length === 0 ? (
+        <div className="note"><strong>No configured scan rows were returned.</strong> No schedule,
+          activity, reduction, or health conclusion can be calculated from an empty result.</div>
+      ) : <>
+        <section className="headline">
+          <div className="stat"><p className="k">Configured scan groups</p>
+            <p className="v">{rows.length.toLocaleString()}</p><p className="n">Rows returned by the governed view</p></div>
+          <div className="stat"><p className="k">Enabled scans per day</p>
+            <p className="v">{scheduledScans.toLocaleString()}</p><p className="n">Sum of enabled view rows</p></div>
+          <div className="stat"><p className="k">Enabled calls per day</p>
+            <p className="v">{scheduledCalls.toLocaleString()}</p><p className="n">Sum of enabled view rows</p></div>
+        </section>
 
-      <section>
-        <h2>The working day</h2>
-        <p className="lede">Each dot is one scan. Nothing runs after 6pm or before 7am — in two days of
-          measurement, the overnight hours produced 4 records from roughly 400 calls.</p>
-        <div className="scroll"><div className="tl">
-          <div className="tlrow tlhead">
-            <div />
-            {TGSS_HOURS.map((h) => <div key={h} className="hr">{tgssHourLabel(h)}</div>)}
-          </div>
-          {on.map((r) => {
-            const hrs = hoursOf(r);
-            return (
-              <div className="tlrow" key={r.job_name}>
-                <div className="nm">{r.display_name || r.job_name}<small>{r.endpoints}</small></div>
-                {TGSS_HOURS.map((h) => (
-                  <div className="cell" key={h}>{hrs.has(h) ? <i className="dot" /> : null}</div>
+        <section>
+          <h2>Configured run times</h2>
+          <p className="lede">Each dot is a run time returned for that enabled scan group.</p>
+          {timelineTimes.length ? <div className="scroll"><div className="tl">
+            <div className="tlrow tlhead" style={timelineGrid}>
+              <div />
+              {timelineTimes.map((time) => <div key={time} className="hr">{tgssTimeLabel(time)}</div>)}
+            </div>
+            {enabledRows.map((row) => {
+              const rowTimes = new Set((row.run_times || []).map(tgssTimeKey));
+              return (
+                <div className="tlrow" style={timelineGrid} key={row.job_name}>
+                  <div className="nm">{row.display_name || row.job_name}<small>{row.endpoints || "No endpoint label"}</small></div>
+                  {timelineTimes.map((time) => (
+                    <div className="cell" key={time}>{rowTimes.has(time) ? <i className="dot" /> : null}</div>
+                  ))}
+                </div>
+              );
+            })}
+          </div></div> : <div className="note">No run times were returned for the enabled scan groups.</div>}
+        </section>
+
+        <section>
+          <h2>Configured scan groups</h2>
+          <p className="lede">Every row below comes directly from <code>v_metrc_scan_settings</code>.</p>
+          <div className="scroll">
+            <table>
+              <thead><tr>
+                <th>Scan</th><th>Run times</th><th className="num">Scans/day</th>
+                <th className="num">Calls/day</th><th>Status</th>
+              </tr></thead>
+              <tbody>
+                {rows.map((row) => (
+                  <tr className={row.enabled ? "" : "off"} key={row.job_name}>
+                    <td>{row.display_name || row.job_name}</td>
+                    <td className="times">{(row.run_times || []).map(tgssTimeLabel).join(" · ") || "—"}</td>
+                    <td className="num">{Number(row.scans_per_day || 0).toLocaleString()}</td>
+                    <td className="num">{Number(row.calls_per_day || 0).toLocaleString()}</td>
+                    <td><span className={`pill ${row.enabled ? "on" : "no"}`}>{row.enabled ? "on" : "off"}</span></td>
+                  </tr>
                 ))}
-              </div>
-            );
-          })}
-          <div className="tlrow">
-            <div className="nm">Nightly reconcile<small>07:10 · safety net</small></div>
-            {TGSS_HOURS.map((h) => (
-              <div className="cell" key={h}>{h === 7 ? <i className="dot q" /> : null}</div>
-            ))}
+                <tr className="total"><td>Enabled total</td><td />
+                  <td className="num">{scheduledScans.toLocaleString()}</td>
+                  <td className="num">{scheduledCalls.toLocaleString()}</td><td /></tr>
+              </tbody>
+            </table>
           </div>
-        </div></div>
-      </section>
+        </section>
 
-      <section>
-        <h2>What each scan costs</h2>
-        <p className="lede">A “call” is one request to Metrc. Each scan asks for several lists — packages
-          alone has four states — across both licences.</p>
-        <div className="scroll">
-          <table>
-            <thead><tr>
-              <th>Scan</th><th>Times (Eastern)</th><th className="num">Per day</th>
-              <th className="num">Calls</th><th>Status</th>
-            </tr></thead>
-            <tbody>
-              {live.filter((r) => r.enabled).map((r) => (
-                <tr key={r.job_name}>
-                  <td>{r.display_name || r.job_name}</td>
-                  <td className="times">{(r.run_times ?? []).map(tgssTimeLabel).join(" · ")}</td>
-                  <td className="num">{r.scans_per_day}</td>
-                  <td className="num">{(r.calls_per_day ?? 0).toLocaleString()}</td>
-                  <td><span className="pill on">on</span></td>
-                </tr>
-              ))}
-              <tr><td>Lookups</td><td className="times">7:20am</td>
-                <td className="num">1</td><td className="num">10</td><td><span className="pill on">on</span></td></tr>
-              <tr><td>Nightly reconcile</td><td className="times">7:10am</td>
-                <td className="num">1</td><td className="num">1,099</td><td><span className="pill on">on</span></td></tr>
-              {live.filter((r) => !r.enabled).map((r) => (
-                <tr className="off" key={r.job_name}>
-                  <td>{r.display_name || r.job_name}</td><td className="times">—</td>
-                  <td className="num">0</td><td className="num">0</td><td><span className="pill no">off</span></td>
-                </tr>
-              ))}
-              <tr className="total"><td>Total</td><td />
-                <td className="num">{on.reduce((a, r) => a + (r.scans_per_day ?? 0), 0) + 2}</td>
-                <td className="num">{total.toLocaleString()}</td><td /></tr>
-            </tbody>
-          </table>
-        </div>
-        <p className="note" style={{ marginTop: 18 }}><strong>Sales is switched off permanently.</strong>{" "}
-          Twisted Growers holds cultivation and manufacturing licences — neither is retail, so Metrc has
-          no sales receipts to give. That endpoint was returning an error 200 times a day.</p>
-      </section>
-
-      <hr className="rule" />
-
-      <section>
-        <h2>Before and after</h2>
-        <p className="lede">The nightly reconcile is unchanged on purpose. It re-reads all 21,132 records,
-          which is what makes cutting the daytime scans safe rather than risky.</p>
-        <div className="bars">
-          <div className="bar">
-            <b>Daytime scanning — before <span>4,032 calls</span></b>
-            <div className="track"><div className="fill red" style={{ width: "100%" }} /></div>
-          </div>
-          <div className="bar">
-            <b>Daytime scanning — after <span>{daytime.toLocaleString()} calls</span></b>
-            <div className="track"><div className="fill grn" style={{ width: `${Math.max(2, (daytime / 4032) * 100)}%` }} /></div>
-          </div>
-          <div className="bar">
-            <b>Nightly reconcile — unchanged <span>1,099 calls</span></b>
-            <div className="track"><div className="fill grn" style={{ width: "27%" }} /></div>
-          </div>
-        </div>
-      </section>
-
-      <hr className="rule" />
-
-      <section>
-        <h2>Scan now</h2>
-        <p className="lede">When you need something immediately — a manifest you are waiting on —
-          the schedule is not the only way to get it.</p>
-        <p className="note"><strong>Administrators only.</strong> Owner and executive accounts can trigger
-          any scan on demand. The same group will not be scanned twice within 15 minutes —{" "}
-          <strong>unless the last attempt failed</strong>, in which case you can retry straight away. Every
-          manual scan records who ran it and when.</p>
-      </section>
-
-      <footer>Times are owner-set and editable — no code change. Measured 6 August 2026.</footer>
+        <footer>Source: v_metrc_scan_settings. No unsourced before/after, reduction, reconcile,
+          record-count, overnight, or manual-scan figures are inferred.</footer>
+      </>}
     </div>
   );
 }
