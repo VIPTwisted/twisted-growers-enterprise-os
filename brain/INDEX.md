@@ -160,6 +160,12 @@ for them.
 | `v_unchallenged_findings` | Findings nobody has tried to refute. The Challenger defaults to REFUTED and makes a claim earn survival — an unchallenged finding has earned nothing. **86 unchallenged on 8 Aug 2026, 25 of them critical.** |
 | `audit_events.actor_name` + `f_actor()` | Who did it. Added 8 Aug 2026 after `audit_events` was found holding **3,589 rows with 0 actors** — `auth.uid()` is null for every agent, migration and cron job, which is all of them. `nav_registry` is now audited too. |
 
+### Forensic reports — `reports/`
+
+| File | What it proves |
+|---|---|
+| `PHASE_1_SITE_FORENSIC_AUDIT_2026-08-19.md` | Signed, evidence-scoped audit of production revision `c551155`: public/auth shell, deployed assets and runtime patterns. Deployment sign-off is vetoed; authenticated role/action/RLS coverage is explicitly authorization-blocked, not passed. |
+
 ### Design and planning — `docs/`
 | File | What it is |
 |---|---|
