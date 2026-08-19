@@ -8704,8 +8704,23 @@ wflow as not materialized (
         and h.dry_days_to_first_package::numeric > f_rule('dry_window_max_days'))    as dried_long,
     (select round(avg(h.conversion_pct) filter (where h.harvest_closed is not null),1)
        from v_harvest_forensic h, w where h.harvest_closed between w.f and w.t)      as conv,
-    (select coalesce(round(sum(s.total_usd),0),0) from mv_forensic_sales s, w
-      where not s.cancelled and s.order_date between w.f and w.t)                    as apex_rev,
+    /* APEX ROAD, ONE ROW PER INVOICE. mv_forensic_sales is one row per LINE
+       carrying the invoice total on every line — a bare sum multiplies each
+       invoice by its line count (the 10x trap caught 19 Aug 2026). */
+    (select coalesce(round(sum(d.total_usd),0),0)
+       from (select distinct on (s.invoice_number) s.invoice_number, s.total_usd, s.order_date
+               from mv_forensic_sales s where not s.cancelled order by s.invoice_number) d, w
+      where d.order_date between w.f and w.t)                                        as apex_rev,
+    (select count(*)
+       from (select distinct on (s.invoice_number) s.invoice_number, s.order_date
+               from mv_forensic_sales s where not s.cancelled order by s.invoice_number) d, w
+      where d.order_date between w.f and w.t)                                        as apex_n,
+    (select coalesce(round(sum(nullif(t4.source_row->>'Receiver Wholesale Price','')::numeric),0),0)
+       from metrc_rpt_package_transfers t4, w
+      where f_is_ours(coalesce(nullif(t4.source_row->>'Origin Lic.',''), t4.licence))
+        and not f_is_ours(coalesce(nullif(t4.source_row->>'Dest. Lic.',''), t4.destination_licence))
+        and coalesce(t4.source_row->>'Voided','False') <> 'True'
+        and t4.received_on between w.f and w.t)                                      as metrc_decl,
     (select count(distinct t3.manifest_number) from metrc_rpt_package_transfers t3, w
       where t3.received_on between w.f and w.t
         and coalesce(t3.source_row->>'Voided','False') <> 'True')                    as manifests_n,
@@ -8729,15 +8744,13 @@ select b.department, b.ord,
          when b.kpi ilike '%no apex invoice%' and b.department <> 'Sales & Cash' then round((select noinvoice_lb from flow)::numeric,1)
          when b.kpi ilike '%resold at markup%'           then round((select tp_resold_lb from flow)::numeric,1)
          when b.kpi ilike '%watchdog findings%'          then (select findings from flow)::numeric
-         /* WINDOW FLOWS for any bounded window */
+         when b.department = 'Sales & Cash' and b.ord = 70 then (select apex_rev from wflow)
+         when b.department = 'Sales & Cash' and b.ord = 72 then (select sale_lines from wflow)::numeric
+         when b.department = 'Sales & Cash' and b.ord = 73 then (select noinv_lines from wflow)::numeric
+         when not (select is_all_time from w) and b.department = 'Sales & Cash' and b.ord = 71 then (select manifests_n from wflow)::numeric
          when not (select is_all_time from w) and b.department = 'Cultivation' and b.kpi = 'Average dry time'            then coalesce((select avg_dry from wflow), 0)
          when not (select is_all_time from w) and b.department = 'Cultivation' and b.kpi = 'Harvests dried too long'     then (select dried_long from wflow)::numeric
          when not (select is_all_time from w) and b.department = 'Cultivation' and b.kpi = 'Conversion, dried flower only' then coalesce((select conv from wflow), 0)
-         when not (select is_all_time from w) and b.department = 'Sales & Cash' and b.ord = 70 then (select apex_rev from wflow)
-         when not (select is_all_time from w) and b.department = 'Sales & Cash' and b.ord = 71 then (select manifests_n from wflow)::numeric
-         when not (select is_all_time from w) and b.department = 'Sales & Cash' and b.ord = 72 then (select sale_lines from wflow)::numeric
-         when not (select is_all_time from w) and b.department = 'Sales & Cash' and b.ord = 73 then (select noinv_lines from wflow)::numeric
-         /* AS-OF POSITIONS when the window ends before today */
          when not (select ends_today from w) then
            case
              when b.kpi = 'Dried flower on hand'                                     then (select dried_lb from asof)
@@ -8764,11 +8777,20 @@ select b.department, b.ord,
          else b.value end                                               as value,
        b.unit, b.tone,
        case
+         when b.department = 'Sales & Cash' and b.ord = 70
+           then 'TWO ANSWERS, BOTH SHOWN. APEX (the sales source of record): $'
+                || to_char((select apex_rev from wflow), 'FM999,999,990') || ' across '
+                || (select apex_n from wflow) || ' invoices, one row per invoice, cancelled excluded. '
+                || 'METRC declared-price road: $' || to_char((select metrc_decl from wflow), 'FM999,999,990')
+                || ' — a compliance declaration, never a realised sale. The gap is the reconciliation work, '
+                || 'not a rounding.' || (select note from wnote)
+         when b.department = 'Sales & Cash' and b.ord in (72,73)
+           then b.context || (select note from wnote)
+         when not (select is_all_time from w) and b.department = 'Sales & Cash' and b.ord = 71
+           then b.context || (select note from wnote)
          when not (select is_all_time from w) and b.department = 'Cultivation'
               and b.kpi in ('Average dry time','Harvests dried too long','Conversion, dried flower only')
            then b.context || (select note from wnote) || ' Harvests CLOSED inside the window.'
-         when not (select is_all_time from w) and b.department = 'Sales & Cash' and b.ord between 70 and 73
-           then b.context || (select note from wnote)
          when not (select ends_today from w) and (
               b.kpi in ('Dried flower on hand','In the rooms, dry-equivalent','Harvests open too long',
                         'Moisture loss not recorded','Out at the laboratory, no result','Out for testing',
@@ -8802,13 +8824,14 @@ select b.department, b.ord,
        end                                                              as context,
        b.drill, b.computed_at,
        case when b.kpi ~* (select pat from k) then 'FLOW'
+            when b.department = 'Sales & Cash' and b.ord in (70,72,73) then 'FLOW'
             when b.kpi ilike '%inventory variance%' then 'ALL TIME ONLY'
             when not (select ends_today from w) then 'POSITION AS OF ' || (select t from w)
             else 'POSITION' end                                         as tile_kind,
        case when b.kpi ~* (select pat from k) then true
             when b.kpi ilike '%inventory variance%' then false
             else true end                                               as honours_range,
-       case when b.kpi ~* (select pat from k) then 'Recomputed for the selected range'
+       case when b.kpi ~* (select pat from k) or (b.department='Sales & Cash' and b.ord in (70,72,73)) then 'Recomputed for the selected range'
             when b.kpi ilike '%inventory variance%' then 'All time — a variance needs an opening position'
             when not (select ends_today from w) then 'Restated as of ' || (select t from w) || ' from the ledger'
             else 'Position as at today' end                             as range_note
@@ -46131,48 +46154,48 @@ create policy mcx_w on public.metrc_corrections as permissive for all to authent
   WHERE ((u.user_id = ( SELECT auth.uid() AS uid)) AND (u.role = ANY (ARRAY['owner'::app_role, 'executive'::app_role, 'planner'::app_role, 'dept_head'::app_role])))))) with check ((EXISTS ( SELECT 1
    FROM app_users u
   WHERE ((u.user_id = ( SELECT auth.uid() AS uid)) AND (u.role = ANY (ARRAY['owner'::app_role, 'executive'::app_role, 'planner'::app_role, 'dept_head'::app_role]))))));
-create policy cfo_read on public.metrc_documents as permissive for select to authenticated using (is_finance_reader());
+create policy cfo_read on public.metrc_documents as permissive for select to authenticated using (( SELECT is_finance_reader() AS is_finance_reader));
 create policy mdoc_read on public.metrc_documents as permissive for select to authenticated using (true);
-create policy cfo_read on public.metrc_employees as permissive for select to authenticated using (is_finance_reader());
+create policy cfo_read on public.metrc_employees as permissive for select to authenticated using (( SELECT is_finance_reader() AS is_finance_reader));
 create policy metrc_employees_read on public.metrc_employees as permissive for select to authenticated using (true);
 create policy tg_desktop_read on public.metrc_employees as permissive for select to tg_desktop_reader using (true);
 create policy mec_read on public.metrc_endpoint_capability as permissive for select to authenticated using (true);
-create policy cfo_read on public.metrc_harvests as permissive for select to authenticated using (is_finance_reader());
+create policy cfo_read on public.metrc_harvests as permissive for select to authenticated using (( SELECT is_finance_reader() AS is_finance_reader));
 create policy exec_all on public.metrc_harvests as permissive for all to public using (( SELECT is_executive() AS is_executive)) with check (( SELECT is_executive() AS is_executive));
 create policy tg_desktop_read on public.metrc_harvests as permissive for select to tg_desktop_reader using (true);
 create policy mib_read on public.metrc_import_backup as permissive for select to authenticated using (true);
-create policy cfo_read on public.metrc_item_categories as permissive for select to authenticated using (is_finance_reader());
+create policy cfo_read on public.metrc_item_categories as permissive for select to authenticated using (( SELECT is_finance_reader() AS is_finance_reader));
 create policy metrc_item_categories_read on public.metrc_item_categories as permissive for select to authenticated using (true);
 create policy tg_desktop_read on public.metrc_item_categories as permissive for select to tg_desktop_reader using (true);
-create policy cfo_read on public.metrc_items as permissive for select to authenticated using (is_finance_reader());
+create policy cfo_read on public.metrc_items as permissive for select to authenticated using (( SELECT is_finance_reader() AS is_finance_reader));
 create policy exec_all on public.metrc_items as permissive for all to public using (( SELECT is_executive() AS is_executive)) with check (( SELECT is_executive() AS is_executive));
 create policy tg_desktop_read on public.metrc_items as permissive for select to tg_desktop_reader using (true);
 create policy mlb_read on public.metrc_lab_backfill as permissive for select to authenticated using (true);
-create policy cfo_read on public.metrc_lab_results as permissive for select to authenticated using (is_finance_reader());
+create policy cfo_read on public.metrc_lab_results as permissive for select to authenticated using (( SELECT is_finance_reader() AS is_finance_reader));
 create policy exec_all on public.metrc_lab_results as permissive for all to public using (( SELECT is_executive() AS is_executive)) with check (( SELECT is_executive() AS is_executive));
 create policy tg_desktop_read on public.metrc_lab_results as permissive for select to tg_desktop_reader using (true);
-create policy cfo_read on public.metrc_lab_test_types as permissive for select to authenticated using (is_finance_reader());
+create policy cfo_read on public.metrc_lab_test_types as permissive for select to authenticated using (( SELECT is_finance_reader() AS is_finance_reader));
 create policy metrc_lab_test_types_read on public.metrc_lab_test_types as permissive for select to authenticated using (true);
 create policy tg_desktop_read on public.metrc_lab_test_types as permissive for select to tg_desktop_reader using (true);
-create policy cfo_read on public.metrc_locations as permissive for select to authenticated using (is_finance_reader());
+create policy cfo_read on public.metrc_locations as permissive for select to authenticated using (( SELECT is_finance_reader() AS is_finance_reader));
 create policy exec_all on public.metrc_locations as permissive for all to public using (( SELECT is_executive() AS is_executive)) with check (( SELECT is_executive() AS is_executive));
 create policy tg_desktop_read on public.metrc_locations as permissive for select to tg_desktop_reader using (true);
 create policy cfo_read on public.metrc_packages as permissive for select to authenticated using (( SELECT is_finance_reader() AS is_finance_reader));
 create policy exec_all on public.metrc_packages as permissive for all to public using (( SELECT is_executive() AS is_executive)) with check (( SELECT is_executive() AS is_executive));
 create policy tg_desktop_read on public.metrc_packages as permissive for select to tg_desktop_reader using (true);
-create policy cfo_read on public.metrc_plant_batches as permissive for select to authenticated using (is_finance_reader());
+create policy cfo_read on public.metrc_plant_batches as permissive for select to authenticated using (( SELECT is_finance_reader() AS is_finance_reader));
 create policy exec_all on public.metrc_plant_batches as permissive for all to public using (( SELECT is_executive() AS is_executive)) with check (( SELECT is_executive() AS is_executive));
 create policy tg_desktop_read on public.metrc_plant_batches as permissive for select to tg_desktop_reader using (true);
-create policy cfo_read on public.metrc_plants as permissive for select to authenticated using (is_finance_reader());
+create policy cfo_read on public.metrc_plants as permissive for select to authenticated using (( SELECT is_finance_reader() AS is_finance_reader));
 create policy exec_all on public.metrc_plants as permissive for all to public using (( SELECT is_executive() AS is_executive)) with check (( SELECT is_executive() AS is_executive));
 create policy tg_desktop_read on public.metrc_plants as permissive for select to tg_desktop_reader using (true);
 create policy metrc_report_catalog_read on public.metrc_report_catalog as permissive for select to authenticated using (true);
 create policy mrfm_read on public.metrc_report_field_map as permissive for select to authenticated using (true);
 create policy mrfm_write on public.metrc_report_field_map as permissive for all to authenticated using (( SELECT f_caller_is_admin() AS f_caller_is_admin)) with check (( SELECT f_caller_is_admin() AS f_caller_is_admin));
-create policy cfo_read on public.metrc_report_imports as permissive for select to authenticated using (is_finance_reader());
+create policy cfo_read on public.metrc_report_imports as permissive for select to authenticated using (( SELECT is_finance_reader() AS is_finance_reader));
 create policy mri_read on public.metrc_report_imports as permissive for select to authenticated using (true);
 create policy tg_desktop_read on public.metrc_report_imports as permissive for select to tg_desktop_reader using (true);
-create policy cfo_read on public.metrc_report_rows as permissive for select to authenticated using (is_finance_reader());
+create policy cfo_read on public.metrc_report_rows as permissive for select to authenticated using (( SELECT is_finance_reader() AS is_finance_reader));
 create policy mrr_read on public.metrc_report_rows as permissive for select to authenticated using (true);
 create policy tg_desktop_read on public.metrc_report_rows as permissive for select to tg_desktop_reader using (true);
 create policy mrt_read on public.metrc_report_types as permissive for select to authenticated using (true);
@@ -46182,20 +46205,20 @@ create policy mru_write on public.metrc_report_unmapped as permissive for all to
   WHERE ((u.user_id = ( SELECT auth.uid() AS uid)) AND ((u.role)::text = ANY (ARRAY['owner'::text, 'executive'::text, 'admin'::text, 'ceo'::text, 'cfo'::text, 'coo'::text])))))) with check ((EXISTS ( SELECT 1
    FROM app_users u
   WHERE ((u.user_id = ( SELECT auth.uid() AS uid)) AND ((u.role)::text = ANY (ARRAY['owner'::text, 'executive'::text, 'admin'::text, 'ceo'::text, 'cfo'::text, 'coo'::text]))))));
-create policy rpt_read on public.metrc_rpt_adjustments as permissive for select to authenticated using (is_finance_reader());
-create policy rpt_read on public.metrc_rpt_harvest_moisture as permissive for select to authenticated using (is_finance_reader());
-create policy rpt_read on public.metrc_rpt_harvests as permissive for select to authenticated using (is_finance_reader());
-create policy rpt_read on public.metrc_rpt_lab_results as permissive for select to authenticated using (is_finance_reader());
-create policy rpt_read on public.metrc_rpt_package_transfers as permissive for select to authenticated using (is_finance_reader());
-create policy rpt_read on public.metrc_rpt_packages_inventory as permissive for select to authenticated using (is_finance_reader());
-create policy rpt_read on public.metrc_rpt_plant_waste as permissive for select to authenticated using (is_finance_reader());
-create policy rpt_read on public.metrc_rpt_plants_destroyed as permissive for select to authenticated using (is_finance_reader());
-create policy rpt_read on public.metrc_rpt_point_in_time as permissive for select to authenticated using (is_finance_reader());
-create policy rpt_read on public.metrc_rpt_test_batches as permissive for select to authenticated using (is_finance_reader());
+create policy rpt_read on public.metrc_rpt_adjustments as permissive for select to authenticated using (( SELECT is_finance_reader() AS is_finance_reader));
+create policy rpt_read on public.metrc_rpt_harvest_moisture as permissive for select to authenticated using (( SELECT is_finance_reader() AS is_finance_reader));
+create policy rpt_read on public.metrc_rpt_harvests as permissive for select to authenticated using (( SELECT is_finance_reader() AS is_finance_reader));
+create policy rpt_read on public.metrc_rpt_lab_results as permissive for select to authenticated using (( SELECT is_finance_reader() AS is_finance_reader));
+create policy rpt_read on public.metrc_rpt_package_transfers as permissive for select to authenticated using (( SELECT is_finance_reader() AS is_finance_reader));
+create policy rpt_read on public.metrc_rpt_packages_inventory as permissive for select to authenticated using (( SELECT is_finance_reader() AS is_finance_reader));
+create policy rpt_read on public.metrc_rpt_plant_waste as permissive for select to authenticated using (( SELECT is_finance_reader() AS is_finance_reader));
+create policy rpt_read on public.metrc_rpt_plants_destroyed as permissive for select to authenticated using (( SELECT is_finance_reader() AS is_finance_reader));
+create policy rpt_read on public.metrc_rpt_point_in_time as permissive for select to authenticated using (( SELECT is_finance_reader() AS is_finance_reader));
+create policy rpt_read on public.metrc_rpt_test_batches as permissive for select to authenticated using (( SELECT is_finance_reader() AS is_finance_reader));
 create policy tg_rpt_manifests_read on public.metrc_rpt_transfer_manifests as permissive for select to authenticated using (true);
 create policy tg_rpt_manifests_write on public.metrc_rpt_transfer_manifests as permissive for insert to authenticated with check ((( SELECT current_app_role() AS current_app_role) = ANY (ARRAY['owner'::app_role, 'executive'::app_role, 'dept_head'::app_role])));
-create policy rpt_read on public.metrc_rpt_wholesale as permissive for select to authenticated using (is_finance_reader());
-create policy cfo_read on public.metrc_sales as permissive for select to authenticated using (is_finance_reader());
+create policy rpt_read on public.metrc_rpt_wholesale as permissive for select to authenticated using (( SELECT is_finance_reader() AS is_finance_reader));
+create policy cfo_read on public.metrc_sales as permissive for select to authenticated using (( SELECT is_finance_reader() AS is_finance_reader));
 create policy exec_all on public.metrc_sales as permissive for all to public using (( SELECT is_executive() AS is_executive)) with check (( SELECT is_executive() AS is_executive));
 create policy tg_desktop_read on public.metrc_sales as permissive for select to tg_desktop_reader using (true);
 create policy msl_read on public.metrc_scan_log as permissive for select to authenticated using (true);
@@ -46205,19 +46228,19 @@ create policy mss_write on public.metrc_scan_schedule as permissive for all to a
   WHERE ((u.user_id = ( SELECT auth.uid() AS uid)) AND (u.role = ANY (ARRAY['owner'::app_role, 'executive'::app_role])))))) with check ((EXISTS ( SELECT 1
    FROM app_users u
   WHERE ((u.user_id = ( SELECT auth.uid() AS uid)) AND (u.role = ANY (ARRAY['owner'::app_role, 'executive'::app_role]))))));
-create policy cfo_read on public.metrc_strains as permissive for select to authenticated using (is_finance_reader());
+create policy cfo_read on public.metrc_strains as permissive for select to authenticated using (( SELECT is_finance_reader() AS is_finance_reader));
 create policy exec_all on public.metrc_strains as permissive for all to public using (( SELECT is_executive() AS is_executive)) with check (( SELECT is_executive() AS is_executive));
 create policy tg_desktop_read on public.metrc_strains as permissive for select to tg_desktop_reader using (true);
-create policy cfo_read on public.metrc_sync_runs as permissive for select to authenticated using (is_finance_reader());
+create policy cfo_read on public.metrc_sync_runs as permissive for select to authenticated using (( SELECT is_finance_reader() AS is_finance_reader));
 create policy exec_all on public.metrc_sync_runs as permissive for all to public using (( SELECT is_executive() AS is_executive)) with check (( SELECT is_executive() AS is_executive));
 create policy tg_desktop_read on public.metrc_sync_runs as permissive for select to tg_desktop_reader using (true);
-create policy cfo_read on public.metrc_transfers as permissive for select to authenticated using (is_finance_reader());
+create policy cfo_read on public.metrc_transfers as permissive for select to authenticated using (( SELECT is_finance_reader() AS is_finance_reader));
 create policy exec_all on public.metrc_transfers as permissive for all to public using (( SELECT is_executive() AS is_executive)) with check (( SELECT is_executive() AS is_executive));
 create policy tg_desktop_read on public.metrc_transfers as permissive for select to tg_desktop_reader using (true);
-create policy cfo_read on public.metrc_units_of_measure as permissive for select to authenticated using (is_finance_reader());
+create policy cfo_read on public.metrc_units_of_measure as permissive for select to authenticated using (( SELECT is_finance_reader() AS is_finance_reader));
 create policy metrc_units_of_measure_read on public.metrc_units_of_measure as permissive for select to authenticated using (true);
 create policy tg_desktop_read on public.metrc_units_of_measure as permissive for select to tg_desktop_reader using (true);
-create policy cfo_read on public.metrc_waste_types as permissive for select to authenticated using (is_finance_reader());
+create policy cfo_read on public.metrc_waste_types as permissive for select to authenticated using (( SELECT is_finance_reader() AS is_finance_reader));
 create policy metrc_waste_types_read on public.metrc_waste_types as permissive for select to authenticated using (true);
 create policy tg_desktop_read on public.metrc_waste_types as permissive for select to tg_desktop_reader using (true);
 create policy mc_all on public.metric_challenges as permissive for all to authenticated using (true) with check (true);
