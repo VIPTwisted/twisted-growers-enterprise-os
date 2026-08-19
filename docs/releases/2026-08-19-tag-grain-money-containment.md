@@ -12,7 +12,7 @@ The same root also assigned invoice identity through buyer licence and a ±7-day
 
 ## Files
 
-- `supabase/migrations/20260819210250_tag_grain_invoice_money_and_proximity_identity_are_refused.sql`
+- `supabase/migrations/20260819220553_tag_grain_invoice_money_and_proximity_identity_are_refused.sql`
 - `tools/checks/money-grain.mjs`
 - `.github/workflows/ci.yml`
 - this release receipt

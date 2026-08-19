@@ -345,7 +345,7 @@ if (inspectMoneyContract(good).length
 const files = readdirSync(migrationDir).filter((name) => name.endsWith(".sql")).sort();
 const grainFile = "20260819184318_money_grain_is_a_contract_not_a_format.sql";
 const navFile = "20260819203618_every_published_sold_by_tag_road_refuses_line_grain_money.sql";
-const containmentFile = "20260819210250_tag_grain_invoice_money_and_proximity_identity_are_refused.sql";
+const containmentFile = "20260819220553_tag_grain_invoice_money_and_proximity_identity_are_refused.sql";
 
 if (!files.includes(grainFile)) {
   console.error(`money-grain: FAIL — reviewed contract file is missing: ${grainFile}`);
@@ -389,7 +389,7 @@ const migrationEntries = files.map((name) => ({
   name,
   sql: readFileSync(join(migrationDir, name), "utf8"),
 }));
-const expectedMigrationTreeDigest = "573f4a87d6d8d09b535254ddc3f57856582fb2b61bf6c5882d8c5baeeb9659a4";
+const expectedMigrationTreeDigest = "1981860ba2477b8dac05bdaa6a53d8a6b356a8a4747d6c72bf9d955c0a30d80e";
 const actualMigrationTreeDigest = migrationTreeDigest(migrationEntries);
 if (actualMigrationTreeDigest !== expectedMigrationTreeDigest) {
   console.error(`money-grain: FAIL — migration tree differs from the independently reviewed ${files.length}-file manifest (${actualMigrationTreeDigest}).`);
