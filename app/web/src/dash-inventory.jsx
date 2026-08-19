@@ -159,6 +159,10 @@ export default function InventoryDashboard({ go, session, reports, role, viewAs,
       ]);
       if (!live) return;
       setD({
+        /* The range these rows were computed for — the shared strip compares it
+           to the range now selected and refuses to show a figure under a label
+           it does not belong to. Owner, 19 Aug 2026. */
+        computedFor: { from: range.from, to: range.to },
         tiles: grab(tiles), trend: grab(trend), targets: grab(targets), stock: grab(stock),
         stockRooms: grab(stockRooms), tasks: grab(tasks),
         global: global.error ? { rows: null, err: global.error.message } : { rows: global.data, err: null },
@@ -229,6 +233,7 @@ export default function InventoryDashboard({ go, session, reports, role, viewAs,
         : d.tiles.rows.length === 0
           ? <DkGapCard row={d.global.rows} dept={DEPT} go={go} />
           : <DkKpiStrip dept={DEPT} tiles={d.tiles.rows} trend={trendByKpi} targets={targetByKpi}
+              range={range} computedFor={d.computedFor}
               go={go} onAssigned={() => setVer((v) => v + 1)} />}
       {d.targets.err && <DkErr what="The owner-set targets" err={d.targets.err} />}
       {d.trend.err && <DkErr what="The trend snapshots" err={d.trend.err} />}

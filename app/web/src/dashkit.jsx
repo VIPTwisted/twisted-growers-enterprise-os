@@ -748,8 +748,32 @@ export function WidgetBoard({ layout, children }) {
    provenance is worse than one that states none, and duplicating the strip so
    each page can print its own sentence would give this platform two
    definitions of a key figure. One primitive, told where it is. */
+/* `range` and `computedFor` — THE STALE-LABEL GUARD, SITE-WIDE.
+   Owner, 19 Aug 2026: "why had this data changed to last year's data and
+   figures", then "FIX FOR ENTIRE PAGE, EVERY DAMN THING, WHEN USER CHANGES
+   DATE ON ANY PAGE."
+
+   The data had NOT changed — it was today's and correct. What happened is that
+   the date chip repaints the instant it is clicked while the figures for that
+   range are still in flight, so for a second or two the screen pairs the OLD
+   numbers with the NEW heading. Read in that moment, every figure on the page
+   is attributed to a window it was never computed for.
+
+   The guard lives HERE, in the one strip every department mounts, so no page
+   can be fixed and another left behind. A caller passes the range it asked for
+   and the range the rows in hand were computed for; when they differ the strip
+   says so plainly instead of letting a number sit under the wrong date. A
+   caller that passes neither behaves exactly as before. */
 export function DkKpiStrip({ dept, tiles, trend, targets, go, onAssigned, caveats, pairs, inPlace,
-                             sourceNote, emptyNote }) {
+                             sourceNote, emptyNote, range, computedFor }) {
+  const rangeKey = (r) => `${r?.from ?? ""}|${r?.to ?? ""}`;
+  const stale = range && computedFor && rangeKey(range) !== rangeKey(computedFor);
+  if (stale) {
+    sourceNote = {
+      label: `recomputing for ${range.from || "all time"}${range.to ? " → " + range.to : ""} — the figures below are still the previous window`,
+      why: "You changed the date range and the new figures are still being computed. Until they land, these numbers belong to the PREVIOUS window and must not be read against the new dates. They refresh on their own in a moment.",
+    };
+  }
   if (!tiles.length) {
     return (
       <DkEmpty

@@ -1518,6 +1518,16 @@ export default function CommandCenter({ go, session, reports, role, viewAs, onVi
       ]);
       if (!live) return;
       setD({
+        /* THE RANGE THESE FIGURES WERE ACTUALLY COMPUTED FOR.
+           Owner, 19 Aug 2026: "why had this data changed to last year's data
+           and figures." It had not — the DATA was today's and correct, but the
+           date chip had already moved to the newly picked range while the
+           numbers for that range were still in flight, so the screen showed
+           today's figures under last year's heading. Stamping the range onto
+           the payload lets the strip refuse to display a figure under a label
+           it does not belong to. This is his own date_range_partial_refresh
+           gap, caught on his screen. */
+        computedFor: { from: range.from, to: range.to },
         tiles: grab(tiles), trend: grab(trend), targets: grab(targets), flow: grab(flow),
         split: split.error ? { rows: null, err: split.error.message } : { rows: split.data, err: null },
         global: grab(global), goals: grab(goals),
@@ -1710,11 +1720,16 @@ export default function CommandCenter({ go, session, reports, role, viewAs, onVi
       {/* ── order 9 · KPI strip ── */}
       {d.tiles.err ? <CcErr what="The key figures" err={d.tiles.err} /> : (
         <DkKpiStrip dept="Command" tiles={d.tiles.rows} trend={trendByKpi} targets={targetByKpi}
-          sourceNote={range.from && range.to
+          /* The stale-label guard is in the shared strip, not here — one
+             definition, every page (owner, 19 Aug 2026: fix it for every page,
+             not just this one). These two props are all it needs. */
+          range={range} computedFor={d.computedFor}
+          sourceNote={
+            range.from && range.to
             ? { label: `honouring ${range.from} → ${range.to}`,
-                why: "Flow figures are recomputed live for exactly this window by f_department_dashboard. Positions (on hand) cannot be restated to a past date — each says 'as at today' in its own context. Clear the dates to see all time." }
+                why: "Flow figures are recomputed live for exactly this window. Positions are restated as of the end date from the ledger, and each tile states its own basis in its context. Clear the dates to see all time." }
             : { label: "all time — pick dates above to range these figures",
-                why: "No date range is set, so every figure covers all data. The moment you pick dates, the flow figures recompute for that window and each tile states its own basis." }}
+                why: "No date range is set, so every figure covers all data. The moment you pick dates, the flow figures recompute for that window and the positions restate to its end date." }}
           go={go} onAssigned={() => setVer((v) => v + 1)} pairs={kpiPairs} inPlace={kpiInPlace} />
       )}
       {d.headline.err && <CcErr what="The split stock headline" err={d.headline.err} />}
