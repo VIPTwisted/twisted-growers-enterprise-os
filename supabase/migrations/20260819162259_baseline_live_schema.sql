@@ -21873,7 +21873,7 @@ create or replace view public.v_agent_health as
                     ELSE NULL::text
                 END)
         ), watch_ev AS (
-         SELECT
+         SELECT COALESCE(agent_findings.agent_key,
                 CASE agent_findings.agent
                     WHEN 'Allocation control'::text THEN 'watch:allocation'::text
                     WHEN 'Cash velocity'::text THEN 'watch:cash'::text
@@ -21881,12 +21881,13 @@ create or replace view public.v_agent_health as
                     WHEN 'Room turnaround'::text THEN 'watch:room'::text
                     WHEN 'Schedule discipline'::text THEN 'watch:schedule'::text
                     WHEN 'Loss and yield'::text THEN 'watch:loss'::text
-                    ELSE 'watch:sales'::text
-                END AS agent_key,
+                    WHEN 'Sales, Orders and Fulfilment'::text THEN 'watch:sales'::text
+                    ELSE NULL::text
+                END) AS agent_key,
             max(agent_findings.detected_at) AS last_run,
             count(*) AS produced
            FROM agent_findings
-          GROUP BY (
+          GROUP BY (COALESCE(agent_findings.agent_key,
                 CASE agent_findings.agent
                     WHEN 'Allocation control'::text THEN 'watch:allocation'::text
                     WHEN 'Cash velocity'::text THEN 'watch:cash'::text
@@ -21894,8 +21895,9 @@ create or replace view public.v_agent_health as
                     WHEN 'Room turnaround'::text THEN 'watch:room'::text
                     WHEN 'Schedule discipline'::text THEN 'watch:schedule'::text
                     WHEN 'Loss and yield'::text THEN 'watch:loss'::text
-                    ELSE 'watch:sales'::text
-                END)
+                    WHEN 'Sales, Orders and Fulfilment'::text THEN 'watch:sales'::text
+                    ELSE NULL::text
+                END))
         UNION ALL
          SELECT 'watch:watchdog'::text,
             max(watchdog_runs.ran_at) AS max,
@@ -21929,12 +21931,13 @@ create or replace view public.v_agent_health as
         UNION ALL
          SELECT watch_ev.agent_key,
             watch_ev.last_run,
-            NULL::bigint,
-            NULL::bigint,
-            NULL::bigint,
-            NULL::text,
+            NULL::bigint AS int8,
+            NULL::bigint AS int8,
+            NULL::bigint AS int8,
+            NULL::text AS text,
             watch_ev.produced
            FROM watch_ev
+          WHERE watch_ev.agent_key IS NOT NULL
         )
  SELECT r.agent_key,
     r.display_name,
