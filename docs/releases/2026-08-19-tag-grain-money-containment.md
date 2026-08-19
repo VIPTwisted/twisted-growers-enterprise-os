@@ -1,6 +1,25 @@
 # Tag-grain invoice money and proximity identity containment
 
-Status: candidate — database change is not closed until production apply, live postconditions, a normal healer refresh, Git sync, CI, and Netlify verification all pass.
+Status: closed and deployed — production apply, executable live postconditions, an ordinary healer refresh, Git synchronization, main-branch CI, and the Netlify build-stamp check all passed.
+
+## Final closure receipt
+
+- Supabase migration `20260819220553_tag_grain_invoice_money_and_proximity_identity_are_refused` is recorded exactly once.
+- Applied SQL SHA-256: `ba3e5425529f2f199e846d40a845998983ac701c1fc7d1f84b0075919e2998d6`.
+- Applied 930-file migration-tree SHA-256: `1981860ba2477b8dac05bdaa6a53d8a6b356a8a4747d6c72bf9d955c0a30d80e`.
+- Ordinary watcher receipt `matview_refresh_run.id=2857` refreshed `mv_tag_documents` successfully in 7,091 ms after deployment.
+- Lifecycle and document root both reconcile to 19,110 rows and 19,110 distinct non-null tags.
+- Lifecycle, document root, raw sold, and safe sold prohibited money/payment counts are zero.
+- Sold identity differences, lifecycle identity differences, the independently rederived Metrc-to-Apex bridge differences, and full document-trinity reconciliation differences are all zero.
+- Canonical Apex invoice-grain history remains `$6,360,187.52`; it was not added to Metrc custody values.
+- Protected TopMenu, TG Workspace, all-navigation, and role-visibility fingerprints are unchanged.
+- Worker, Reviewer, and Guard independently approved closure.
+- PR #12 merged through merge commit `4e73c43f0b6c78dd7c5554594024ef17b748cc45`, preserving the reviewed commits.
+- Main Gates run `32309343757` passed.
+- Main deployment-watch run `32309343708` passed.
+- Netlify production reported build `4e73c43f0b6c78dd7c5554594024ef17b748cc45`, built at `2026-08-19T22:34:03.164Z`, matching `origin/main`; the public site returned HTTP 200.
+
+This receipt closes only the tag-grain invoice-money/proximity-identity publication finding. It does not state that the entire OS, inventory position, source freshness, or all Apex-to-Metrc discrepancies are balanced.
 
 ## Executive decision
 
