@@ -11,6 +11,13 @@ import {
   matchingDatePreset,
   normaliseDateRange,
 } from "./lib/date-range-core.js";
+import {
+  certifiedPopulationVerdict,
+  classifyReportMeasures,
+  loadedGrainVerdict,
+  loadedMeasureVerdict,
+  selectReportContract,
+} from "./lib/report-measure-contract.js";
 import BusinessRuleEditor from "./business-rule-editor.jsx";
 /* ═══════════════════════════════════════════════════════════════════════════
    ROUTE-LEVEL CODE SPLITTING — the owner's fifteen-second first paint.
@@ -1597,25 +1604,38 @@ export function DateRangeSelect({
 const RP_ROW_CEILING = 50000;   /* stated on screen whenever it is reached */
 const RP_PAGE = 1000;           /* fetch batch size */
 
-/* One read of the registry for the whole session. Errors are surfaced, never
-   swallowed - a silent [] here would make every report look unregistered. */
-let RP_REGISTRY = null;
-function useReportRegistry() {
-  const [registry, setRegistry] = useState(RP_REGISTRY);
+/* Re-verify the selected report contract on every table navigation. Errors are
+   surfaced, never swallowed - a silent [] here would make a failed proof look
+   like an unregistered report. */
+function useReportRegistry(refreshKey) {
+  const [registry, setRegistry] = useState(null);
   const [registryError, setRegistryError] = useState(null);
+  const [revision, setRevision] = useState(0);
+  const refresh = useCallback(() => setRevision((value) => value + 1), []);
   useEffect(() => {
-    if (RP_REGISTRY) { setRegistry(RP_REGISTRY); return; }
+    const onFocus = () => refresh();
+    const onVisibility = () => { if (document.visibilityState === "visible") refresh(); };
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, [refresh]);
+  useEffect(() => {
     let live = true;
-    supabase.from("report_registry").select("*").eq("enabled", true)
+    setRegistry(null);
+    setRegistryError(null);
+    const factView = refreshKey.split(":", 1)[0];
+    supabase.rpc("f_report_registry_runtime", { p_fact_view: factView })
       .then(({ data, error }) => {
         if (!live) return;
         if (error) { setRegistryError(error.message); return; }
-        RP_REGISTRY = data ?? [];
-        setRegistry(RP_REGISTRY);
+        setRegistry(Array.isArray(data) ? data : []);
       });
     return () => { live = false; };
-  }, []);
-  return { registry, registryError };
+  }, [refreshKey, revision]);
+  return { registry, registryError, refresh };
 }
 
 const rpLabel = (s) => String(s ?? "").replaceAll("_", " ").replace(/\bpct\b/g, "percent")
@@ -1731,6 +1751,11 @@ function rpProvenanceLines(meta) {
     ["Source", `${meta.table}${meta.reportKey ? ` (report_registry: ${meta.reportKey})` : " (not in report_registry - columns derived from the object itself)"}`],
     ["Filters applied", meta.sentence],
     ["Rows in this export", String(meta.rowCount)],
+    ["Matching rows reported by source", meta.matchingRows == null ? "UNKNOWN — total certification refused" : String(meta.matchingRows)],
+    ["Contract status", meta.contractStatus],
+    ["Contract digest", meta.contractDigest ?? "NONE — total certification refused"],
+    ["Contract observed at", meta.contractObservedAt ?? "NONE — total certification refused"],
+    ["Numeric field verdicts", meta.measureVerdicts],
     ["Generated", meta.generated],
   ];
   if (meta.groupBy) lines.push(["Grouped by", rpLabel(meta.groupBy)]);
@@ -1914,7 +1939,6 @@ async function rpExportSheets(rows, cols, meta) {
    engine REFUSES that total and says why, rather than printing a number that
    looks fine. Countable items are never added to weighed ones. */
 const RP_WET_DRY = /^(pounds|pounds_wet|pounds_dry|weight_lb|net_lb|lb|total_pounds)$/;
-const RP_NEVER_SUM = /(percent|pct|_id$|^id$|year|month|day|days|_no$|number|rate|ratio|avg|average|median|per_|_per|thc|cbd|terpen|density|capacity)/i;
 /* THE SAME TRAP ON THE AXIS THE GUARD DID NOT COVER — 19 Aug 2026.
    The wet/dry refusal above has protected `pounds` since it was written, and
    `weight_basis` exists on exactly two registered objects. Meanwhile `quantity`
@@ -1942,15 +1966,20 @@ const rpCanonUom = (v) => {
   if (!s) return "not recorded";
   return RP_UOM_CANON[s] ?? s;
 };
-function rpSummable(col, kind) {
-  if (kind !== "number") return false;
-  if (RP_NEVER_SUM.test(col)) return false;
-  return true;
-}
-function rpSubtotal(rowsIn, col, allCols) {
+function rpSubtotal(rowsIn, col, allCols, contract, populationVerdict) {
   const rows = rowsIn ?? [];
+  if (!populationVerdict?.verified) {
+    return { value: null, refused: true, why: `Refused: ${populationVerdict?.reason || "the matching population is not complete"}` };
+  }
+  const loadedGrain = loadedGrainVerdict(rows, contract);
+  if (!loadedGrain.verified) {
+    return { value: null, refused: true, why: `Refused: ${loadedGrain.reason}` };
+  }
+  const loadedMeasure = loadedMeasureVerdict(rows, contract, col);
+  if (!loadedMeasure.verified) {
+    return { value: null, refused: true, why: `Refused: ${loadedMeasure.reason}` };
+  }
   const nums = rows.map((r) => r[col]).filter((v) => typeof v === "number" && Number.isFinite(v));
-  if (!nums.length) return { value: null, refused: false, why: null };
   if (RP_WET_DRY.test(col) && allCols.includes("weight_basis")) {
     const bases = new Set(rows.filter((r) => typeof r[col] === "number").map((r) => r.weight_basis ?? "not recorded"));
     if (bases.size > 1) {
@@ -1983,7 +2012,7 @@ function rpSubtotal(rowsIn, col, allCols) {
       }
     }
   }
-  return { value: nums.reduce((a, b) => a + b, 0), refused: false, count: nums.length, why: null };
+  return { value: loadedMeasure.total, refused: false, count: loadedMeasure.valued, why: null };
 }
 const rpNum = (n) => n == null ? "—" : Number(n).toLocaleString(undefined, { maximumFractionDigits: 2 });
 
@@ -2112,7 +2141,13 @@ function RpAuditDrill({ row, context, onClose, onTag }) {
               <div className="df"><div className="dk">Report</div><div className="dv">{context.title}</div></div>
               <div className="df"><div className="dk">Source object</div><div className="dv">{context.table}</div></div>
               <div className="df"><div className="dk">Filters in force</div><div className="dv">{context.sentence}</div></div>
-              <div className="df"><div className="dk">Rows behind the figure</div><div className="dv">{context.rowCount?.toLocaleString?.() ?? "—"}</div></div>
+              <div className="df"><div className="dk">Rows loaded behind the figure</div><div className="dv">{context.loadedRows?.toLocaleString?.() ?? "—"}</div></div>
+              <div className="df"><div className="dk">All matching rows</div><div className="dv">{context.matchingRows?.toLocaleString?.() ?? "UNKNOWN"}</div></div>
+              <div className="df"><div className="dk">Total certification</div><div className="dv">{context.totalVerdict}</div></div>
+              <div className="df"><div className="dk">Contract digest</div><div className="dv">{context.contractDigest ?? "NONE"}</div></div>
+              <div className="df"><div className="dk">Contract observed</div><div className="dv">{context.contractObservedAt ?? "UNKNOWN"}</div></div>
+              <div className="df"><div className="dk">Population snapshot</div><div className="dv">{context.snapshotId ?? "NONE — totals refused"}</div></div>
+              <div className="df"><div className="dk">Numeric field verdicts</div><div className="dv">{context.measureVerdicts}</div></div>
               {context.figureLabel && <div className="df"><div className="dk">Figure</div><div className="dv">{context.figureLabel}</div></div>}
             </div>
           </RpLayer>
@@ -2120,8 +2155,9 @@ function RpAuditDrill({ row, context, onClose, onTag }) {
           <RpLayer n={2} title="Every row behind it" open={open[2]} onToggle={() => toggle(2)}
             sub={context.reconcileNote ?? "reconciliation is shown on the report itself"}>
             <div className="note">
-              The rows are on the report behind this drawer — all {context.rowCount?.toLocaleString?.() ?? "—"} of them,
-              never a sample. Close this drawer to see them, or export; the export carries the same filters.
+              The report currently holds {context.loadedRows?.toLocaleString?.() ?? "—"} of {context.matchingRows?.toLocaleString?.() ?? "an unknown number of"} matching rows.
+              {context.truncated ? " The read hit the row ceiling, so no total is certified." : ""}
+              Close this drawer to inspect them. Exports re-read the population and stamp their own completeness and contract verdicts.
             </div>
             {context.reconcileNote && <div className="note" style={{ marginTop: 6 }}>{context.reconcileNote}</div>}
           </RpLayer>
@@ -2400,8 +2436,11 @@ function RpSavedViews({ viewKey, state, apply, session }) {
 /* ---------- THE REPORT SCREEN. Every one of the 518 report pages is this. ---------- */
 function ReportScreen({ entry, actions, session }) {
   const table = entry.table_ref;
-  const { registry, registryError } = useReportRegistry();
-  const reg = useMemo(() => (registry ?? []).find((r) => r.fact_view === table) ?? null, [registry, table]);
+  const { registry, registryError } = useReportRegistry(`${table}:${entry.view_key}`);
+  const regSelection = useMemo(
+    () => selectReportContract(registry, table, entry.view_key),
+    [registry, table, entry.view_key]);
+  const reg = regSelection.contract;
 
   const [probe, setProbe] = useState(null);
   const [probeError, setProbeError] = useState(null);
@@ -2409,6 +2448,8 @@ function ReportScreen({ entry, actions, session }) {
   const [total, setTotal] = useState(null);
   const [error, setError] = useState(null);
   const [truncated, setTruncated] = useState(false);
+  const [rowsContractDigest, setRowsContractDigest] = useState(null);
+  const [rowsContractError, setRowsContractError] = useState(null);
   const [loadAll, setLoadAll] = useState(false);
   const [busy, setBusy] = useState(false);
 
@@ -2461,6 +2502,7 @@ function ReportScreen({ entry, actions, session }) {
     setProbe(null); setProbeError(null); setRows(null); setTotal(null); setError(null);
     setSearch(""); setSearchLive(""); setFilters([]); setDFrom(""); setDTo("");
     setSort(null); setGroupBy(""); setLoadAll(false); setTruncated(false); setMsg(null);
+    setRowsContractDigest(null); setRowsContractError(null);
     /* Column choice and date column belong to the report, not to the session.
        Without these two the previous report's columns followed you to the next
        one and every cell read "—", which looks exactly like empty data. */
@@ -2500,8 +2542,11 @@ function ReportScreen({ entry, actions, session }) {
     /* nullsFirst false: rows created before a date was tracked read NULL and
        must sort LAST, never first, and never look like a real empty date. */
     if (sort) qy = qy.order(sort.col, { ascending: sort.asc, nullsFirst: false });
+    for (const key of (Array.isArray(reg?.grain_keys) ? reg.grain_keys : [])) {
+      if (!sort || sort.col !== key) qy = qy.order(key, { ascending: true, nullsFirst: false });
+    }
     return qy;
-  }, [table, search, textCols, filters, dateCol, dFrom, dTo, sort]);
+  }, [table, search, textCols, filters, dateCol, dFrom, dTo, sort, reg]);
 
   const fetchRows = useCallback(async (all) => {
     const out = [];
@@ -2517,31 +2562,45 @@ function ReportScreen({ entry, actions, session }) {
       from += size;
       if (out.length >= RP_ROW_CEILING) { hitCeiling = true; break; }
     }
-    return { rows: out, total: tot, truncated: hitCeiling };
-  }, [buildQuery]);
+    const proof = await supabase.rpc("f_report_registry_runtime", { p_fact_view: table });
+    return { rows: out, total: tot, truncated: hitCeiling,
+      proofRows: Array.isArray(proof.data) ? proof.data : [], proofError: proof.error?.message ?? null };
+  }, [buildQuery, table]);
 
   useEffect(() => {
     if (!table || probe === null || !dateDefault.ready) return;
     let live = true;
-    setBusy(true); setError(null);
+    setBusy(true); setError(null); setRowsContractDigest(null); setRowsContractError(null);
     fetchRows(loadAll || !!groupBy).then((r) => {
       if (!live) return;
       setBusy(false);
       if (r.error) { setError(r.error); setRows(null); return; }
+      const proofSelection = selectReportContract(r.proofRows, table, entry.view_key);
+      setRowsContractDigest(proofSelection.contract?.contract_digest ?? null);
+      setRowsContractError(r.proofError || (proofSelection.ambiguous ? "The post-read contract is ambiguous." : null));
       setRows(r.rows); setTruncated(r.truncated);
-      if (r.total != null) setTotal(r.total);
+      setTotal(r.total ?? null);
     });
     return () => { live = false; };
-  }, [table, probe, fetchRows, loadAll, groupBy, dateDefault.ready]);
+  }, [table, entry.view_key, probe, fetchRows, loadAll, groupBy, dateDefault.ready]);
 
   const dirty = !!(search || dFrom || dTo || filters.length);
   const sentence = rpFilterSentence({ search, searchCols: textCols, filters, dateCol, dFrom, dTo, cols });
   const title = reg?.title ?? entry.label;
   const ownerNote = reg?.owner_note ?? null;
   const allNames = cols.map((c) => c.name);
-  const basisNote = allNames.includes("weight_basis")
-    ? "This report carries weight_basis on every row. Pounds are only added within a single basis; a mixed group is refused, never silently summed."
-    : null;
+  const basisNotes = [];
+  if (reg?.row_grain && reg.grain_verified === true) {
+    basisNotes.push(`Verified row grain: ${reg.row_grain}. Grain key${reg.grain_keys?.length === 1 ? "" : "s"}: ${(Array.isArray(reg.grain_keys) ? reg.grain_keys : []).join(", ")}.`);
+  } else if (reg?.row_grain) {
+    basisNotes.push(`Declared row grain not verified: ${reg.row_grain}. ${reg.grain_verification_reason || "No live verification receipt was returned."} No total is certified.`);
+  } else {
+    basisNotes.push("No verified row-grain contract governs this page. Numeric values are exported as row facts; no total is certified.");
+  }
+  if (allNames.includes("weight_basis")) {
+    basisNotes.push("This report carries weight_basis on every row. Pounds are only added within a single basis; a mixed group is refused, never silently summed.");
+  }
+  const basisNote = basisNotes.join(" ");
 
   const groups = useMemo(() => {
     if (!groupBy || !rows) return null;
@@ -2554,9 +2613,23 @@ function ReportScreen({ entry, actions, session }) {
     return [...m.entries()].sort((a, b) => b[1].length - a[1].length);
   }, [groupBy, rows]);
 
-  const measureCols = useMemo(
-    () => shown.filter((n) => rpSummable(n, cols.find((c) => c.name === n)?.kind)),
-    [shown, cols]);
+  const measureGovernance = useMemo(
+    () => classifyReportMeasures(shown, cols, reg),
+    [shown, cols, reg]);
+  const measureCols = measureGovernance.summable.map((row) => row.name);
+  const certifiedPopulation = certifiedPopulationVerdict({
+    rows, total, truncated,
+    contractDigest: reg?.contract_digest,
+    rowsContractDigest,
+    snapshotVerified: reg?.population_snapshot_verified,
+    snapshotId: reg?.population_snapshot_id,
+    snapshotReason: reg?.population_snapshot_reason,
+  });
+  const screenMeasureVerdicts = [
+    ...measureGovernance.summable.map((row) => `${rpLabel(row.name)}: ${certifiedPopulation.verified ? "CERTIFIED SUM" : `REFUSED — ${certifiedPopulation.reason}`}`),
+    ...measureGovernance.refused.map((row) => `${rpLabel(row.name)}: REFUSED — ${row.reason}`),
+    ...measureGovernance.displayOnly.map((row) => `${rpLabel(row.name)}: DISPLAY ONLY`),
+  ].join(" | ") || "No numeric field shown";
 
   /* AN EXPORT THAT IS 20% OF THE TABLE AND DOES NOT SAY SO — 19 Aug 2026.
      withFullRows already computed the truncation flag and handed it to the
@@ -2568,21 +2641,50 @@ function ReportScreen({ entry, actions, session }) {
      objects exceed the ceiling today, and these files carry their own
      provenance into audits. `wasTruncated` is now a required argument: pass
      null only when the count is genuinely known to be complete. */
-  const exportMeta = (rowCount, wasTruncated, extra = {}) => ({
-    title, table, reportKey: reg?.report_key ?? null, sentence, rowCount,
-    generated: new Date().toString(), ownerNote, basisNote, groupBy: groupBy || null,
-    truncated: wasTruncated ?? truncated,
-    slug: `${(reg?.report_key ?? entry.view_key)}-${new Date().toISOString().slice(0, 10)}`,
-    ...extra,
-  });
+  const exportMeta = (result) => {
+    const selection = selectReportContract(result.proofRows, table, entry.view_key);
+    const exportContract = selection.contract;
+    const exportPopulation = certifiedPopulationVerdict({
+      rows: result.rows, total: result.total, truncated: result.truncated,
+      contractDigest: exportContract?.contract_digest,
+      rowsContractDigest: exportContract?.contract_digest,
+      snapshotVerified: exportContract?.population_snapshot_verified,
+      snapshotId: exportContract?.population_snapshot_id,
+      snapshotReason: exportContract?.population_snapshot_reason,
+    });
+    const exportPolicies = classifyReportMeasures(shown, cols, exportContract);
+    const verdicts = [
+      ...exportPolicies.summable.map((policy) => {
+        const grain = loadedGrainVerdict(result.rows, exportContract);
+        const values = loadedMeasureVerdict(result.rows, exportContract, policy.name);
+        const reason = [exportPopulation, grain, values].find((v) => !v.verified)?.reason;
+        return `${policy.name}: ${reason ? `REFUSED — ${reason}` : "CERTIFIED SUM"}`;
+      }),
+      ...exportPolicies.refused.map((policy) => `${policy.name}: REFUSED — ${policy.reason}`),
+      ...exportPolicies.displayOnly.map((policy) => `${policy.name}: DISPLAY ONLY — not a registered measure`),
+    ];
+    return {
+      title, table, reportKey: exportContract?.report_key ?? null, sentence,
+      rowCount: result.rows.length, matchingRows: result.total,
+      generated: new Date().toString(), ownerNote, basisNote, groupBy: groupBy || null,
+      truncated: result.truncated, contractDigest: exportContract?.contract_digest ?? null,
+      contractObservedAt: exportContract?.contract_observed_at ?? null,
+      contractStatus: result.proofError || (selection.ambiguous ? "REFUSED — ambiguous contract" : exportContract?.grain_verification_reason || "UNREGISTERED — no total certified"),
+      measureVerdicts: verdicts.join(" | ") || "No numeric field shown",
+      slug: `${(exportContract?.report_key ?? entry.view_key)}-${new Date().toISOString().slice(0, 10)}`,
+    };
+  };
 
   const withFullRows = async (fn) => {
     setMsg("Reading every row that matches these filters…");
-    const r = rows && (loadAll || !!groupBy || (total != null && rows.length >= total))
-      ? { rows, truncated } : await fetchRows(true);
+    /* A forensic export is a new evidence event. Never reuse an older complete-
+       looking browser population: the source row count or values may have
+       changed since it was loaded. fetchRows obtains a fresh exact count and
+       re-verifies the contract only after the final exported row is read. */
+    const r = await fetchRows(true);
     if (r.error) { setMsg(`Export failed — the query errored: ${r.error}`); return; }
     setMsg(null);
-    fn(r.rows, r.truncated);
+    fn(r);
   };
 
   /* An application screen is not a report. It has no data object by design, so
@@ -2610,16 +2712,29 @@ function ReportScreen({ entry, actions, session }) {
   const hiddenCount = cols.length - shownCols.length;
 
   const Reconcile = ({ list }) => {
-    if (!measureCols.length) return null;
+    const hasGovernanceMessage = measureGovernance.refused.length || measureGovernance.displayOnly.length || rowsContractError;
+    if (!measureCols.length && !hasGovernanceMessage) return null;
+    const displayNames = measureGovernance.displayOnly.map((row) => rpLabel(row.name));
     return (
       <div className="statchips" style={{ margin: "4px 0 8px" }}>
         {measureCols.map((mc) => {
-          const s = rpSubtotal(list, mc, allNames);
+          const s = rpSubtotal(list, mc, allNames, reg, certifiedPopulation);
           return s.refused
             ? <span key={mc} className="schip bad" title={s.why}>{rpLabel(mc)}: total refused — {s.why}</span>
-            : <span key={mc} className="schip good">{rpLabel(mc)}: <b>{rpNum(s.value)}</b> across {s.count?.toLocaleString()} rows</span>;
+             : <span key={mc} className="schip good">{rpLabel(mc)}: <b>{rpNum(s.value)}</b> across {s.count?.toLocaleString()} rows</span>;
         })}
-        <span className="schl">totals are the sum of the rows shown — nothing sampled</span>
+        {measureGovernance.refused.map((row) => (
+          <span key={row.name} className="schip bad" title={row.reason}>
+            {rpLabel(row.name)}: total refused — {row.reason}
+          </span>
+        ))}
+        {displayNames.length > 0 && (
+          <span className={reg ? "schip" : "schip bad"}>
+            {reg ? "Display-only numeric fields" : "Totals refused — no unique grain contract"}: {displayNames.join(", ")}
+          </span>
+        )}
+        {rowsContractError && <span className="schip bad">Post-read contract verification failed: {rowsContractError}</span>}
+        <span className="schl">only approved row-grain measures are totaled — raw rows and drills remain visible</span>
       </div>
     );
   };
@@ -2630,7 +2745,10 @@ function ReportScreen({ entry, actions, session }) {
         <RpAuditDrill row={drill} onClose={() => setDrill(null)} onTag={(t) => setDrill({ package_tag: t })}
           context={{
             title, table, reportKey: reg?.report_key ?? null, sentence, ownerNote,
-            rowCount: total ?? rows?.length ?? 0,
+            loadedRows: rows?.length ?? 0, matchingRows: total, truncated,
+            totalVerdict: certifiedPopulation.verified ? "CERTIFIED POPULATION" : `REFUSED — ${certifiedPopulation.reason}`,
+            contractDigest: reg?.contract_digest, contractObservedAt: reg?.contract_observed_at,
+            snapshotId: reg?.population_snapshot_id, measureVerdicts: screenMeasureVerdicts,
             reconcileNote: rows ? `${rows.length.toLocaleString()} rows are loaded on the report of ${total?.toLocaleString() ?? "an unknown"} matching these filters.` : null,
           }} />
       )}
@@ -2652,7 +2770,12 @@ function ReportScreen({ entry, actions, session }) {
           </span>
         </div>
       )}
-      {registryError && <div className="schip bad">The report registry could not be read: {registryError}. Columns below are derived from the object itself.</div>}
+      {registryError && <div className="schip bad">The live report-grain registry could not be verified: {registryError}. Rows below are derived from the object itself; every total is refused.</div>}
+      {regSelection.ambiguous && (
+        <div className="schip bad">
+          Totals refused: {regSelection.matches} enabled report contracts point to {table}, but this page names no unique contract. The rows remain available; no contract was guessed.
+        </div>
+      )}
 
       <div className="modhead">
         <div className="mchip">{iconByName(entry.icon)}</div>
@@ -2753,13 +2876,13 @@ function ReportScreen({ entry, actions, session }) {
         )}
         <span style={{ flex: 1 }} />
         <button className="btn small ghost" title="Comma Separated Values, carrying these filters"
-          onClick={() => withFullRows((r, t) => rpExportCsv(r, shownCols, exportMeta(r.length, t)))}>Comma Separated Values</button>
+          onClick={() => withFullRows((r) => rpExportCsv(r.rows, shownCols, exportMeta(r)))}>Comma Separated Values</button>
         <button className="btn small ghost" title="Microsoft Excel workbook, carrying these filters"
-          onClick={() => withFullRows((r, t) => rpExportExcel(r, shownCols, exportMeta(r.length, t)))}>Excel</button>
+          onClick={() => withFullRows((r) => rpExportExcel(r.rows, shownCols, exportMeta(r)))}>Excel</button>
         <button className="btn small ghost" title="Opens the print dialogue — choose Save as PDF"
-          onClick={() => withFullRows((r, t) => { const e2 = rpExportPdf(r, shownCols, exportMeta(r.length, t)); if (e2) setMsg(e2); })}>PDF</button>
+          onClick={() => withFullRows((r) => { const e2 = rpExportPdf(r.rows, shownCols, exportMeta(r)); if (e2) setMsg(e2); })}>PDF</button>
         <button className="btn small ghost" title="Copies the filtered report and opens a blank Google Sheet to paste into. Nothing is uploaded automatically."
-          onClick={() => withFullRows(async (r, t) => setMsg(await rpExportSheets(r, shownCols, exportMeta(r.length, t))))}>Google Sheets</button>
+          onClick={() => withFullRows(async (r) => setMsg(await rpExportSheets(r.rows, shownCols, exportMeta(r))))}>Google Sheets</button>
       </div>
 
       {dateDefault.error && <div className="empty" role="alert">{dateDefault.error} No report rows were queried without it.</div>}
