@@ -20,8 +20,8 @@
  *
  * Exits non-zero on failure so it can gate a push.
  */
-import { readFileSync } from "node:fs";
-import { resolve, dirname } from "node:path";
+import { readFileSync, readdirSync } from "node:fs";
+import { resolve, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
@@ -33,10 +33,14 @@ const check = (ok, label, why) => {
   else failures.push(`${label}\n      ${why}`);
 };
 
-let main = "", app = "";
+let main = "", app = "", receiptSql = "";
 try {
   main = read("app/web/src/main.jsx");
   app = read("app/web/src/App.jsx");
+  const migrationDir = resolve(root, "supabase/migrations");
+  const receiptFile = readdirSync(migrationDir).sort().reverse()
+    .find((name) => readFileSync(join(migrationDir, name), "utf8").includes("CLIENT_ERROR_RECEIPT_CONTRACT"));
+  if (receiptFile) receiptSql = readFileSync(join(migrationDir, receiptFile), "utf8");
 } catch (e) {
   console.error(`error-boundaries: FAIL — cannot read source: ${e.message}`);
   process.exit(1);
@@ -53,7 +57,7 @@ check(
 /* 2 — both boundaries actually catch. getDerivedStateFromError renders the
        fallback; componentDidCatch is the only place the error can be reported. */
 for (const cls of ["RootBoundary", "Boundary"]) {
-  const body = app.split(new RegExp(`class ${cls}\\b`))[1]?.slice(0, 1600) ?? "";
+  const body = app.split(new RegExp(`class ${cls}\\b`))[1]?.slice(0, 2600) ?? "";
   check(
     body.includes("componentDidCatch"),
     `${cls} implements componentDidCatch`,
@@ -64,13 +68,18 @@ for (const cls of ["RootBoundary", "Boundary"]) {
     `${cls} calls reportCrash`,
     "A caught crash that is not reported is indistinguishable from no crash at all."
   );
+  check(
+    body.includes("<CrashReceipt"),
+    `${cls} discloses the durable receipt or the reporting failure`,
+    "A boundary may not claim a crash was recorded until it can show the returned finding ID, and it must say when recording failed."
+  );
 }
 
 /* 3 — the reporter must be safe under a crash loop. A boundary that hammers the
        database while the page is failing turns one broken page into an incident. */
-const reporter = app.split("function reportCrash")[1]?.slice(0, 1400) ?? "";
+const reporter = app.split("function reportCrash")[1]?.split("function CrashReceipt")[0] ?? "";
 check(
-  reporter.includes("REPORTED_CRASHES") && /\.has\(/.test(reporter),
+  reporter.includes("REPORTED_CRASHES") && /\.has\(/.test(reporter) && /\.get\(/.test(reporter),
   "reportCrash deduplicates by view and message",
   "The same crash hit by twelve people must be one finding seen twelve times, not twelve findings."
 );
@@ -80,9 +89,45 @@ check(
   "A component that throws on every render would otherwise write without limit."
 );
 check(
-  /try\s*{/.test(reporter) && /catch\s*{/.test(reporter),
+  /try\s*{/.test(reporter) && /catch\s*(?:\([^)]*\))?\s*{/.test(reporter),
   "reportCrash cannot itself throw",
   "A reporter that throws inside componentDidCatch escalates a contained failure into an unmounted tree."
+);
+check(
+  reporter.includes('supabase.rpc("tg_log_client_error_receipt"') && reporter.includes("data?.finding_id"),
+  "reportCrash requires the receipt RPC and a finding ID",
+  "RPC success without a durable watchdog_findings.id is not proof that the incident was recorded."
+);
+check(
+  /return\s+request/.test(reporter) && /ok:\s*false/.test(reporter),
+  "reportCrash returns an explicit success or failure result",
+  "Fire-and-forget reporting leaves the boundary unable to distinguish a durable incident from a failed write."
+);
+check(
+  !/It has been recorded automatically|Recorded as a finding\. Nobody has to remember/i.test(app),
+  "the UI contains no unconditional recorded claim",
+  "The old copy promised a durable incident while deliberately discarding both RPC success and failure."
+);
+check(
+  receiptSql.includes("tg_log_client_error_receipt") && /returns\s+jsonb/i.test(receiptSql),
+  "the receipt RPC is committed as a migration",
+  "A front end calling an unversioned live-only function cannot be rebuilt, reviewed, or recovered."
+);
+check(
+  /if\s+v_finding\s+is\s+null[\s\S]*where\s+fingerprint\s*=\s*v_fingerprint/i.test(receiptSql),
+  "the receipt RPC handles the duplicate-fingerprint trigger",
+  "The existing trigger swallows duplicate inserts. INSERT RETURNING alone yields no finding ID on the repeated-crash path."
+);
+check(
+  /'finding_id'\s*,\s*v_finding/i.test(receiptSql) && /'run_id'\s*,\s*v_run/i.test(receiptSql),
+  "the database receipt names both durable IDs",
+  "The UI needs the finding ID; operations needs the browser run ID linking the report to its ingestion event."
+);
+check(
+  /revoke all on function public\.tg_log_client_error_receipt\(text,text,text,text\) from public, anon/i.test(receiptSql)
+    && /grant execute on function public\.tg_log_client_error_receipt\(text,text,text,text\) to authenticated/i.test(receiptSql),
+  "the receipt RPC is authenticated-only",
+  "An internet-reachable anonymous function that writes critical forensic findings is an integrity and denial-of-service risk."
 );
 
 if (failures.length) {

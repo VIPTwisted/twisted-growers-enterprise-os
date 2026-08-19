@@ -2108,15 +2108,30 @@ const petLoad = () => {
 };
 const petSave = (v) => { try { localStorage.setItem(PET_KEY, JSON.stringify(v)); } catch {} };
 
-/* Write through to the user's row. Fire and forget: a failed save must never
-   interrupt someone dragging a window. */
+const announcePetPreferenceFailure = (area, error) => {
+  window.dispatchEvent(new CustomEvent("tg-preference-error", {
+    detail: { area, message: String(error?.message ?? error ?? "Unknown preference error") },
+  }));
+};
+
+/* Write through to the user's row. Callers may stay non-blocking while a person
+   drags the pet, but failure is never silent: the shell receives a durable
+   visible preference-error event and the local cache is labelled by that UI as
+   device-only state. */
 const petPersist = async (patch) => {
   try {
-    const { data } = await supabase.auth.getUser();
+    const { data, error: userError } = await supabase.auth.getUser();
+    if (userError) throw userError;
     const uid = data?.user?.id;
-    if (!uid) return;
-    await supabase.from("user_settings").update(patch).eq("user_id", uid);
-  } catch { /* the cache still holds it; the next save will retry */ }
+    if (!uid) throw new Error("No signed-in account was available for the pet preference.");
+    const { error } = await supabase.from("user_settings")
+      .upsert({ user_id: uid, ...patch, updated_at: new Date().toISOString() }, { onConflict: "user_id" });
+    if (error) throw error;
+    return true;
+  } catch (error) {
+    announcePetPreferenceFailure("Budz pet preference", error);
+    return false;
+  }
 };
 
 export function useBudzPet() {
@@ -2125,10 +2140,12 @@ export function useBudzPet() {
   useEffect(() => {
     let live = true;
     (async () => {
-      const { data: u } = await supabase.auth.getUser();
+      const { data: u, error: userError } = await supabase.auth.getUser();
+      if (userError) { announcePetPreferenceFailure("Budz pet preference", userError); return; }
       if (!u?.user?.id) return;
-      const { data } = await supabase.from("user_settings")
+      const { data, error } = await supabase.from("user_settings")
         .select("pet_on").eq("user_id", u.user.id).maybeSingle();
+      if (error) { announcePetPreferenceFailure("Budz pet preference", error); return; }
       if (live && data && typeof data.pet_on === "boolean" && data.pet_on !== on) {
         setOn(data.pet_on);
         petSave({ ...petLoad(), on: data.pet_on });
@@ -2783,26 +2800,55 @@ export function PetControls() {
   const [size, setSize] = useState(() => petLoad().size ?? 150);
   const [notify, setNotify] = useState(null);
   const [counts, setCounts] = useState([]);
+  const [preferenceMsg, setPreferenceMsg] = useState(null);
   useEffect(() => {
     let live = true;
     (async () => {
-      const { data: u } = await supabase.auth.getUser();
+      const { data: u, error: userError } = await supabase.auth.getUser();
+      if (userError) {
+        setPreferenceMsg(`Budz preferences could not be read: ${userError.message}`);
+        announcePetPreferenceFailure("Budz notification preferences", userError);
+        return;
+      }
       if (!u?.user?.id) return;
-      const [{ data: st }, { data: rows }] = await Promise.all([
+      const [{ data: st, error: settingsError }, { data: rows, error: countError }] = await Promise.all([
         supabase.from("user_settings").select("pet_notify").eq("user_id", u.user.id).maybeSingle(),
         supabase.rpc("f_my_notifications"),
       ]);
       if (!live) return;
+      if (settingsError || countError) {
+        const error = settingsError || countError;
+        setPreferenceMsg(`Budz preferences could not be read: ${error.message}`);
+        announcePetPreferenceFailure("Budz notification preferences", error);
+        return;
+      }
       setNotify(st?.pet_notify ?? {});
       setCounts(rows ?? []);
     })();
     return () => { live = false; };
   }, []);
   const flip = async (key) => {
+    const previous = notify ?? {};
     const next = { ...(notify ?? {}), [key]: !(notify ?? {})[key] };
     setNotify(next);
-    const { data: u } = await supabase.auth.getUser();
-    if (u?.user?.id) await supabase.from("user_settings").update({ pet_notify: next }).eq("user_id", u.user.id);
+    setPreferenceMsg("Saving Budz notification preference…");
+    const { data: u, error: userError } = await supabase.auth.getUser();
+    if (userError || !u?.user?.id) {
+      const error = userError || new Error("No signed-in account was available.");
+      setNotify(previous);
+      setPreferenceMsg(`Budz notification preference was not saved: ${error.message}`);
+      announcePetPreferenceFailure("Budz notification preferences", error);
+      return;
+    }
+    const { error } = await supabase.from("user_settings")
+      .upsert({ user_id: u.user.id, pet_notify: next, updated_at: new Date().toISOString() }, { onConflict: "user_id" });
+    if (error) {
+      setNotify(previous);
+      setPreferenceMsg(`Budz notification preference was not saved: ${error.message}`);
+      announcePetPreferenceFailure("Budz notification preferences", error);
+      return;
+    }
+    setPreferenceMsg("Budz notification preference saved.");
   };
   const countFor = (k) => Number(counts.find((c) => c.source === k)?.unread ?? 0);
   /* Size and position are the pet's, not this page's - they live in the same
@@ -2884,6 +2930,7 @@ export function PetControls() {
                 title={s.label} onChange={() => flip(s.key)} />
             </div>
           ))}
+          {preferenceMsg && <div className="note" role={preferenceMsg.includes("not saved") || preferenceMsg.includes("could not") ? "alert" : "status"}>{preferenceMsg}</div>}
         </>
       )}
     </div>
