@@ -1449,12 +1449,28 @@ button.narrblock:hover { outline: 1px solid var(--line); }
    Colours stay the locked tokens — green is spent ONLY on primary actions,
    and this pass spends none of it. */
 
+/* 0 · THE PHANTOM TOKEN, HEALED FOR EVERY CONSUMER. Six rules across
+   patches.css and the write-protected rules.css say `background: var(--bg)`,
+   but the locked theme never defines --bg — so each of those panels rendered
+   TRANSPARENT (the date popover interleaving with the KEY FIGURES strip was
+   this bug wearing its loudest face). rules.css must not be edited, so the
+   alias lives here in the sanctioned patch layer: --bg now resolves to the
+   theme's real panel token everywhere, and every phantom-token panel gets its
+   solid background back in one line. No colour changes hands — --surface was
+   always the intent. */
+:root { --bg: var(--surface); }
+
 /* 1 · One date mechanism: chips; Custom opens an inline popover. */
 .datebar { position: relative; display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .datecustom {
-  position: absolute; top: calc(100% + 6px); right: 0; z-index: 60;
+  position: absolute; top: calc(100% + 6px); right: 0; z-index: 220;
   display: flex; align-items: center; gap: 6px; padding: 8px 10px;
-  background: var(--bg); border: 1px solid var(--line); border-radius: 10px;
+  /* Was var(--bg) — a token that exists NOWHERE in the locked theme, so the
+     popover rendered TRANSPARENT and its controls interleaved with the KEY
+     FIGURES strip beneath it. Owner, 18 Aug 2026: "this is messed up hard to
+     read". --surface is the theme's real panel token; z-index raised above the
+     strip's sticky chips. */
+  background: var(--surface); border: 1px solid var(--line); border-radius: 10px;
   box-shadow: 0 8px 24px color-mix(in srgb, var(--line) 45%, transparent);
   white-space: nowrap;
 }
