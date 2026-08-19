@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback, useRef, useMemo, lazy, Suspense } from "react";
+import { fetchDepartmentDashboard } from "./lib/dashboard-range.js";
 /* ═══════════════════════════════════════════════════════════════════════════
    ROUTE-LEVEL CODE SPLITTING — the owner's fifteen-second first paint.
 
@@ -1416,9 +1417,9 @@ export function DateRangeSelect({ label, from, to, onFrom, onTo, onPreset }) {
           <select aria-label="Date range preset" className="fdate" value={shown} onChange={(e) => pick(e.target.value)}>
             {DATE_PRESETS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}
           </select>
-          <input aria-label="From date" type="date" className="fdate" value={from} onChange={(e) => { setPreset("custom"); onFrom(e.target.value); }} />
+          <input aria-label="From date" type="date" className="fdate" value={from} onChange={(e) => { setPreset("custom"); onPreset?.("custom"); onFrom(e.target.value); }} />
           <span className="flab">to</span>
-          <input aria-label="To date" type="date" className="fdate" value={to} onChange={(e) => { setPreset("custom"); onTo(e.target.value); }} />
+          <input aria-label="To date" type="date" className="fdate" value={to} onChange={(e) => { setPreset("custom"); onPreset?.("custom"); onTo(e.target.value); }} />
           <button type="button" className="btn small quiet" onClick={() => setOpenCustom(false)}>Done</button>
         </span>
       )}
@@ -10569,6 +10570,7 @@ function DeptDashboard({ viewKey, go, nav, deep, session, reports, role, viewAs,
   const [computed, setComputed] = useState(null);
   const [ver, setVer] = useState(0);
   const [busy, setBusy] = useState(false);
+  const [kpiError, setKpiError] = useState(null);
   /* The selected range, lifted out of the date control so the tiles can be recomputed
      for it. Empty strings mean "all time" and the RPC treats them as null. */
   const [range, setRange] = useState({ from: "", to: "" });
@@ -10592,21 +10594,20 @@ function DeptDashboard({ viewKey, go, nav, deep, session, reports, role, viewAs,
 
        f_department_dashboard recomputes the FLOW tiles for the window and returns
        tile_kind / honours_range / range_note so each tile can state its own truth. A
-       POSITION ("on hand") cannot be restated to a past date — we hold three counted
-       snapshots — so it says that instead of pretending. If the RPC is unavailable we
-       fall back to the matview rather than showing an empty dashboard. */
+       POSITION ("on hand") is restated from the ledger at the selected end date.
+       If the RPC is unavailable the page shows the failure; it never substitutes
+       an all-time snapshot beneath the user's selected range. */
     const [k, t, g, a, tk, st] = await Promise.all([
-      supabase.rpc("f_department_dashboard",
-        { p_dept: dept, p_from: range.from || null, p_to: range.to || null })
-        .then((r) => (r.error || !r.data)
-          ? supabase.from("mv_department_dashboard").select("*").eq("department", dept).order("ord")
-          : r),
+      fetchDepartmentDashboard(supabase, {
+        department: dept, from: range.from, to: range.to,
+      }),
       supabase.from("v_dashboard_trend").select("*").eq("department", dept),
       supabase.from("kpi_targets").select("*").eq("department", dept),
       supabase.from("v_inventory_alerts").select("*"),
       supabase.from("v_dashboard_tasks").select("*"),
       supabase.from("v_stock_summary").select("*"),
     ]);
+    setKpiError(k.error?.message ?? null);
     setRows(k.data ?? []);
     setComputed(k.data?.[0]?.computed_at ?? null);
     setTrend(Object.fromEntries((t.data ?? []).map((r) => [r.kpi, r])));
@@ -10702,6 +10703,13 @@ function DeptDashboard({ viewKey, go, nav, deep, session, reports, role, viewAs,
 
       <WhatChanged dept={dept} go={go} />
 
+      {kpiError && (
+        <div className="empty" role="alert">
+          The date-ranged key figures are unavailable: {kpiError}. No all-time
+          figures were substituted under the selected dates.
+        </div>
+      )}
+
       {/* The Command-only bands (global management, goals+yield pair, room
           rings, reports shelf, diagnostic footer) were RETIRED from this
           component on 12 Aug 2026: the owner ordered the Command Center rebuilt
@@ -10759,8 +10767,13 @@ function DeptDashboard({ viewKey, go, nav, deep, session, reports, role, viewAs,
                     </span>
                   )}
                   {r.context && <span className="ddctx">{r.context}</span>}
-                  {/* Owner rule: a tile that cannot honour the range says so ON THE TILE. */}
-                  <span className="ddctx">All data, all time — this figure does not yet honour the date range above.</span>
+                  {/* The database returns the basis for this exact row. Never
+                      replace it with one hardcoded all-time sentence. */}
+                  <span className="ddctx">
+                    {r.honours_range === false
+                      ? (r.range_note || "This figure does not honour the selected range.")
+                      : (r.range_note || "Computed for the selected range.")}
+                  </span>
                   {/* Both read the SAME verdict, so they can never disagree again. */}
                   <Spark series={tr?.series} direction={tg?.direction} />
                   {dl && (
