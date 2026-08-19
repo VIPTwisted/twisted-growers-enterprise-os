@@ -1577,3 +1577,26 @@ button.narrblock:hover { outline: 1px solid var(--line); }
 .narrband { gap: 6px; }
 .narrblock { padding: 6px 11px; }
 .diagfoot { margin-top: 10px; padding: 5px 10px; }
+
+/* ── A MENU WE COULD NOT BUILD, AND TIME WE COULD NOT SAVE ── 19 Aug 2026.
+   Two silent failures got a voice on this date and both need somewhere to
+   speak. Neither is a toast: a toast disappears, and both of these describe a
+   state the person is still standing in. They sit in the surface that failed.
+   Every colour is an existing token - the palette is locked and the first cut
+   of this block put seven literals in, which the theme gate stopped. */
+.naverr {
+  margin: 8px 10px 12px; padding: 10px 12px;
+  border: 1px solid var(--red); border-left-width: 3px; border-radius: 8px;
+  background: var(--red-soft);
+  display: flex; flex-direction: column; gap: 5px;
+  font-size: 12px; line-height: 1.45;
+}
+.naverr b { font-size: 12.5px; color: var(--red); }
+.naverr span { color: var(--muted); }
+.nav.closed .naverr { display: none; }
+
+.tterr {
+  margin: 7px 0 0; padding: 8px 10px; border-radius: 7px;
+  border: 1px solid var(--red); background: var(--red-soft);
+  color: var(--ink); font-size: 11.5px; line-height: 1.45;
+}

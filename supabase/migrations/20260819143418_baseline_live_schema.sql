@@ -8738,6 +8738,7 @@ CREATE OR REPLACE FUNCTION public.f_date_default(p_user uuid, p_view_key text)
  RETURNS jsonb
  LANGUAGE sql
  STABLE PARALLEL SAFE
+ SET search_path TO 'public'
 AS $function$
   select jsonb_build_object(
     'preset_key', coalesce(
@@ -8745,10 +8746,23 @@ AS $function$
           where p.user_id = p_user and p.view_key = p_view_key),
         (select u.default_date_preset from user_settings u where u.user_id = p_user),
         'this_month'),
-    'custom_from', (select p.custom_from from user_page_date_default p
-                     where p.user_id = p_user and p.view_key = p_view_key),
-    'custom_to',   (select p.custom_to from user_page_date_default p
-                     where p.user_id = p_user and p.view_key = p_view_key),
+    /* A custom range is only meaningful alongside the preset that won. Page
+       scope first, then the user's own — the same order as preset_key above, so
+       the three fields can never come back describing two different decisions. */
+    'custom_from', coalesce(
+        (select p.custom_from from user_page_date_default p
+          where p.user_id = p_user and p.view_key = p_view_key),
+        (select u.custom_from from user_settings u
+          where u.user_id = p_user
+            and not exists (select 1 from user_page_date_default p2
+                             where p2.user_id = p_user and p2.view_key = p_view_key))),
+    'custom_to', coalesce(
+        (select p.custom_to from user_page_date_default p
+          where p.user_id = p_user and p.view_key = p_view_key),
+        (select u.custom_to from user_settings u
+          where u.user_id = p_user
+            and not exists (select 1 from user_page_date_default p2
+                             where p2.user_id = p_user and p2.view_key = p_view_key))),
     'scope', coalesce((select u.date_default_scope from user_settings u
                         where u.user_id = p_user), 'remember_last'),
     'source', case

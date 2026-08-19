@@ -155,19 +155,15 @@ const I = {
   stopwatch: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="13.5" r="7.5" /><path d="M12 13.5V9.5M10 2.5h4M17.5 6.5l1.5-1.5" /></svg>),
   apps: (<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="5" r="2" /><circle cx="12" cy="5" r="2" /><circle cx="19" cy="5" r="2" /><circle cx="5" cy="12" r="2" /><circle cx="12" cy="12" r="2" /><circle cx="19" cy="12" r="2" /><circle cx="5" cy="19" r="2" /><circle cx="12" cy="19" r="2" /><circle cx="19" cy="19" r="2" /></svg>),
 };
-/* ---------- Workspace launcher: the work platform inside the OS ---------- */
-const LAUNCHER_APPS = [
-  { view: "brain", icon: "dna", name: "TG Brain", desc: "Ask the whole operation" },
-  { view: "tasks", icon: "check", name: "Tasks", desc: "Who's doing what, by when" },
-  { view: "teams", icon: "users", name: "Teams", desc: "Departments + custom crews" },
-  { view: "planner", icon: "clock", name: "Planner", desc: "The ops calendar, live" },
-  { view: "dashboards", icon: "grid", name: "Dashboards", desc: "Live boards by template" },
-  { view: "whiteboards", icon: "board", name: "Whiteboards", desc: "Sketch and pin notes" },
-  { view: "templates", icon: "clip", name: "Template Center", desc: "Industry-native, ready to run" },
-  { view: "spaces", icon: "box", name: "Spaces", desc: "Work containers per department" },
-  { view: "alerts", icon: "bell", name: "Alerts", desc: "Everything that needs eyes" },
-  { view: "tower", icon: "gauge", name: "Control Tower", desc: "Back to the executive board" },
-];
+/* ---------- Workspace launcher: the work platform inside the OS ----------
+   A hardcoded LAUNCHER_APPS array used to sit here: ten {view, icon, name, desc}
+   objects, referenced by nothing since the launcher started reading nav_registry.
+   Removed 19 Aug 2026. It was not merely dead — it was ACTIVELY MISLEADING. It
+   carried `name` where live rows carry `label`, and two view keys (`templates`,
+   `spaces`) that exist nowhere in the platform, so an outside review of this file
+   reported the launcher's search as broken against a shape the launcher has not
+   read in months. Dead code that mimics the live path manufactures findings.
+   Law 4: nothing hardwired — the launcher's contents are DB rows. */
 function Launcher({ onGo, onClose, apps }) {
   const [q, setQ] = useState("");
   const list = (apps ?? []).filter(
@@ -244,6 +240,7 @@ function TimeTools({ session }) {
   const [rang, setRang] = useState(false);
   const [, setTick] = useState(0);
   const [todaySec, setTodaySec] = useState(0);
+  const [trackError, setTrackError] = useState(null);
   useEffect(() => {
     if (!track && !timerEnd) return;
     const id = setInterval(() => {
@@ -262,12 +259,23 @@ function TimeTools({ session }) {
     supabase.from("time_tracks").select("seconds").eq("user_id", session.user.id).gte("started_at", start.toISOString())
       .then(({ data }) => setTodaySec((data ?? []).reduce((a, r) => a + r.seconds, 0)));
   }, [session.user.id, track]);
+  /* "Stop & save" discarded the insert result, so a refused write cleared the
+     running track and reset the panel to 0:00:00 — identical on screen to a
+     save that worked. This is worked time that feeds payroll; losing it in
+     silence is the worst shape a defect can take here. On failure the clock
+     keeps running, nothing is cleared, and the reason is on screen: the person
+     can retry, or write the hours down before they are lost. */
   const stopTrack = async () => {
     const seconds = Math.round((Date.now() - track) / 1000);
-    await supabase.from("time_tracks").insert({
+    setTrackError(null);
+    const { error } = await supabase.from("time_tracks").insert({
       user_id: session.user.id, started_at: new Date(track).toISOString(),
       ended_at: new Date().toISOString(), seconds, note: note.trim() || null,
     });
+    if (error) {
+      setTrackError(`${fmtHMS(seconds)} was NOT saved — ${error.message || error.code || "the write was refused"}. Your clock is still running; nothing has been lost yet.`);
+      return;
+    }
     setTrack(null); setNote("");
   };
   const startTimer = () => {
@@ -294,6 +302,7 @@ function TimeTools({ session }) {
               : <button className="btn small" onClick={() => setTrack(Date.now())}>Start</button>}
           </div>
           <input aria-label="What are you working on" className="ttnote" placeholder="What are you working on? (optional)" value={note} onChange={(e) => setNote(e.target.value)} />
+          {trackError && <div className="tterr" role="alert">{trackError}</div>}
           <div className="ttsub">Tracked today: {fmtHMS(todaySec)} — saved to your account; payroll timesheets wire in with the Work Layer.</div>
           <div className="usep" />
           <div className="ulabel">Timer</div>
@@ -412,6 +421,7 @@ function useNav(version, session, viewAsRole) {
   const [finance, setFinance] = useState([]);
   const [tax, setTax] = useState([]);
   const [hr, setHr] = useState([]);
+  const [navError, setNavError] = useState(null);
   /* Reads the menu only once there is a signed-in session.
 
      This used to run while the visitor was still anonymous, so the whole
@@ -423,18 +433,43 @@ function useNav(version, session, viewAsRole) {
      useSession() had restored a persisted session on a hard refresh. */
   useEffect(() => {
     const uid = session?.user?.id;
-    if (!uid) { setNav(null); return; }
+    if (!uid) { setNav(null); setNavError(null); return; }
     (async () => {
-      const [{ data: rows }, { data: me }] = await Promise.all([
+      /* THE SAME DEFECT, THE SECOND READER OF THE SAME FACT — 19 Aug 2026.
+         Below this hook sits a twenty-line postmortem about a role read whose
+         error was discarded, so any failure became the lowest role in silence.
+         That was repaired in useRole and NOT here, and this reader is the one
+         that draws the menus. Two errors were discarded two lines apart and
+         they failed in OPPOSITE directions: a refused app_users read resolved
+         the owner to "guest" and removed 151 of 665 entries including his own
+         Command Center, while a refused nav_role_visibility read emptied the
+         hidden set and opened every page in the platform to whoever was
+         looking. A menu that cannot be built correctly is not built at all. */
+      const [{ data: rows, error: navErr }, { data: me, error: roleErr }] = await Promise.all([
         supabase.from("nav_registry").select("*").eq("enabled", true).order("category_order").order("item_order"),
         supabase.from("app_users").select("role").eq("user_id", uid).maybeSingle(),
       ]);
+      const blank = () => { setNav([]); setReports([]); setApps([]); setDeep([]); setFinance([]); setTax([]); setHr([]); };
+      if (navErr || roleErr) {
+        const e = navErr ?? roleErr;
+        setNavError(`${e.message || e.code || "the read was refused and returned no message"} — your menu is not being guessed at.`);
+        blank(); return;
+      }
       /* viewAsRole is the admin-only design-preview lens (owner request, 11 Aug
          2026). It substitutes WHICH visibility rows filter the menus — nothing
          else. The session, the queries and row-level security all remain the
          signed-in admin's own. */
-      const role = viewAsRole ?? me?.role ?? "guest";
-      const { data: vis } = await supabase.from("nav_role_visibility").select("view_key, visible").eq("role", role);
+      const role = viewAsRole ?? me?.role ?? null;
+      if (!role) {
+        setNavError("You are signed in, but no role is assigned to this account in app_users, so there is no menu to build.");
+        blank(); return;
+      }
+      const { data: vis, error: visErr } = await supabase.from("nav_role_visibility").select("view_key, visible").eq("role", role);
+      if (visErr) {
+        setNavError(`${visErr.message || visErr.code || "the visibility read was refused"} — rather than show you every page, nothing is shown.`);
+        blank(); return;
+      }
+      setNavError(null);
       const hidden = new Set((vis ?? []).filter((v) => !v.visible).map((v) => v.view_key));
       const shown = (rows ?? []).filter((r) => !hidden.has(r.view_key));
       setNav(shown.filter((r) => (r.surface ?? "side") === "side"));
@@ -448,7 +483,7 @@ function useNav(version, session, viewAsRole) {
       setHr(shown.filter((r) => r.surface === "hr"));
     })();
   }, [version, session?.user?.id, viewAsRole]);
-  return { nav, reports, apps, deep, finance, tax, hr };
+  return { nav, reports, apps, deep, finance, tax, hr, navError };
 }
 /* A ROLE WE COULD NOT READ IS NOT A LOW ROLE.
  *
@@ -1729,6 +1764,33 @@ async function rpExportSheets(rows, cols, meta) {
    looks fine. Countable items are never added to weighed ones. */
 const RP_WET_DRY = /^(pounds|pounds_wet|pounds_dry|weight_lb|net_lb|lb|total_pounds)$/;
 const RP_NEVER_SUM = /(percent|pct|_id$|^id$|year|month|day|days|_no$|number|rate|ratio|avg|average|median|per_|_per|thc|cbd|terpen|density|capacity)/i;
+/* THE SAME TRAP ON THE AXIS THE GUARD DID NOT COVER — 19 Aug 2026.
+   The wet/dry refusal above has protected `pounds` since it was written, and
+   `weight_basis` exists on exactly two registered objects. Meanwhile `quantity`
+   sat unguarded next to `uom` on metrc_packages — both inside the default
+   fourteen columns — so the report opened printing a green "totals are the sum
+   of the rows shown" chip over 9,451,735.6 of NOTHING: 6.07M grams added to
+   6,607 milligrams, 108,801 Each, 37 rows of pounds and kilograms, and 803 rows
+   whose unit was never recorded at all. Same error, same page, different column.
+
+   Spelling is normalised before the units are compared, because "Grams"/"g" and
+   "Each"/"ea" are the same unit written twice and refusing those would be crying
+   wolf. What survives normalisation is genuinely incompatible. */
+const RP_QTY_COL = /^(quantity|qty|amount|net_quantity|package_quantity|unit_quantity|quantity_on_hand)$/i;
+const RP_UOM_COL = /^(uom|unit_of_measure|unit|units|measure)$/i;
+const RP_UOM_CANON = {
+  g: "grams", gram: "grams", grams: "grams",
+  mg: "milligrams", milligram: "milligrams", milligrams: "milligrams",
+  kg: "kilograms", kilogram: "kilograms", kilograms: "kilograms",
+  lb: "pounds", lbs: "pounds", pound: "pounds", pounds: "pounds",
+  oz: "ounces", ounce: "ounces", ounces: "ounces",
+  ea: "each", each: "each", unit: "each", units: "each", count: "each",
+};
+const rpCanonUom = (v) => {
+  const s = String(v ?? "").trim().toLowerCase();
+  if (!s) return "not recorded";
+  return RP_UOM_CANON[s] ?? s;
+};
 function rpSummable(col, kind) {
   if (kind !== "number") return false;
   if (RP_NEVER_SUM.test(col)) return false;
@@ -1745,6 +1807,29 @@ function rpSubtotal(rowsIn, col, allCols) {
         value: null, refused: true,
         why: `Refused: this group mixes ${[...bases].join(" and ")}. Fresh frozen is WET — adding it to dry weight overstates the total. Use the dry-equivalent column.`,
       };
+    }
+  }
+  if (RP_QTY_COL.test(col)) {
+    /* Deliberately unguarded: the wet/dry branch above already calls
+       allCols.includes() on this same value, so a nullish allCols would have
+       thrown before reaching here. A second nullish guard would add noise the
+       silent-failure gate counts and would hide nothing. */
+    const uomCol = allCols.find((c) => RP_UOM_COL.test(c));
+    if (uomCol) {
+      const counts = new Map();
+      for (const r of rows) {
+        if (typeof r[col] !== "number" || !Number.isFinite(r[col])) continue;
+        const u = rpCanonUom(r[uomCol]);
+        counts.set(u, (counts.get(u) ?? 0) + 1);
+      }
+      if (counts.size > 1) {
+        const listed = [...counts.entries()].sort((a, b) => b[1] - a[1])
+          .map(([u, n]) => `${u} (${n.toLocaleString()} rows)`).join(", ");
+        return {
+          value: null, refused: true,
+          why: `Refused: this group mixes ${counts.size} units of measure — ${listed}. Adding them produces a number of nothing. Filter to one unit, or group by ${uomCol}.`,
+        };
+      }
     }
   }
   return { value: nums.reduce((a, b) => a + b, 0), refused: false, count: nums.length, why: null };
@@ -2110,7 +2195,15 @@ function RpFiltersPanel({ cols, filters, setFilters, onClose }) {
         );
       })}
       <button className="btn small" style={{ marginTop: 8 }}
-        onClick={() => setFilters([...filters, { col: cols[0]?.name, op: "contains", value: "", value2: "" }])}>
+        /* "contains" was hard-coded here while the column-change handler twenty
+           lines below derived the operator from the column's kind — the correct
+           pattern was already in the file, one branch away. 91 of 592 registered
+           objects open on a number, date or boolean first column, where
+           "contains" is not in RP_OPS: the operator select held a value with no
+           matching option, and one keystroke sent .ilike() at a bigint —
+           "operator does not exist: bigint ~~* unknown". The engine then advised
+           clearing and re-adding the filters, which reproduces it exactly. */
+        onClick={() => setFilters([...filters, { col: cols[0]?.name, op: (RP_OPS[cols[0]?.kind ?? "text"] ?? RP_OPS.text)[0][0], value: "", value2: "" }])}>
         Add a column filter
       </button>
     </div>
@@ -2224,7 +2317,15 @@ function ReportScreen({ entry, actions, session }) {
     const payload = { preset_key: preset ?? "custom", custom_from: dFrom || null, custom_to: dTo || null };
     const { error } = scopeAll
       ? await supabase.from("user_settings")
-          .upsert({ user_id: session.user.id, default_date_preset: payload.preset_key }, { onConflict: "user_id" })
+          /* The everywhere scope used to write the preset key ALONE, so choosing a
+             custom range and saving it for every page kept the word "custom" and
+             threw both dates away — then reopened on all dates while telling the
+             user it had saved. user_settings gained custom_from/custom_to on
+             19 Aug 2026 and f_date_default now reads them, so all three fields
+             travel together in both scopes. */
+          .upsert({ user_id: session.user.id, default_date_preset: payload.preset_key,
+                    custom_from: payload.custom_from ?? null, custom_to: payload.custom_to ?? null },
+                  { onConflict: "user_id" })
       : await supabase.from("user_page_date_default")
           .upsert({ user_id: session.user.id, view_key: entry.view_key, ...payload }, { onConflict: "user_id,view_key" });
     setMsg(error
@@ -2338,10 +2439,21 @@ function ReportScreen({ entry, actions, session }) {
     () => shown.filter((n) => rpSummable(n, cols.find((c) => c.name === n)?.kind)),
     [shown, cols]);
 
-  const exportMeta = (rowCount, extra = {}) => ({
+  /* AN EXPORT THAT IS 20% OF THE TABLE AND DOES NOT SAY SO — 19 Aug 2026.
+     withFullRows already computed the truncation flag and handed it to the
+     callback; every one of the four export buttons dropped it, and exportMeta
+     fell back to the component's `truncated` STATE, which only the on-screen
+     read ever writes. So exporting a 255,193-row object without first pressing
+     "Load all" wrote a header saying "Rows in this export: 50000" with no
+     warning line — the WARNING is gated on meta.truncated. Four registered
+     objects exceed the ceiling today, and these files carry their own
+     provenance into audits. `wasTruncated` is now a required argument: pass
+     null only when the count is genuinely known to be complete. */
+  const exportMeta = (rowCount, wasTruncated, extra = {}) => ({
     title, table, reportKey: reg?.report_key ?? null, sentence, rowCount,
     generated: new Date().toString(), ownerNote, basisNote, groupBy: groupBy || null,
-    truncated, slug: `${(reg?.report_key ?? entry.view_key)}-${new Date().toISOString().slice(0, 10)}`,
+    truncated: wasTruncated ?? truncated,
+    slug: `${(reg?.report_key ?? entry.view_key)}-${new Date().toISOString().slice(0, 10)}`,
     ...extra,
   });
 
@@ -2476,12 +2588,31 @@ function ReportScreen({ entry, actions, session }) {
               Default{dateDefault?.source ? ` · ${dateDefault.source}` : ""}
             </button>
           </>
-        ) : entry.date_policy === "not_applicable" ? null : (
+        ) : entry.date_policy === "not_applicable" ? null
+          /* THE CHIP THAT CRIED WOLF — 19 Aug 2026. `dateCols` is derived from the
+             VALUES the 200-row probe returned, so it is empty in three completely
+             different situations and this branch called all three a defect in the
+             view. It fired while the probe was still in flight, so the red chip
+             flashed on every `auto` page on every navigation; it fired on top of
+             the permission panel when the object could not be read at all; and it
+             fired on at least 97 registered objects that hold a real date column
+             and simply have no rows yet. A defect chip that is usually wrong
+             trains the company to ignore defect chips. Each state now says which
+             one it is, and only the last of them is a defect. */
+          : probe === null ? null
+          : probeError ? null
+          : probe.length === 0 ? (
+            <span className="schip" style={{ whiteSpace: "normal" }}
+              title="Not a defect. The object is readable and holds no rows yet.">
+              No date range yet — {table} has no rows, so no date column could be read from it.
+              This is not a defect: the control returns as soon as the object holds data.
+            </span>
+          ) : (
           <span className="schip bad" style={{ whiteSpace: "normal" }}
             title="Fix the view, do not omit the control.">
             <b>Defect — no date range possible. </b>
-            {table} returns no date column, but its source carries one. The control is not shown because it
-            could not work; the fix belongs in the view, not on this page.
+            {table} returns rows but no date column, and its source carries one. The control is not shown
+            because it could not work; the fix belongs in the view, not on this page.
           </span>
         )}
 
@@ -2502,13 +2633,13 @@ function ReportScreen({ entry, actions, session }) {
         )}
         <span style={{ flex: 1 }} />
         <button className="btn small ghost" title="Comma Separated Values, carrying these filters"
-          onClick={() => withFullRows((r) => rpExportCsv(r, shownCols, exportMeta(r.length)))}>Comma Separated Values</button>
+          onClick={() => withFullRows((r, t) => rpExportCsv(r, shownCols, exportMeta(r.length, t)))}>Comma Separated Values</button>
         <button className="btn small ghost" title="Microsoft Excel workbook, carrying these filters"
-          onClick={() => withFullRows((r) => rpExportExcel(r, shownCols, exportMeta(r.length)))}>Excel</button>
+          onClick={() => withFullRows((r, t) => rpExportExcel(r, shownCols, exportMeta(r.length, t)))}>Excel</button>
         <button className="btn small ghost" title="Opens the print dialogue — choose Save as PDF"
-          onClick={() => withFullRows((r) => { const e2 = rpExportPdf(r, shownCols, exportMeta(r.length)); if (e2) setMsg(e2); })}>PDF</button>
+          onClick={() => withFullRows((r, t) => { const e2 = rpExportPdf(r, shownCols, exportMeta(r.length, t)); if (e2) setMsg(e2); })}>PDF</button>
         <button className="btn small ghost" title="Copies the filtered report and opens a blank Google Sheet to paste into. Nothing is uploaded automatically."
-          onClick={() => withFullRows(async (r) => setMsg(await rpExportSheets(r, shownCols, exportMeta(r.length))))}>Google Sheets</button>
+          onClick={() => withFullRows(async (r, t) => setMsg(await rpExportSheets(r, shownCols, exportMeta(r.length, t))))}>Google Sheets</button>
       </div>
 
       {msg && <div className="statchips"><span className="schip info" style={{ whiteSpace: "normal" }}>{msg}</span></div>}
@@ -11110,7 +11241,7 @@ export default function App() {
     setViewAsMsg(null);
     setViewAsRole(target);
   };
-  const { nav, reports, apps, deep, finance, tax, hr } = useNav(navVersion, session, viewAsRole);
+  const { nav, reports, apps, deep, finance, tax, hr, navError } = useNav(navVersion, session, viewAsRole);
   const [repMenu, setRepMenu] = useState(false);
   const { role, roleError } = useRole(session ?? null);
   /* Page gate from EXISTING page_permissions rows (no invented auth path): a row
@@ -11591,6 +11722,16 @@ export default function App() {
             <button onClick={() => setOpenCats(Object.fromEntries(cats.map((c) => [c.name, true])))}>Expand all</button>
             <button onClick={() => setOpenCats(Object.fromEntries(cats.map((c) => [c.name, false])))}>Collapse all</button>
           </div>
+          {/* An empty rail and a rail we could not build look identical, and the
+              second one used to arrive dressed as the first: the owner saw a
+              short guest menu and read it as pages being deleted. Say it. */}
+          {navError && (
+            <div className="naverr" role="alert">
+              <b>Your menu could not be built</b>
+              <span>{navError}</span>
+              <span>Nothing has been removed from the platform. Reload, and if this stays, it is a defect to report.</span>
+            </div>
+          )}
           {prefs.collapsed ? (
             <div className="railcats">
               {cats.map((c) => {
