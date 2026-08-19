@@ -8802,7 +8802,7 @@ flow as not materialized (
     (select count(distinct fingerprint) from watchdog_findings, w
       where observed_at::date between w.f and w.t) findings),
 k as not materialized (select '(sold and shipped|third-party spend|produced from our harvests|no apex invoice|resold at markup|watchdog findings)' pat),
-led as not materialized (
+led as materialized (
   select p.tag, p.uom, p.lab_testing_state,
          coalesce(p.raw #>> '{Item,ProductCategoryName}','(uncategorised)') as category,
          p.item_name,
@@ -30574,7 +30574,7 @@ create or replace view public.v_source_freshness as
          SELECT 'metrc'::text AS source,
             ( SELECT max(metrc_sync_runs.finished_at) AS max
                    FROM metrc_sync_runs
-                  WHERE COALESCE(metrc_sync_runs.status, ''::text) !~~* '%fail%'::text AND COALESCE(metrc_sync_runs.status, ''::text) !~~* '%error%'::text) AS last_ok,
+                  WHERE COALESCE(metrc_sync_runs.status, ''::text) !~~* '%fail%'::text AND COALESCE(metrc_sync_runs.status, ''::text) !~~* '%error%'::text AND COALESCE(metrc_sync_runs.endpoint, ''::text) !~~ 'google_sheet%'::text) AS last_ok,
             f_rule('metrc_sync_max_age_hours'::text) AS max_age_hours,
             'metrc-nightly-full 07:10, metrc-dispatcher every 15 min'::text AS scheduled_as
         UNION ALL
@@ -30585,9 +30585,11 @@ create or replace view public.v_source_freshness as
             'apex-sync-daily 06:15'::text
         UNION ALL
          SELECT 'spreadsheets'::text,
-            ( SELECT max(import_run.finished_at) AS max
+            GREATEST(( SELECT max(metrc_sync_runs.finished_at) AS max
+                   FROM metrc_sync_runs
+                  WHERE metrc_sync_runs.endpoint ~~ 'google_sheet%'::text AND COALESCE(metrc_sync_runs.status, ''::text) = 'ok'::text), ( SELECT max(import_run.finished_at) AS max
                    FROM import_run
-                  WHERE COALESCE(import_run.rows_accepted, 0) > 0) AS max,
+                  WHERE COALESCE(import_run.rows_accepted, 0) > 0)) AS "greatest",
             f_rule('sheet_sync_max_age_hours'::text) AS f_rule,
             'sheet-sync-daily 06:25'::text
         )
