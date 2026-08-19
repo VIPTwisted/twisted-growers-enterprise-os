@@ -31,7 +31,9 @@ Neither is the company-wide sales total.
   only by the normalized invoice number recorded in both systems. Invoice money
   is named `invoice_total_usd_non_additive` and is not a registered measure.
 - `v_forensic_sold_by_tag_safe`: tag-line custody and pounds. Dollar columns are
-  deliberately null. The report registry points here.
+  deliberately null. `payment_status` is also refused at this grain, and invoice
+  identity is replaced by the exact normalized invoice-number bridge rather than
+  retaining the legacy mixed match. The report registry points here.
 
 ## Control totals and limits
 
@@ -52,6 +54,14 @@ The migration refused to commit unless:
 - The older `v_forensic_sold_by_tag` remains for dependent custody objects and is
   explicitly commented as legacy/non-additive. Rewriting its dependencies is a
   separate release.
+- The enabled `forensic_sold_by_tag` menu entry also points to
+  `v_forensic_sold_by_tag_safe`. The report registry and navigation registry are
+  separate publication roads; both must be quarantined and the money-grain gate
+  now fails if either road returns to the line-grain money object. The hotfix
+  migration and its exact filename are digest-locked after independent review.
+  The complete migration tree—filenames plus normalized contents—is also sealed,
+  so renamed, backdated, changed, or extra migrations stop until the full manifest
+  receives independent review. The gate never guesses whether SQL text is safe.
 - `v_tag_lifecycle` still uses the old proximity match for its stage-five invoice.
   That is not accepted as verified identity and will be replaced by the exact
   invoice-number bridge in the next identity slice.
