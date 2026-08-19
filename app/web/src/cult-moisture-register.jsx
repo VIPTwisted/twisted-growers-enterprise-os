@@ -4,29 +4,26 @@
    v_moisture_loss_register.
 
    WHAT IT REPLACES. Twenty-two columns of generic grid. The register exists so
-   somebody DOES something — writes the moisture loss off against the harvest —
-   and a grid asks nobody to do anything.
+   somebody verifies each closed-harvest residual against Metrc and records the
+   evidence; a grid asks nobody to do anything.
 
-   HOW IT IS LAID OUT. TWO BANDS, action first. Every harvest the view says
-   still needs a loss recorded is an action card at the top, with the phantom
-   pounds beside it and an assignment control on it. Everything already
-   recorded sits below, closed by default, as the audit trail. Nothing else in
-   Cultivation is laid out as a work list because nothing else in Cultivation
-   is one.
+   HOW IT IS LAID OUT. Action first. Every closed dried harvest whose source
+   residual is unavailable is an action card with an estimate and its basis
+   evidence. Verified records follow as the dated audit trail.
 
-   WHAT PHANTOM POUNDS ARE, IN THE VIEW'S OWN TERMS. Metrc still shows weight
-   in a room that has actually gone off as water. The view serves the expected
-   moisture loss, what is really left, and the difference; this page repeats
-   all three and computes none of them.
+   WHAT THE ESTIMATE IS. It is wet weight multiplied by the editable company
+   residual goal, never direct measured water. Wet-basis fresh frozen is
+   excluded, and an unknown basis refuses the estimate.
 
    THE ROOM. This view serves the drying room with no licence beside it, so the
    department is stated as not recorded rather than guessed.
    ═══════════════════════════════════════════════════════════════════════════ */
 import React, { useEffect, useMemo, useState } from "react";
 import { supabase } from "./lib/supabase.js";
-import { AssignTask } from "./App.jsx";
+import { AssignTask, DateRangeSelect } from "./App.jsx";
+import BusinessRuleEditor from "./business-rule-editor.jsx";
 import {
-  grab, listOf, DkTag, DkErr, DkEmpty, DkKpiStrip, DkDrill, DrillRoot, DkHead, useSectionStore,
+  useDefaultRange, grab, listOf, DkTag, DkErr, DkEmpty, DkKpiStrip, DkDrill, DrillRoot, DkHead, useSectionStore,
   useWidgetLayout, Widget, WidgetBoard, WidgetBarControls, DkReports,
 } from "./dashkit.jsx";
 import {
@@ -38,9 +35,9 @@ const VIEW_KEY = "moisture_loss_register";
 const PAGE_KEY = "cult_moisture";
 
 const SOURCE_NOTE = {
-  label: "counted from the harvests listed below, live",
-  why: "Each figure counts or totals the harvest rows this page has read from "
-    + "v_moisture_loss_register. Pressing a figure lists those very rows.",
+  label: "current open actions plus completed records in the chosen date window",
+  why: "Open actions are a current compliance position and never disappear because they are old. "
+    + "Completed records follow the chosen date range. Every figure drills to the exact rows it counted.",
 };
 
 export default function MoistureRegister({ go, session, role, viewAs, reports }) {
@@ -51,13 +48,16 @@ export default function MoistureRegister({ go, session, role, viewAs, reports })
      mounts the SAME primitive the department dashboards use, saved per user
      through tg_save_dashboard_layout; the page contributes only its own list. */
   const WIDGETS = React.useMemo(() => [
-    { key: "needs", title: "Awaiting a moisture loss record — largest difference first", span: 2 },
-    { key: "trail", title: "Already recorded — the audit trail", span: 2 },
-    { key: "activity", title: "Most recent write-offs", span: 1 },
+    { key: "rules", title: "Editable moisture and weight-basis rules", span: 2 },
+    { key: "needs", title: "Awaiting Metrc residual verification — largest estimate first", span: 2 },
+    { key: "trail", title: "Verified residual records — the audit trail", span: 2 },
+    { key: "activity", title: "Most recent residual records", span: 1 },
     { key: "reports", title: "Cultivation reports", span: 1 },
   ], []);
   const layout = useWidgetLayout(PAGE_KEY, WIDGETS);
   const measures = useCultMeasures();
+  const [range, setRange] = useState({ from: "", to: "" });
+  useDefaultRange(session, VIEW_KEY, setRange);
   const [d, setD] = useState(null);
   const [openKpi, setOpenKpi] = useState(null);
   const [ver, setVer] = useState(0);
@@ -74,13 +74,20 @@ export default function MoistureRegister({ go, session, role, viewAs, reports })
   const trend = useMemo(() => cultTrendMap(measures), [measures]);
   const licMap = useMemo(() => cultLicenceMap(measures), [measures]);
 
-  const rows = useMemo(
+  const allRows = useMemo(
     () => listOf(d ? d.m.rows : []).map((r) => ({ ...r, room_qualified: cultRoomLabel(r.drying_room, r.license, licMap) })),
     [d, licMap],
   );
 
-  const needs = useMemo(() => rows.filter((r) => r.needs_recording === true), [rows]);
-  const recorded = useMemo(() => rows.filter((r) => r.needs_recording !== true), [rows]);
+  const inRange = useMemo(() => allRows.filter((r) => {
+    if (!range.from && !range.to) return true;
+    const date = String(r.recorded_on || r.harvest_closed || r.harvest_started || "").slice(0, 10);
+    if (!date) return false;
+    return (!range.from || date >= range.from) && (!range.to || date <= range.to);
+  }), [allRows, range.from, range.to]);
+  const needs = useMemo(() => allRows.filter((r) => r.needs_recording === true), [allRows]);
+  const recorded = useMemo(() => inRange.filter((r) => r.needs_recording !== true), [inRange]);
+  const rows = useMemo(() => [...needs, ...recorded], [needs, recorded]);
   const phantom = useMemo(() => needs.reduce((a, r) => a + Number(r.phantom_lb ? r.phantom_lb : 0), 0), [needs]);
   const written = useMemo(() => recorded.reduce((a, r) => a + Number(r.recorded_loss_lb ? r.recorded_loss_lb : 0), 0), [recorded]);
   const inMetrc = useMemo(() => recorded.filter((r) => r.recorded_in_metrc === true), [recorded]);
@@ -88,27 +95,27 @@ export default function MoistureRegister({ go, session, role, viewAs, reports })
   const tiles = useMemo(() => {
     let n = 0;
     const t = [
-      cultTile(n++, "Harvests needing a moisture loss recorded", needs.length, "harvests",
+      cultTile(n++, "Harvests needing residual verification", needs.length, "harvests",
         needs.length ? "bad" : "ok",
-        "The view decides this, not this page. Until a loss is written off, Metrc keeps showing water as though it were saleable weight."),
-      cultTile(n++, "Phantom pounds still on the books", Number(phantom.toFixed(1)), "lb",
+        "Current closed harvests with no authoritative Metrc residual row. Fresh frozen is excluded and unknown basis is refused."),
+      cultTile(n++, "Estimated residual awaiting verification", Number(phantom.toFixed(1)), "lb",
         phantom > 0 ? "bad" : "ok",
-        "Every figure on this page is in pounds, so this total is safe to take. It is the difference the view serves between what Metrc shows and what is really left."),
-      cultTile(n++, "Moisture loss already written off", Number(written.toFixed(1)), "lb", "ok",
-        "Totalled from the recorded loss column across the harvests in the trail below."),
-      cultTile(n++, "Write-offs also recorded in Metrc", inMetrc.length, "harvests",
+        "An estimate from the editable dried-harvest residual goal. It is not measured water and is never calculated for wet or unknown basis."),
+      cultTile(n++, "Residual recorded in selected dates", Number(written.toFixed(1)), "lb", "ok",
+        "Metrc or locally evidenced mass-balance residuals in the chosen date range. The residual can include evaporation, unrecorded loss, or weighing error."),
+      cultTile(n++, "Selected records verified in Metrc", inMetrc.length, "harvests",
         inMetrc.length === recorded.length ? "ok" : "warn",
-        "This platform is a read-only mirror and has never written to Metrc. A write-off recorded here is a record of intent until somebody records it in Metrc as well; this figure is how many have been."),
+        "This platform is a read-only mirror. A local record is not a Metrc fact until its source evidence or adjustment reference is present."),
     ];
     return t;
   }, [needs, phantom, written, inMetrc, recorded]);
 
   const inPlace = useMemo(() => cultInPlace(tiles, openKpi, (k) => setOpenKpi((c) => (c === k ? null : k))), [tiles, openKpi]);
   const drillRows = useMemo(() => {
-    if (openKpi === "Harvests needing a moisture loss recorded") return needs;
-    if (openKpi === "Phantom pounds still on the books") return needs.filter((r) => r.phantom_lb !== null);
-    if (openKpi === "Moisture loss already written off") return recorded.filter((r) => r.recorded_loss_lb !== null);
-    if (openKpi === "Write-offs also recorded in Metrc") return inMetrc;
+    if (openKpi === "Harvests needing residual verification") return needs;
+    if (openKpi === "Estimated residual awaiting verification") return needs.filter((r) => r.phantom_lb !== null);
+    if (openKpi === "Residual recorded in selected dates") return recorded.filter((r) => r.recorded_loss_lb !== null);
+    if (openKpi === "Selected records verified in Metrc") return inMetrc;
     return null;
   }, [openKpi, needs, recorded, inMetrc]);
 
@@ -118,7 +125,7 @@ export default function MoistureRegister({ go, session, role, viewAs, reports })
     .slice(0, 12)
     .map((r) => ({
       when: r.recorded_on,
-      what: `${r.harvest_name} written off by ${r.entered_by ? r.entered_by : "somebody not recorded"}`,
+      what: `${r.harvest_name} residual recorded by ${r.entered_by ? r.entered_by : "somebody not recorded"}`,
       detail: r.recorded_loss_lb === null || r.recorded_loss_lb === undefined
         ? "amount not recorded" : `${cultNum(r.recorded_loss_lb)} lb`,
       tone: "ok",
@@ -141,16 +148,17 @@ export default function MoistureRegister({ go, session, role, viewAs, reports })
         {r.metrc_shows_remaining_lb === null || r.metrc_shows_remaining_lb === undefined
           ? "Metrc remaining not served" : `${cultNum(r.metrc_shows_remaining_lb)} lb shown in Metrc`}
       </span>
-      <span className="cult-figure" title="What the view calculates is really left once the water is taken out.">
+      <span className="cult-figure" title="Expected product still left under the owner-set dried-harvest residual goal.">
         {r.really_left_lb === null || r.really_left_lb === undefined
-          ? "really left not served" : `${cultNum(r.really_left_lb)} lb really left`}
+          ? "estimate refused for this basis" : `${cultNum(r.really_left_lb)} lb expected product left`}
       </span>
-      <span className="cult-figure" title="The difference between the two figures beside this one. It is water, not product.">
+      <span className="cult-figure" title="Estimated residual still awaiting authoritative source verification. It is not directly measured water.">
         {r.phantom_lb === null || r.phantom_lb === undefined
-          ? "difference not served" : `${cultNum(r.phantom_lb)} lb phantom`}
+          ? "residual estimate refused" : `${cultNum(r.phantom_lb)} lb estimated residual`}
       </span>
+      <span className="cult-note">{r.weight_basis || "unknown"} basis · {r.classification_basis || "no basis evidence"}</span>
       <span>
-        <AssignTask dept={CULT_DEPT} kpi={`Record the moisture loss on ${r.harvest_name}`}
+        <AssignTask dept={CULT_DEPT} kpi={`Verify the Metrc residual on ${r.harvest_name}`}
           value={r.phantom_lb} unit="lb" drill={VIEW_KEY} onDone={() => setVer((v) => v + 1)} />
       </span>
     </div>
@@ -161,8 +169,9 @@ export default function MoistureRegister({ go, session, role, viewAs, reports })
       <div className="ccpage">
         <DkHead title="Moisture loss register" viewKey={VIEW_KEY} dept={CULT_DEPT} role={role}
           viewAs={viewAs} computed={null} busy={false}>
-          <DkTag tone={needs.length ? "crit" : "ok"}>{needs.length} awaiting a record</DkTag>
-          <DkTag tone="neutral">{rows.length.toLocaleString()} harvests on the register</DkTag>
+          <DkTag tone={needs.length ? "crit" : "ok"}>{needs.length} current actions</DkTag>
+          <DkTag tone="neutral">{recorded.length.toLocaleString()} completed records in range</DkTag>
+          <DkTag tone="info">Metrc source through {allRows.map((r) => r.source_as_of).filter(Boolean).sort().at(-1) || "date not served"}</DkTag>
         </DkHead>
 
         <div className="cc-tools">
@@ -174,6 +183,11 @@ export default function MoistureRegister({ go, session, role, viewAs, reports })
             <button type="button" className="cc-btn" title="Expand every section"
               onClick={() => store.setAll(WIDGETS.map((x) => x.key), true)}>+ expand all</button>
             <WidgetBarControls layout={layout} />
+          </div>
+          <div className="cc-tools-c">
+            <DateRangeSelect label="Recorded or closed between" from={range.from} to={range.to}
+              onFrom={(v) => setRange((p) => ({ ...p, from: v }))}
+              onTo={(v) => setRange((p) => ({ ...p, to: v }))} />
           </div>
           <div className="cc-tools-r">
             <button type="button" className="cc-btn" onClick={() => go("harvests")}>Harvest register →</button>
@@ -191,8 +205,9 @@ export default function MoistureRegister({ go, session, role, viewAs, reports })
         <div className="cc-fine">{CULT_ROOM_UNQUALIFIED}</div>
         <div className="cc-fine">
           This platform is a <b>read-only mirror of Metrc</b> and holds no write credentials. Recording
-          a moisture loss here records the intent and the evidence; the corresponding adjustment in
-          Metrc is a separate act by a person, and the register tracks whether it has happened.
+          evidence here does not change Metrc. The Metrc report field is a <b>mass-balance residual</b>:
+          wet weight minus recorded waste minus packaged weight. It is mostly water for dried flower,
+          but can also contain weighing error or unrecorded loss, so the page never diagnoses the cause by itself.
         </div>
 
         {drillRows && (
@@ -205,21 +220,23 @@ export default function MoistureRegister({ go, session, role, viewAs, reports })
               ? <DkEmpty why="Nothing sits behind this figure right now." fills="The figure counts this same list." />
               : <div className="tablewrap">
                   <table>
-                    <thead><tr><th>Harvest</th><th>Drying room</th><th>Wet</th><th>Packaged</th>
-                      <th>Waste</th><th>Shown in Metrc</th><th>Really left</th><th>Phantom</th>
-                      <th>Recorded</th><th>By whom</th><th>In Metrc</th></tr></thead>
+                    <thead><tr><th>Harvest</th><th>Basis</th><th>Basis evidence</th><th>Drying room</th><th>Wet</th><th>Packaged</th>
+                      <th>Waste</th><th>Shown in Metrc</th><th>Expected product left</th><th>Estimated residual</th>
+                      <th>Recorded residual</th><th>By whom</th><th>In Metrc</th></tr></thead>
                     <tbody>
                       {drillRows.map((r) => (
                         <tr key={r.harvest_name}>
                           <td>{r.harvest_name}</td>
+                          <td>{r.weight_basis || "unknown"}</td>
+                          <td>{r.classification_basis || "not recorded"}</td>
                           <td>{r.room_qualified}</td>
                           <td>{r.wet_lb === null || r.wet_lb === undefined ? "not recorded" : `${cultNum(r.wet_lb)} lb`}</td>
                           <td>{r.packaged_lb === null || r.packaged_lb === undefined ? "nothing packaged" : `${cultNum(r.packaged_lb)} lb`}</td>
                           <td>{r.waste_lb === null || r.waste_lb === undefined ? "not recorded" : `${cultNum(r.waste_lb)} lb`}</td>
                           <td>{r.metrc_shows_remaining_lb === null || r.metrc_shows_remaining_lb === undefined ? "not served" : `${cultNum(r.metrc_shows_remaining_lb)} lb`}</td>
-                          <td>{r.really_left_lb === null || r.really_left_lb === undefined ? "not served" : `${cultNum(r.really_left_lb)} lb`}</td>
-                          <td>{r.phantom_lb === null || r.phantom_lb === undefined ? "not served" : `${cultNum(r.phantom_lb)} lb`}</td>
-                          <td>{r.recorded_loss_lb === null || r.recorded_loss_lb === undefined ? "nothing written off yet" : `${cultNum(r.recorded_loss_lb)} lb`}</td>
+                          <td>{r.really_left_lb === null || r.really_left_lb === undefined ? "refused for this basis" : `${cultNum(r.really_left_lb)} lb`}</td>
+                          <td>{r.phantom_lb === null || r.phantom_lb === undefined ? "refused for this basis" : `${cultNum(r.phantom_lb)} lb`}</td>
+                          <td>{r.recorded_loss_lb === null || r.recorded_loss_lb === undefined ? "nothing recorded yet" : `${cultNum(r.recorded_loss_lb)} lb`}</td>
                           <td>{r.entered_by ? r.entered_by : "nobody recorded"}</td>
                           <td>{r.recorded_in_metrc === true ? "Yes" : r.recorded_in_metrc === false ? "Not yet" : "not stated"}</td>
                         </tr>
@@ -233,13 +250,22 @@ export default function MoistureRegister({ go, session, role, viewAs, reports })
         <WidgetBoard layout={layout}>
           {layout.list.map((w) => {
             switch (w.key) {
+                        case "rules": return (
+              <Widget key={w.key} w={w} layout={layout} store={store} defaultOpen={false}
+                chips={<><DkTag tone="info">goal {allRows.find((r) => r.residual_goal_pct != null)?.residual_goal_pct ?? "not served"}%</DkTag></>}>
+                <BusinessRuleEditor session={session} source="v_moisture_business_rules" compact
+                  title="Moisture and weight-basis rules"
+                  intro="Owner and executive users can change these here without leaving the register. Every save must return a durable database row and is captured in conversion-factor history."
+                  onSaved={() => setVer((v) => v + 1)} />
+              </Widget>
+              );
                         case "needs": return (
               <Widget key={w.key} w={w} layout={layout} store={store} chips={<><DkTag tone="neutral">{Number(needs.length).toLocaleString()}</DkTag>{needs.length
-              ? <DkTag tone="crit">{cultNum(phantom)} lb sitting on the books as water</DkTag>
+              ? <DkTag tone="crit">{cultNum(phantom)} lb estimated residual awaiting verification</DkTag>
               : <DkTag tone="ok">nothing waiting</DkTag>}</>}>
             {needs.length === 0
-              ? <DkEmpty why="Nothing is waiting for a moisture loss to be recorded."
-                  fills="Every harvest the view can judge has either had its loss written off or has none to write off. That is the finished position, not an empty read." />
+              ? <DkEmpty why="Nothing is waiting for residual verification."
+                  fills="Every closed dried harvest the source can judge has authoritative evidence. Fresh frozen is excluded and unknown basis is refused." />
               : <div className="cult-act">{needs.map((r) => <ActionCard key={r.harvest_name} r={r} />)}</div>}
           </Widget>
               );
@@ -247,8 +273,8 @@ export default function MoistureRegister({ go, session, role, viewAs, reports })
                         case "trail": return (
               <Widget key={w.key} w={w} layout={layout} store={store} defaultOpen={false} chips={<><DkTag tone="neutral">{Number(recorded.length).toLocaleString()}</DkTag></>}>
             {recorded.length === 0
-              ? <DkEmpty why="No moisture loss has been written off yet."
-                  fills="A harvest appears here once somebody records the loss against it, with their name, the method and the date." />
+              ? <DkEmpty why="No residual record falls in the chosen dates."
+                  fills="Change the date range to read another period. Current unresolved actions remain visible above regardless of age." />
               : <div className="cult-act">
                   {recorded.map((r) => (
                     <div className="cult-actcard ok" key={r.harvest_name}>
@@ -258,7 +284,7 @@ export default function MoistureRegister({ go, session, role, viewAs, reports })
                       </span>
                       <span className="cult-figure">
                         {r.recorded_loss_lb === null || r.recorded_loss_lb === undefined
-                          ? "nothing written off" : `${cultNum(r.recorded_loss_lb)} lb written off`}
+                          ? "no residual recorded" : `${cultNum(r.recorded_loss_lb)} lb residual recorded`}
                       </span>
                       <span className="cult-note">{r.recorded_method ? r.recorded_method : "method not recorded"}</span>
                       <span className="cult-note">
@@ -278,7 +304,7 @@ export default function MoistureRegister({ go, session, role, viewAs, reports })
 
                         case "activity": return (
               <Widget key={w.key} w={w} layout={layout} store={store} defaultOpen={false} chips={<><DkTag tone="neutral">{Number(activity.length).toLocaleString()}</DkTag></>}>
-            <CultActivity items={activity} what="the moisture register" none="No moisture loss carries a recorded date yet." />
+            <CultActivity items={activity} what="the moisture register" none="No residual record carries a date in the selected period." />
           </Widget>
               );
                       case "reports": return (

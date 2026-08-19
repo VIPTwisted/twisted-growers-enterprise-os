@@ -180,6 +180,10 @@ jobs:
       - name: Metrc reads fail closed (no false absence or invented scan figures)
         run: node tools/checks/metrc-read-integrity.mjs
 
+      # ---- Moisture truth: residual is not a water sensor; basis must be explicit -----
+      - name: Moisture basis, editable goal, and returned save receipt
+        run: node tools/checks/moisture-truth-integrity.mjs
+
       # ---- Rule E4 / C2: counting an aggregate view counts the wrong thing ------------
       # HANDOFF.md §5 lists it among the five ways this project has actually broken:
       # count(*) on v_stock_on_hand returns the number of STREAMS, not packages. No

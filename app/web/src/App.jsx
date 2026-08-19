@@ -11,6 +11,7 @@ import {
   matchingDatePreset,
   normaliseDateRange,
 } from "./lib/date-range-core.js";
+import BusinessRuleEditor from "./business-rule-editor.jsx";
 /* ═══════════════════════════════════════════════════════════════════════════
    ROUTE-LEVEL CODE SPLITTING — the owner's fifteen-second first paint.
 
@@ -4657,103 +4658,7 @@ function RateWarning({ go }) {
    changeable in place. Each shows how many places use it and whether it is still
    an unconfirmed default, because a number nobody chose should never look settled. */
 function BusinessRules({ session }) {
-  const [rows, setRows] = useState(null);
-  const [role, setRole] = useState(null);
-  const [edit, setEdit] = useState(null);
-  const [draft, setDraft] = useState("");
-  const [why, setWhy] = useState("");
-  const [msg, setMsg] = useState("");
-  const who = session?.user?.email ?? "unknown";
-
-  const load = async () => {
-    const [r, u] = await Promise.all([
-      supabase.from("v_business_rules").select("*"),
-      supabase.from("app_users").select("role").eq("user_id", session.user.id).maybeSingle(),
-    ]);
-    setRows(r.data ?? []); setRole(u.data?.role ?? null);
-  };
-  useEffect(() => { load(); }, []);
-  if (!rows) return <div className="loading">Reading the business rules…</div>;
-  const mayEdit = ["owner", "executive", "planner", "dept_head"].includes(role);
-
-  const save = async (k) => {
-    const n = Number(draft);
-    if (!isFinite(n)) { setMsg("Enter a number."); return; }
-    if (!why || why.trim().length < 8) {
-      setMsg("Say where this number comes from. A threshold with no reason is how we got here.");
-      return;
-    }
-    const { error } = await supabase.from("conversion_factors")
-      .update({ value: n, where_it_came_from: why.trim(), set_by: who,
-                updated_at: new Date().toISOString() }).eq("key", k);
-    setMsg(error ? error.message
-      : `Set to ${n}. Every figure measured against it recalculates within ten minutes.`);
-    if (!error) { setEdit(null); setWhy(""); load(); }
-  };
-
-  const unset = rows.filter((r) => String(r.set_by || "").startsWith("default")).length;
-  return (
-    <div className="calc">
-      <div className="pagehead">
-        <h1>Business Rules</h1>
-        <p className="dashsub">
-          The numbers this platform judges the business by. Change one here and every figure
-          measured against it moves, everywhere.
-          {unset > 0 && <> <b className="vrwarn">{unset} of {rows.length} have never been set by
-          anyone — they are defaults, and anything judged against them is an estimate.</b></>}
-        </p>
-      </div>
-      {msg && <div className="vrmsg">{msg}</div>}
-      {!mayEdit && <div className="vrmsg">Changing a rule needs an owner, executive, planner or
-        department head. Your role is {role || "not set"}.</div>}
-
-      <div className="vrgrid">
-        {rows.map((r) => {
-          const isDefault = String(r.set_by || "").startsWith("default");
-          return (
-            <div key={r.key} className={`vrcard ${isDefault ? "warn" : "ok"}`}>
-              <div className="vrhead">
-                <span className="vrname">{r.label}</span>
-                <span className={`vrpill ${isDefault ? "warn" : "ok"}`}>
-                  {isDefault ? "nobody set this" : "set"}
-                </span>
-              </div>
-              <div className="vrbig">{Number(r.value).toLocaleString()}<em> {r.unit}</em></div>
-              <p className="vrnote">{r.what_it_means}</p>
-              <div className="vrline"><em>Used in</em><b>{r.places_using_it} place{r.places_using_it === 1 ? "" : "s"}</b></div>
-              <div className="vrline"><em>Set by</em><b>{r.set_by}</b></div>
-              <div className="vrline"><em>Set on</em><b>{r.set_on}</b></div>
-              <p className="vrnote">{r.where_it_came_from}</p>
-              {r.places_using_it === 0 && (
-                <p className="cinpn">Nothing currently uses this rule, so changing it will have no effect yet.</p>
-              )}
-              {mayEdit && edit !== r.key && (
-                <button className="vrbtn" onClick={() => { setEdit(r.key); setDraft(String(r.value)); setWhy(""); setMsg(""); }}>
-                  {isDefault ? "Set the real number" : "Change it"}
-                </button>
-              )}
-              {mayEdit && edit === r.key && (
-                <div className="vrform">
-                  <label>{r.label} ({r.unit})
-                    <input aria-label="Value" autoFocus type="number" step="any" value={draft}
-                      onChange={(e) => setDraft(e.target.value)} />
-                  </label>
-                  <label>Where this number comes from
-                    <input aria-label="Why this figure" value={why} placeholder="e.g. our own drying trials over the last six months"
-                      onChange={(e) => setWhy(e.target.value)} />
-                  </label>
-                  <div className="vractions">
-                    <button className="vrbtn primary" onClick={() => save(r.key)}>Save</button>
-                    <button className="vrbtn" onClick={() => { setEdit(null); setMsg(""); }}>Cancel</button>
-                  </div>
-                </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
+  return <BusinessRuleEditor session={session} />;
 }
 
 /* Overhead. Nothing was recorded at all, so cost per pound was labour only and
