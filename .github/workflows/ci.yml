@@ -168,6 +168,10 @@ jobs:
       - name: Date range integrity (no silent all-time fallback)
         run: node tools/checks/date-range-integrity.mjs
 
+      # ---- Money grain: an invoice total is true once, never once per tag ----------
+      - name: Money grain (line reports cannot multiply invoice totals)
+        run: node tools/checks/money-grain.mjs
+
       # ---- Rule E4 / C2: counting an aggregate view counts the wrong thing ------------
       # HANDOFF.md §5 lists it among the five ways this project has actually broken:
       # count(*) on v_stock_on_hand returns the number of STREAMS, not packages. No
