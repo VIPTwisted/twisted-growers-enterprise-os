@@ -40,12 +40,14 @@ Supabase `apply_migration` owns one transaction containing its migration-history
 5. Refreshes the existing `mv_tag_documents` synchronously, without drop, rename, swap, cascade, or concurrent commit window.
 6. Replaces `v_forensic_sold_by_tag` in place, sourcing both invoice-number columns from the exact bridge and refusing `total_usd`, `payment_status`, and `apex_invoice_usd`.
 7. Reconciles every non-money document-trinity field back to the lifecycle and independently rederives the bridge from raw Metrc invoice digits plus Apex invoice truth.
-8. Queries every public view/materialized view carrying `apex_invoice_usd` and aborts if any populated value remains.
+8. Seals the complete 60-relation money-column inventory, the root materialized-view definition, the safe-wrapper identity/signature/security/definition, and the definitions of all 57 unchanged views that directly project `mv_tag_documents.apex_invoice_usd`; it separately proves root money/payment, raw sold money/payment, and safe-wrapper money/payment are null. This is the complete 60-road proof without re-executing 57 expensive derived views inside the migration transaction.
 9. Proves Apex invoice-grain control totals, object identities, dependencies, grants, indexes, protected menus, and role visibility did not change.
 
 The structural dependency graph remains 59 direct dependents. The column-specific dependency graph deliberately falls from 58 to 57 because `v_forensic_sold_by_tag` no longer reads `mv_tag_documents.apex_invoice_usd`; the exact reviewed post-state is sealed by relation-name hash. This is the intended removal of an unsafe money edge, not dependency loss.
 
 Any failed proof rolls back the complete transaction.
+
+The first guarded apply attempt received an HTTP 504 while the original migration was re-executing all 57 derived views inside the transaction. Immediate live verification proved complete rollback: no migration-history row, unchanged protected definitions/dependencies, and unchanged pre-release unsafe counts. The optimized proof above removes that redundant execution cost; it does not weaken the 60-road invariant.
 
 ## Behaviour now
 

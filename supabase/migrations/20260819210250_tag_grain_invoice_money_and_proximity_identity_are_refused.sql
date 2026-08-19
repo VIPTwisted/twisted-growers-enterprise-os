@@ -73,14 +73,27 @@ with root as (
     and not a.attisdropped
   where n.nspname = 'public'
     and c.relkind in ('v','m')
+), direct_projection_views as (
+  select distinct c.relname, pg_get_viewdef(c.oid, true) as definition
+  from pg_class c
+  join pg_namespace n on n.oid = c.relnamespace
+  join pg_attribute a on a.attrelid = c.oid
+    and a.attname = 'apex_invoice_usd'
+    and not a.attisdropped
+  where n.nspname = 'public'
+    and c.relkind = 'v'
+    and c.relname not in ('v_forensic_sold_by_tag', 'v_forensic_sold_by_tag_safe')
 )
 select
   'public.v_tag_lifecycle'::regclass::oid as lifecycle_oid,
   'public.mv_tag_documents'::regclass::oid as document_oid,
   'public.v_forensic_sold_by_tag'::regclass::oid as sold_oid,
+  'public.v_forensic_sold_by_tag_safe'::regclass::oid as safe_oid,
   'public.v_metrc_manifest_invoice_truth'::regclass::oid as bridge_oid,
   md5(pg_get_viewdef('public.v_tag_lifecycle'::regclass, true)) as lifecycle_definition_md5,
+  md5(pg_get_viewdef('public.mv_tag_documents'::regclass, true)) as document_definition_md5,
   md5(pg_get_viewdef('public.v_forensic_sold_by_tag'::regclass, true)) as sold_definition_md5,
+  md5(pg_get_viewdef('public.v_forensic_sold_by_tag_safe'::regclass, true)) as safe_definition_md5,
   md5(pg_get_viewdef('public.v_metrc_manifest_invoice_truth'::regclass, true)) as bridge_definition_md5,
   (select relowner from pg_class where oid = 'public.v_tag_lifecycle'::regclass) as lifecycle_owner,
   (select relacl::text from pg_class where oid = 'public.v_tag_lifecycle'::regclass) as lifecycle_acl,
@@ -91,6 +104,9 @@ select
   (select relowner from pg_class where oid = 'public.v_forensic_sold_by_tag'::regclass) as sold_owner,
   (select relacl::text from pg_class where oid = 'public.v_forensic_sold_by_tag'::regclass) as sold_acl,
   (select coalesce(array_to_string(reloptions, ','), '') from pg_class where oid = 'public.v_forensic_sold_by_tag'::regclass) as sold_options,
+  (select relowner from pg_class where oid = 'public.v_forensic_sold_by_tag_safe'::regclass) as safe_owner,
+  (select relacl::text from pg_class where oid = 'public.v_forensic_sold_by_tag_safe'::regclass) as safe_acl,
+  (select coalesce(array_to_string(reloptions, ','), '') from pg_class where oid = 'public.v_forensic_sold_by_tag_safe'::regclass) as safe_options,
   (select relowner from pg_class where oid = 'public.v_metrc_manifest_invoice_truth'::regclass) as bridge_owner,
   (select relacl::text from pg_class where oid = 'public.v_metrc_manifest_invoice_truth'::regclass) as bridge_acl,
   (select coalesce(array_to_string(reloptions, ','), '') from pg_class where oid = 'public.v_metrc_manifest_invoice_truth'::regclass) as bridge_options,
@@ -100,6 +116,8 @@ select
      from pg_attribute a where a.attrelid = 'public.mv_tag_documents'::regclass and a.attnum > 0 and not a.attisdropped) as document_columns_md5,
   (select md5(string_agg(a.attnum::text || ':' || a.attname || ':' || format_type(a.atttypid, a.atttypmod), '|' order by a.attnum))
      from pg_attribute a where a.attrelid = 'public.v_forensic_sold_by_tag'::regclass and a.attnum > 0 and not a.attisdropped) as sold_columns_md5,
+  (select md5(string_agg(a.attnum::text || ':' || a.attname || ':' || format_type(a.atttypid, a.atttypmod), '|' order by a.attnum))
+     from pg_attribute a where a.attrelid = 'public.v_forensic_sold_by_tag_safe'::regclass and a.attnum > 0 and not a.attisdropped) as safe_columns_md5,
   (select md5(string_agg(a.attnum::text || ':' || a.attname || ':' || format_type(a.atttypid, a.atttypmod), '|' order by a.attnum))
      from pg_attribute a where a.attrelid = 'public.v_metrc_manifest_invoice_truth'::regclass and a.attnum > 0 and not a.attisdropped) as bridge_columns_md5,
   (select md5(string_agg(indexname || ':' || indexdef, '|' order by indexname))
@@ -114,6 +132,11 @@ select
      join pg_class d on d.oid = rw.ev_class
      where dep.refobjid = 'public.v_forensic_sold_by_tag'::regclass
        and d.oid <> 'public.v_forensic_sold_by_tag'::regclass) x) as sold_deps_md5,
+  exists (
+    select 1 from pg_depend dep join pg_rewrite rw on rw.oid = dep.objid
+    where dep.refobjid = 'public.v_forensic_sold_by_tag'::regclass
+      and rw.ev_class = 'public.v_forensic_sold_by_tag_safe'::regclass
+  ) as safe_depends_on_sold,
   (select count(*) from direct_deps) as direct_deps,
   (select md5(string_agg(relname, '|' order by relname)) from direct_deps) as direct_deps_md5,
   (select count(*) from direct_deps where 'security_invoker=true' = any(coalesce(reloptions, '{}'::text[]))) as invoker_deps,
@@ -130,6 +153,9 @@ select
   (select md5(string_agg(fact_view, '|' order by fact_view)) from report_money_roads) as report_money_roads_md5,
   (select count(*) from all_money_relations) as all_money_relations,
   (select md5(string_agg(relname, '|' order by relname)) from all_money_relations) as all_money_relations_md5,
+  (select count(*) from direct_projection_views) as direct_projection_views,
+  (select md5(string_agg(relname || ':' || md5(definition), '|' order by relname)) from direct_projection_views) as direct_projection_views_md5,
+  (select count(*) from direct_projection_views where definition ~ '(?m)^.*td[.]apex_invoice_usd.*$') as exact_direct_projections,
   (select count(*) from public.nav_registry) as all_nav_rows,
   (select md5(string_agg(to_jsonb(n)::text, '|' order by n.view_key)) from public.nav_registry n) as all_nav_md5,
   (select count(*) from public.nav_registry n where n.surface in ('finance','tax','hr','reports')) as top_menu_rows,
@@ -147,14 +173,21 @@ declare
 begin
   select * into strict b from _tag_money_before;
 
-  if b.lifecycle_oid <> 339485 or b.document_oid <> 384269 or b.sold_oid <> 121919 or b.bridge_oid <> 405481 then
+  if b.lifecycle_oid <> 339485 or b.document_oid <> 384269 or b.sold_oid <> 121919
+     or b.safe_oid <> 405486 or b.bridge_oid <> 405481 then
     raise exception 'TAG_MONEY_CONTRACT: protected object identity drifted before containment';
   end if;
   if b.lifecycle_definition_md5 <> '3d868a79ffff100f20be660cf8526e33' then
     raise exception 'TAG_MONEY_CONTRACT: v_tag_lifecycle definition changed before reviewed replacement';
   end if;
+  if b.document_definition_md5 <> 'b1a5fbaf21f040a05b7977f6826b0ead' then
+    raise exception 'TAG_MONEY_CONTRACT: mv_tag_documents definition drifted';
+  end if;
   if b.sold_definition_md5 <> '919b03ad28f5f7812e8ef0f27d5a415d' then
     raise exception 'TAG_MONEY_CONTRACT: v_forensic_sold_by_tag definition changed before reviewed replacement';
+  end if;
+  if b.safe_definition_md5 <> '61c2020d9ac60d4f6238fa4cd8c3073b' then
+    raise exception 'TAG_MONEY_CONTRACT: safe sold-by-tag definition drifted';
   end if;
   if b.bridge_definition_md5 <> '623cf2d6b0ce24d39509e78528ae6337' then
     raise exception 'TAG_MONEY_CONTRACT: exact invoice bridge definition drifted';
@@ -162,16 +195,20 @@ begin
   if b.lifecycle_columns_md5 <> 'e5d2ae87e98652625f37be4ff4aa31bd'
      or b.document_columns_md5 <> '3b3550f9c0829363599034c1f05c69f9'
      or b.sold_columns_md5 <> '6899517bcd08dc3e0c6a5f0f5cf485e0'
+     or b.safe_columns_md5 <> '6899517bcd08dc3e0c6a5f0f5cf485e0'
      or b.bridge_columns_md5 <> '29b05b931243bf0b3bc617aa147db156' then
     raise exception 'TAG_MONEY_CONTRACT: protected column signature drifted';
   end if;
-  if b.lifecycle_owner <> 'postgres'::regrole or b.document_owner <> 'postgres'::regrole or b.sold_owner <> 'postgres'::regrole or b.bridge_owner <> 'postgres'::regrole
-     or b.lifecycle_options <> 'security_invoker=true' or b.document_options <> '' or b.sold_options <> 'security_invoker=true' or b.bridge_options <> 'security_invoker=true' then
+  if b.lifecycle_owner <> 'postgres'::regrole or b.document_owner <> 'postgres'::regrole or b.sold_owner <> 'postgres'::regrole
+     or b.safe_owner <> 'postgres'::regrole or b.bridge_owner <> 'postgres'::regrole
+     or b.lifecycle_options <> 'security_invoker=true' or b.document_options <> '' or b.sold_options <> 'security_invoker=true'
+     or b.safe_options <> 'security_invoker=true' or b.bridge_options <> 'security_invoker=true' then
     raise exception 'TAG_MONEY_CONTRACT: protected owner or view options drifted';
   end if;
   if b.lifecycle_acl <> '{postgres=arwdDxtm/postgres,anon=xtm/postgres,authenticated=arwdxtm/postgres,service_role=arwdDxtm/postgres,tg_desktop_reader=r/postgres}'
      or b.document_acl <> '{postgres=arwdDxtm/postgres,anon=xtm/postgres,authenticated=arwdxtm/postgres,service_role=arwdDxtm/postgres,tg_desktop_reader=r/postgres}'
      or b.sold_acl <> '{postgres=arwdDxtm/postgres,anon=xtm/postgres,authenticated=arwdxtm/postgres,service_role=arwdDxtm/postgres,tg_desktop_reader=r/postgres}'
+     or b.safe_acl <> '{postgres=arwdDxtm/postgres,authenticated=arwdxtm/postgres,service_role=arwdDxtm/postgres,tg_desktop_reader=r/postgres}'
      or b.bridge_acl <> '{postgres=arwdDxtm/postgres,authenticated=arwdxtm/postgres,service_role=arwdDxtm/postgres,tg_desktop_reader=r/postgres}' then
     raise exception 'TAG_MONEY_CONTRACT: protected grants drifted before containment';
   end if;
@@ -180,13 +217,18 @@ begin
      or b.invoker_deps <> 59 or b.anon_deps <> 0 or b.authenticated_deps <> 59 or b.public_deps <> 0 then
     raise exception 'TAG_MONEY_CONTRACT: dependency or privilege map drifted before containment';
   end if;
-  if b.sold_deps <> 9 or b.sold_deps_md5 <> 'a997d778bc30c5d7df5c85d10bfcfddc' then
+  if b.sold_deps <> 9 or b.sold_deps_md5 <> 'a997d778bc30c5d7df5c85d10bfcfddc' or not b.safe_depends_on_sold then
     raise exception 'TAG_MONEY_CONTRACT: sold-by-tag dependency graph drifted before containment';
   end if;
   if b.nav_money_roads <> 57 or b.nav_money_roads_md5 <> '205cc22d9e9d49f014caecc72a4cfd3b'
      or b.report_money_roads <> 11 or b.report_money_roads_md5 <> 'a9578fd3b00c20d9d0d26957cdc93d4a'
      or b.all_money_relations <> 60 or b.all_money_relations_md5 <> 'a1179f93b5d904707073ce470da40ec1' then
     raise exception 'TAG_MONEY_CONTRACT: publication road inventory drifted before containment';
+  end if;
+  if b.direct_projection_views <> 57
+     or b.direct_projection_views_md5 <> 'b833a4d42c4bfb5d27b6af6845701c2d'
+     or b.exact_direct_projections <> 57 then
+    raise exception 'TAG_MONEY_CONTRACT: direct projection definitions drifted before containment';
   end if;
   if b.top_menu_rows <> 182 or b.top_menu_md5 <> '057a20fe92cef52ccd11ec342c705d0e'
      or b.tg_workspace_md5 <> 'ab7049beb1bd7d0b89775f441235b448'
@@ -399,14 +441,16 @@ do $$
 declare
   b _tag_money_before%rowtype;
   v_bad bigint;
-  v_has_money boolean;
-  r record;
+  v_projection_count bigint;
+  v_projection_md5 text;
+  v_exact_projection_count bigint;
 begin
   select * into strict b from _tag_money_before;
 
   if 'public.v_tag_lifecycle'::regclass::oid <> b.lifecycle_oid
      or 'public.mv_tag_documents'::regclass::oid <> b.document_oid
      or 'public.v_forensic_sold_by_tag'::regclass::oid <> b.sold_oid
+     or 'public.v_forensic_sold_by_tag_safe'::regclass::oid <> b.safe_oid
      or 'public.v_metrc_manifest_invoice_truth'::regclass::oid <> b.bridge_oid then
     raise exception 'TAG_MONEY_CONTRACT: protected object identity changed';
   end if;
@@ -419,6 +463,9 @@ begin
      or (select relowner from pg_class where oid = b.sold_oid) <> b.sold_owner
      or (select relacl::text from pg_class where oid = b.sold_oid) is distinct from b.sold_acl
      or (select coalesce(array_to_string(reloptions, ','), '') from pg_class where oid = b.sold_oid) <> b.sold_options
+     or (select relowner from pg_class where oid = b.safe_oid) <> b.safe_owner
+     or (select relacl::text from pg_class where oid = b.safe_oid) is distinct from b.safe_acl
+     or (select coalesce(array_to_string(reloptions, ','), '') from pg_class where oid = b.safe_oid) <> b.safe_options
      or (select relowner from pg_class where oid = b.bridge_oid) <> b.bridge_owner
      or (select relacl::text from pg_class where oid = b.bridge_oid) is distinct from b.bridge_acl
      or (select coalesce(array_to_string(reloptions, ','), '') from pg_class where oid = b.bridge_oid) <> b.bridge_options then
@@ -429,7 +476,9 @@ begin
      or (select md5(string_agg(a.attnum::text || ':' || a.attname || ':' || format_type(a.atttypid, a.atttypmod), '|' order by a.attnum))
       from pg_attribute a where a.attrelid = b.document_oid and a.attnum > 0 and not a.attisdropped) <> b.document_columns_md5
      or (select md5(string_agg(a.attnum::text || ':' || a.attname || ':' || format_type(a.atttypid, a.atttypmod), '|' order by a.attnum))
-      from pg_attribute a where a.attrelid = b.sold_oid and a.attnum > 0 and not a.attisdropped) <> b.sold_columns_md5
+       from pg_attribute a where a.attrelid = b.sold_oid and a.attnum > 0 and not a.attisdropped) <> b.sold_columns_md5
+     or (select md5(string_agg(a.attnum::text || ':' || a.attname || ':' || format_type(a.atttypid, a.atttypmod), '|' order by a.attnum))
+       from pg_attribute a where a.attrelid = b.safe_oid and a.attnum > 0 and not a.attisdropped) <> b.safe_columns_md5
      or (select md5(string_agg(a.attnum::text || ':' || a.attname || ':' || format_type(a.atttypid, a.atttypmod), '|' order by a.attnum))
       from pg_attribute a where a.attrelid = b.bridge_oid and a.attnum > 0 and not a.attisdropped) <> b.bridge_columns_md5
      or (select md5(string_agg(indexname || ':' || indexdef, '|' order by indexname))
@@ -440,8 +489,10 @@ begin
   if (select sum(recognized_total_usd) from public.v_apex_invoice_truth) is distinct from b.apex_truth_total then
     raise exception 'TAG_MONEY_CONTRACT: canonical Apex sales truth changed during containment';
   end if;
-  if md5(pg_get_viewdef(b.bridge_oid, true)) <> b.bridge_definition_md5 then
-    raise exception 'TAG_MONEY_CONTRACT: exact invoice bridge changed during containment';
+  if md5(pg_get_viewdef(b.document_oid, true)) <> b.document_definition_md5
+     or md5(pg_get_viewdef(b.safe_oid, true)) <> b.safe_definition_md5
+     or md5(pg_get_viewdef(b.bridge_oid, true)) <> b.bridge_definition_md5 then
+    raise exception 'TAG_MONEY_CONTRACT: unchanged root, safe, or exact bridge definition changed during containment';
   end if;
   if (select count(*) from public.v_metrc_manifest_invoice_truth)
        <> (select count(distinct manifest_number) from public.v_metrc_manifest_invoice_truth)
@@ -526,7 +577,9 @@ begin
   end if;
 
   if exists (select 1 from public.v_tag_lifecycle where stage5_invoice_usd is not null or stage5_payment_status is not null)
-     or exists (select 1 from public.mv_tag_documents where apex_invoice_usd is not null or apex_payment_status is not null) then
+     or exists (select 1 from public.mv_tag_documents where apex_invoice_usd is not null or apex_payment_status is not null)
+     or exists (select 1 from public.v_forensic_sold_by_tag_safe
+                where total_usd is not null or payment_status is not null or apex_invoice_usd is not null) then
     raise exception 'TAG_MONEY_CONTRACT: tag-grain money or payment status survived refresh';
   end if;
   if (select count(*) from public.v_tag_lifecycle) <> (select count(*) from public.mv_tag_documents)
@@ -537,23 +590,6 @@ begin
     raise exception 'TAG_MONEY_CONTRACT: tag row-count or uniqueness reconciliation failed';
   end if;
 
-  for r in
-    select distinct c.relname
-    from pg_class c
-    join pg_namespace n on n.oid = c.relnamespace
-    join pg_attribute a on a.attrelid = c.oid
-      and a.attname = 'apex_invoice_usd'
-      and not a.attisdropped
-    where n.nspname = 'public' and c.relkind in ('v','m')
-    order by c.relname
-  loop
-    execute format('select exists (select 1 from public.%I where apex_invoice_usd is not null limit 1)', r.relname)
-      into v_has_money;
-    if v_has_money then
-      raise exception 'TAG_MONEY_CONTRACT: public.%.apex_invoice_usd still publishes tag-grain money', r.relname;
-    end if;
-  end loop;
-
   if (select count(*) from (
        select distinct c.relname from pg_class c join pg_namespace n on n.oid = c.relnamespace
        join pg_attribute a on a.attrelid = c.oid and a.attname = 'apex_invoice_usd' and not a.attisdropped
@@ -563,6 +599,27 @@ begin
        join pg_attribute a on a.attrelid = c.oid and a.attname = 'apex_invoice_usd' and not a.attisdropped
        where n.nspname = 'public' and c.relkind in ('v','m')) x) <> b.all_money_relations_md5 then
     raise exception 'TAG_MONEY_CONTRACT: money-column relation inventory changed';
+  end if;
+
+  select count(*),
+         md5(string_agg(relname || ':' || md5(definition), '|' order by relname)),
+         count(*) filter (where definition ~ '(?m)^.*td[.]apex_invoice_usd.*$')
+    into v_projection_count, v_projection_md5, v_exact_projection_count
+  from (
+    select distinct c.relname, pg_get_viewdef(c.oid, true) as definition
+    from pg_class c
+    join pg_namespace n on n.oid = c.relnamespace
+    join pg_attribute a on a.attrelid = c.oid
+      and a.attname = 'apex_invoice_usd'
+      and not a.attisdropped
+    where n.nspname = 'public'
+      and c.relkind = 'v'
+      and c.relname not in ('v_forensic_sold_by_tag', 'v_forensic_sold_by_tag_safe')
+  ) x;
+  if v_projection_count <> b.direct_projection_views
+     or v_projection_md5 <> b.direct_projection_views_md5
+     or v_exact_projection_count <> b.exact_direct_projections then
+    raise exception 'TAG_MONEY_CONTRACT: direct money projection definitions changed';
   end if;
 
   if exists (
@@ -618,7 +675,10 @@ begin
       where dep.refobjid = b.sold_oid and d.oid <> b.sold_oid) x) <> b.sold_deps
      or (select md5(string_agg(x.relname, '|' order by x.relname)) from (
       select distinct d.relname from pg_depend dep join pg_rewrite rw on rw.oid = dep.objid join pg_class d on d.oid = rw.ev_class
-      where dep.refobjid = b.sold_oid and d.oid <> b.sold_oid) x) <> b.sold_deps_md5 then
+      where dep.refobjid = b.sold_oid and d.oid <> b.sold_oid) x) <> b.sold_deps_md5
+     or not exists (
+      select 1 from pg_depend dep join pg_rewrite rw on rw.oid = dep.objid
+      where dep.refobjid = b.sold_oid and rw.ev_class = b.safe_oid) then
     raise exception 'TAG_MONEY_CONTRACT: dependency identity changed';
   end if;
 

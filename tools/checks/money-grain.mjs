@@ -90,6 +90,18 @@ export function inspectTagMoneyContainment(sql) {
   need(/refresh\s+materialized\s+view\s+public\.mv_tag_documents\s*;/i.test(code), "document trinity is not refreshed synchronously");
   need(/stage5_apex_invoice\s+is\s+distinct\s+from\s+\w+\.apex_invoice_number/i.test(code), "exact invoice identity has no executable reconciliation");
   need(/apex_invoice_usd\s+is\s+not\s+null/i.test(code), "published money has no executable zero-value assertion");
+  need(/b833a4d42c4bfb5d27b6af6845701c2d/i.test(code)
+    && /direct_projection_views/i.test(code)
+    && /td\[\.\]apex_invoice_usd/i.test(code),
+  "complete direct-projection definition inventory is not sealed");
+  need(/exists\s*\(\s*select\s+1\s+from\s+public\.v_forensic_sold_by_tag_safe\s+where\s+total_usd\s+is\s+not\s+null\s+or\s+payment_status\s+is\s+not\s+null\s+or\s+apex_invoice_usd\s+is\s+not\s+null\s*\)/i.test(code),
+  "safe wrapper has no executable zero-money/payment assertion");
+  need(/b1a5fbaf21f040a05b7977f6826b0ead/i.test(code)
+    && /61c2020d9ac60d4f6238fa4cd8c3073b/i.test(code)
+    && /safe_depends_on_sold/i.test(code),
+  "unchanged root/safe definitions and dependency are not sealed");
+  need(!/for\s+\w+\s+in[\s\S]*?apex_invoice_usd[\s\S]*?execute\s+format/i.test(code),
+  "migration re-executes every derived money view inside the bounded apply transaction");
   need(/protected navigation changed/i.test(code), "protected TopMenu/TG Workspace state is not asserted");
   need(/nav_role_visibility/i.test(code), "protected role visibility state is not asserted");
   need(/exact invoice bridge differs from independent raw-number derivation/i.test(code), "exact bridge has no independent raw-number proof");
@@ -134,11 +146,16 @@ async function runTagMoneyExecutionFixture(connectionString) {
                d.invoice_usd as apex_invoice_usd
         from __fixture__.packages p join __fixture__.legacy_sales l using(manifest)
         join __fixture__.documents d using(tag);
+      create view __fixture__.safe_wrapper with (security_invoker=true) as
+        select tag, null::numeric as total_usd, null::text as payment_status,
+               null::numeric as apex_invoice_usd
+        from __fixture__.raw_sold;
       create view __fixture__.sold_dependent with (security_invoker=true) as select * from __fixture__.raw_sold;
     `);
     const before = await q(`select '__fixture__.lifecycle'::regclass::oid lifecycle_oid,
                                    '__fixture__.documents'::regclass::oid document_oid,
                                    '__fixture__.raw_sold'::regclass::oid sold_oid,
+                                   '__fixture__.safe_wrapper'::regclass::oid safe_oid,
                                    (select relowner from pg_class where oid='__fixture__.lifecycle'::regclass) lifecycle_owner,
                                    (select relowner from pg_class where oid='__fixture__.raw_sold'::regclass) sold_owner,
                                    (select relacl::text from pg_class where oid='__fixture__.lifecycle'::regclass) lifecycle_acl,
@@ -176,13 +193,19 @@ async function runTagMoneyExecutionFixture(connectionString) {
         if exists(select 1 from __fixture__.raw_sold where total_usd is not null or payment_status is not null or apex_invoice_usd is not null or invoice_no is distinct from 'INV-EXACT') then
           raise exception 'fixture raw sold road failed';
         end if;
+        if exists(select 1 from __fixture__.safe_wrapper where total_usd is not null or payment_status is not null or apex_invoice_usd is not null) then
+          raise exception 'fixture safe wrapper road failed';
+        end if;
       end $$;
       commit;`);
 
     const after = await q(`select '__fixture__.lifecycle'::regclass::oid lifecycle_oid,
                                   '__fixture__.documents'::regclass::oid document_oid,
                                   '__fixture__.raw_sold'::regclass::oid sold_oid,
+                                  '__fixture__.safe_wrapper'::regclass::oid safe_oid,
                                   count(*) filter(where invoice_usd is not null or payment_status is not null) unsafe_rows,
+                                  (select count(*) from __fixture__.safe_wrapper
+                                    where total_usd is not null or payment_status is not null or apex_invoice_usd is not null) safe_unsafe_rows,
                                   count(*) filter(where invoice_no='INV-EXACT') exact_rows,
                                   (select count(*) from pg_indexes where schemaname='__fixture__' and tablename='documents' and indexname='documents_tag') index_count,
                                   (select count(*) from pg_depend dep join pg_rewrite rw on rw.oid=dep.objid
@@ -198,6 +221,7 @@ async function runTagMoneyExecutionFixture(connectionString) {
                                       and rw.ev_class <> '__fixture__.documents'::regclass) money_dependency_count,
                                   (select reloptions from pg_class where oid='__fixture__.lifecycle'::regclass) lifecycle_options,
                                   (select reloptions from pg_class where oid='__fixture__.raw_sold'::regclass) sold_options,
+                                  (select reloptions from pg_class where oid='__fixture__.safe_wrapper'::regclass) safe_options,
                                   (select relowner from pg_class where oid='__fixture__.lifecycle'::regclass) lifecycle_owner,
                                   (select relowner from pg_class where oid='__fixture__.raw_sold'::regclass) sold_owner,
                                   (select relacl::text from pg_class where oid='__fixture__.lifecycle'::regclass) lifecycle_acl,
@@ -208,10 +232,12 @@ async function runTagMoneyExecutionFixture(connectionString) {
     if (String(a.lifecycle_oid) !== String(before.rows[0].lifecycle_oid)
         || String(a.document_oid) !== String(before.rows[0].document_oid)
         || String(a.sold_oid) !== String(before.rows[0].sold_oid)
-        || Number(a.unsafe_rows) !== 0 || Number(a.exact_rows) !== 2
+        || String(a.safe_oid) !== String(before.rows[0].safe_oid)
+        || Number(a.unsafe_rows) !== 0 || Number(a.safe_unsafe_rows) !== 0 || Number(a.exact_rows) !== 2
         || Number(a.index_count) !== 1 || Number(a.dependency_count) < 1 || Number(a.sold_dependency_count) < 1
         || Number(a.money_dependency_count) !== 1
         || !a.lifecycle_options?.includes("security_invoker=true") || !a.sold_options?.includes("security_invoker=true")
+        || !a.safe_options?.includes("security_invoker=true")
         || String(a.lifecycle_owner) !== String(before.rows[0].lifecycle_owner)
         || String(a.sold_owner) !== String(before.rows[0].sold_owner)
         || a.lifecycle_acl !== before.rows[0].lifecycle_acl || a.sold_acl !== before.rows[0].sold_acl
@@ -244,6 +270,33 @@ async function runTagMoneyExecutionFixture(connectionString) {
       (select count(*) from __fixture__.migration_history where version='negative_apply') failed_history_rows;`);
     if (Number(rolledBack.rows[0].unsafe_rows) !== 0 || Number(rolledBack.rows[0].failed_history_rows) !== 0) {
       throw new Error("failed fixture did not roll back DDL/data/history atomically");
+    }
+
+    let safePaymentRejected = false;
+    try {
+      await q(`begin;
+        insert into __fixture__.migration_history values ('negative_safe_payment');
+        create or replace view __fixture__.safe_wrapper with (security_invoker=true) as
+          select tag, null::numeric as total_usd, 'unpaid'::text as payment_status,
+                 null::numeric as apex_invoice_usd
+          from __fixture__.raw_sold;
+        do $$ begin
+          if exists(select 1 from __fixture__.safe_wrapper where total_usd is not null or payment_status is not null or apex_invoice_usd is not null) then
+            raise exception 'TAG_MONEY_FIXTURE: restored safe payment status rejected';
+          end if;
+        end $$;
+        commit;`);
+    } catch (error) {
+      await q("rollback;");
+      if (error?.code !== "P0001" || error?.message !== "TAG_MONEY_FIXTURE: restored safe payment status rejected") throw error;
+      safePaymentRejected = true;
+    }
+    if (!safePaymentRejected) throw new Error("execution fixture accepted restored safe-wrapper payment status");
+    const safeRolledBack = await q(`select
+      (select count(*) from __fixture__.safe_wrapper where total_usd is not null or payment_status is not null or apex_invoice_usd is not null) unsafe_rows,
+      (select count(*) from __fixture__.migration_history where version='negative_safe_payment') failed_history_rows;`);
+    if (Number(safeRolledBack.rows[0].unsafe_rows) !== 0 || Number(safeRolledBack.rows[0].failed_history_rows) !== 0) {
+      throw new Error("failed safe-wrapper fixture did not roll back DDL/data/history atomically");
     }
   } finally {
     try { await q(`drop schema if exists __fixture__ cascade;`); } finally { await client.end(); }
@@ -321,7 +374,7 @@ if (navDigest !== expectedNavDigest) {
   console.error(`money-grain: FAIL — ${navFile} differs from the independently reviewed hotfix (${navDigest}).`);
   process.exit(1);
 }
-const expectedContainmentDigest = "6291f9684980ae3da7caacf830df9c0bd9830608ea77402244ce8e13cda705c6";
+const expectedContainmentDigest = "ba3e5425529f2f199e846d40a845998983ac701c1fc7d1f84b0075919e2998d6";
 const containmentDigest = normalizedSqlDigest(containmentSql);
 if (containmentDigest !== expectedContainmentDigest) {
   console.error(`money-grain: FAIL — ${containmentFile} differs from the independently reviewed containment (${containmentDigest}).`);
@@ -336,7 +389,7 @@ const migrationEntries = files.map((name) => ({
   name,
   sql: readFileSync(join(migrationDir, name), "utf8"),
 }));
-const expectedMigrationTreeDigest = "2d6966f689cb5aa95a92edccb3ff5f8dc5c1df752809520278d27ffade14f356";
+const expectedMigrationTreeDigest = "573f4a87d6d8d09b535254ddc3f57856582fb2b61bf6c5882d8c5baeeb9659a4";
 const actualMigrationTreeDigest = migrationTreeDigest(migrationEntries);
 if (actualMigrationTreeDigest !== expectedMigrationTreeDigest) {
   console.error(`money-grain: FAIL — migration tree differs from the independently reviewed ${files.length}-file manifest (${actualMigrationTreeDigest}).`);
@@ -364,6 +417,11 @@ const containmentMutants = [
   containmentSql.replace("refresh materialized view public.mv_tag_documents;", "-- refresh removed"),
   containmentSql.replace("with (security_invoker = true) as", "as"),
   containmentSql.replace("623cf2d6b0ce24d39509e78528ae6337", "00000000000000000000000000000000"),
+  containmentSql.replace("b833a4d42c4bfb5d27b6af6845701c2d", "00000000000000000000000000000000"),
+  containmentSql.replace("b1a5fbaf21f040a05b7977f6826b0ead", "00000000000000000000000000000000"),
+  containmentSql.replace("61c2020d9ac60d4f6238fa4cd8c3073b", "00000000000000000000000000000000"),
+  containmentSql.replace(/(v_forensic_sold_by_tag_safe\s+where total_usd is not null\s+or )payment_status is not null\s+or /, "$1"),
+  containmentSql.replaceAll("td[.]apex_invoice_usd", "coalesce(td.apex_invoice_usd, 0)"),
   containmentSql.replace("x) <> 57 then", "x) <> b.money_deps then"),
   containmentSql.replace("eef181234378e7983cb774baaef6fb37", "2eebe724db2d03440058ba35a95bc02e"),
   `${containmentSql}\ncommit;`,
