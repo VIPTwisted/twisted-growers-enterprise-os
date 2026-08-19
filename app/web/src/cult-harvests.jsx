@@ -29,6 +29,7 @@
    ═══════════════════════════════════════════════════════════════════════════ */
 import React, { useEffect, useMemo, useState } from "react";
 import { supabase } from "./lib/supabase.js";
+import { dateUpperExclusive } from "./lib/date-range-core.js";
 import { DateRangeSelect } from "./App.jsx";
 import {
   useDefaultRange, grab, listOf, DkTag, DkErr, DkEmpty, DkKpiStrip, DkDrill, DrillRoot, DkHead,
@@ -189,23 +190,27 @@ export default function HarvestsRegister({ go, session, role, viewAs, reports })
   const [range, setRange] = useState({ from: "", to: "" });
   /* Opens on the company default (this month) rather than all history —
      owner charter, 19 Aug 2026: no page may show all history by default. */
-  useDefaultRange(session, VIEW_KEY, setRange);
+  const dateDefault = useDefaultRange(session, VIEW_KEY, setRange);
   const [d, setD] = useState(null);
   const [openKpi, setOpenKpi] = useState(null);
   const [ver, setVer] = useState(0);
 
   useEffect(() => {
+    if (!dateDefault.ready) return undefined;
     let live = true;
     (async () => {
+      let harvestQuery = supabase.from("v_harvest_forensic").select("*");
+      if (range.from) harvestQuery = harvestQuery.gte("harvest_started", range.from);
+      if (range.to) harvestQuery = harvestQuery.lt("harvest_started", dateUpperExclusive(range.to));
       const [h, limits] = await Promise.all([
-        supabase.from("v_harvest_forensic").select("*").order("harvest_started", { ascending: false, nullsFirst: false }),
+        harvestQuery.order("harvest_started", { ascending: false, nullsFirst: false }),
         supabase.from("conversion_factors").select("key, value, set_by, what_it_means").in("key", [RULE_OPEN_MAX, RULE_DRY_MAX]),
       ]);
       if (!live) return;
       setD({ h: grab(h), limits: grab(limits) });
     })();
     return () => { live = false; };
-  }, [ver]);
+  }, [ver, range.from, range.to, dateDefault.ready]);
 
   const targets = useMemo(() => cultTargetMap(measures), [measures]);
   const trend = useMemo(() => cultTrendMap(measures), [measures]);
@@ -308,7 +313,10 @@ export default function HarvestsRegister({ go, session, role, viewAs, reports })
       tone: r.severity === "CRITICAL" ? "crit" : r.severity === "HIGH" ? "warn" : "ok",
     })), [inRange, licMap]);
 
-  if (d === null) {
+  if (dateDefault.error) {
+    return <div className="ccpage"><DkErr what="The governed date range" err={dateDefault.error} /></div>;
+  }
+  if (!dateDefault.ready || d === null) {
     return <div className="ccpage"><div className="cc-fine" style={{ padding: 16 }}>Reading every harvest on record…</div></div>;
   }
 
@@ -335,7 +343,8 @@ export default function HarvestsRegister({ go, session, role, viewAs, reports })
           <div className="cc-tools-c">
             <DateRangeSelect label="Cut between" from={range.from} to={range.to}
               onFrom={(v) => setRange((p) => ({ ...p, from: v }))}
-              onTo={(v) => setRange((p) => ({ ...p, to: v }))} />
+              onTo={(v) => setRange((p) => ({ ...p, to: v }))}
+              presetKey={dateDefault.presetKey} session={session} viewKey={VIEW_KEY} allowSave />
           </div>
           <div className="cc-tools-r">
             <button type="button" className="cc-btn" onClick={() => go("harvest_lifecycle")}

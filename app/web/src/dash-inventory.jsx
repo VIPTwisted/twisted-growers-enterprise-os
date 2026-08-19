@@ -21,6 +21,7 @@
    ═══════════════════════════════════════════════════════════════════════════ */
 import React, { useEffect, useState } from "react";
 import { supabase } from "./lib/supabase.js";
+import { fetchDepartmentDashboard } from "./lib/dashboard-range.js";
 import {
   DateRangeSelect, rowsOr, StockByStreamCards, StockProofTable, RoomStockDrill, InTransitDrill,
 } from "./App.jsx";
@@ -123,7 +124,7 @@ export default function InventoryDashboard({ go, session, reports, role, viewAs,
   const [range, setRange] = useState({ from: "", to: "" });
   /* Opens on the company default (this month) instead of all history —
      owner ruling 19 Aug 2026. Seeds once, then the user owns the range. */
-  useDefaultRange(session, VIEW_KEY, setRange);
+  const dateDefault = useDefaultRange(session, VIEW_KEY, setRange);
   const [busy, setBusy] = useState(false);
   const [ver, setVer] = useState(0);
   const [d, setD] = useState(null);
@@ -149,13 +150,13 @@ export default function InventoryDashboard({ go, session, reports, role, viewAs,
   const queue = useWorkQueue(DEPT);
 
   useEffect(() => {
+    if (!dateDefault.ready) return undefined;
     let live = true;
     (async () => {
       const [tiles, trend, targets, stock, stockRooms, tasks, global] = await Promise.all([
-        supabase.rpc("f_department_dashboard", { p_dept: DEPT, p_from: range.from || null, p_to: range.to || null })
-          .then((r) => (r.error || !r.data || !r.data.length)
-            ? supabase.from("mv_department_dashboard").select("*").eq("department", DEPT).order("ord")
-            : r),
+        fetchDepartmentDashboard(supabase, {
+          department: DEPT, from: range.from, to: range.to,
+        }),
         supabase.from("v_dashboard_trend").select("*").eq("department", DEPT),
         supabase.from("kpi_targets").select("*").eq("department", DEPT),
         supabase.from("v_stock_summary").select("*"),
@@ -178,7 +179,7 @@ export default function InventoryDashboard({ go, session, reports, role, viewAs,
   /* range.from / range.to: this dashboard never re-fetched on a date change —
      its effect depended on [ver] alone, so the picker moved and nothing behind
      it did. Owner, 19 Aug 2026. */
-  }, [ver, range.from, range.to]);
+  }, [ver, range.from, range.to, dateDefault.ready]);
 
   const recompute = async () => {
     setBusy(true);
@@ -188,7 +189,10 @@ export default function InventoryDashboard({ go, session, reports, role, viewAs,
     setBusy(false);
   };
 
-  if (d === null) {
+  if (dateDefault.error) {
+    return <div className="ccpage"><DkErr what="The governed date range" err={dateDefault.error} /></div>;
+  }
+  if (!dateDefault.ready || d === null) {
     return <div className="ccpage"><div className="cc-fine" style={{ padding: 16 }}>Building the {DEPT} dashboard from the live records…</div></div>;
   }
 
@@ -226,7 +230,8 @@ export default function InventoryDashboard({ go, session, reports, role, viewAs,
         <div className="cc-tools-c">
           <DateRangeSelect label="Dates" from={range.from} to={range.to}
             onFrom={(v) => setRange((p) => ({ ...p, from: v }))}
-            onTo={(v) => setRange((p) => ({ ...p, to: v }))} />
+            onTo={(v) => setRange((p) => ({ ...p, to: v }))}
+            presetKey={dateDefault.presetKey} session={session} viewKey={VIEW_KEY} allowSave />
         </div>
         <div className="cc-tools-r">
           <button className="cc-btn" onClick={recompute} disabled={busy}

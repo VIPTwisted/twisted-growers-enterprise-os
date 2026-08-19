@@ -31,6 +31,8 @@
    ═══════════════════════════════════════════════════════════════════════════ */
 import React, { useEffect, useState, useCallback, useMemo } from "react";
 import { supabase } from "./lib/supabase.js";
+import { fetchDepartmentDashboard } from "./lib/dashboard-range.js";
+import { dateUpperExclusive } from "./lib/date-range-core.js";
 import {
   DateRangeSelect, useSectionStore, rowsOr,
   MoneyBar, StockByStreamCards, StockProofTable, OpenHarvestDetail, InTransitDrill, BatchList,
@@ -1429,12 +1431,13 @@ export default function CommandCenter({ go, session, reports, role, viewAs, onVi
   const [range, setRange] = useState({ from: "", to: "" });
   /* Opens on the company default (this month) instead of all history —
      owner ruling 19 Aug 2026. Seeds once, then the user owns the range. */
-  useDefaultRange(session, "dept_dash_command", setRange);
+  const dateDefault = useDefaultRange(session, "dept_dash_command", setRange);
   const [busy, setBusy] = useState(false);
   const [ver, setVer] = useState(0);
   const [d, setD] = useState(null);   // { key: { rows, err } }
 
   useEffect(() => {
+    if (!dateDefault.ready) return undefined;
     let live = true;
     const grab = ({ data, error }) => (error ? { rows: [], err: error.message } : { rows: rowsOr(data), err: null });
     (async () => {
@@ -1464,27 +1467,31 @@ export default function CommandCenter({ go, session, reports, role, viewAs, onVi
          exact row count is exactly right, but the aggregate-count gate matches
          `.from(x) … count:` within 300 characters and would read it as
          belonging to an aggregate view listed near it in the array below. */
-      const yieldRead = supabase.from("v_harvest_yield_audit").select("*", { count: "exact" })
-        .order("finished_on", { ascending: false }).limit(12);
+      const ranged = (query, column) => {
+        let result = query;
+        if (range.from) result = result.gte(column, range.from);
+        if (range.to) result = result.lt(column, dateUpperExclusive(range.to));
+        return result;
+      };
+      const yieldRead = ranged(
+        supabase.from("v_harvest_yield_audit").select("*", { count: "exact" }),
+        "finished_on",
+      ).order("finished_on", { ascending: false }).limit(12);
       /* The staffing detail is capped at 200 rows. It serves none today, but a
          cap nobody states is a cap nobody notices the day it bites, so the
          count rides along and the drill says how many it is not showing. */
-      const staffingRead = supabase.from("v_zone_staffing").select("*", { count: "exact" })
-        .order("work_date", { ascending: false }).limit(200);
+      const staffingRead = ranged(
+        supabase.from("v_zone_staffing").select("*", { count: "exact" }),
+        "work_date",
+      ).order("work_date", { ascending: false }).limit(200);
       const [tiles, trend, targets, flow, split, global, goals, yld, rooms, alertRules, openRule, stockRooms,
              stock, money, tasks, headline, restock, forecast, compliance, zones, staffing, people, sched] = await Promise.all([
-        /* Owner, 18 Aug 2026, after days of asking: the KEY FIGURES strip must
-           honour the date range like every department dashboard already does.
-           f_department_dashboard recomputes the FLOW tiles for the window
-           (0.01s measured as a signed-in user) and each tile's context carries
-           its own range truth; positions state "as at today". Null range =
-           the same figures the matview served, so nothing regresses. The
-           matview remains only as the fallback if the RPC itself fails. */
-        supabase.rpc("f_department_dashboard",
-          { p_dept: "Command", p_from: range.from || null, p_to: range.to || null })
-          .then((r) => (r.error || !r.data || !r.data.length)
-            ? supabase.from("mv_department_dashboard").select("*").eq("department", "Command").order("ord")
-            : r),
+        /* A failed date-aware read stays failed. The former all-time matview
+           fallback could put a valid old number under a newly selected range,
+           which is worse than showing that the figures are unavailable. */
+        fetchDepartmentDashboard(supabase, {
+          department: "Command", from: range.from, to: range.to,
+        }),
         supabase.from("v_dashboard_trend").select("*").eq("department", "Command"),
         supabase.from("kpi_targets").select("*").eq("department", "Command"),
         supabase.from("mv_flow_stages").select("*").order("stage_no"),
@@ -1512,8 +1519,9 @@ export default function CommandCenter({ go, session, reports, role, viewAs, onVi
         /* The executive column and the two new bands (WO-004). */
         supabase.from("v_stock_headline").select("*").maybeSingle(),
         supabase.from("v_supply_restock_due").select("*").order("supply_item"),
-        supabase.from("v_production_forecast").select("*").order("month"),
-        supabase.from("v_schedule_compliance").select("*").order("scheduled_date", { ascending: false }),
+        ranged(supabase.from("v_production_forecast").select("*"), "month").order("month"),
+        ranged(supabase.from("v_schedule_compliance").select("*"), "scheduled_date")
+          .order("scheduled_date", { ascending: false }),
         supabase.from("v_zone_now").select("*").order("zone"),
         staffingRead,
         supabase.from("v_schedulable").select("*").order("full_name"),
@@ -1549,7 +1557,7 @@ export default function CommandCenter({ go, session, reports, role, viewAs, onVi
     return () => { live = false; };
     /* range.from / range.to: the strip re-queries the moment the user moves a
        date chip — the whole page reflects the window, no refresh needed. */
-  }, [ver, range.from, range.to]);
+  }, [ver, range.from, range.to, dateDefault.ready]);
 
   const recompute = async () => {
     setBusy(true);
@@ -1587,7 +1595,10 @@ export default function CommandCenter({ go, session, reports, role, viewAs, onVi
     [openMaxDays],
   );
 
-  if (d === null) return (
+  if (dateDefault.error) return (
+    <div className="ccpage"><CcErr what="The governed date range" err={dateDefault.error} /></div>
+  );
+  if (!dateDefault.ready || d === null) return (
     <div className="ccpage"><div className="cc-fine" style={{ padding: 16 }}>Building the Command Center from the live records…</div></div>
   );
 
@@ -1708,7 +1719,8 @@ export default function CommandCenter({ go, session, reports, role, viewAs, onVi
         <div className="cc-tools-c">
           <DateRangeSelect label="Dates" from={range.from} to={range.to}
             onFrom={(v) => setRange((p) => ({ ...p, from: v }))}
-            onTo={(v) => setRange((p) => ({ ...p, to: v }))} />
+            onTo={(v) => setRange((p) => ({ ...p, to: v }))}
+            presetKey={dateDefault.presetKey} session={session} viewKey="dept_dash_command" allowSave />
         </div>
         <div className="cc-tools-r">
           <button className="cc-btn" onClick={recompute} disabled={busy} title="Recompute the dashboard snapshot now — progress shows on the data-age stamp above">↻ recompute</button>

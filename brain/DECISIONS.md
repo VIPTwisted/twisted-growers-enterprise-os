@@ -6,6 +6,34 @@ above it; never delete. If a figure or rule gets argued twice, it belongs here.
 
 ---
 
+**2026-08-19 — GPT-CEO GOVERNS; CLAUDE/COO IMPLEMENTS UNDER THE SAME
+CONSTITUTION.** The owner assigned GPT-CEO as the executive authority over the
+project and Claude as COO. Every proposed exception must state what should be
+done, why it is safer or better, and the measurable improvement before the owner
+approves it. The title does not replace evidence: worker output requires an
+independent review, a guard verdict, and a release gate.
+
+**2026-08-19 — RELEASE SMALL, REVIEWABLE, WORKING SLICES.** The owner rejected
+massive code drops because a single issue must not destabilize the whole OS.
+Changes therefore move as bounded vertical slices through Git checks, compatible
+Supabase verification or migration, a Netlify deploy preview, owner review, then
+production promotion. Git, Supabase and Netlify must describe the same release;
+preview deployments are the collaboration surface, not a substitute for gates.
+
+**2026-08-19 — THE DATE SHOWN IS THE DATA QUERIED.** The default is This month
+unless a page is deliberately year-to-date or a user saved another choice. A
+manual range is Custom and saves both endpoints. Every KPI, chart, table, export
+and drill on a page must inherit the same range. A failed ranged query stays a
+visible failure; all-time data may never be substituted under selected dates.
+This is hard rule L8 and is guarded by `date-range-integrity.mjs`.
+
+**2026-08-19 — EVERY PUBLISHED NUMBER OPENS ITS FORENSIC PROOF IN PLACE.** No
+fake or hardwired business data. Every KPI, tile, report row and line item must
+open the contributing records without forcing the user out of the section. Every
+tag's dossier follows seed-to-sale custody and location and attaches the manifest,
+COA and invoice when each becomes applicable. A missing document states the
+reason; it is never silently presented as none.
+
 **2026-08-09 — OWNER RULING: IDENTITY IS THE TAG. NAMES RESOLVE METRC → COA →
 MANIFEST → A PERSON.** Owner, in three messages: *"we have to always match names to
 Metrc, then COA and manefests"* · *"by tag"* · *"its seed to sale Metrc"*.
@@ -870,3 +898,14 @@ Eagle Eyes only, Buds only, priced ≥ $1, and missed MMM entirely.
 manifest names the transporter as destination, not the final recipient.
 $78,333 of delivered product with no identified customer. `document_sends` and
 Apex would settle it; neither is available.
+
+**2026-08-19 — DATE AUTHORITY: Supabase owns the QuickBooks calendar.** The
+browser carried 16 presets while `date_range_presets` carried 27, used different
+keys for rolling windows, and started weeks on a different day. That is no
+longer an acceptable duplication. `f_date_presets(anchor)` resolves the governed
+catalogue; `f_date_default(user,page)` resolves user+page → user-global → page
+rule → company fallback. Pages consume the resolved endpoints and do no calendar
+math. Reads wait for that result; an error blocks the read instead of opening all
+history. The current production browser receives a temporary `custom` bridge for
+newer preset keys while the new browser reads `governed_preset_key`, allowing an
+atomic rollout without a period mismatch.

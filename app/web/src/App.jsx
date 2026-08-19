@@ -1,4 +1,16 @@
 import React, { useEffect, useState, useCallback, useRef, useMemo, lazy, Suspense } from "react";
+import { fetchDepartmentDashboard } from "./lib/dashboard-range.js";
+import {
+  useDatePresetCatalog,
+  useDefaultRange,
+  saveDateDefault as persistDateDefault,
+} from "./lib/date-range.js";
+import {
+  dateSelectionLabel,
+  dateUpperExclusive,
+  matchingDatePreset,
+  normaliseDateRange,
+} from "./lib/date-range-core.js";
 /* ═══════════════════════════════════════════════════════════════════════════
    ROUTE-LEVEL CODE SPLITTING — the owner's fifteen-second first paint.
 
@@ -1322,39 +1334,6 @@ const cellView = (col, v) => {
   }
   return formatCell(v);
 };
-/* QuickBooks-style date ranges — one dropdown, every date filter in the OS */
-const DATE_PRESETS = [
-  ["all", "All dates"], ["today", "Today"], ["yesterday", "Yesterday"],
-  ["this_week", "This week"], ["this_month", "This month"], ["this_quarter", "This quarter"], ["this_year", "This year"],
-  ["last_week", "Last week"], ["last_month", "Last month"], ["last_quarter", "Last quarter"], ["last_year", "Last year"],
-  // These are date-range window labels, not business figures — each is computed live in
-  // presetRange() from today's date and nothing is frozen into the code.
-  // provenance: owner instruction 8 Aug 2026 — "last 30/90/365 days, custom from-to"
-  ["last_30", "Last 30 days"], ["last_90", "Last 90 days"], ["last_365", "Last 365 days"],
-  ["ytd", "Year to date"], ["custom", "Custom range…"],
-];
-function presetRange(key) {
-  const d = new Date(); const y = d.getFullYear(), m = d.getMonth(), dt = d.getDate(), dow = d.getDay();
-  const q = Math.floor(m / 3);
-  const iso = (x) => `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, "0")}-${String(x.getDate()).padStart(2, "0")}`;
-  switch (key) {
-    case "today": return [iso(d), iso(d)];
-    case "yesterday": { const t = new Date(y, m, dt - 1); return [iso(t), iso(t)]; }
-    case "this_week": return [iso(new Date(y, m, dt - dow)), iso(new Date(y, m, dt - dow + 6))];
-    case "this_month": return [iso(new Date(y, m, 1)), iso(new Date(y, m + 1, 0))];
-    case "this_quarter": return [iso(new Date(y, q * 3, 1)), iso(new Date(y, q * 3 + 3, 0))];
-    case "this_year": return [iso(new Date(y, 0, 1)), iso(new Date(y, 11, 31))];
-    case "last_week": return [iso(new Date(y, m, dt - dow - 7)), iso(new Date(y, m, dt - dow - 1))];
-    case "last_month": return [iso(new Date(y, m - 1, 1)), iso(new Date(y, m, 0))];
-    case "last_quarter": return [iso(new Date(y, (q - 1) * 3, 1)), iso(new Date(y, q * 3, 0))];
-    case "last_year": return [iso(new Date(y - 1, 0, 1)), iso(new Date(y - 1, 11, 31))];
-    case "last_30": return [iso(new Date(y, m, dt - 30)), iso(d)];
-    case "last_90": return [iso(new Date(y, m, dt - 90)), iso(d)];
-    case "last_365": return [iso(new Date(y, m, dt - 365)), iso(d)];
-    case "ytd": return [iso(new Date(y, 0, 1)), iso(d)];
-    default: return ["", ""];
-  }
-}
 /* `onPreset` is optional and additive: pages that want to remember WHICH preset
    the user chose (rather than only the two dates it produced) can receive it.
    Every existing caller keeps working unchanged.
@@ -1368,10 +1347,6 @@ function presetRange(key) {
    two date inputs stay for a custom range. The active chip is DERIVED by comparing
    the live from/to against what each chip would produce today — never a second
    copy of state that could disagree with the dates actually applied. */
-const DATE_CHIPS = [
-  ["today", "Today"], ["this_week", "Week"], ["this_month", "Month"],
-  ["this_quarter", "Quarter"], ["this_year", "Year"], ["all", "All"],
-];
 /* ONE DATE MECHANISM — owner layout doctrine, 12 Aug 2026, point 1: the page
    showed three (chips, a dropdown, two always-visible calendar inputs). The
    chips are the mechanism. Custom expands an inline popover holding the full
@@ -1379,47 +1354,120 @@ const DATE_CHIPS = [
    selection state, and the custom chip shows the exact dates when a custom
    range is applied. Nothing lost: every preset and exact-date capability is
    still here, one click deeper. */
-export function DateRangeSelect({ label, from, to, onFrom, onTo, onPreset }) {
-  const [preset, setPreset] = useState("all");
+export function DateRangeSelect({
+  label, from, to, onFrom, onTo, onPreset, presetKey,
+  session, viewKey, allowSave = false, autoDefault = true, onReady,
+}) {
+  const { rows: presets, error: catalogError } = useDatePresetCatalog();
+  const [preset, setPreset] = useState(presetKey ?? null);
   const [openCustom, setOpenCustom] = useState(false);
-  const shown = !from && !to ? "all" : preset;
+  const [rangeError, setRangeError] = useState(null);
+  const [saveStatus, setSaveStatus] = useState(null);
+  useEffect(() => { if (presetKey) setPreset(presetKey); }, [presetKey]);
+
+  const matched = presets ? matchingDatePreset(presets, from, to, presetKey ?? preset) : null;
+  const selected = presets?.find((row) => row.preset_key === preset) ?? null;
+  const selectedManual = selected?.manual_mode !== "none" ? selected : null;
+  const activeKey = selectedManual?.preset_key ?? matched?.preset_key ?? (from || to ? "custom" : "all");
+  const shown = presets?.some((row) => row.preset_key === activeKey) ? activeKey : "custom";
+  const quick = presets ? presets.filter((row) => row.show_as_quick) : [];
+
   const pick = (k) => {
+    const row = presets?.find((item) => item.preset_key === k);
+    if (!row) return;
+    setRangeError(null); setSaveStatus(null);
     setPreset(k);
-    if (onPreset) onPreset(k);
-    if (k === "custom") return;
-    const [f, t] = presetRange(k);
-    onFrom(f); onTo(t);
-    setOpenCustom(false);
+    onPreset?.(k);
+    if (row.manual_mode === "none") {
+      onFrom(row.resolved_from ?? "");
+      onTo(row.resolved_to ?? "");
+      setOpenCustom(false);
+      return;
+    }
+    if (row.manual_mode === "from") onTo("");
+    if (row.manual_mode === "to") onFrom("");
+    setOpenCustom(true);
   };
-  const chipActive = (k) => {
-    if (k === "all") return !from && !to;
-    const [f, t] = presetRange(k);
-    return from === f && to === t;
+  const editDate = (side, value) => {
+    const manualKey = selectedManual?.preset_key ?? "custom";
+    setPreset(manualKey);
+    onPreset?.(manualKey);
+    setRangeError(null); setSaveStatus(null);
+    if (side === "from") onFrom(value); else onTo(value);
   };
-  const anyChipActive = DATE_CHIPS.some(([k]) => chipActive(k));
-  const customLabel = !anyChipActive && (from || to) ? `${from || "…"} → ${to || "…"}` : "Custom";
+  const finish = () => {
+    try {
+      const range = normaliseDateRange(from, to);
+      onFrom(range.from); onTo(range.to);
+      setRangeError(null); setOpenCustom(false);
+    } catch (error) { setRangeError(error.message); }
+  };
+  const save = async (everywhere) => {
+    try {
+      const range = await persistDateDefault(supabase, {
+        userId: session?.user?.id, viewKey, presetKey: activeKey,
+        from, to, everywhere,
+      });
+      onFrom(range.from); onTo(range.to);
+      setRangeError(null);
+      setSaveStatus(everywhere ? "Saved as your default on every page." : "Saved as your default on this page.");
+    } catch (error) { setSaveStatus(`The date default was not saved: ${error.message}`); }
+  };
+  const customActive = !quick.some((row) => row.preset_key === activeKey);
+  const customLabel = dateSelectionLabel(selected, customActive, from, to);
+  const groups = presets ? [...new Set(presets.map((row) => row.group_label || "Other"))] : [];
+  const seeded = useRef(false);
+  useEffect(() => {
+    if (!presets || seeded.current) return;
+    seeded.current = true;
+    if (autoDefault && !presetKey && !from && !to) {
+      const monthly = presets.find((row) => row.preset_key === "this_month");
+      if (monthly) {
+        setPreset(monthly.preset_key);
+        onPreset?.(monthly.preset_key);
+        onFrom(monthly.resolved_from ?? "");
+        onTo(monthly.resolved_to ?? "");
+      }
+    }
+    onReady?.();
+  }, [presets, autoDefault, presetKey, from, to, onFrom, onTo, onPreset, onReady]);
   return (
     <span className="datebar">
       <span className="flab">{label}</span>
       <span className="datechips" role="group" aria-label="Quick date ranges">
-        {DATE_CHIPS.map(([k, l]) => (
-          <button key={k} type="button" className={`dbchip ${chipActive(k) ? "on" : ""}`}
-            aria-pressed={chipActive(k)} onClick={() => pick(k)}>{l}</button>
+        {quick.map((row) => (
+          <button key={row.preset_key} type="button" className={`dbchip ${activeKey === row.preset_key ? "on" : ""}`}
+            aria-pressed={activeKey === row.preset_key} onClick={() => pick(row.preset_key)}>{row.quick_label}</button>
         ))}
-        <button type="button" className={`dbchip ${!anyChipActive ? "on" : ""}`}
-          aria-pressed={!anyChipActive} aria-expanded={openCustom}
+        <button type="button" className={`dbchip ${customActive ? "on" : ""}`}
+          aria-pressed={customActive} aria-expanded={openCustom}
           title="Every preset, and exact from and to dates"
           onClick={() => setOpenCustom((v) => !v)}>{customLabel}</button>
       </span>
+      {!presets && !catalogError && <span className="flab" role="status">Loading date rules…</span>}
+      {catalogError && <span className="note bad" role="alert">Date choices unavailable: {catalogError}</span>}
       {openCustom && (
-        <span className="datecustom">
+        <span className="datecustom" role="dialog" aria-label="Choose and save a date range">
           <select aria-label="Date range preset" className="fdate" value={shown} onChange={(e) => pick(e.target.value)}>
-            {DATE_PRESETS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+            {groups.map((group) => (
+              <optgroup key={group} label={group}>
+                {presets.filter((row) => (row.group_label || "Other") === group)
+                  .map((row) => <option key={row.preset_key} value={row.preset_key}>{row.label}</option>)}
+              </optgroup>
+            ))}
           </select>
-          <input aria-label="From date" type="date" className="fdate" value={from} onChange={(e) => { setPreset("custom"); onFrom(e.target.value); }} />
+          <input aria-label="From date" type="date" className="fdate" value={from} onChange={(e) => editDate("from", e.target.value)} />
           <span className="flab">to</span>
-          <input aria-label="To date" type="date" className="fdate" value={to} onChange={(e) => { setPreset("custom"); onTo(e.target.value); }} />
-          <button type="button" className="btn small quiet" onClick={() => setOpenCustom(false)}>Done</button>
+          <input aria-label="To date" type="date" className="fdate" value={to} onChange={(e) => editDate("to", e.target.value)} />
+          <button type="button" className="btn small quiet" onClick={finish}>Apply</button>
+          {allowSave && session?.user?.id && viewKey && (
+            <>
+              <button type="button" className="btn small quiet" onClick={() => save(false)}>Save this page</button>
+              <button type="button" className="btn small quiet" onClick={() => save(true)}>Save all pages</button>
+            </>
+          )}
+          {rangeError && <span className="note bad" role="alert">{rangeError}</span>}
+          {saveStatus && <span className="note" role="status">{saveStatus}</span>}
         </span>
       )}
     </span>
@@ -2274,66 +2322,34 @@ function ReportScreen({ entry, actions, session }) {
   const [drill, setDrill] = useState(null);
   const [msg, setMsg] = useState(null);
   const [collapsed, setCollapsed] = useState({});
-  const [dateDefault, setDateDefault] = useState(null);
   const [preset, setPreset] = useState(null);
-
-  /* Which range this page opens on is decided in ONE place — f_date_default —
-     and never re-implemented here. It resolves three levels (this user on this
-     page · this user everywhere · the page default) and returns which level won,
-     so the page can say WHY it opened where it did instead of appearing arbitrary.
-     Re-deriving that precedence in the user interface is how two sources of truth
-     start disagreeing, which is the failure this platform has been paying for. */
+  const applyReportDefault = useCallback((range) => {
+    setDFrom(range.from ?? "");
+    setDTo(range.to ?? "");
+  }, []);
+  const dateDefault = useDefaultRange(session, entry.view_key, applyReportDefault);
   useEffect(() => {
-    let live = true;
-    if (!session?.user?.id || !entry.view_key) return;
-    supabase.rpc("f_date_default", { p_user: session.user.id, p_view_key: entry.view_key })
-      .then(({ data, error }) => {
-        if (!live || error || !data) return;
-        setDateDefault(data);
-        setPreset(data.preset_key ?? null);
-      });
-    return () => { live = false; };
-  }, [session?.user?.id, entry.view_key]);
-
-  /* Apply the resolved default once the report knows it has a date to apply it
-     to. `remember_last` leaves a range the user has already set alone. */
-  const appliedDefault = useRef(null);
-  useEffect(() => {
-    if (!dateDefault || !dateCol) return;
-    if (appliedDefault.current === entry.view_key) return;
-    appliedDefault.current = entry.view_key;
-    const key = dateDefault.preset_key ?? "all";
-    if (key === "custom") {
-      setDFrom(dateDefault.custom_from ?? ""); setDTo(dateDefault.custom_to ?? "");
-      return;
-    }
-    if (key === "all") return;
-    const [f, t] = presetRange(key);
-    setDFrom(f); setDTo(t);
-  }, [dateDefault, dateCol, entry.view_key]);
+    if (dateDefault.presetKey) setPreset(dateDefault.presetKey);
+  }, [dateDefault.presetKey]);
 
   const saveDateDefault = async (scopeAll) => {
     if (!session?.user?.id) return;
-    const payload = { preset_key: preset ?? "custom", custom_from: dFrom || null, custom_to: dTo || null };
-    const { error } = scopeAll
-      ? await supabase.from("user_settings")
-          /* The everywhere scope used to write the preset key ALONE, so choosing a
-             custom range and saving it for every page kept the word "custom" and
-             threw both dates away — then reopened on all dates while telling the
-             user it had saved. user_settings gained custom_from/custom_to on
-             19 Aug 2026 and f_date_default now reads them, so all three fields
-             travel together in both scopes. */
-          .upsert({ user_id: session.user.id, default_date_preset: payload.preset_key,
-                    custom_from: payload.custom_from ?? null, custom_to: payload.custom_to ?? null },
-                  { onConflict: "user_id" })
-      : await supabase.from("user_page_date_default")
-          .upsert({ user_id: session.user.id, view_key: entry.view_key, ...payload }, { onConflict: "user_id,view_key" });
-    setMsg(error
-      ? `The default could not be saved: ${error.message}`
-      : scopeAll
-        ? `Saved. Every page will now open on ${payload.preset_key.replaceAll("_", " ")} for you, unless a page has its own default.`
-        : `Saved. This page will now open on ${payload.preset_key.replaceAll("_", " ")} for you.`);
-    setPanel(null);
+    try {
+      await persistDateDefault(supabase, {
+        userId: session.user.id,
+        viewKey: entry.view_key,
+        presetKey: preset ?? "custom",
+        from: dFrom,
+        to: dTo,
+        everywhere: scopeAll,
+      });
+      setMsg(scopeAll
+        ? "Saved. Every page will use this range unless that page has its own saved range."
+        : "Saved. This page will reopen on this range for you.");
+      setPanel(null);
+    } catch (error) {
+      setMsg(`The default could not be saved: ${error.message}`);
+    }
   };
 
   /* Probe: learn the shape from real rows, not from one row that may be all
@@ -2377,7 +2393,7 @@ function ReportScreen({ entry, actions, session }) {
     if (term && textCols.length) qy = qy.or(textCols.map((c) => `${c}.ilike.%${term}%`).join(","));
     qy = rpApplyFilters(qy, filters);
     if (dateCol && dFrom) qy = qy.gte(dateCol, dFrom);
-    if (dateCol && dTo) qy = qy.lte(dateCol, dTo);
+    if (dateCol && dTo) qy = qy.lt(dateCol, dateUpperExclusive(dTo));
     /* nullsFirst false: rows created before a date was tracked read NULL and
        must sort LAST, never first, and never look like a real empty date. */
     if (sort) qy = qy.order(sort.col, { ascending: sort.asc, nullsFirst: false });
@@ -2402,7 +2418,7 @@ function ReportScreen({ entry, actions, session }) {
   }, [buildQuery]);
 
   useEffect(() => {
-    if (!table || probe === null) return;
+    if (!table || probe === null || !dateDefault.ready) return;
     let live = true;
     setBusy(true); setError(null);
     fetchRows(loadAll || !!groupBy).then((r) => {
@@ -2413,7 +2429,7 @@ function ReportScreen({ entry, actions, session }) {
       if (r.total != null) setTotal(r.total);
     });
     return () => { live = false; };
-  }, [table, probe, fetchRows, loadAll, groupBy]);
+  }, [table, probe, fetchRows, loadAll, groupBy, dateDefault.ready]);
 
   const dirty = !!(search || dFrom || dTo || filters.length);
   const sentence = rpFilterSentence({ search, searchCols: textCols, filters, dateCol, dFrom, dTo, cols });
@@ -2582,10 +2598,11 @@ function ReportScreen({ entry, actions, session }) {
               title="Which date this range applies to">
               {dateCols.map((c) => <option key={c} value={c}>{rpLabel(c)}</option>)}
             </select>
-            <DateRangeSelect label="range" from={dFrom} to={dTo} onFrom={setDFrom} onTo={setDTo} onPreset={setPreset} />
+            <DateRangeSelect label="range" from={dFrom} to={dTo} onFrom={setDFrom} onTo={setDTo}
+              onPreset={setPreset} presetKey={preset} autoDefault={false} />
             <button className="btn small ghost" title="Save the range now showing as your default"
               onClick={() => setPanel(panel === "datedefault" ? null : "datedefault")}>
-              Default{dateDefault?.source ? ` · ${dateDefault.source}` : ""}
+              Default{dateDefault.source ? ` · ${dateDefault.source}` : ""}
             </button>
           </>
         ) : entry.date_policy === "not_applicable" ? null
@@ -2642,6 +2659,7 @@ function ReportScreen({ entry, actions, session }) {
           onClick={() => withFullRows(async (r, t) => setMsg(await rpExportSheets(r, shownCols, exportMeta(r.length, t))))}>Google Sheets</button>
       </div>
 
+      {dateDefault.error && <div className="empty" role="alert">{dateDefault.error} No report rows were queried without it.</div>}
       {msg && <div className="statchips"><span className="schip info" style={{ whiteSpace: "normal" }}>{msg}</span></div>}
       {panel === "datedefault" && (
         <div className="findpanel" style={{ padding: 12 }}>
@@ -2650,9 +2668,8 @@ function ReportScreen({ entry, actions, session }) {
             <button className="btn small ghost" onClick={() => setPanel(null)}>Close</button>
           </div>
           <div className="note" style={{ marginBottom: 8 }}>
-            This report opened on <b>{(dateDefault?.preset_key ?? "all").replaceAll("_", " ")}</b>, chosen by
-            “<b>{dateDefault?.source ?? "page default"}</b>”. Reopening behaviour is
-            “<b>{(dateDefault?.scope ?? "remember_last").replaceAll("_", " ")}</b>”, which you change in Settings.
+            This report opened on <b>{(dateDefault.presetKey ?? "not resolved").replaceAll("_", " ")}</b>, chosen by
+            “<b>{dateDefault.source ?? "not resolved"}</b>”.
             The range showing now is <b>{preset ? preset.replaceAll("_", " ") : "custom"}</b>
             {dFrom || dTo ? ` (${dFrom || "earliest"} to ${dTo || "latest"})` : ""}.
           </div>
@@ -2803,21 +2820,26 @@ function useDataToolbar(table, { eq = {}, limit = 200, orderBy = null, ascending
   const [rows, setRows] = useState(null);
   const [sample, setSample] = useState(null);
   const [total, setTotal] = useState(null);
+  const [loadError, setLoadError] = useState(null);
   const [qLive, setQLive] = useState("");
   const [q, setQ] = useState("");
   const [dFrom, setDFrom] = useState("");
   const [dTo, setDTo] = useState("");
+  const [dateReady, setDateReady] = useState(false);
   const [dims, setDims] = useState([]);
   const [dimSel, setDimSel] = useState({});
 
   /* one row, to learn the shape: which columns are searchable text and which
      column the date filter should use. Same rule the generic renderer applies. */
   useEffect(() => {
-    setSample(null); setQ(""); setQLive(""); setDFrom(""); setDTo(""); setDimSel({});
+    setSample(null); setRows(null); setLoadError(null); setQ(""); setQLive(""); setDimSel({});
     if (!table) return;
     let s = supabase.from(table).select("*").limit(1);
     for (const [k, v] of Object.entries(JSON.parse(eqKey))) if (v != null) s = s.eq(k, v);
-    s.then(({ data }) => setSample(data?.[0] ?? {}));
+    s.then(({ data, error }) => {
+      if (error) { setLoadError(error.message); setSample({}); return; }
+      setSample(data?.[0] ?? {});
+    });
   }, [table, eqKey]);
 
   const textCols = sample
@@ -2834,7 +2856,7 @@ function useDataToolbar(table, { eq = {}, limit = 200, orderBy = null, ascending
     const term = q.replace(/[%,()]/g, " ").trim();
     if (term && textCols.length) x = x.or(textCols.map((c) => `${c}.ilike.%${term}%`).join(","));
     if (dateCol && dFrom) x = x.gte(dateCol, dFrom);
-    if (dateCol && dTo) x = x.lte(dateCol, dTo);
+    if (dateCol && dTo) x = x.lt(dateCol, dateUpperExclusive(dTo));
     return x;
   };
 
@@ -2859,14 +2881,17 @@ function useDataToolbar(table, { eq = {}, limit = 200, orderBy = null, ascending
   }, [table, eqKey, sample]);
 
   useEffect(() => {
-    if (!table || sample === null) return;
+    if (!table || sample === null || (dateCol && !dateReady)) return;
     setRows(null);
     build(supabase.from(table).select("*", { count: "exact" }))
       .order(orderBy ?? (sample && "id" in sample ? "id" : (dateCol ?? textCols[0] ?? "")), { ascending })
       .limit(limit)
-      .then(({ data, count }) => { setRows(data ?? []); setTotal(count ?? null); });
+      .then(({ data, count, error }) => {
+        if (error) { setLoadError(error.message); setRows(null); setTotal(null); return; }
+        setLoadError(null); setRows(data ?? []); setTotal(count ?? null);
+      });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [table, eqKey, sample, q, dFrom, dTo, limit, orderBy, ascending, JSON.stringify(dimSel)]);
+  }, [table, eqKey, sample, q, dFrom, dTo, dateReady, limit, orderBy, ascending, JSON.stringify(dimSel)]);
 
   const exportCsv = async () => {
     const { data } = await build(supabase.from(table).select("*")).limit(5000);
@@ -2885,11 +2910,12 @@ function useDataToolbar(table, { eq = {}, limit = 200, orderBy = null, ascending
   const toolbar = sample === null ? null : (
     <FilterBar qLive={qLive} setQLive={setQLive} onFind={() => setQ(qLive)}
       dateCol={dateCol} dFrom={dFrom} dTo={dTo} setDFrom={setDFrom} setDTo={setDTo}
+      onDateReady={() => setDateReady(true)}
       dims={dims} dimSel={dimSel}
       onDim={(col, v) => setDimSel((x) => ({ ...x, [col]: v }))}
       dirty={dirty}
       onClear={() => { setQ(""); setQLive(""); setDFrom(""); setDTo(""); setDimSel({}); }}
-      count={total} onExport={exportCsv} />
+      count={total} onExport={exportCsv} loadError={loadError} />
   );
 
   return { rows, toolbar, total, dateCol, searching: dirty };
@@ -2920,7 +2946,7 @@ const DIM_COLS = ["stock_status", "origin", "stream", "category", "status", "sta
 
 function FilterBar({ qLive, setQLive, onFind, dateCol, dFrom, dTo, setDFrom, setDTo,
                      dirty, onClear, count, countLabel = "records", onExport,
-                     dims = [], dimSel = {}, onDim }) {
+                     dims = [], dimSel = {}, onDim, onDateReady, loadError }) {
   return (
     <div className="filterbar">
       <input aria-label="Search" className="fsearch" placeholder="Search anything — name, batch, tag…" value={qLive}
@@ -2938,13 +2964,15 @@ function FilterBar({ qLive, setQLive, onFind, dateCol, dFrom, dTo, setDFrom, set
         </span>
       ))}
       {dateCol
-        ? <DateRangeSelect label={dateCol.replaceAll("_", " ")} from={dFrom} to={dTo} onFrom={setDFrom} onTo={setDTo} />
+        ? <DateRangeSelect label={dateCol.replaceAll("_", " ")} from={dFrom} to={dTo}
+            onFrom={setDFrom} onTo={setDTo} onReady={onDateReady} />
         : <span className="flab" title="This dataset carries no date column, so there is nothing to filter by.">no date recorded on this dataset</span>}
       {dirty && <button className="btn small ghost" onClick={onClear}>Clear</button>}
       <span style={{ flex: 1 }} />
       {count != null && <span className="flab">{count.toLocaleString()} {countLabel}</span>}
       {onExport && <button className="btn small ghost" onClick={onExport}>Export CSV</button>}
       <button className="btn small ghost" onClick={() => window.print()}>Print</button>
+      {loadError && <span className="note bad" role="alert">The filtered records could not be read: {loadError}</span>}
     </div>
   );
 }
@@ -2958,6 +2986,7 @@ function useClientToolbar(rows, { dateField = null, name = "rows" } = {}) {
   const [q, setQ] = useState("");
   const [dFrom, setDFrom] = useState("");
   const [dTo, setDTo] = useState("");
+  const [dateReady, setDateReady] = useState(false);
   const [dimSel, setDimSel] = useState({});
   const list = rows ?? [];
   const dateCol = dateField ?? (list.length
@@ -2978,7 +3007,7 @@ function useClientToolbar(rows, { dateField = null, name = "rows" } = {}) {
     : [];
 
   const term = q.trim().toLowerCase();
-  const filtered = list.filter((r) => {
+  const filtered = (dateCol && !dateReady ? [] : list).filter((r) => {
     if (term) {
       const hit = Object.entries(r).some(([k, v]) =>
         k !== "raw" && typeof v === "string" && v.toLowerCase().includes(term));
@@ -3012,6 +3041,7 @@ function useClientToolbar(rows, { dateField = null, name = "rows" } = {}) {
   const toolbar = (
     <FilterBar qLive={qLive} setQLive={setQLive} onFind={() => setQ(qLive)}
       dateCol={dateCol} dFrom={dFrom} dTo={dTo} setDFrom={setDFrom} setDTo={setDTo}
+      onDateReady={() => setDateReady(true)}
       dims={dims} dimSel={dimSel}
       onDim={(col, v) => setDimSel((s) => ({ ...s, [col]: v }))}
       dirty={dirty}
@@ -10165,25 +10195,11 @@ export function useSectionStore(userId, pageKey) {
    on hover. Nothing is hidden and nothing new is coloured: only existing classes
    are used, and the inline styles set size and spacing, never colour. */
 function RpDashboardDateRange({ viewKey, session, source, onRange }) {
-  const [from, setFrom] = useState("");
-  const [to, setTo] = useState("");
-  const [def, setDef] = useState(null);
+  const [range, setRange] = useState({ from: "", to: "", ready: false, error: null });
+  const def = useDefaultRange(session, viewKey, setRange);
   useEffect(() => {
-    let live = true;
-    if (!session?.user?.id || !viewKey) return;
-    supabase.rpc("f_date_default", { p_user: session.user.id, p_view_key: viewKey })
-      .then(({ data, error }) => {
-        if (!live || error || !data) return;
-        setDef(data);
-        const k = data.preset_key ?? "all";
-        if (k === "custom") { setFrom(data.custom_from ?? ""); setTo(data.custom_to ?? ""); return; }
-        if (k === "all") return;
-        const [f, t] = presetRange(k);
-        setFrom(f); setTo(t);
-      });
-    return () => { live = false; };
-  }, [session?.user?.id, viewKey]);
-  useEffect(() => { if (onRange) onRange({ from, to }); }, [from, to, onRange]);
+    onRange?.({ ...range, ready: def.ready, error: def.error });
+  }, [range, def.ready, def.error, onRange]);
 
   const ignoresRange = Boolean(source);
   /* COMPACT, AND IT SITS IN THE HEADER ROW — owner, 8 Aug 2026: "I want date and
@@ -10199,7 +10215,11 @@ function RpDashboardDateRange({ viewKey, session, source, onRange }) {
     >
       {/* The preset caption that used to sit here folded into the active chip —
           owner layout doctrine point 1: one date mechanism, no duplicate labels. */}
-      <DateRangeSelect label="Dates" from={from} to={to} onFrom={setFrom} onTo={setTo} />
+      <DateRangeSelect label="Dates" from={range.from} to={range.to}
+        onFrom={(from) => setRange((current) => ({ ...current, from }))}
+        onTo={(to) => setRange((current) => ({ ...current, to }))}
+        presetKey={def.presetKey} session={session} viewKey={viewKey} allowSave />
+      {def.error && <span className="note bad" role="alert">{def.error}</span>}
       {ignoresRange && (
         /* A3: the caveat is not dropped, only made to fit. The title carries the
            whole of what the red block used to say, so nothing is lost. */
@@ -10569,6 +10589,7 @@ function DeptDashboard({ viewKey, go, nav, deep, session, reports, role, viewAs,
   const [computed, setComputed] = useState(null);
   const [ver, setVer] = useState(0);
   const [busy, setBusy] = useState(false);
+  const [kpiError, setKpiError] = useState(null);
   /* The selected range, lifted out of the date control so the tiles can be recomputed
      for it. Empty strings mean "all time" and the RPC treats them as null. */
   const [range, setRange] = useState({ from: "", to: "" });
@@ -10584,6 +10605,7 @@ function DeptDashboard({ viewKey, go, nav, deep, session, reports, role, viewAs,
   );
 
   const load = async () => {
+    if (!range.ready) return;
     setBusy(true);
     /* Owner, twice: "dashboards are pulling all data, that is not functional" and
        "DATE RANGE IS NOT WORKING — FIX THIS SITE WIDE". Reports always honoured the
@@ -10592,21 +10614,20 @@ function DeptDashboard({ viewKey, go, nav, deep, session, reports, role, viewAs,
 
        f_department_dashboard recomputes the FLOW tiles for the window and returns
        tile_kind / honours_range / range_note so each tile can state its own truth. A
-       POSITION ("on hand") cannot be restated to a past date — we hold three counted
-       snapshots — so it says that instead of pretending. If the RPC is unavailable we
-       fall back to the matview rather than showing an empty dashboard. */
+       POSITION ("on hand") is restated from the ledger at the selected end date.
+       If the RPC is unavailable the page shows the failure; it never substitutes
+       an all-time snapshot beneath the user's selected range. */
     const [k, t, g, a, tk, st] = await Promise.all([
-      supabase.rpc("f_department_dashboard",
-        { p_dept: dept, p_from: range.from || null, p_to: range.to || null })
-        .then((r) => (r.error || !r.data)
-          ? supabase.from("mv_department_dashboard").select("*").eq("department", dept).order("ord")
-          : r),
+      fetchDepartmentDashboard(supabase, {
+        department: dept, from: range.from, to: range.to,
+      }),
       supabase.from("v_dashboard_trend").select("*").eq("department", dept),
       supabase.from("kpi_targets").select("*").eq("department", dept),
       supabase.from("v_inventory_alerts").select("*"),
       supabase.from("v_dashboard_tasks").select("*"),
       supabase.from("v_stock_summary").select("*"),
     ]);
+    setKpiError(k.error?.message ?? null);
     setRows(k.data ?? []);
     setComputed(k.data?.[0]?.computed_at ?? null);
     setTrend(Object.fromEntries((t.data ?? []).map((r) => [r.kpi, r])));
@@ -10616,7 +10637,7 @@ function DeptDashboard({ viewKey, go, nav, deep, session, reports, role, viewAs,
     setStock(st.data ?? []);
     setBusy(false);
   };
-  useEffect(() => { load(); }, [dept, ver, range.from, range.to]);
+  useEffect(() => { load(); }, [dept, ver, range.from, range.to, range.ready]);
 
   const refreshNow = async () => { setBusy(true); await supabase.rpc("tg_snapshot_dashboards"); setVer((v) => v + 1); };
 
@@ -10636,7 +10657,8 @@ function DeptDashboard({ viewKey, go, nav, deep, session, reports, role, viewAs,
     return { d, txt: (d > 0 ? "+" : "") + d.toLocaleString() + " since yesterday" };
   };
 
-  if (!rows) return <div className="empty"><div className="eicon">◐</div>Building the {dept} dashboard…</div>;
+  if (range.error) return <div className="empty" role="alert">{range.error} No dashboard figures were queried without it.</div>;
+  if (!range.ready || !rows) return <div className="empty"><div className="eicon">◐</div>Building the {dept} dashboard…</div>;
 
   return (
     <>
@@ -10702,6 +10724,13 @@ function DeptDashboard({ viewKey, go, nav, deep, session, reports, role, viewAs,
 
       <WhatChanged dept={dept} go={go} />
 
+      {kpiError && (
+        <div className="empty" role="alert">
+          The date-ranged key figures are unavailable: {kpiError}. No all-time
+          figures were substituted under the selected dates.
+        </div>
+      )}
+
       {/* The Command-only bands (global management, goals+yield pair, room
           rings, reports shelf, diagnostic footer) were RETIRED from this
           component on 12 Aug 2026: the owner ordered the Command Center rebuilt
@@ -10759,8 +10788,13 @@ function DeptDashboard({ viewKey, go, nav, deep, session, reports, role, viewAs,
                     </span>
                   )}
                   {r.context && <span className="ddctx">{r.context}</span>}
-                  {/* Owner rule: a tile that cannot honour the range says so ON THE TILE. */}
-                  <span className="ddctx">All data, all time — this figure does not yet honour the date range above.</span>
+                  {/* The database returns the basis for this exact row. Never
+                      replace it with one hardcoded all-time sentence. */}
+                  <span className="ddctx">
+                    {r.honours_range === false
+                      ? (r.range_note || "This figure does not honour the selected range.")
+                      : (r.range_note || "Computed for the selected range.")}
+                  </span>
                   {/* Both read the SAME verdict, so they can never disagree again. */}
                   <Spark series={tr?.series} direction={tg?.direction} />
                   {dl && (

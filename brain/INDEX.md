@@ -10,7 +10,7 @@ keeps it growing. Plain English throughout.
 
 | File | Single source of truth for |
 |---|---|
-| [CLAUDE.md](../CLAUDE.md) | **Rules.** The 40 hard rules and the locked facts. Loads automatically in every session. |
+| [CLAUDE.md](../CLAUDE.md) | **Rules.** The hard rules and the locked facts. Loads automatically in every session. |
 | [HANDOFF.md](../HANDOFF.md) | **State.** What is built, what is broken, what was measured and when. |
 | [OWNER_CHARTER.md](OWNER_CHARTER.md) | **What the OS is,** issued 19 Aug 2026, and the measured state of each engine against it. Where an object contradicts the charter, the object is wrong. |
 | [OPERATING_LAWS.md](OPERATING_LAWS.md) | **How an agent is permitted to work,** issued 19 Aug 2026. Ten laws: never invent structure, live numbers only, no fake data, nothing hardwired, state defects plainly, never hallucinate. Includes the written reading of where Law 1 binds and where it does not. |
@@ -213,12 +213,15 @@ for them.
 | Where | What runs there |
 |---|---|
 | `app/web/src/App.jsx` | The product — single-file React SPA (~6,400 lines as of 7 Aug), plus `styles.css`, `rules.css`, `budz.jsx`. |
+| `app/web/src/lib/dashboard-range.js` | The one guarded client path to `f_department_dashboard`: binds the selected endpoints and returns failures or unverifiable empty results instead of substituting an all-time snapshot. |
 | `supabase/` | `checks/` (including `anon_exposure.sql`, the security tripwire) and `functions/`. |
 | `bridge/` | Local bridge service — `server.mjs`, `sheet-sync.mjs`, start scripts, `SETUP.md`. ⚠ `token.txt` holds a live credential: never share, never commit. |
 | `tools/` | `checks/`, `hooks/`, `pushreports.py`, `report_fixtures.py`, and `gen-handoff.mjs` — regenerates the measured-state block of HANDOFF.md from `tg_handoff_state_md()`, so state stops being retyped. Operator tool: needs a live credential, correctly not a CI gate. |
 | `tools/checks/guard-fixtures.mjs` | **Proves the guards still catch what they claim**, and that the PreToolUse hook and `ci.yml` agree on every fixture. Built 8 Aug 2026 after one false positive locked a database function and simultaneously held CI red — two enforcement points, one rule, the same bug, found by accident. |
 | `tools/checks/secret-scan.mjs` | Scans the **working tree** (not just commits) for credential shapes, and shares its patterns with `tools/hooks/guard-secrets.mjs` so writing one is refused. Anon keys are decoded and ignored — they are public by design. Ratchets against `secret-scan.baseline.json`, which carries 4 known exposures with their required actions. |
-| `tools/checks/rule-ledger.mjs` | **How much of CLAUDE.md is real, as a number.** Derives enforcement by reading which rules each guard NAMES, so it cannot go stale. **17 of 50 enforced on 8 Aug 2026; 33 hold only while somebody remembers them.** Ratchets — the count may rise, never fall. |
+| `tools/checks/rule-ledger.mjs` | **How much of CLAUDE.md is real, derived at run time.** Reads all rule families A–L and the rules each guard names, then reports enforced versus hope. The enforced high-water mark may rise, never fall. |
+| `tools/checks/date-range-integrity.mjs` | **Enforces L8 for department dashboards and the shared date control.** There is exactly one guarded date-aware query path, no ranged-to-all-time fallback, and manual dates notify the save layer that the choice is Custom. Positive and negative detector fixtures run before the repository scan. |
+| `tools/tests/dashboard-range.test.mjs` | Executable contract tests for the guarded dashboard read: exact RPC arguments, visible errors, and rejection of empty or unverifiable results. |
 | `.github/workflows/` | CI. |
 | `netlify.toml`, `.netlify/` | Deploy config. Live site and IDs are in HANDOFF.md §1. |
 | `.mcp.json` | MCP server config for this project. |
