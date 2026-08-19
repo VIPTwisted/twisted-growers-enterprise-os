@@ -74,7 +74,7 @@ history is exactly what the owner objected to. They are the outstanding work.
 |---|---|---|
 | Date range | **Built.** Company default is THIS MONTH; positions restate as-of the end date, flows recompute for the window; a figure never renders under a label it was not computed for | `f_date_default`, `f_department_dashboard`, `useDefaultRange`, `DkKpiStrip` |
 | Tag / drill-down | **Built at the data layer.** Any grouped row resolves to its tags with COA, manifest and invoice; every tag resolves to its events and stays | `f_drill_tags`, `f_drill_events`, `f_drill_stays`, `mv_tag_documents`, `v_harvest_tag_index` |
-| Forensic audit ledger | **Partial.** `tag_event` holds received, location_change, packaged, tested — **six required types are still missing**: planting, harvest, transfer_out, sale, adjustment, destruction | `tag_event`, `v_tag_stay` |
+| Forensic audit ledger | **Partial, three of six closed 19 Aug.** `tag_event` holds received 19,256 · shipped 14,661 · sold 11,188 · location_change 7,254 · packaged 4,898 · adjusted 4,262 (−2,470 negative preserved) · tested 1,769. **Three still missing**: planting, harvest, destruction — sources confirmed as `metrc_plants` 57,605, `metrc_harvests` 385, `metrc_rpt_plants_destroyed` 3,773. The ledger uses the names the constraint already permitted (`shipped`/`sold`/`adjusted`), not the spec's | `tag_event`, `v_tag_stay` |
 | Allocation & production | **Partial.** Allocation tables exist; the approval workflow is the single largest finding cause (690) | `allocations`, `v_awaiting_allocation` |
 | Inventory & room stock | **Built and balanced.** 17 contracts at zero tolerance, all agreeing | `v_stock_*`, `v_inventory_*`, `mv_stock_proof` |
 | Alerts, gaps, Guard | **Built.** 60 gap types declared, 34 detecting, the rest with their reason logged; guards flag and route, never block; they repair what they can prove and escalate the rest | `gap_rule`, `gap_alert`, `gap_routing`, `f_guard_autofix`, `v_gap_system` |
@@ -91,6 +91,34 @@ Netlify and outside any laptop, because a watcher inside the thing it watches
 goes quiet exactly when that thing fails.
 
 ---
+
+## The menu, measured 19 August 2026
+
+An outside review reported the platform as riddled with "registered but not
+built" pages. Measured against the database rather than read from comments:
+
+| Measure | Value |
+|---|---|
+| Enabled `nav_registry` rows | 659 (was 665) |
+| Rows naming a `table_ref` | 630 |
+| **Registered objects that do not exist** | **0** |
+| Hand-built routes in `App.jsx` | 75 |
+| **Entries with neither an object nor a component** | **0** (was 16) |
+| Of those 16: wired to a real object that already existed | 8 |
+| Of those 16: disabled, nothing exists to serve them | 8 |
+| Finished pages unreachable from any menu | 0 (was 2) |
+
+The eight disabled are Bill of Materials, CAPA, Maintenance & Downtime, Capacity
+Plan, S&OP & Demand, Weekly Production & FG, SOP & Training and Data Explorer.
+Each keeps its reason in its own `description`. They are not built because the
+data behind them does not exist anywhere in this database — building a page over
+nothing produces an empty shell that looks delivered, which is the exact failure
+the owner objected to. Re-enabling is one update per row once a source exists.
+
+`information_schema.tables` does not list materialized views. Nine entries looked
+missing on a first pass for that reason alone and were re-measured against
+`pg_class`. Any future count of registered objects must use `pg_class` with
+`relkind in ('r','v','m','p')`.
 
 ## The rule that governs how this file is used
 

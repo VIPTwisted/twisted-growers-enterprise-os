@@ -3047,7 +3047,7 @@ create table if not exists public.material_purchases (
 create table if not exists public.matview_heal_policy (
   "matview" text not null,
   "max_age" interval not null,
-  "refresh_fn" text,
+  "refresh_fn" text not null,
   "heals_per_day_ok" integer default 3 not null,
   "why" text not null,
   "active" boolean default true not null
@@ -17992,6 +17992,22 @@ begin
   return v_id;
 end $function$
 ;
+CREATE OR REPLACE FUNCTION public.tg_refresh_dashboards()
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  refresh materialized view concurrently mv_department_dashboard_base;
+  refresh materialized view concurrently mv_dept_dash_supplement;
+  refresh materialized view concurrently mv_global_management;
+  refresh materialized view concurrently mv_harvest_dry_stats;
+  refresh materialized view concurrently mv_flow_stages;
+  refresh materialized view concurrently mv_room_board;
+  refresh materialized view concurrently mv_tag_evidence;
+end $function$
+;
 CREATE OR REPLACE FUNCTION public.tg_refresh_dashboards(p_by text DEFAULT 'cron'::text)
  RETURNS jsonb
  LANGUAGE plpgsql
@@ -18035,22 +18051,6 @@ begin
                       || 'See matview_refresh_run for the error.' end);
 end $function$
 ;
-CREATE OR REPLACE FUNCTION public.tg_refresh_dashboards()
- RETURNS void
- LANGUAGE plpgsql
- SECURITY DEFINER
- SET search_path TO 'public'
-AS $function$
-begin
-  refresh materialized view concurrently mv_department_dashboard_base;
-  refresh materialized view concurrently mv_dept_dash_supplement;
-  refresh materialized view concurrently mv_global_management;
-  refresh materialized view concurrently mv_harvest_dry_stats;
-  refresh materialized view concurrently mv_flow_stages;
-  refresh materialized view concurrently mv_room_board;
-  refresh materialized view concurrently mv_tag_evidence;
-end $function$
-;
 CREATE OR REPLACE FUNCTION public.tg_refresh_harvest_links()
  RETURNS void
  LANGUAGE plpgsql
@@ -18061,6 +18061,52 @@ begin
   refresh materialized view mv_package_harvest;
   refresh materialized view concurrently mv_harvest_pkg_rollup;
 end $function$
+;
+CREATE OR REPLACE FUNCTION public.tg_refresh_proofs(p_by text DEFAULT 'cron'::text)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  m       text;
+  t0      timestamptz;
+  results jsonb := '[]'::jsonb;
+  n_ok    int := 0;
+  n_fail  int := 0;
+begin
+  /* One loop, one row logged per matview, and a failure in one never stops the
+     next two. A single try/catch around all three would have refreshed the
+     stock proof and then hidden that the ownership verdict died. */
+  foreach m in array array['mv_stock_proof', 'mv_ownership_verdict', 'mv_tag_documents']
+  loop
+    t0 := clock_timestamp();
+    begin
+      execute format('refresh materialized view concurrently %I', m);
+      insert into matview_refresh_run (matview, started_at, finished_at, ms, ok, run_by)
+      values (m, t0, clock_timestamp(),
+              round(extract(epoch from (clock_timestamp() - t0)) * 1000)::int, true, p_by);
+      n_ok := n_ok + 1;
+      results := results || jsonb_build_object('matview', m, 'ok', true,
+                   'ms', round(extract(epoch from (clock_timestamp() - t0)) * 1000)::int);
+    exception when query_canceled or others then
+      insert into matview_refresh_run (matview, started_at, finished_at, ms, ok, error, run_by)
+      values (m, t0, clock_timestamp(),
+              round(extract(epoch from (clock_timestamp() - t0)) * 1000)::int,
+              false, left(sqlerrm, 400), p_by);
+      n_fail := n_fail + 1;
+      results := results || jsonb_build_object('matview', m, 'ok', false,
+                   'error', left(sqlerrm, 300));
+    end;
+  end loop;
+
+  /* ok is false when ANY of the three failed. A caller that only reads `ok`
+     must not be told everything worked because two of three did — that is the
+     shape of the bug this migration exists to close. */
+  return jsonb_build_object('ok', n_fail = 0, 'refreshed', n_ok, 'failed', n_fail,
+                            'detail', results);
+end
+$function$
 ;
 CREATE OR REPLACE FUNCTION public.tg_refresh_reports()
  RETURNS text

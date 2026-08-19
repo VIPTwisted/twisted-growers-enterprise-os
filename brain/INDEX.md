@@ -6,12 +6,15 @@ keeps it growing. Plain English throughout.
 
 ---
 
-## The two files that outrank this one
+## The files that outrank this one
 
 | File | Single source of truth for |
 |---|---|
 | [CLAUDE.md](../CLAUDE.md) | **Rules.** The 40 hard rules and the locked facts. Loads automatically in every session. |
 | [HANDOFF.md](../HANDOFF.md) | **State.** What is built, what is broken, what was measured and when. |
+| [OWNER_CHARTER.md](OWNER_CHARTER.md) | **What the OS is,** issued 19 Aug 2026, and the measured state of each engine against it. Where an object contradicts the charter, the object is wrong. |
+| [OPERATING_LAWS.md](OPERATING_LAWS.md) | **How an agent is permitted to work,** issued 19 Aug 2026. Ten laws: never invent structure, live numbers only, no fake data, nothing hardwired, state defects plainly, never hallucinate. Includes the written reading of where Law 1 binds and where it does not. |
+| [MASTER_BUILD.md](MASTER_BUILD.md) | The owner's master build document with measured status per section. |
 
 The brain never restates their numbers. Numbers go stale within a day here —
 HANDOFF.md says so itself. The brain tells you **where the truth lives** and
