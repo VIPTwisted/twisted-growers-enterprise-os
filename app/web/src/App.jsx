@@ -390,9 +390,17 @@ function useSession() {
   return { session, mustChange, setMustChange, showWelcome, setShowWelcome };
 }
 
+const preferenceErrorText = (error) => String(error?.message ?? error ?? "Unknown preference error");
+function announcePreferenceFailure(area, error) {
+  window.dispatchEvent(new CustomEvent("tg-preference-error", {
+    detail: { area, message: preferenceErrorText(error) },
+  }));
+}
+
 function usePrefs(session) {
   const [theme, setThemeState] = useState(() => localStorage.getItem("tg-theme") || "dark");
   const [collapsed, setCollapsedState] = useState(() => localStorage.getItem("tg-nav") === "1");
+  const [saveState, setSaveState] = useState({ state: "idle", message: null });
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
     localStorage.setItem("tg-theme", theme);
@@ -408,21 +416,40 @@ function usePrefs(session) {
     if (!session) return;
     supabase.from("user_settings").select("theme, sidebar_collapsed, sidebar_width")
       .eq("user_id", session.user.id).maybeSingle()
-      .then(({ data }) => {
+      .then(({ data, error }) => {
+        if (error) {
+          const message = `Account preferences could not be read: ${error.message}`;
+          setSaveState({ state: "failed", message });
+          announcePreferenceFailure("Account preferences", error);
+          return;
+        }
         if (data?.theme) setThemeState(data.theme);
         if (typeof data?.sidebar_collapsed === "boolean") setCollapsedState(data.sidebar_collapsed);
         if (data?.sidebar_width) setNavWidthState(data.sidebar_width);
       });
   }, [session]);
-  const persist = useCallback((patch) => {
-    if (session) supabase.from("user_settings").upsert({ user_id: session.user.id, ...patch, updated_at: new Date().toISOString() }).then(() => {});
+  const persist = useCallback(async (patch) => {
+    if (!session) return { ok: false, error: "No signed-in account is available." };
+    setSaveState({ state: "saving", message: "Saving to your account…" });
+    try {
+      const { error } = await supabase.from("user_settings")
+        .upsert({ user_id: session.user.id, ...patch, updated_at: new Date().toISOString() }, { onConflict: "user_id" });
+      if (error) throw error;
+      setSaveState({ state: "saved", message: "Saved to your account." });
+      return { ok: true };
+    } catch (error) {
+      const message = `Saved on this device only; the account save failed: ${preferenceErrorText(error)}`;
+      setSaveState({ state: "failed", message });
+      announcePreferenceFailure("Account preferences", error);
+      return { ok: false, error: preferenceErrorText(error) };
+    }
   }, [session]);
   const setTheme = useCallback((t) => { setThemeState(t); persist({ theme: t }); }, [persist]);
   const setCollapsed = useCallback((c) => { setCollapsedState(c); persist({ sidebar_collapsed: c }); }, [persist]);
   useEffect(() => { localStorage.setItem("tg-navw", String(navWidth)); }, [navWidth]);
   const setNavWidthLive = useCallback((w) => setNavWidthState(Math.min(380, Math.max(170, w))), []);
   const commitNavWidth = useCallback((w) => persist({ sidebar_width: Math.min(380, Math.max(170, Math.round(w))) }), [persist]);
-  return { theme, setTheme, collapsed, setCollapsed, navWidth, setNavWidthLive, commitNavWidth };
+  return { theme, setTheme, collapsed, setCollapsed, navWidth, setNavWidthLive, commitNavWidth, saveState };
 }
 
 function useNav(version, session, viewAsRole) {
@@ -630,47 +657,79 @@ const timeAgo = (iso) => {
 /* Crashes reported this session, so a render loop cannot hammer the database.
    Module scope, not component state — a boundary that has just crashed is not
    a good place to keep a counter. */
-const REPORTED_CRASHES = new Set();
+const REPORTED_CRASHES = new Map();
 
-/* A boundary must never make things worse. Everything below is written so that
-   a failure inside the reporter is invisible to the person using the page:
-   the report is fire-and-forget, deduplicated, capped, and wrapped so that a
-   throw inside it cannot escape. */
-function reportCrash(view, err, info) {
+/* A boundary must never make things worse. The reporter always resolves to an
+   explicit receipt result; it never throws into an already-failing tree. The
+   same crash shares one in-flight promise, and an explicit retry is the only
+   path that creates a second write attempt. */
+function reportCrash(view, err, info, retry = false) {
   try {
     const message = String(err?.message ?? err ?? "unknown error").slice(0, 300);
     const key = `${view}|${message}`;
-    if (REPORTED_CRASHES.has(key)) return;      // same crash, same session, once
-    if (REPORTED_CRASHES.size >= 25) return;    // a crash loop must not write forever
-    REPORTED_CRASHES.add(key);
-    supabase.rpc("tg_log_client_error", {
+    if (retry) REPORTED_CRASHES.delete(key);
+    if (REPORTED_CRASHES.has(key)) return REPORTED_CRASHES.get(key);
+    if (REPORTED_CRASHES.size >= 25) {
+      return Promise.resolve({ ok: false, error: "The browser crash-report limit was reached; no durable incident receipt was created." });
+    }
+    const request = supabase.rpc("tg_log_client_error_receipt", {
       p_view: view ?? "unknown",
       p_message: message,
       p_stack: String(err?.stack ?? "").slice(0, 2000),
       p_component: String(info?.componentStack ?? "").slice(0, 2000),
-    }).then(
-      () => {},
-      () => {}                                   // reporting failed; not the user's problem
+    }).then(({ data, error }) => {
+      if (error) return { ok: false, error: error.message };
+      if (!data?.finding_id) return { ok: false, error: "The database returned no durable finding ID." };
+      return { ok: true, findingId: data.finding_id, runId: data.run_id, recordedAt: data.recorded_at };
+    }, (error) => ({ ok: false, error: String(error?.message ?? error) }));
+    REPORTED_CRASHES.set(key, request);
+    return request;
+  } catch (error) {
+    return Promise.resolve({ ok: false, error: String(error?.message ?? error) });
+  }
+}
+
+function CrashReceipt({ receipt, onRetry }) {
+  if (receipt?.state === "saved") {
+    return <div className="note" role="status">Recorded as finding <b>#{receipt.findingId}</b>. This ID is the durable incident receipt.</div>;
+  }
+  if (receipt?.state === "failed") {
+    return (
+      <div className="boundary" role="alert" style={{ marginTop: 8 }}>
+        <b>The incident was not recorded.</b>
+        <div className="note">{receipt.error}</div>
+        <button type="button" className="btn small ghost" style={{ marginTop: 8 }} onClick={onRetry}>Retry incident recording</button>
+      </div>
     );
-  } catch { /* never let the reporter throw */ }
+  }
+  return <div className="note" role="status">Creating a durable incident record…</div>;
 }
 
 class Boundary extends React.Component {
-  constructor(p) { super(p); this.state = { err: null }; }
+  constructor(p) { super(p); this.state = { err: null, receipt: { state: "idle" } }; this.crashInfo = null; }
   static getDerivedStateFromError(err) { return { err }; }
   /* Turns a white screen into a ranked finding. Without this the only person
      who knows the page broke is the one person who cannot fix it. */
-  componentDidCatch(err, info) { reportCrash(this.props.resetKey ?? this.props.name, err, info); }
-  componentDidUpdate(prev) { if (prev.resetKey !== this.props.resetKey && this.state.err) this.setState({ err: null }); }
+  componentDidCatch(err, info) { this.crashInfo = info; this.record(err, info); }
+  record(err, info, retry = false) {
+    this.setState({ receipt: { state: "pending" } });
+    reportCrash(this.props.resetKey ?? this.props.name, err, info, retry).then((result) => {
+      this.setState({ receipt: result.ok
+        ? { state: "saved", findingId: result.findingId, runId: result.runId, recordedAt: result.recordedAt }
+        : { state: "failed", error: result.error } });
+    });
+  }
+  componentDidUpdate(prev) {
+    if (prev.resetKey !== this.props.resetKey && this.state.err) this.setState({ err: null, receipt: { state: "idle" } });
+  }
   render() {
     if (this.state.err) {
       return (
         <div className="boundary">
           <b>This section hit an error — the rest of the OS is unaffected.</b>
           <div className="note">{String(this.state.err)}</div>
-          <div className="note" style={{ marginTop: 6, opacity: 0.75 }}>
-            Recorded as a finding. Nobody has to remember to report it.
-          </div>
+          <CrashReceipt receipt={this.state.receipt}
+            onRetry={() => this.record(this.state.err, this.crashInfo, true)} />
           <button className="btn ghost" style={{ marginTop: 12 }} onClick={() => this.setState({ err: null })}>Retry section</button>
         </div>
       );
@@ -684,20 +743,26 @@ class Boundary extends React.Component {
    change in App — React unmounts everything and the user gets a white page
    with no way back. This keeps something on screen and still reports. */
 export class RootBoundary extends React.Component {
-  constructor(p) { super(p); this.state = { err: null }; }
+  constructor(p) { super(p); this.state = { err: null, receipt: { state: "idle" } }; this.crashInfo = null; }
   static getDerivedStateFromError(err) { return { err }; }
-  componentDidCatch(err, info) { reportCrash("app-shell", err, info); }
+  componentDidCatch(err, info) { this.crashInfo = info; this.record(err, info); }
+  record(err, info, retry = false) {
+    this.setState({ receipt: { state: "pending" } });
+    reportCrash("app-shell", err, info, retry).then((result) => {
+      this.setState({ receipt: result.ok
+        ? { state: "saved", findingId: result.findingId, runId: result.runId, recordedAt: result.recordedAt }
+        : { state: "failed", error: result.error } });
+    });
+  }
   render() {
     if (this.state.err) {
       return (
         <div style={{ minHeight: "100vh", display: "grid", placeItems: "center", padding: 24 }}>
           <div style={{ maxWidth: 560, textAlign: "left", lineHeight: 1.6 }}>
             <h1 style={{ fontSize: 22, marginBottom: 10 }}>The platform hit an error it could not recover from.</h1>
-            <p style={{ opacity: 0.85 }}>
-              It has been recorded automatically — you do not need to report it. Reloading
-              usually clears it. If it happens again on the same page, that page is the fault
-              and the finding will say so.
-            </p>
+            <p style={{ opacity: 0.85 }}>Reloading usually clears the screen. The incident status below is authoritative.</p>
+            <CrashReceipt receipt={this.state.receipt}
+              onRetry={() => this.record(this.state.err, this.crashInfo, true)} />
             <pre style={{ whiteSpace: "pre-wrap", fontSize: 12, opacity: 0.7, marginTop: 14 }}>
               {String(this.state.err)}
             </pre>
@@ -5537,9 +5602,17 @@ function BrainScreen({ session, go, isExec, dictation }) {
   const [quick, setQuick] = useState({});
   const [mem, setMem] = useState("");
   const [memSaved, setMemSaved] = useState(false);
+  const [brainSaveMsg, setBrainSaveMsg] = useState(null);
   useEffect(() => {
     supabase.from("user_settings").select("brain_role").eq("user_id", session.user.id).maybeSingle()
-      .then(({ data }) => { if (data?.brain_role) { setRoleSel(data.brain_role); setSaved(true); } });
+      .then(({ data, error }) => {
+        if (error) {
+          setBrainSaveMsg({ kind: "err", text: `Your Brain role could not be read: ${error.message}` });
+          announcePreferenceFailure("TG Brain role", error);
+          return;
+        }
+        if (data?.brain_role) { setRoleSel(data.brain_role); setSaved(true); }
+      });
     const in30 = new Date(Date.now() + 30 * 864e5).toISOString().slice(0, 10);
     Promise.all([
       supabase.from("actions_register").select("id", { count: "exact", head: true }).eq("status", "open").eq("priority", "P0"),
@@ -5597,16 +5670,31 @@ function BrainScreen({ session, go, isExec, dictation }) {
   };
   const pick = async (r) => {
     setRoleSel(r); setSaved(false);
-    await supabase.from("user_settings").upsert({ user_id: session.user.id, brain_role: r }, { onConflict: "user_id" });
+    setBrainSaveMsg({ kind: "saving", text: "Saving your TG Brain role…" });
+    const { error } = await supabase.from("user_settings")
+      .upsert({ user_id: session.user.id, brain_role: r }, { onConflict: "user_id" });
+    if (error) {
+      setBrainSaveMsg({ kind: "err", text: `Your TG Brain role was not saved: ${error.message}` });
+      announcePreferenceFailure("TG Brain role", error);
+      return;
+    }
     setSaved(true);
+    setBrainSaveMsg({ kind: "ok", text: "TG Brain role saved to your account." });
   };
   const saveMem = async () => {
     if (!mem.trim()) return;
-    await supabase.from("configurations").upsert({
+    setBrainSaveMsg({ kind: "saving", text: "Saving TG Brain memory…" });
+    const { error } = await supabase.from("configurations").upsert({
       key: "brain_memory",
       value: { text: mem.trim().slice(0, 8000), saved_by: session.user.email, saved_at: new Date().toISOString() },
     }, { onConflict: "key" });
+    if (error) {
+      setBrainSaveMsg({ kind: "err", text: `TG Brain memory was not saved: ${error.message}` });
+      announcePreferenceFailure("TG Brain memory", error);
+      return;
+    }
     setMemSaved(true);
+    setBrainSaveMsg({ kind: "ok", text: "TG Brain memory saved." });
   };
   useEffect(() => {
     if (dictation && dictation !== "__unsupported__") { setQ(dictation); ask(dictation); }
@@ -5769,6 +5857,7 @@ function BrainScreen({ session, go, isExec, dictation }) {
           ))}
         </div>
         {saved && roleSel && <div className="bsaved">{I.check} Tailored for <b>{roleSel}</b> — your boards and briefings will lead with what you run.</div>}
+        {brainSaveMsg && <div className={brainSaveMsg.kind === "err" ? "msg err" : "note"} role={brainSaveMsg.kind === "err" ? "alert" : "status"}>{brainSaveMsg.text}</div>}
       </BrainFold>
       <BrainFold id="sources" title="Connected sources"
         note="What Brain can read. Connections are controlled by admin settings and user permissions.">
@@ -5790,6 +5879,7 @@ function BrainScreen({ session, go, isExec, dictation }) {
             <button className="btn" onClick={saveMem}>Import memory</button>
             {memSaved && <span className="bsaved">{I.check} Stored — audited, admin-only.</span>}
           </div>
+          {brainSaveMsg?.kind === "err" && <div className="msg err" role="alert">{brainSaveMsg.text}</div>}
         </BrainFold>
       )}
     </>
@@ -8603,14 +8693,33 @@ function Settings({ session, prefs }) {
   const [avatarUrl, setAvatarUrl] = useState(null);
   const [avMsg, setAvMsg] = useState(null);
   const [ct, setCt] = useState(null);
+  const [settingsMsg, setSettingsMsg] = useState(null);
   const avRef = React.useRef(null);
   useEffect(() => {
     supabase.from("user_settings").select("avatar_url, canvas_theme").eq("user_id", session.user.id).maybeSingle()
-      .then(({ data }) => { setAvatarUrl(data?.avatar_url ?? null); setCt(data?.canvas_theme ?? null); });
+      .then(({ data, error }) => {
+        if (error) {
+          setSettingsMsg({ kind: "err", text: `Settings could not be read: ${error.message}` });
+          announcePreferenceFailure("Settings", error);
+          return;
+        }
+        setAvatarUrl(data?.avatar_url ?? null); setCt(data?.canvas_theme ?? null);
+      });
   }, [session.user.id]);
   const saveCt = async (next) => {
+    const previous = ct;
     setCt(next); applyCanvasTheme(next);
-    await supabase.from("user_settings").upsert({ user_id: session.user.id, canvas_theme: next }, { onConflict: "user_id" });
+    setSettingsMsg({ kind: "saving", text: "Saving the canvas to your account…" });
+    const { error } = await supabase.from("user_settings")
+      .upsert({ user_id: session.user.id, canvas_theme: next }, { onConflict: "user_id" });
+    if (error) {
+      setCt(previous); applyCanvasTheme(previous);
+      setSettingsMsg({ kind: "err", text: `Canvas was not saved: ${error.message}` });
+      announcePreferenceFailure("Canvas preference", error);
+      return false;
+    }
+    setSettingsMsg({ kind: "ok", text: "Canvas saved to your account." });
+    return true;
   };
   const choosePreset = (p) => saveCt({ preset: p.name, dark: { c1: p.c[0], c2: p.c[1], c3: p.c[2] }, light: { c1: p.c[0], c2: p.c[1], c3: p.c[2] } });
   const setColor = (mode, k, v) => {
@@ -8638,11 +8747,18 @@ function Settings({ session, prefs }) {
     ctx.fillStyle = "#0a0c0b"; ctx.fillRect(0, 0, S, S);
     ctx.drawImage(img, (S - dw) / 2, (S - dh) / 2, dw, dh);
     const blob = await new Promise((res) => c.toBlob(res, "image/jpeg", 0.88));
+    if (!blob) { setAvMsg("Photo could not be prepared for upload."); return; }
     const path = `${session.user.id}-${Date.now()}.jpg`;
     const { error } = await supabase.storage.from("avatars").upload(path, blob, { upsert: true, contentType: "image/jpeg" });
     if (error) { setAvMsg(`Upload failed: ${error.message}`); return; }
     const { data } = supabase.storage.from("avatars").getPublicUrl(path);
-    await supabase.from("user_settings").upsert({ user_id: session.user.id, avatar_url: data.publicUrl }, { onConflict: "user_id" });
+    const { error: saveError } = await supabase.from("user_settings")
+      .upsert({ user_id: session.user.id, avatar_url: data.publicUrl }, { onConflict: "user_id" });
+    if (saveError) {
+      setAvMsg(`Photo uploaded, but your profile was not updated: ${saveError.message}`);
+      announcePreferenceFailure("Profile photo preference", saveError);
+      return;
+    }
     setAvatarUrl(data.publicUrl);
     setAvEdit(null);
     setAvMsg("Saved — your photo now shows on the top bar.");
@@ -8656,6 +8772,7 @@ function Settings({ session, prefs }) {
           <div className="sub">Your personal preferences — saved to your account, applied on every device you sign into.</div>
         </div>
       </div>
+      {settingsMsg && <div className={`msg ${settingsMsg.kind === "err" ? "err" : "ok"}`} role={settingsMsg.kind === "err" ? "alert" : "status"}>{settingsMsg.text}</div>}
       <div className="cols2">
         <div className="msection" style={{ marginTop: 0 }}>
           <div className="mtitle"><span className="sq" /><h2>Profile photo</h2><span className="rule" /></div>
@@ -8703,7 +8820,10 @@ function Settings({ session, prefs }) {
                 {theme === "light" && <span className="pill ok">active</span>}
               </button>
             </div>
-            <div className="note">Saved to your account instantly. The rail and top bar stay black in both — that&rsquo;s the brand.</div>
+            <div className="note">{prefs.saveState.state === "saving" ? "Saving to your account…"
+              : prefs.saveState.state === "failed" ? prefs.saveState.message
+              : prefs.saveState.state === "saved" ? "Saved to your account."
+              : "Choose a mode. The rail and top bar stay black in both — that’s the brand."}</div>
           </div>
         </div>
         <div className="msection" style={{ marginTop: 0 }}>
@@ -11236,6 +11356,12 @@ export default function App() {
       .then(({ data }) => setAiRoles(data?.ai_allowed_roles ?? []));
   }, [session]);
   const prefs = usePrefs(session ?? null);
+  const [preferenceError, setPreferenceError] = useState(null);
+  useEffect(() => {
+    const show = (event) => setPreferenceError(event.detail ?? { area: "Preference", message: "The account save failed." });
+    window.addEventListener("tg-preference-error", show);
+    return () => window.removeEventListener("tg-preference-error", show);
+  }, []);
   const [navVersion, setNavVersion] = useState(0);
   /* VIEW AS A ROLE — owner request 11 Aug 2026, admin-only design-preview lens.
      Rendering only: it swaps which nav_role_visibility rows filter the surfaces.
@@ -11632,6 +11758,13 @@ export default function App() {
       )}
       {viewAsMsg && <div className="viewasbanner"><b>Preview problem:</b> {viewAsMsg}</div>}
       {launcher && <Launcher onGo={setView} onClose={() => setLauncher(false)} apps={apps} />}
+      {preferenceError && (
+        <div className="boundary" role="alert" style={{ position: "fixed", right: 16, bottom: 16, zIndex: 10000, maxWidth: 460 }}>
+          <b>{preferenceError.area} was not saved to your account.</b>
+          <div className="note">{preferenceError.message}</div>
+          <button type="button" className="btn small ghost" style={{ marginTop: 8 }} onClick={() => setPreferenceError(null)}>Dismiss</button>
+        </div>
+      )}
 
       <header className="topnav">
         <div className="tlogo"><img src="/tg-mark.png" alt="Twisted Growers" style={{ width: 34, height: 34, borderRadius: "50%" }} /><span className="tword">Twisted <b>Growers</b></span></div>

@@ -77,6 +77,10 @@ jobs:
       - name: Error boundaries
         run: node tools/checks/error-boundaries.mjs
 
+      # ---- Preferences: local optimism must never hide a rejected account write -----
+      - name: Preference integrity (account saves disclose failures)
+        run: node tools/checks/preference-integrity.mjs
+
       # ---- Rule A3: a navigation failure must never be silent -------------------------
       # An address matching nothing used to fall through to the Control Tower in
       # silence, so a stale bookmark looked identical to arriving home on purpose.
