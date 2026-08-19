@@ -27,10 +27,11 @@ import { supabase } from "./lib/supabase.js";
 import { AssignTask } from "./App.jsx";
 import {
   grab, listOf, DkTag, DkErr, DkEmpty, DkKpiStrip, DkDrill, DrillRoot, DkHead, useSectionStore,
+  useWidgetLayout, Widget, WidgetBoard, WidgetBarControls, DkReports,
 } from "./dashkit.jsx";
 import {
   CULT_DEPT, useCultMeasures, cultTargetMap, cultTrendMap, cultLicenceMap, cultRoomLabel,
-  cultTile, cultInPlace, CultSection, CultActivity, cultNum, CULT_ROOM_UNQUALIFIED,
+  cultTile, cultInPlace, CultActivity, cultNum, CULT_ROOM_UNQUALIFIED,
 } from "./cult-kit.jsx";
 
 const VIEW_KEY = "moisture_loss_register";
@@ -42,8 +43,20 @@ const SOURCE_NOTE = {
     + "v_moisture_loss_register. Pressing a figure lists those very rows.",
 };
 
-export default function MoistureRegister({ go, session, role, viewAs }) {
+export default function MoistureRegister({ go, session, role, viewAs, reports }) {
   const store = useSectionStore(session && session.user ? session.user.id : null, PAGE_KEY);
+  /* THE SECTIONS ARE ARRANGEABLE AND THE ARRANGEMENT IS THE USER'S OWN. Owner,
+     16 Aug 2026: "every single dashboard need to have section as I stated where
+     i can drag and put where i want to arreange dash for user preference." This
+     mounts the SAME primitive the department dashboards use, saved per user
+     through tg_save_dashboard_layout; the page contributes only its own list. */
+  const WIDGETS = React.useMemo(() => [
+    { key: "needs", title: "Awaiting a moisture loss record — largest difference first", span: 2 },
+    { key: "trail", title: "Already recorded — the audit trail", span: 2 },
+    { key: "activity", title: "Most recent write-offs", span: 1 },
+    { key: "reports", title: "Cultivation reports", span: 1 },
+  ], []);
+  const layout = useWidgetLayout(PAGE_KEY, WIDGETS);
   const measures = useCultMeasures();
   const [d, setD] = useState(null);
   const [openKpi, setOpenKpi] = useState(null);
@@ -156,6 +169,11 @@ export default function MoistureRegister({ go, session, role, viewAs }) {
           <div className="cc-tools-l">
             <button type="button" className="cc-btn" onClick={() => setVer((v) => v + 1)}>↻ read again</button>
             <button type="button" className="cc-btn" onClick={() => window.print()}>🖨 print</button>
+            <button type="button" className="cc-btn" title="Collapse every section — remembered on your own account"
+              onClick={() => store.setAll(WIDGETS.map((x) => x.key), false)}>− collapse all</button>
+            <button type="button" className="cc-btn" title="Expand every section"
+              onClick={() => store.setAll(WIDGETS.map((x) => x.key), true)}>+ expand all</button>
+            <WidgetBarControls layout={layout} />
           </div>
           <div className="cc-tools-r">
             <button type="button" className="cc-btn" onClick={() => go("harvests")}>Harvest register →</button>
@@ -212,19 +230,22 @@ export default function MoistureRegister({ go, session, role, viewAs }) {
           </DkDrill>
         )}
 
-        <div className="cult-body">
-          <CultSection id="needs" store={store} title="Awaiting a moisture loss record — largest difference first"
-            count={needs.length}
-            chips={needs.length
+        <WidgetBoard layout={layout}>
+          {layout.list.map((w) => {
+            switch (w.key) {
+                        case "needs": return (
+              <Widget key={w.key} w={w} layout={layout} store={store} chips={<><DkTag tone="neutral">{Number(needs.length).toLocaleString()}</DkTag>{needs.length
               ? <DkTag tone="crit">{cultNum(phantom)} lb sitting on the books as water</DkTag>
-              : <DkTag tone="ok">nothing waiting</DkTag>}>
+              : <DkTag tone="ok">nothing waiting</DkTag>}</>}>
             {needs.length === 0
               ? <DkEmpty why="Nothing is waiting for a moisture loss to be recorded."
                   fills="Every harvest the view can judge has either had its loss written off or has none to write off. That is the finished position, not an empty read." />
               : <div className="cult-act">{needs.map((r) => <ActionCard key={r.harvest_name} r={r} />)}</div>}
-          </CultSection>
+          </Widget>
+              );
 
-          <CultSection id="trail" store={store} title="Already recorded — the audit trail" count={recorded.length} defaultOpen={false}>
+                        case "trail": return (
+              <Widget key={w.key} w={w} layout={layout} store={store} defaultOpen={false} chips={<><DkTag tone="neutral">{Number(recorded.length).toLocaleString()}</DkTag></>}>
             {recorded.length === 0
               ? <DkEmpty why="No moisture loss has been written off yet."
                   fills="A harvest appears here once somebody records the loss against it, with their name, the method and the date." />
@@ -252,12 +273,23 @@ export default function MoistureRegister({ go, session, role, viewAs }) {
                     </div>
                   ))}
                 </div>}
-          </CultSection>
+          </Widget>
+              );
 
-          <CultSection id="activity" store={store} title="Most recent write-offs" count={activity.length} defaultOpen={false}>
+                        case "activity": return (
+              <Widget key={w.key} w={w} layout={layout} store={store} defaultOpen={false} chips={<><DkTag tone="neutral">{Number(activity.length).toLocaleString()}</DkTag></>}>
             <CultActivity items={activity} what="the moisture register" none="No moisture loss carries a recorded date yet." />
-          </CultSection>
-        </div>
+          </Widget>
+              );
+                      case "reports": return (
+              <Widget key={w.key} w={w} layout={layout} store={store} defaultOpen={false}>
+                <DkReports reports={reports} dept={CULT_DEPT} go={go} />
+              </Widget>
+              );
+              default: return null;
+            }
+          })}
+        </WidgetBoard>
       </div>
     </DrillRoot>
   );

@@ -33,10 +33,11 @@ import { DateRangeSelect } from "./App.jsx";
 import {
   grab, listOf, DkTag, DkErr, DkEmpty, DkKpiStrip, DkDrill, DrillRoot, DkHead,
   DkCaret, TagEvidenceProvider, TagEvidence, useSectionStore,
+  useWidgetLayout, Widget, WidgetBoard, WidgetBarControls, DkReports,
 } from "./dashkit.jsx";
 import {
   CULT_DEPT, useCultMeasures, cultTargetMap, cultTrendMap, cultLicenceMap,
-  cultRoomLabel, cultTile, cultInPlace, CultSection, CultActivity, CultShare,
+  cultRoomLabel, cultTile, cultInPlace, CultActivity, CultShare,
   cultNum, cultQty, useCultPackages,
 } from "./cult-kit.jsx";
 
@@ -139,7 +140,7 @@ function HxPackages({ harvest }) {
           <table>
             <thead>
               <tr><th>Package tag</th><th>Category</th><th>Quantity</th><th>Packaged on</th>
-                <th>Laboratory state</th><th>Certificate and manifest</th></tr>
+                <th>Laboratory state</th><th>Where this record came from</th><th>Certificate and manifest</th></tr>
             </thead>
             <tbody>
               {state.rows.map((r) => {
@@ -153,6 +154,9 @@ function HxPackages({ harvest }) {
                     <td>{p ? cultQty(p.quantity, p.uom) : cultQty(r.quantity, null)}</td>
                     <td>{r.packaged_on ? String(r.packaged_on).slice(0, 10) : "not recorded"}</td>
                     <td>{r.lab_state ? r.lab_state : "not recorded"}</td>
+                    <td>{!p ? "reading…" : p.provenance === "metrc report"
+                      ? `Loaded from a Metrc report, so it is a historical record and not stock on hand${p.source_state ? ` (${p.source_state})` : ""}.`
+                      : `${p.provenance ? p.provenance : "provenance not recorded"}${p.source_state ? `, ${p.source_state}` : ""}`}</td>
                     <td>{p && p.tag ? <TagEvidence tag={p.tag} compact />
                       : <span className="cult-note">no tag on this row to resolve documents against</span>}</td>
                   </tr>
@@ -166,8 +170,21 @@ function HxPackages({ harvest }) {
   );
 }
 
-export default function HarvestsRegister({ go, session, role, viewAs }) {
+export default function HarvestsRegister({ go, session, role, viewAs, reports }) {
   const store = useSectionStore(session && session.user ? session.user.id : null, PAGE_KEY);
+  /* THE SECTIONS ARE ARRANGEABLE, AND THE ARRANGEMENT IS THE USER'S OWN.
+     Owner, 16 Aug 2026: "every single dashboard need to have section as I stated
+     where i can drag and put where i want to arreange dash for user preference."
+     This is the SAME primitive the department dashboards mount — dragged,
+     hidden, sized half or full, and saved to the caller's own row through
+     tg_save_dashboard_layout. A second implementation of it would be the
+     defect; the page supplies only its own list of sections. */
+  const WIDGETS = React.useMemo(() => [
+    { key: "bands", title: "Every harvest, worst severity first", span: 2 },
+    { key: "activity", title: "Most recent take-downs in these records", span: 1 },
+    { key: "reports", title: "Cultivation reports", span: 1 },
+  ], []);
+  const layout = useWidgetLayout(PAGE_KEY, WIDGETS);
   const measures = useCultMeasures();
   const [range, setRange] = useState({ from: "", to: "" });
   const [d, setD] = useState(null);
@@ -306,6 +323,11 @@ export default function HarvestsRegister({ go, session, role, viewAs }) {
               title="Read every harvest again from the live records">↻ read again</button>
             <button type="button" className="cc-btn" onClick={() => window.print()}
               title="Print this register exactly as it appears">🖨 print</button>
+            <button type="button" className="cc-btn" title="Collapse every section — remembered on your own account"
+              onClick={() => store.setAll(WIDGETS.map((x) => x.key), false)}>− collapse all</button>
+            <button type="button" className="cc-btn" title="Expand every section"
+              onClick={() => store.setAll(WIDGETS.map((x) => x.key), true)}>+ expand all</button>
+            <WidgetBarControls layout={layout} />
           </div>
           <div className="cc-tools-c">
             <DateRangeSelect label="Cut between" from={range.from} to={range.to}
@@ -357,9 +379,13 @@ export default function HarvestsRegister({ go, session, role, viewAs }) {
           </DkDrill>
         )}
 
-        <div className="cult-body">
-          <CultSection id="bands" store={store} title="Every harvest, worst severity first" count={inRange.length}
-            chips={<DkTag tone="info">the view&rsquo;s own severity, unchanged</DkTag>}>
+        <WidgetBoard layout={layout}>
+          {layout.list.map((w) => {
+            switch (w.key) {
+              case "bands": return (
+              <Widget key={w.key} w={w} layout={layout} store={store}
+                chips={<><DkTag tone="neutral">{inRange.length.toLocaleString()} harvests</DkTag>
+                  <DkTag tone="info">the view&rsquo;s own severity, unchanged</DkTag></>}>
             {inRange.length === 0
               ? <DkEmpty why="No harvest was cut in the chosen date range."
                   fills="Widen the range above, or choose all dates, to see the whole register."
@@ -378,13 +404,24 @@ export default function HarvestsRegister({ go, session, role, viewAs }) {
                   </div>
                 </div>
               ))}
-          </CultSection>
-
-          <CultSection id="activity" store={store} title="Most recent take-downs in these records" count={activity.length} defaultOpen={false}>
+              </Widget>
+              );
+              case "activity": return (
+              <Widget key={w.key} w={w} layout={layout} store={store} defaultOpen={false}
+                chips={<DkTag tone="neutral">{activity.length} shown</DkTag>}>
             <CultActivity items={activity} what="the harvest register"
               none="No harvest in the chosen range carries a cut date." />
-          </CultSection>
-        </div>
+              </Widget>
+              );
+              case "reports": return (
+              <Widget key={w.key} w={w} layout={layout} store={store} defaultOpen={false}>
+                <DkReports reports={reports} dept={CULT_DEPT} go={go} />
+              </Widget>
+              );
+              default: return null;
+            }
+          })}
+        </WidgetBoard>
       </div>
     </DrillRoot>
   );

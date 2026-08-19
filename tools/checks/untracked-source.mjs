@@ -42,7 +42,12 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
    answers — was itself untracked. A GUARD that exists on one laptop is exactly as dangerous as
    app code that does, and this guard could not see it because it only scanned app source. */
 const SCAN = ["app/web/src", "bridge", "app/supabase/functions", "tools/checks", "tools/hooks"];
-const SKIP = /(^|[\\/])(node_modules|dist|build|\.git|\.netlify|coverage)([\\/]|$)/;
+/* "worktrees" — an agent worktree is a SECOND CHECKOUT of this same repo under
+   .claude/worktrees/. Scanning it re-reports findings the real checkout already
+   answers for, and it fails the build LOCALLY while Netlify (a fresh clone with
+   no worktrees) passes — a gate whose verdict depends on whether an agent is
+   running is a gate nobody can trust. Added 19 Aug 2026. */
+const SKIP = /(^|[\\/])(node_modules|dist|build|\.git|\.netlify|coverage|worktrees)([\\/]|$)/;
 const SOURCE = /\.(jsx?|tsx?|mjs|cjs|css)$/;
 
 /* BASELINE — untracked source files. Lower it as work lands; NEVER raise it.

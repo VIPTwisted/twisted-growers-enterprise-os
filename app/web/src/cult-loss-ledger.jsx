@@ -27,10 +27,11 @@ import { supabase } from "./lib/supabase.js";
 import { DateRangeSelect } from "./App.jsx";
 import {
   grab, listOf, DkTag, DkErr, DkEmpty, DkKpiStrip, DkDrill, DrillRoot, DkHead, useSectionStore,
+  useWidgetLayout, Widget, WidgetBoard, WidgetBarControls, DkReports,
 } from "./dashkit.jsx";
 import {
   CULT_DEPT, useCultMeasures, cultTargetMap, cultTrendMap, cultLicenceMap,
-  cultRoomLabel, cultTile, cultInPlace, CultSection, CultActivity, cultNum, cultQty,
+  cultRoomLabel, cultTile, cultInPlace, CultActivity, cultNum, cultQty,
 } from "./cult-kit.jsx";
 
 const VIEW_KEY = "loss_ledger";
@@ -56,8 +57,19 @@ function byUnit(rows) {
   return [...m.entries()].sort((a, b) => b[1].n - a[1].n);
 }
 
-export default function LossLedger({ go, session, role, viewAs }) {
+export default function LossLedger({ go, session, role, viewAs, reports }) {
   const store = useSectionStore(session && session.user ? session.user.id : null, PAGE_KEY);
+  /* THE SECTIONS ARE ARRANGEABLE AND THE ARRANGEMENT IS THE USER'S OWN. Owner,
+     16 Aug 2026: "every single dashboard need to have section as I stated where
+     i can drag and put where i want to arreange dash for user preference." This
+     mounts the SAME primitive the department dashboards use, saved per user
+     through tg_save_dashboard_layout; the page contributes only its own list. */
+  const WIDGETS = React.useMemo(() => [
+    { key: "spine", title: "Every loss, filed under the day it happened", span: 2 },
+    { key: "activity", title: "Most recent entries", span: 1 },
+    { key: "reports", title: "Cultivation reports", span: 1 },
+  ], []);
+  const layout = useWidgetLayout(PAGE_KEY, WIDGETS);
   const measures = useCultMeasures();
   const [range, setRange] = useState({ from: "", to: "" });
   const [kind, setKind] = useState("");
@@ -171,6 +183,11 @@ export default function LossLedger({ go, session, role, viewAs }) {
           <div className="cc-tools-l">
             <button type="button" className="cc-btn" onClick={() => setVer((v) => v + 1)}>↻ read again</button>
             <button type="button" className="cc-btn" onClick={() => window.print()}>🖨 print</button>
+            <button type="button" className="cc-btn" title="Collapse every section — remembered on your own account"
+              onClick={() => store.setAll(WIDGETS.map((x) => x.key), false)}>− collapse all</button>
+            <button type="button" className="cc-btn" title="Expand every section"
+              onClick={() => store.setAll(WIDGETS.map((x) => x.key), true)}>+ expand all</button>
+            <WidgetBarControls layout={layout} />
             <label className="cc-fine" htmlFor="loss-kind">Kind of loss</label>
             <select id="loss-kind" className="cc-input" value={kind} onChange={(e) => setKind(e.target.value)}
               title="Narrow the ledger to one kind of loss. Every figure above recounts for the narrowed set.">
@@ -216,9 +233,11 @@ export default function LossLedger({ go, session, role, viewAs }) {
           </DkDrill>
         )}
 
-        <div className="cult-body">
-          <CultSection id="spine" store={store} title="Every loss, filed under the day it happened" count={inRange.length}
-            chips={<DkTag tone="info">newest day first</DkTag>}>
+        <WidgetBoard layout={layout}>
+          {layout.list.map((w) => {
+            switch (w.key) {
+                        case "spine": return (
+              <Widget key={w.key} w={w} layout={layout} store={store} chips={<><DkTag tone="neutral">{Number(inRange.length).toLocaleString()}</DkTag>{<DkTag tone="info">newest day first</DkTag>}</>}>
             {days.length === 0
               ? <DkEmpty why="No loss is recorded in the chosen range."
                   fills="That is the real position for this range — nothing was destroyed and nothing was written off."
@@ -239,12 +258,23 @@ export default function LossLedger({ go, session, role, viewAs }) {
                     </div>
                   ))}
                 </div>}
-          </CultSection>
+          </Widget>
+              );
 
-          <CultSection id="activity" store={store} title="Most recent entries" count={activity.length} defaultOpen={false}>
+                        case "activity": return (
+              <Widget key={w.key} w={w} layout={layout} store={store} defaultOpen={false} chips={<><DkTag tone="neutral">{Number(activity.length).toLocaleString()}</DkTag></>}>
             <CultActivity items={activity} what="the loss ledger" none="No dated loss entry in the chosen range." />
-          </CultSection>
-        </div>
+          </Widget>
+              );
+                      case "reports": return (
+              <Widget key={w.key} w={w} layout={layout} store={store} defaultOpen={false}>
+                <DkReports reports={reports} dept={CULT_DEPT} go={go} />
+              </Widget>
+              );
+              default: return null;
+            }
+          })}
+        </WidgetBoard>
       </div>
     </DrillRoot>
   );

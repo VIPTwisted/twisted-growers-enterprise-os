@@ -373,7 +373,8 @@ create table if not exists public.apex_sync_run (
   "watermark_before" timestamp with time zone,
   "watermark_after" timestamp with time zone,
   "credits_used" integer,
-  "error" text
+  "error" text,
+  "meta_total" integer
 );
 create table if not exists public.apex_watermark (
   "entity" text not null,

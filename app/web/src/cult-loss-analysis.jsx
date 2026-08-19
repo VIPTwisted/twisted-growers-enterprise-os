@@ -24,10 +24,11 @@ import React, { useEffect, useMemo, useState } from "react";
 import { supabase } from "./lib/supabase.js";
 import {
   grab, listOf, DkTag, DkErr, DkEmpty, DkKpiStrip, DkDrill, DrillRoot, DkHead, useSectionStore,
+  useWidgetLayout, Widget, WidgetBoard, WidgetBarControls, DkReports,
 } from "./dashkit.jsx";
 import {
   CULT_DEPT, useCultMeasures, cultTargetMap, cultTrendMap, cultLicenceMap, cultRoomLabel,
-  cultTile, cultInPlace, CultSection, CultActivity, CultShare, cultNum, CULT_ROOM_UNQUALIFIED,
+  cultTile, cultInPlace, CultActivity, CultShare, cultNum, CULT_ROOM_UNQUALIFIED,
 } from "./cult-kit.jsx";
 
 const VIEW_KEY = "loss_analysis";
@@ -50,8 +51,20 @@ const verdictTone = (v) => {
   return "ok";
 };
 
-export default function LossAnalysis({ go, session, role, viewAs }) {
+export default function LossAnalysis({ go, session, role, viewAs, reports }) {
   const store = useSectionStore(session && session.user ? session.user.id : null, PAGE_KEY);
+  /* THE SECTIONS ARE ARRANGEABLE AND THE ARRANGEMENT IS THE USER'S OWN. Owner,
+     16 Aug 2026: "every single dashboard need to have section as I stated where
+     i can drag and put where i want to arreange dash for user preference." This
+     mounts the SAME primitive the department dashboards use, saved per user
+     through tg_save_dashboard_layout; the page contributes only its own list. */
+  const WIDGETS = React.useMemo(() => [
+    { key: "worst", title: "The worst line on record for this selection", span: 2 },
+    { key: "rank", title: "Every room, strain and month, worst loss first", span: 2 },
+    { key: "activity", title: "Most recent harvest on each of these lines", span: 1 },
+    { key: "reports", title: "Cultivation reports", span: 1 },
+  ], []);
+  const layout = useWidgetLayout(PAGE_KEY, WIDGETS);
   const measures = useCultMeasures();
   const [d, setD] = useState(null);
   const [openKpi, setOpenKpi] = useState(null);
@@ -166,6 +179,11 @@ export default function LossAnalysis({ go, session, role, viewAs }) {
           <div className="cc-tools-l">
             <button type="button" className="cc-btn" onClick={() => setVer((v) => v + 1)}>↻ read again</button>
             <button type="button" className="cc-btn" onClick={() => window.print()}>🖨 print</button>
+            <button type="button" className="cc-btn" title="Collapse every section — remembered on your own account"
+              onClick={() => store.setAll(WIDGETS.map((x) => x.key), false)}>− collapse all</button>
+            <button type="button" className="cc-btn" title="Expand every section"
+              onClick={() => store.setAll(WIDGETS.map((x) => x.key), true)}>+ expand all</button>
+            <WidgetBarControls layout={layout} />
             <label className="cc-fine" htmlFor="la-room">Room</label>
             <select id="la-room" className="cc-input" value={room} onChange={(e) => setRoom(e.target.value)}
               title="Narrow the ranking to one room. Every figure above recounts for the narrowed set.">
@@ -200,9 +218,16 @@ export default function LossAnalysis({ go, session, role, viewAs }) {
           </DkDrill>
         )}
 
-        <div className="cult-body">
-          {worst && (
-            <CultSection id="worst" store={store} title="The worst line on record for this selection">
+        <WidgetBoard layout={layout}>
+          {layout.list.map((w) => {
+            switch (w.key) {
+              /* The worst line is a section like any other, so it can be dragged
+                 or hidden — but it renders an honest empty state rather than
+                 vanishing when there is no line to be worst. */
+              case "worst": return (
+              <Widget key={w.key} w={w} layout={layout} store={store}>
+              {!worst ? <DkEmpty why="There is no line to call the worst one."
+                fills="A line appears here as soon as the view serves one for this selection." /> : (<>
               <div className="cult-splitcard">
                 <span className="cult-splitlbl">Worst waste share</span>
                 <span className="cult-splitbig">{cultNum(worst.waste_pct)} per cent</span>
@@ -211,24 +236,34 @@ export default function LossAnalysis({ go, session, role, viewAs }) {
                   {worst.room_qualified}, {worst.month ? worst.month : "month not recorded"}
                 </span>
                 <p className="cult-note">{worst.loss_verdict ? worst.loss_verdict : "no verdict served with this line"}</p>
-              </div>
-            </CultSection>
-          )}
+              </div></>)}
+              </Widget>
+              );
 
-          <CultSection id="rank" store={store} title="Every room, strain and month, worst loss first" count={shown.length}
-            chips={<DkTag tone="info">the view&rsquo;s own verdict, unchanged</DkTag>}>
+                        case "rank": return (
+              <Widget key={w.key} w={w} layout={layout} store={store} chips={<><DkTag tone="neutral">{Number(shown.length).toLocaleString()}</DkTag>{<DkTag tone="info">the view&rsquo;s own verdict, unchanged</DkTag>}</>}>
             {shown.length === 0
               ? <DkEmpty why="The view serves no loss line for this selection."
                   fills="Choose every room above to see the whole ranking."
                   action={<button type="button" className="cc-btn" onClick={() => setRoom("")}>Show every room</button>} />
               : <div className="cult-rank">{shown.map((r, i) => <RankRow key={`${r.room_qualified}|${r.strain}|${r.month}`} r={r} i={i} />)}</div>}
-          </CultSection>
+          </Widget>
+              );
 
-          <CultSection id="activity" store={store} title="Most recent harvest on each of these lines"
-            count={activity.length} defaultOpen={false}>
+                        case "activity": return (
+              <Widget key={w.key} w={w} layout={layout} store={store} defaultOpen={false} chips={<><DkTag tone="neutral">{Number(activity.length).toLocaleString()}</DkTag></>}>
             <CultActivity items={activity} what="the loss analysis" none="No line carries a last-harvest date." />
-          </CultSection>
-        </div>
+          </Widget>
+              );
+                      case "reports": return (
+              <Widget key={w.key} w={w} layout={layout} store={store} defaultOpen={false}>
+                <DkReports reports={reports} dept={CULT_DEPT} go={go} />
+              </Widget>
+              );
+              default: return null;
+            }
+          })}
+        </WidgetBoard>
       </div>
     </DrillRoot>
   );

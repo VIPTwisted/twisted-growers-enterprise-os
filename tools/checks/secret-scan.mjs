@@ -88,7 +88,21 @@ const EXEMPT = {
   "tools/checks/guard-fixtures.mjs": "Fixtures deliberately contain example-shaped strings to prove the guards still catch them.",
 };
 
-const SKIP_DIRS = new Set(["node_modules", ".git", "dist", "env", "__pycache__", ".netlify", "workbook_extract"]);
+/* "worktrees" — AGENT WORKTREES ARE A SECOND COPY OF THIS SAME REPOSITORY.
+ *
+ * An agent working in isolation gets .claude/worktrees/<name>/, a full checkout
+ * of this repo at some commit. Scanning it re-reports every historical finding
+ * the baseline has already assessed — on 19 Aug 2026 one stale worktree turned
+ * a clean scan into seven failures, all of them duplicates of exposures already
+ * recorded and rotated, and it failed the build LOCALLY while Netlify (a fresh
+ * clone with no worktrees) passed. A gate whose verdict depends on whether an
+ * agent happens to be running is a gate nobody can trust.
+ *
+ * This does NOT weaken the scan: the same files ARE scanned in the real
+ * checkout, and .claude/worktrees is in .git/info/exclude so nothing there can
+ * ever be committed. The Desktop stub config is still scanned deliberately —
+ * that is a different path and a real exposure route. */
+const SKIP_DIRS = new Set(["node_modules", ".git", "dist", "env", "__pycache__", ".netlify", "workbook_extract", "worktrees"]);
 const SCAN_EXT = /\.(mjs|js|jsx|ts|tsx|json|sql|py|sh|yml|yaml|toml|md|env|txt|cfg|ini)$/i;
 const MAX_BYTES = 2_000_000;
 

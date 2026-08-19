@@ -24,10 +24,11 @@ import React, { useEffect, useMemo, useState } from "react";
 import { supabase } from "./lib/supabase.js";
 import {
   grab, listOf, DkTag, DkErr, DkEmpty, DkKpiStrip, DkDrill, DrillRoot, DkHead, useSectionStore,
+  useWidgetLayout, Widget, WidgetBoard, WidgetBarControls, DkReports,
 } from "./dashkit.jsx";
 import {
   CULT_DEPT, useCultMeasures, cultTargetMap, cultTrendMap, cultTile, cultInPlace,
-  CultSection, cultNum,
+  cultNum,
 } from "./cult-kit.jsx";
 
 const VIEW_KEY = "genetics";
@@ -40,8 +41,19 @@ const SOURCE_NOTE = {
     + "here is the tag and a name is only a label that resolves.",
 };
 
-export default function Genetics({ go, session, role, viewAs }) {
+export default function Genetics({ go, session, role, viewAs, reports }) {
   const store = useSectionStore(session && session.user ? session.user.id : null, PAGE_KEY);
+  /* THE SECTIONS ARE ARRANGEABLE AND THE ARRANGEMENT IS THE USER'S OWN. Owner,
+     16 Aug 2026: "every single dashboard need to have section as I stated where
+     i can drag and put where i want to arreange dash for user preference." This
+     mounts the SAME primitive the department dashboards use, saved per user
+     through tg_save_dashboard_layout; the page contributes only its own list. */
+  const WIDGETS = React.useMemo(() => [
+    { key: "cat", title: "Our catalogue — what we call each cultivar", span: 2 },
+    { key: "census", title: "Standing in the rooms — the Metrc strain census", span: 2 },
+    { key: "reports", title: "Cultivation reports", span: 1 },
+  ], []);
+  const layout = useWidgetLayout(PAGE_KEY, WIDGETS);
   const measures = useCultMeasures();
   const [d, setD] = useState(null);
   const [q, setQ] = useState("");
@@ -137,6 +149,11 @@ export default function Genetics({ go, session, role, viewAs }) {
           <div className="cc-tools-l">
             <button type="button" className="cc-btn" onClick={() => setVer((v) => v + 1)}>↻ read again</button>
             <button type="button" className="cc-btn" onClick={() => window.print()}>🖨 print</button>
+            <button type="button" className="cc-btn" title="Collapse every section — remembered on your own account"
+              onClick={() => store.setAll(WIDGETS.map((x) => x.key), false)}>− collapse all</button>
+            <button type="button" className="cc-btn" title="Expand every section"
+              onClick={() => store.setAll(WIDGETS.map((x) => x.key), true)}>+ expand all</button>
+            <WidgetBarControls layout={layout} />
           </div>
           <div className="cc-tools-r">
             <button type="button" className="cc-btn" onClick={() => go("harvests")}>Harvest register →</button>
@@ -202,20 +219,24 @@ export default function Genetics({ go, session, role, viewAs }) {
           </DkDrill>
         )}
 
-        <div className="cult-body">
-          <div className="cult-search">
-            <label className="cc-fine" htmlFor="gen-q">Search the catalogue and the census</label>
-            <input id="gen-q" type="search" value={q} onChange={(e) => setQ(e.target.value)}
-              placeholder="a cultivar name, an alias or a breeder" />
-            {q && <button type="button" className="cc-btn" onClick={() => setQ("")}>clear</button>}
-            <span className="cult-note">
-              {shownCats.length} of {listOf(cats).length} catalogue entries and{" "}
-              {shownCensus.length} of {listOf(census).length} Metrc strains match.
-            </span>
-          </div>
+        {/* The search is a PAGE control, not a section: it narrows both boards at
+            once, so it sits above them and is not something to drag away. */}
+        <div className="cult-search">
+          <label className="cc-fine" htmlFor="gen-q">Search the catalogue and the census</label>
+          <input id="gen-q" type="search" value={q} onChange={(e) => setQ(e.target.value)}
+            placeholder="a cultivar name, an alias or a breeder" />
+          {q && <button type="button" className="cc-btn" onClick={() => setQ("")}>clear</button>}
+          <span className="cult-note">
+            {shownCats.length} of {listOf(cats).length} catalogue entries and{" "}
+            {shownCensus.length} of {listOf(census).length} Metrc strains match.
+          </span>
+        </div>
 
-          <CultSection id="cat" store={store} title="Our catalogue — what we call each cultivar" count={shownCats.length}
-            chips={<DkTag tone="info">our own canonical names</DkTag>}>
+        <WidgetBoard layout={layout}>
+          {layout.list.map((w) => {
+            switch (w.key) {
+              case "cat": return (
+              <Widget key={w.key} w={w} layout={layout} store={store} chips={<><DkTag tone="neutral">{Number(shownCats.length).toLocaleString()}</DkTag>{<DkTag tone="info">our own canonical names</DkTag>}</>}>
             {shownCats.length === 0
               ? <DkEmpty why="No catalogue entry matches that search."
                   fills="Search matches the canonical name, any recorded alias, and the breeder."
@@ -244,11 +265,11 @@ export default function Genetics({ go, session, role, viewAs }) {
                     </div>
                   ))}
                 </div>}
-          </CultSection>
+          </Widget>
+              );
 
-          <CultSection id="census" store={store} title="Standing in the rooms — the Metrc strain census"
-            count={shownCensus.length}
-            chips={<DkTag tone="attn">a separate list, never joined to the catalogue on a name</DkTag>}>
+                        case "census": return (
+              <Widget key={w.key} w={w} layout={layout} store={store} chips={<><DkTag tone="neutral">{Number(shownCensus.length).toLocaleString()}</DkTag>{<DkTag tone="attn">a separate list, never joined to the catalogue on a name</DkTag>}</>}>
             {d.s.err
               ? <DkErr what="The Metrc strain census" err={d.s.err} />
               : shownCensus.length === 0
@@ -274,8 +295,17 @@ export default function Genetics({ go, session, role, viewAs }) {
                       </div>
                     ))}
                   </div>}
-          </CultSection>
-        </div>
+          </Widget>
+              );
+                      case "reports": return (
+              <Widget key={w.key} w={w} layout={layout} store={store} defaultOpen={false}>
+                <DkReports reports={reports} dept={CULT_DEPT} go={go} />
+              </Widget>
+              );
+              default: return null;
+            }
+          })}
+        </WidgetBoard>
       </div>
     </DrillRoot>
   );

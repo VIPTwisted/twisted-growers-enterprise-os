@@ -30,7 +30,25 @@ const json = (body: unknown, status = 200) =>
 
 const service = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 
+/* MACHINE PATH, ADDED 19 Aug 2026 — same defect as apex-sync, same fix.
+ *
+ * This accepted only a signed-in executive's token, so a cron job could never
+ * authenticate and the spreadsheet import was never scheduled: 13 imports in
+ * thirty days, every one a person remembering to press a button, and the
+ * sheets sitting 6.7 days stale when the owner asked. The sheets carry
+ * finished-goods and production figures that exist nowhere else.
+ *
+ * TG_ADMIN_KEY lives in integration_secrets under service-role-only FORCE RLS
+ * and is never granted to a login role, so no browser session can read it.
+ * tg_call_function() already presents it as x-admin-key on scheduled calls.
+ * A human executive's token still works exactly as before. */
 async function callerIsExecutive(req: Request): Promise<boolean> {
+  const machineKey = (req.headers.get("x-admin-key") ?? "").trim();
+  if (machineKey) {
+    const { data } = await service.from("integration_secrets").select("value").eq("name", "TG_ADMIN_KEY").maybeSingle();
+    const expected = (data?.value ?? "").trim();
+    if (expected && machineKey === expected) return true;
+  }
   const token = (req.headers.get("Authorization") ?? "").replace("Bearer ", "");
   if (!token) return false;
   const { data } = await service.auth.getUser(token);

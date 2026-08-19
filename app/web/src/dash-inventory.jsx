@@ -149,7 +149,10 @@ export default function InventoryDashboard({ go, session, reports, role, viewAs,
     let live = true;
     (async () => {
       const [tiles, trend, targets, stock, stockRooms, tasks, global] = await Promise.all([
-        supabase.from("mv_department_dashboard").select("*").eq("department", DEPT).order("ord"),
+        supabase.rpc("f_department_dashboard", { p_dept: DEPT, p_from: range.from || null, p_to: range.to || null })
+          .then((r) => (r.error || !r.data || !r.data.length)
+            ? supabase.from("mv_department_dashboard").select("*").eq("department", DEPT).order("ord")
+            : r),
         supabase.from("v_dashboard_trend").select("*").eq("department", DEPT),
         supabase.from("kpi_targets").select("*").eq("department", DEPT),
         supabase.from("v_stock_summary").select("*"),
@@ -169,7 +172,10 @@ export default function InventoryDashboard({ go, session, reports, role, viewAs,
       });
     })();
     return () => { live = false; };
-  }, [ver]);
+  /* range.from / range.to: this dashboard never re-fetched on a date change —
+     its effect depended on [ver] alone, so the picker moved and nothing behind
+     it did. Owner, 19 Aug 2026. */
+  }, [ver, range.from, range.to]);
 
   const recompute = async () => {
     setBusy(true);

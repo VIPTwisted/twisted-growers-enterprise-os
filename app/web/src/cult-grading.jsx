@@ -32,10 +32,11 @@ import { supabase } from "./lib/supabase.js";
 import {
   grab, listOf, DkTag, DkErr, DkEmpty, DkKpiStrip, DkDrill, DrillRoot, DkHead,
   TagEvidenceProvider, TagEvidence, useSectionStore,
+  useWidgetLayout, Widget, WidgetBoard, WidgetBarControls, DkReports,
 } from "./dashkit.jsx";
 import {
   CULT_DEPT, useCultMeasures, cultTargetMap, cultTrendMap, cultLicenceMap, cultRoomLabel,
-  cultTile, cultInPlace, CultSection, CultShare, cultNum, cultQty, useCultPackages,
+  cultTile, cultInPlace, CultShare, cultNum, cultQty, useCultPackages,
 } from "./cult-kit.jsx";
 
 const VIEW_KEY = "grading";
@@ -48,8 +49,20 @@ const SOURCE_NOTE = {
     + "pound figures come from the harvest register, which serves them as pounds.",
 };
 
-export default function Grading({ go, session, role, viewAs }) {
+export default function Grading({ go, session, role, viewAs, reports }) {
   const store = useSectionStore(session && session.user ? session.user.id : null, PAGE_KEY);
+  /* THE SECTIONS ARE ARRANGEABLE AND THE ARRANGEMENT IS THE USER'S OWN. Owner,
+     16 Aug 2026: "every single dashboard need to have section as I stated where
+     i can drag and put where i want to arreange dash for user preference." This
+     mounts the SAME primitive the department dashboards use, saved per user
+     through tg_save_dashboard_layout; the page contributes only its own list. */
+  const WIDGETS = React.useMemo(() => [
+    { key: "mb", title: "Hand-entered mass balance and grade sheet", span: 2 },
+    { key: "split", title: "The grading that does exist — Metrc product categories", span: 2 },
+    { key: "perharvest", title: "Every harvest and the grades that came off it", span: 2 },
+    { key: "reports", title: "Cultivation reports", span: 1 },
+  ], []);
+  const layout = useWidgetLayout(PAGE_KEY, WIDGETS);
   const measures = useCultMeasures();
   const [d, setD] = useState(null);
   const [openKpi, setOpenKpi] = useState(null);
@@ -171,6 +184,11 @@ export default function Grading({ go, session, role, viewAs }) {
           <div className="cc-tools-l">
             <button type="button" className="cc-btn" onClick={() => setVer((v) => v + 1)}>↻ read again</button>
             <button type="button" className="cc-btn" onClick={() => window.print()}>🖨 print</button>
+            <button type="button" className="cc-btn" title="Collapse every section — remembered on your own account"
+              onClick={() => store.setAll(WIDGETS.map((x) => x.key), false)}>− collapse all</button>
+            <button type="button" className="cc-btn" title="Expand every section"
+              onClick={() => store.setAll(WIDGETS.map((x) => x.key), true)}>+ expand all</button>
+            <WidgetBarControls layout={layout} />
           </div>
           <div className="cc-tools-r">
             <button type="button" className="cc-btn" onClick={() => go("harvests")}>Harvest register →</button>
@@ -235,12 +253,13 @@ export default function Grading({ go, session, role, viewAs }) {
           </DkDrill>
         )}
 
-        <div className="cult-body">
-          <CultSection id="mb" store={store} title="Hand-entered mass balance and grade sheet"
-            count={listOf(massBalance).length}
-            chips={listOf(massBalance).length
+        <WidgetBoard layout={layout}>
+          {layout.list.map((w) => {
+            switch (w.key) {
+                        case "mb": return (
+              <Widget key={w.key} w={w} layout={layout} store={store} chips={<><DkTag tone="neutral">{Number(listOf(massBalance).length).toLocaleString()}</DkTag>{listOf(massBalance).length
               ? <DkTag tone="ok">entered</DkTag>
-              : <DkTag tone="crit">nothing entered yet</DkTag>}>
+              : <DkTag tone="crit">nothing entered yet</DkTag>}</>}>
             {listOf(massBalance).length === 0
               ? <DkEmpty
                   why="No harvest has been graded by hand. This is not a failed read and it is not a rendering problem: the mass-balance view returns no rows because the grade sheet and the weight sheet behind it have never had an entry made in them."
@@ -266,11 +285,11 @@ export default function Grading({ go, session, role, viewAs }) {
                     </tbody>
                   </table>
                 </div>}
-          </CultSection>
+          </Widget>
+              );
 
-          <CultSection id="split" store={store} title="The grading that does exist — Metrc product categories"
-            count={categories.length}
-            chips={<DkTag tone="info">counts of harvests, never a total across units</DkTag>}>
+                        case "split": return (
+              <Widget key={w.key} w={w} layout={layout} store={store} chips={<><DkTag tone="neutral">{Number(categories.length).toLocaleString()}</DkTag>{<DkTag tone="info">counts of harvests, never a total across units</DkTag>}</>}>
             {categories.length === 0
               ? <DkEmpty why="No package carries a product category against any harvest."
                   fills="A category appears here as soon as a package is created off a harvest with a product category on it." />
@@ -287,10 +306,11 @@ export default function Grading({ go, session, role, viewAs }) {
                     </div>
                   ))}
                 </div>}
-          </CultSection>
+          </Widget>
+              );
 
-          <CultSection id="perharvest" store={store} title="Every harvest and the grades that came off it"
-            count={listOf(harvests).length} defaultOpen={false}>
+                        case "perharvest": return (
+              <Widget key={w.key} w={w} layout={layout} store={store} defaultOpen={false} chips={<><DkTag tone="neutral">{Number(listOf(harvests).length).toLocaleString()}</DkTag></>}>
             {listOf(harvests).length === 0
               ? <DkEmpty why="No harvest is on record." fills="Harvests arrive from the Metrc mirror." />
               : <div className="cult-grades">
@@ -315,8 +335,17 @@ export default function Grading({ go, session, role, viewAs }) {
                     </div>
                   ))}
                 </div>}
-          </CultSection>
-        </div>
+          </Widget>
+              );
+                      case "reports": return (
+              <Widget key={w.key} w={w} layout={layout} store={store} defaultOpen={false}>
+                <DkReports reports={reports} dept={CULT_DEPT} go={go} />
+              </Widget>
+              );
+              default: return null;
+            }
+          })}
+        </WidgetBoard>
 
         {pickHarvest && (
           <DkDrill label={`${pickHarvest} — every package and its documents`} onClose={() => setPickHarvest(null)}>
@@ -364,7 +393,7 @@ function GradePackages({ harvest }) {
         <div className="tablewrap">
           <table>
             <thead><tr><th>Package tag</th><th>Grade as Metrc records it</th><th>Quantity</th>
-              <th>Packaged on</th><th>Laboratory state</th><th>Certificate and manifest</th></tr></thead>
+              <th>Packaged on</th><th>Laboratory state</th><th>Where this record came from</th><th>Certificate and manifest</th></tr></thead>
             <tbody>
               {state.rows.map((r) => {
                 const p = pk.map ? pk.map.get(String(r.package_id)) : null;
@@ -377,6 +406,9 @@ function GradePackages({ harvest }) {
                     <td>{p ? cultQty(p.quantity, p.uom) : cultQty(r.quantity, null)}</td>
                     <td>{r.packaged_on ? String(r.packaged_on).slice(0, 10) : "not recorded"}</td>
                     <td>{r.lab_state ? r.lab_state : "not recorded"}</td>
+                    <td>{!p ? "reading…" : p.provenance === "metrc report"
+                      ? `Loaded from a Metrc report, so it is a historical record and not stock on hand${p.source_state ? ` (${p.source_state})` : ""}.`
+                      : `${p.provenance ? p.provenance : "provenance not recorded"}${p.source_state ? `, ${p.source_state}` : ""}`}</td>
                     <td>{p && p.tag ? <TagEvidence tag={p.tag} compact />
                       : <span className="cult-note">no tag on this row to resolve documents against</span>}</td>
                   </tr>

@@ -69,7 +69,7 @@ function jsxFiles(dir, out = []) {
   if (!existsSync(dir)) return out;
   for (const e of readdirSync(dir)) {
     const p = join(dir, e);
-    if (/node_modules|dist|build/.test(p)) continue;
+    if (/node_modules|dist|build|worktrees/.test(p)) continue; // worktrees: agent checkouts of this same repo, see secret-scan.mjs
     if (statSync(p).isDirectory()) jsxFiles(p, out);
     else if (/\.[jt]sx$/.test(e)) out.push(p);
   }

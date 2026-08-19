@@ -166,10 +166,10 @@
       "note": "Real source. If the hash changes, deploy it or record why not."
     },
     "sheet-sync": {
-      "deployed_version": 3,
-      "sha256": "02b20abf111f817f4fac225c947f36cf928c04ad22f9b0697afcfa5a8b738ab1",
+      "deployed_version": 4,
+      "sha256": "3d4fd851ef2a4e380d0e384062ef93b245f4a8736f909e8fbfdee2fa99ceed16",
       "redacted": false,
-      "note": "Real source. If the hash changes, deploy it or record why not."
+      "note": "Real source. Deployed v4 on 19 Aug 2026: added the MACHINE AUTH PATH. It accepted only a signed-in executive's token, so a cron job could never authenticate and the spreadsheet import was never scheduled at all \u2014 13 imports in thirty days, every one manual, and the sheets sitting 6.7 days stale when the owner asked. It now also accepts TG_ADMIN_KEY as x-admin-key, the same machine credential tg_call_function already sends and apex-probe already trusts; a human executive's token works exactly as before. verify_jwt unchanged."
     },
     "coa-inspect": {
       "deployed_version": 1,

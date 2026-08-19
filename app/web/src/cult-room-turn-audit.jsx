@@ -24,10 +24,11 @@ import React, { useEffect, useMemo, useState } from "react";
 import { supabase } from "./lib/supabase.js";
 import {
   grab, listOf, DkTag, DkErr, DkEmpty, DkKpiStrip, DkDrill, DrillRoot, DkHead, useSectionStore,
+  useWidgetLayout, Widget, WidgetBoard, WidgetBarControls, DkReports,
 } from "./dashkit.jsx";
 import {
   CULT_DEPT, useCultMeasures, cultTargetMap, cultTrendMap, cultLicenceMap, cultRoomLabel,
-  cultTile, cultInPlace, CultSection, CultActivity, cultNum, CULT_ROOM_UNQUALIFIED,
+  cultTile, cultInPlace, CultActivity, cultNum, CULT_ROOM_UNQUALIFIED,
 } from "./cult-kit.jsx";
 
 const VIEW_KEY = "room_turn_audit";
@@ -48,8 +49,19 @@ const turnTone = (v) => {
   return "none";
 };
 
-export default function RoomTurnAudit({ go, session, role, viewAs }) {
+export default function RoomTurnAudit({ go, session, role, viewAs, reports }) {
   const store = useSectionStore(session && session.user ? session.user.id : null, PAGE_KEY);
+  /* THE SECTIONS ARE ARRANGEABLE AND THE ARRANGEMENT IS THE USER'S OWN. Owner,
+     16 Aug 2026: "every single dashboard need to have section as I stated where
+     i can drag and put where i want to arreange dash for user preference." This
+     mounts the SAME primitive the department dashboards use, saved per user
+     through tg_save_dashboard_layout; the page contributes only its own list. */
+  const WIDGETS = React.useMemo(() => [
+    { key: "cols", title: "Every room, its own turns down its own column", span: 2 },
+    { key: "activity", title: "Most recent turns", span: 1 },
+    { key: "reports", title: "Cultivation reports", span: 1 },
+  ], []);
+  const layout = useWidgetLayout(PAGE_KEY, WIDGETS);
   const measures = useCultMeasures();
   const [d, setD] = useState(null);
   const [openKpi, setOpenKpi] = useState(null);
@@ -168,6 +180,11 @@ export default function RoomTurnAudit({ go, session, role, viewAs }) {
           <div className="cc-tools-l">
             <button type="button" className="cc-btn" onClick={() => setVer((v) => v + 1)}>↻ read again</button>
             <button type="button" className="cc-btn" onClick={() => window.print()}>🖨 print</button>
+            <button type="button" className="cc-btn" title="Collapse every section — remembered on your own account"
+              onClick={() => store.setAll(WIDGETS.map((x) => x.key), false)}>− collapse all</button>
+            <button type="button" className="cc-btn" title="Expand every section"
+              onClick={() => store.setAll(WIDGETS.map((x) => x.key), true)}>+ expand all</button>
+            <WidgetBarControls layout={layout} />
           </div>
           <div className="cc-tools-r">
             <button type="button" className="cc-btn" onClick={() => go("harvest_lifecycle")}>Harvest lifecycle →</button>
@@ -215,9 +232,11 @@ export default function RoomTurnAudit({ go, session, role, viewAs }) {
           </DkDrill>
         )}
 
-        <div className="cult-body">
-          <CultSection id="cols" store={store} title="Every room, its own turns down its own column" count={columns.length}
-            chips={<DkTag tone="info">pass and fail exactly as the view serves them</DkTag>}>
+        <WidgetBoard layout={layout}>
+          {layout.list.map((w) => {
+            switch (w.key) {
+                        case "cols": return (
+              <Widget key={w.key} w={w} layout={layout} store={store} chips={<><DkTag tone="neutral">{Number(columns.length).toLocaleString()}</DkTag>{<DkTag tone="info">pass and fail exactly as the view serves them</DkTag>}</>}>
             {columns.length === 0
               ? <DkEmpty why="The view serves no room turn."
                   fills="A turn appears here once two consecutive take-downs exist in the same room for the gap between them to be measured." />
@@ -243,12 +262,23 @@ export default function RoomTurnAudit({ go, session, role, viewAs }) {
                     );
                   })}
                 </div>}
-          </CultSection>
+          </Widget>
+              );
 
-          <CultSection id="activity" store={store} title="Most recent turns" count={activity.length} defaultOpen={false}>
+                        case "activity": return (
+              <Widget key={w.key} w={w} layout={layout} store={store} defaultOpen={false} chips={<><DkTag tone="neutral">{Number(activity.length).toLocaleString()}</DkTag></>}>
             <CultActivity items={activity} what="the room turn audit" none="No turn carries a take-down date." />
-          </CultSection>
-        </div>
+          </Widget>
+              );
+                      case "reports": return (
+              <Widget key={w.key} w={w} layout={layout} store={store} defaultOpen={false}>
+                <DkReports reports={reports} dept={CULT_DEPT} go={go} />
+              </Widget>
+              );
+              default: return null;
+            }
+          })}
+        </WidgetBoard>
       </div>
     </DrillRoot>
   );

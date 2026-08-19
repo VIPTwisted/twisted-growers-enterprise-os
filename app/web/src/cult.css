@@ -13,12 +13,19 @@
    the drill are shared. The arrangement of the body never is.
    ═══════════════════════════════════════════════════════════════════════════ */
 
+/* THE DDC SCALE, MEASURED AGAINST commandcenter.css AND HELD HERE.
+   chrome 9-11px · body 12px · KPI figure 22px hard cap (the strip's own
+   .cc-kpi-val, unchanged) · padding at most 16px · border radius at most 2px.
+   The certified stylesheet uses a 2px radius and nothing softer, so nothing
+   here is softer either: a page that rounds its corners more than the page
+   beside it reads as a different product. */
+
 /* ── shared small parts (the kit) ─────────────────────────────────────────── */
 .cult-bar {
   display: inline-block; width: 100%; min-width: 60px; height: 8px;
-  background: var(--cc3); border-radius: 5px; overflow: hidden; vertical-align: middle;
+  background: var(--cc3); border-radius: 2px; overflow: hidden; vertical-align: middle;
 }
-.cult-bar-fill { display: block; height: 100%; border-radius: 5px; background: var(--ccinfo); }
+.cult-bar-fill { display: block; height: 100%; border-radius: 2px; background: var(--ccinfo); }
 .cult-bar-fill.ok { background: var(--ccok); }
 .cult-bar-fill.warn { background: var(--ccwarn); }
 .cult-bar-fill.attn { background: var(--ccattn); }
@@ -29,7 +36,7 @@
 .cult-feed-row {
   display: grid; grid-template-columns: 92px minmax(0, 1fr) auto; gap: 10px;
   align-items: baseline; padding: 6px 8px; border-left: 3px solid var(--ccline);
-  background: var(--cc1); border-radius: 0 6px 6px 0;
+  background: var(--cc1); border-radius: 0 2px 2px 0;
 }
 .cult-feed-row.ok { border-left-color: var(--ccok); }
 .cult-feed-row.warn { border-left-color: var(--ccwarn); }
@@ -51,7 +58,7 @@
    the row above it rather than as a new section. */
 .cult-pkgs {
   margin: 0 0 10px 18px; padding: 8px 10px; border-left: 2px solid var(--ccok);
-  background: var(--cc0); border-radius: 0 8px 8px 0;
+  background: var(--cc0); border-radius: 0 2px 2px 0;
 }
 
 /* Every page body uses the full width and wraps rather than clipping. */
@@ -60,7 +67,7 @@
 .cult-figure { font-family: var(--ccmono); font-variant-numeric: tabular-nums; }
 
 /* ── HARVESTS · severity bands, worst band first ──────────────────────────── */
-.cult-band { border: 1px solid var(--ccline); border-radius: 10px; overflow: hidden; }
+.cult-band { border: 1px solid var(--ccline); border-radius: 2px; overflow: hidden; }
 .cult-band + .cult-band { margin-top: 10px; }
 .cult-band-head {
   display: flex; flex-wrap: wrap; gap: 10px; align-items: baseline;
@@ -69,7 +76,7 @@
 .cult-band.crit .cult-band-head { border-left-color: var(--cccrit); }
 .cult-band.warn .cult-band-head { border-left-color: var(--ccwarn); }
 .cult-band.ok .cult-band-head { border-left-color: var(--ccok); }
-.cult-band-title { font-weight: 700; font-size: 13px; color: var(--cct0); }
+.cult-band-title { font-weight: 700; font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--cct0); }
 .cult-band-body { padding: 6px 8px; display: grid; gap: 4px; }
 .cult-hrow {
   display: grid; grid-template-columns: minmax(180px, 2fr) repeat(4, minmax(84px, 1fr)) auto;
@@ -82,11 +89,11 @@
 
 /* ── LIFECYCLE · a stage track per harvest, deadlines on the track ────────── */
 .cult-life { display: grid; gap: 8px; }
-.cult-lifecard { border: 1px solid var(--ccline); border-radius: 10px; padding: 10px 12px; background: var(--cc1); }
+.cult-lifecard { border: 1px solid var(--ccline); border-radius: 2px; padding: 10px 12px; background: var(--cc1); }
 .cult-lifecard.crit { border-color: var(--cccrit); }
 .cult-lifecard.warn { border-color: var(--ccwarn); }
 .cult-lifehead { display: flex; flex-wrap: wrap; gap: 8px; align-items: baseline; justify-content: space-between; }
-.cult-lifename { font-weight: 600; font-size: 13px; color: var(--cct0); overflow-wrap: anywhere; }
+.cult-lifename { font-weight: 600; font-size: 12px; color: var(--cct0); overflow-wrap: anywhere; }
 .cult-track { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; margin-top: 8px; }
 .cult-step {
   border-top: 3px solid var(--ccline); padding-top: 6px; font-size: 11px; color: var(--cct2);
@@ -95,17 +102,17 @@
 .cult-step.done { border-top-color: var(--ccok); color: var(--cct1); }
 .cult-step.late { border-top-color: var(--cccrit); color: var(--cct0); }
 .cult-step.now { border-top-color: var(--ccwarn); color: var(--cct0); }
-.cult-step b { display: block; color: var(--cct0); font-size: 12px; }
+.cult-step b { display: block; color: var(--cct0); font-size: 11px; }
 @media (max-width: 900px) { .cult-track { grid-template-columns: 1fr 1fr; } }
 
 /* ── HARVEST DETAIL · one card per scheduled pull, cultivars nested ───────── */
 .cult-pulls { display: grid; gap: 10px; }
-.cult-pull { border: 1px solid var(--ccline); border-radius: 10px; background: var(--cc1); overflow: hidden; }
+.cult-pull { border: 1px solid var(--ccline); border-radius: 2px; background: var(--cc1); overflow: hidden; }
 .cult-pullhead {
   display: flex; flex-wrap: wrap; gap: 12px; align-items: baseline;
   padding: 9px 12px; background: var(--cc2); border-bottom: 1px solid var(--ccline);
 }
-.cult-pullno { font-family: var(--ccmono); font-size: 16px; font-weight: 700; color: var(--cct0); }
+.cult-pullno { font-family: var(--ccmono); font-size: 12px; font-weight: 700; color: var(--cct0); }
 .cult-cvs { display: grid; gap: 2px; padding: 6px 10px; }
 .cult-cv {
   display: grid; grid-template-columns: minmax(140px, 2fr) repeat(3, minmax(80px, 1fr));
@@ -130,7 +137,7 @@
 .cult-lossrow {
   display: grid; grid-template-columns: minmax(150px, 1.6fr) minmax(120px, 1fr) minmax(110px, 1fr) auto;
   gap: 10px; align-items: baseline; padding: 6px 8px; background: var(--cc1);
-  border-radius: 6px; border-left: 3px solid var(--ccattn); font-size: 12px; color: var(--cct1);
+  border-radius: 2px; border-left: 3px solid var(--ccattn); font-size: 12px; color: var(--cct1);
 }
 .cult-lossrow.crit { border-left-color: var(--cccrit); }
 @media (max-width: 1000px) { .cult-lossrow { grid-template-columns: 1fr 1fr; } .cult-day { grid-template-columns: 1fr; } .cult-daymark { text-align: left; } }
@@ -139,7 +146,7 @@
 .cult-rank { display: grid; gap: 3px; }
 .cult-rankrow {
   display: grid; grid-template-columns: 28px minmax(150px, 1.4fr) minmax(120px, 1fr) minmax(140px, 1.2fr) minmax(90px, 0.7fr) auto;
-  gap: 10px; align-items: center; padding: 7px 8px; border-radius: 6px; background: var(--cc1);
+  gap: 10px; align-items: center; padding: 7px 8px; border-radius: 2px; background: var(--cc1);
   font-size: 12px; color: var(--cct1);
 }
 .cult-rankno { font-family: var(--ccmono); font-size: 12px; color: var(--cct2); text-align: right; }
@@ -147,8 +154,8 @@
 
 /* ── GENETICS · a searched card grid ──────────────────────────────────────── */
 .cult-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 10px; }
-.cult-card { border: 1px solid var(--ccline); border-radius: 10px; padding: 11px 12px; background: var(--cc1); }
-.cult-cardname { font-weight: 700; font-size: 14px; color: var(--cct0); overflow-wrap: anywhere; }
+.cult-card { border: 1px solid var(--ccline); border-radius: 2px; padding: 11px 12px; background: var(--cc1); }
+.cult-cardname { font-weight: 700; font-size: 12px; color: var(--cct0); overflow-wrap: anywhere; }
 .cult-cardline {
   display: flex; justify-content: space-between; gap: 10px; font-size: 12px;
   color: var(--cct2); padding: 3px 0; border-bottom: 1px solid var(--ccline);
@@ -159,9 +166,9 @@
 
 /* ── ROOM TURN AUDIT · one column per room ────────────────────────────────── */
 .cult-rooms { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px; align-items: start; }
-.cult-roomcol { border: 1px solid var(--ccline); border-radius: 10px; background: var(--cc1); overflow: hidden; }
+.cult-roomcol { border: 1px solid var(--ccline); border-radius: 2px; background: var(--cc1); overflow: hidden; }
 .cult-roomhead { padding: 9px 12px; background: var(--cc2); border-bottom: 1px solid var(--ccline); }
-.cult-roomname { font-weight: 700; font-size: 13px; color: var(--cct0); overflow-wrap: anywhere; }
+.cult-roomname { font-weight: 700; font-size: 12px; color: var(--cct0); overflow-wrap: anywhere; }
 .cult-turns { display: grid; gap: 2px; padding: 6px 8px; }
 .cult-turn {
   display: grid; grid-template-columns: 84px minmax(0, 1fr) auto; gap: 8px; align-items: baseline;
@@ -175,7 +182,7 @@
 .cult-act { display: grid; gap: 8px; }
 .cult-actcard {
   display: grid; grid-template-columns: minmax(200px, 1.6fr) repeat(3, minmax(90px, 1fr)) auto;
-  gap: 12px; align-items: center; padding: 10px 12px; border-radius: 10px;
+  gap: 12px; align-items: center; padding: 10px 12px; border-radius: 2px;
   border: 1px solid var(--ccline); background: var(--cc1);
 }
 .cult-actcard.crit { border-left: 5px solid var(--cccrit); }
@@ -186,11 +193,11 @@
 .cult-grades { display: grid; gap: 3px; }
 .cult-graderow {
   display: grid; grid-template-columns: minmax(170px, 1.4fr) minmax(120px, 1fr) minmax(90px, 0.6fr) minmax(90px, 0.6fr);
-  gap: 12px; align-items: center; padding: 7px 8px; background: var(--cc1); border-radius: 6px;
+  gap: 12px; align-items: center; padding: 7px 8px; background: var(--cc1); border-radius: 2px;
   font-size: 12px; color: var(--cct1);
 }
 .cult-split { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px; }
-.cult-splitcard { border: 1px solid var(--ccline); border-radius: 10px; padding: 10px 12px; background: var(--cc1); }
+.cult-splitcard { border: 1px solid var(--ccline); border-radius: 2px; padding: 10px 12px; background: var(--cc1); }
 .cult-splitbig { font-family: var(--ccmono); font-size: 22px; font-weight: 700; color: var(--cct0); display: block; }
 .cult-splitlbl { font-size: 11px; color: var(--cct2); display: block; overflow-wrap: anywhere; }
 @media (max-width: 1000px) { .cult-graderow { grid-template-columns: 1fr 1fr; } }
@@ -198,6 +205,6 @@
 /* ── the search field every catalogue page shares ─────────────────────────── */
 .cult-search { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 10px; }
 .cult-search input {
-  flex: 1 1 220px; min-width: 0; padding: 7px 10px; border-radius: 8px;
-  border: 1px solid var(--ccline); background: var(--cc0); color: var(--cct0); font-size: 13px;
+  flex: 1 1 220px; min-width: 0; padding: 7px 10px; border-radius: 2px;
+  border: 1px solid var(--ccline); background: var(--cc0); color: var(--cct0); font-size: 12px;
 }

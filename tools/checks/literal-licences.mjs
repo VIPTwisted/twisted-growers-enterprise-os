@@ -31,7 +31,12 @@ const BASELINE = join(here, "literal-licences.baseline.json");
 /* Where executable code lives. Everything else is documentation or data. */
 const CODE_DIRS = ["app/web/src", "app/supabase", "supabase/checks", "tools", "bridge"];
 const CODE_EXT = /\.(mjs|js|jsx|ts|tsx|sql|py)$/i;
-const SKIP = new Set(["node_modules", ".git", "dist", "chrome-profile", "__pycache__", ".cache", "migrations"]);
+/* "worktrees" — an agent worktree is a SECOND CHECKOUT of this same repo under
+   .claude/worktrees/. Scanning it re-reports findings the real checkout already
+   answers for, and it fails the build LOCALLY while Netlify (a fresh clone with
+   no worktrees) passes — a gate whose verdict depends on whether an agent is
+   running is a gate nobody can trust. Added 19 Aug 2026. */
+const SKIP = new Set(["node_modules", ".git", "dist", "chrome-profile", "__pycache__", ".cache", "migrations", "worktrees"]);
 
 /* The pattern for a Massachusetts licence in this programme: MC or MP then six digits.
    Written generically so a THIRD licence is caught too — the whole point of the rule. */

@@ -117,40 +117,16 @@ export function cultInPlace(tiles, openKpi, toggle) {
   return m;
 }
 
-/* ═══════════ a collapsible section that remembers itself, per user ═══════════
-   WHY THIS EXISTS RATHER THAN dashkit's Widget. Widget is welded to the drag
-   board: it needs a `w` descriptor and a `layout` from useWidgetLayout, and
-   mounting that on a register page would give nine more pages the department
-   dashboard's grid. These pages are not dashboards with rearrangeable tiles;
-   they are registers, catalogues and audits, and each lays its own body out.
-   What they legitimately share is the collapse behaviour and the memory of it,
-   which is this and nothing more.
-
-   It renders the SAME .cc-panel markup the owner graded, so a section here and
-   a section on the Command Center are the same object to look at. The count
-   sits in the header — a section that hides how much it is hiding is why
-   people expand all of them. State is remembered per user and per page through
-   the store the caller passes. Collapse HIDES rather than unmounts, so a read
-   behind a closed section keeps working, exactly as it does on the dashboards. */
-export function CultSection({ id, store, title, count, chips, defaultOpen = true, children }) {
-  const open = store.isOpen(id, defaultOpen);
-  return (
-    <section className="cc-panel">
-      <div className="cc-panel-head">
-        <button type="button" className="cc-whead" onClick={() => store.set(id, !open)} aria-expanded={open}
-          title={open ? "Collapse this section — your choice is remembered on your own account" : "Expand this section"}>
-          <span className="cc-panel-title">{title}</span>
-          {count !== null && count !== undefined && (
-            <span className="cc-panel-chips"><span className="cc-tag neutral">{Number(count).toLocaleString()}</span></span>
-          )}
-          {chips && <span className="cc-panel-chips">{chips}</span>}
-        </button>
-        <span className="cc-panel-caret" aria-hidden="true">{open ? "−" : "+"}</span>
-      </div>
-      <div className="cc-panel-body" style={open ? undefined : { display: "none" }}>{children}</div>
-    </section>
-  );
-}
+/* THERE IS NO COLLAPSIBLE-SECTION COMPONENT HERE, AND THAT IS DELIBERATE.
+   An earlier draft of this kit exported one. It was removed on 16 Aug 2026 when
+   the owner restated that every dashboard's sections must be draggable,
+   resizable and remembered per user: dashkit's Widget, WidgetBoard and
+   useWidgetLayout already are exactly that, saved through
+   tg_save_dashboard_layout. A second collapsible would have been a second
+   definition of the same primitive, which is the thing the discipline forbids —
+   the test is countable, and more than one definition is the defect. The nine
+   Cultivation pages mount the shared one and contribute only their own list of
+   sections. */
 
 /* ═══════════ a proportion bar ═══════════
    Geometry only. Every colour is a .ccpage token; nothing here names one. */
@@ -198,6 +174,11 @@ export function CultActivity({ items, what, none }) {
    in ONE batched read keyed by id, and a row whose id resolves to nothing says
    so rather than showing a blank.
 
+   IT ALSO CARRIES PROVENANCE AND STATE, because a package loaded from a Metrc
+   REPORT is historical — shipped, received or adjusted out — and must never be
+   read as something on hand today. The rows are shown with that stated, so a
+   historical package under a harvest is visibly historical.
+
    Filed with the database team: mv_package_harvest should carry tag and uom
    itself. Until it does, this read is the join, and it is done once per page
    rather than once per row. */
@@ -212,7 +193,7 @@ export function useCultPackages(ids) {
     const chunks = [];
     for (let i = 0; i < list.length; i += CHUNK) chunks.push(list.slice(i, i + CHUNK));
     Promise.all(chunks.map((c) =>
-      supabase.from("metrc_packages").select("id, tag, item_name, quantity, uom, lab_testing_state").in("id", c)))
+      supabase.from("metrc_packages").select("id, tag, item_name, quantity, uom, lab_testing_state, provenance, source_state").in("id", c)))
       .then((results) => {
         if (!live) return;
         const bad = results.find((r) => r.error);

@@ -23,10 +23,11 @@ import { supabase } from "./lib/supabase.js";
 import { DateRangeSelect } from "./App.jsx";
 import {
   grab, listOf, DkTag, DkErr, DkEmpty, DkKpiStrip, DkDrill, DrillRoot, DkHead, useSectionStore,
+  useWidgetLayout, Widget, WidgetBoard, WidgetBarControls, DkReports,
 } from "./dashkit.jsx";
 import {
   CULT_DEPT, useCultMeasures, cultTargetMap, cultTrendMap, cultLicenceMap,
-  cultRoomLabel, cultTile, cultInPlace, CultSection, CultActivity, cultNum,
+  cultRoomLabel, cultTile, cultInPlace, CultActivity, cultNum,
 } from "./cult-kit.jsx";
 
 const VIEW_KEY = "harvest_lifecycle";
@@ -93,8 +94,19 @@ function LcCard({ r, licMap }) {
   );
 }
 
-export default function HarvestLifecycle({ go, session, role, viewAs }) {
+export default function HarvestLifecycle({ go, session, role, viewAs, reports }) {
   const store = useSectionStore(session && session.user ? session.user.id : null, PAGE_KEY);
+  /* THE SECTIONS ARE ARRANGEABLE AND THE ARRANGEMENT IS THE USER'S OWN. Owner,
+     16 Aug 2026: "every single dashboard need to have section as I stated where
+     i can drag and put where i want to arreange dash for user preference." This
+     mounts the SAME primitive the department dashboards use, saved per user
+     through tg_save_dashboard_layout; the page contributes only its own list. */
+  const WIDGETS = React.useMemo(() => [
+    { key: "clocks", title: "Every harvest against its clock, blocking first", span: 2 },
+    { key: "activity", title: "Most recent take-downs in these records", span: 1 },
+    { key: "reports", title: "Cultivation reports", span: 1 },
+  ], []);
+  const layout = useWidgetLayout(PAGE_KEY, WIDGETS);
   const measures = useCultMeasures();
   const [range, setRange] = useState({ from: "", to: "" });
   const [d, setD] = useState(null);
@@ -184,6 +196,11 @@ export default function HarvestLifecycle({ go, session, role, viewAs }) {
             <button type="button" className="cc-btn" onClick={() => setVer((v) => v + 1)}
               title="Read every harvest again from the live records">↻ read again</button>
             <button type="button" className="cc-btn" onClick={() => window.print()}>🖨 print</button>
+            <button type="button" className="cc-btn" title="Collapse every section — remembered on your own account"
+              onClick={() => store.setAll(WIDGETS.map((x) => x.key), false)}>− collapse all</button>
+            <button type="button" className="cc-btn" title="Expand every section"
+              onClick={() => store.setAll(WIDGETS.map((x) => x.key), true)}>+ expand all</button>
+            <WidgetBarControls layout={layout} />
           </div>
           <div className="cc-tools-c">
             <DateRangeSelect label="Taken down between" from={range.from} to={range.to}
@@ -217,23 +234,34 @@ export default function HarvestLifecycle({ go, session, role, viewAs }) {
           </DkDrill>
         )}
 
-        <div className="cult-body">
-          <CultSection id="clocks" store={store} title="Every harvest against its clock, blocking first"
-            count={openFirst.length}
-            chips={<DkTag tone="info">dates and statuses exactly as the view serves them</DkTag>}>
+        <WidgetBoard layout={layout}>
+          {layout.list.map((w) => {
+            switch (w.key) {
+                        case "clocks": return (
+              <Widget key={w.key} w={w} layout={layout} store={store} chips={<><DkTag tone="neutral">{Number(openFirst.length).toLocaleString()}</DkTag>{<DkTag tone="info">dates and statuses exactly as the view serves them</DkTag>}</>}>
             {openFirst.length === 0
               ? <DkEmpty why="No harvest was taken down in the chosen date range."
                   fills="Widen the range above to see the whole lifecycle."
                   action={<button type="button" className="cc-btn" onClick={() => setRange({ from: "", to: "" })}>Show all dates</button>} />
               : <div className="cult-life">{openFirst.map((r) => <LcCard key={r.harvest} r={r} licMap={licMap} />)}</div>}
-          </CultSection>
+          </Widget>
+              );
 
-          <CultSection id="activity" store={store} title="Most recent take-downs in these records"
-            count={activity.length} defaultOpen={false}>
+                        case "activity": return (
+              <Widget key={w.key} w={w} layout={layout} store={store} defaultOpen={false} chips={<><DkTag tone="neutral">{Number(activity.length).toLocaleString()}</DkTag></>}>
             <CultActivity items={activity} what="the lifecycle register"
               none="No harvest in the chosen range carries a take-down date." />
-          </CultSection>
-        </div>
+          </Widget>
+              );
+                      case "reports": return (
+              <Widget key={w.key} w={w} layout={layout} store={store} defaultOpen={false}>
+                <DkReports reports={reports} dept={CULT_DEPT} go={go} />
+              </Widget>
+              );
+              default: return null;
+            }
+          })}
+        </WidgetBoard>
       </div>
     </DrillRoot>
   );

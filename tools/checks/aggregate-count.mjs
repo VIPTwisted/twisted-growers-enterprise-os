@@ -127,7 +127,12 @@ if (AGG === null) {
 }
 
 /* ------------------------------------------------------------------- the codebase --- */
-const SKIP = new Set(["node_modules", ".git", "dist", "env", "__pycache__", ".netlify", "workbook_extract", "migrations"]);
+/* "worktrees" — an agent worktree is a SECOND CHECKOUT of this same repo under
+   .claude/worktrees/. Scanning it re-reports findings the real checkout already
+   answers for, and it fails the build LOCALLY while Netlify (a fresh clone with
+   no worktrees) passes — a gate whose verdict depends on whether an agent is
+   running is a gate nobody can trust. Added 19 Aug 2026. */
+const SKIP = new Set(["node_modules", ".git", "dist", "env", "__pycache__", ".netlify", "workbook_extract", "migrations", "worktrees"]);
 const EXT = /\.(mjs|js|jsx|ts|tsx|sql|py)$/i;
 const SELF = "tools/checks/aggregate-count.mjs";
 

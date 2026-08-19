@@ -473,7 +473,10 @@ export default function CultivationDashboard({ go, session, reports, role, viewA
     (async () => {
       const [tiles, trend, targets, alertRules, limits, yld, dry, tasks] =
         await Promise.all([
-          supabase.from("mv_department_dashboard").select("*").eq("department", DEPT).order("ord"),
+          supabase.rpc("f_department_dashboard", { p_dept: DEPT, p_from: range.from || null, p_to: range.to || null })
+          .then((r) => (r.error || !r.data || !r.data.length)
+            ? supabase.from("mv_department_dashboard").select("*").eq("department", DEPT).order("ord")
+            : r),
           supabase.from("v_dashboard_trend").select("*").eq("department", DEPT),
           supabase.from("kpi_targets").select("*").eq("department", DEPT),
           supabase.from("harvest_alert_rules").select("rule_key, threshold, note, active")
@@ -500,7 +503,10 @@ export default function CultivationDashboard({ go, session, reports, role, viewA
       });
     })();
     return () => { live = false; };
-  }, [ver]);
+  /* range.from / range.to: this dashboard never re-fetched on a date change —
+     its effect depended on [ver] alone, so the picker moved and nothing behind
+     it did. Owner, 19 Aug 2026. */
+  }, [ver, range.from, range.to]);
 
   /* WAVE TWO. Each of these three fills one panel and gates nothing else. The
      ORDER BY on the room board is gone: it sorted an expensive view server-side
