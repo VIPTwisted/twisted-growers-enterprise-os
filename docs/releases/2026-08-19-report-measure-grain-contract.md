@@ -1,6 +1,6 @@
 # Report measure grain contract
 
-Status: candidate — prior version vetoed; corrected candidate awaiting fresh Worker, Reviewer, and Guard approval. Not applied, merged, or deployed.
+Status: live and verified — application merged at `cc629305b295845fd9033e98dc82455a4bd7683b`; Supabase migration applied once as `20260819235427_report_totals_require_declared_grain`; this receipt synchronizes the exact applied filename without changing SQL semantics.
 
 ## Executive decision
 
@@ -21,7 +21,7 @@ A numeric column is not a measure. A report cannot certify its own value grain. 
 - `app/web/src/App.jsx`
 - `tools/tests/report-measure-contract.test.mjs`
 - `tools/checks/report-measure-grain.mjs`
-- `supabase/migrations/20260819224500_report_totals_require_declared_grain.sql`
+- `supabase/migrations/20260819235427_report_totals_require_declared_grain.sql`
 - `.github/workflows/ci.yml`
 - `package.json`
 - this receipt
@@ -65,6 +65,16 @@ TopMenu, TG Workspace, navigation rows, and role visibility are not changed.
 4. Smoke authenticated unregistered, ambiguous, incomplete, RPC-error, export, and audit-drawer paths. Then require Git, GitHub CI, Supabase history/schema, and Netlify commit agreement.
 
 UI rollback after database apply is forbidden because it would restore the unsafe numeric heuristic. Roll forward; if the database migration rolls back, the new UI remains safely fail-closed.
+
+## Applied verification
+
+- GitHub PR #14 merged with the reviewed application commit preserved; both pull-request and merged-main gate suites passed.
+- Netlify's deploy-current watcher proved production was running merged `main` commit `cc629305b295845fd9033e98dc82455a4bd7683b` before the database apply.
+- Supabase recorded exactly one `20260819235427_report_totals_require_declared_grain` migration.
+- Runtime proof remains fail-closed: 1,739 rows / 1,739 distinct nonblank Apex order keys, two eligible NULL values, `grain_verified=false`, `population_snapshot_verified=false`, and no snapshot ID.
+- The canonical Apex order-grain control remains $6,360,187.52. It is a reconciliation control, not a certified browser subtotal while the two eligible NULL values remain.
+- All 77 uncontracted legacy measures remain explicitly refused; the one canonical declaration still refuses because eligible values are incomplete and no snapshot receipt exists.
+- Report registry remains 25 enabled rows / 78 declared measures. TopMenu, TG Workspace, all navigation, and role-visibility fingerprints are unchanged.
 
 ## Deliberately still open
 
