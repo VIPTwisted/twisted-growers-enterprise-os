@@ -389,7 +389,7 @@ const migrationEntries = files.map((name) => ({
   name,
   sql: readFileSync(join(migrationDir, name), "utf8"),
 }));
-const expectedMigrationTreeDigest = "9ceebe1686abe0163bb46ac0bd20464f0dcb402b645a3c4e0407663ae1889ee5";
+const expectedMigrationTreeDigest = "255de9a8bb57e9cdec36923c3a9d00976f07415dd1e3ea74dbf4bb3ab9376d9a";
 const actualMigrationTreeDigest = migrationTreeDigest(migrationEntries);
 if (actualMigrationTreeDigest !== expectedMigrationTreeDigest) {
   console.error(`money-grain: FAIL — migration tree differs from the independently reviewed ${files.length}-file manifest (${actualMigrationTreeDigest}).`);

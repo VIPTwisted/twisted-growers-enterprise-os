@@ -9,7 +9,7 @@ const { Client } = pg;
 const ROOT = resolve(import.meta.dirname, "../..");
 const APP = readFileSync(resolve(ROOT, "app/web/src/App.jsx"), "utf8");
 const POLICY = readFileSync(resolve(ROOT, "app/web/src/lib/report-measure-contract.js"), "utf8");
-const MIGRATION_FILE = "20260819224500_report_totals_require_declared_grain.sql";
+const MIGRATION_FILE = "20260819235427_report_totals_require_declared_grain.sql";
 const MIGRATION = readFileSync(resolve(ROOT, "supabase/migrations", MIGRATION_FILE), "utf8");
 const findings = [];
 const need = (condition, message) => { if (!condition) findings.push(message); };
@@ -85,7 +85,7 @@ async function runExecutionFixture(connectionString) {
     await admin.query(`create database "${database}"`); await fixture.connect(); await setupBase(fixture);
 
     await fixture.query("begin");
-    await fixture.query("insert into public.schema_migrations values('20260819224500','report_totals_require_declared_grain')");
+    await fixture.query("insert into public.schema_migrations values('20260819235427','report_totals_require_declared_grain')");
     await fixture.query(MIGRATION);
     const failedApply = await expectRejected(fixture,
       "update public.report_registry set fact_view='v_dummy_1' where report_key='sales.apex_invoice_truth'",
@@ -97,7 +97,7 @@ async function runExecutionFixture(connectionString) {
     need(rolledBack.rows[0].history === "0" && rolledBack.rows[0].semantic_table === "0", "failed apply left history or DDL behind");
 
     await fixture.query("begin");
-    await fixture.query("insert into public.schema_migrations values('20260819224500','report_totals_require_declared_grain')");
+    await fixture.query("insert into public.schema_migrations values('20260819235427','report_totals_require_declared_grain')");
     await fixture.query(MIGRATION); await fixture.query("commit");
 
     const applied = await fixture.query(`select
