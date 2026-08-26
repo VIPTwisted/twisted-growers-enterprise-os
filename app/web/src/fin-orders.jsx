@@ -253,6 +253,14 @@ export default function OrdersPage({ go, session, reports, role, viewAs, onViewA
   const [ver, setVer] = useState(0);
   const [tile, setTile] = useState(null);
   const [q, setQ] = useState("");
+  /* THE PERIOD IS "ALL" UNTIL SOMEBODY NARROWS IT.
+     Owner rule, 26 Aug 2026: any invoice from any period must be reachable. The
+     whole book is now read in one go, so there is no performance reason to
+     default to a recent slice, and a default that hides history is exactly the
+     defect this page had. Narrowing is offered; it is never assumed. */
+  const [period, setPeriod] = useState("all");
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
   const { targets, trend, err: targetErr } = useFinTargets(DEPT);
 
   const WIDGETS = useMemo(() => [
@@ -267,7 +275,18 @@ export default function OrdersPage({ go, session, reports, role, viewAs, onViewA
 
   const d = useFinRead(async () => {
     const [orders, wholesale, tasks, ...own] = await Promise.all([
-      supabase.from("v_apex_order_metrc_link").select("*").order("order_date", { ascending: false, nullsFirst: false }),
+      /* THE WHOLE BOOK, NOT THE FIRST PAGE OF IT.
+         PostgREST caps a response at 1,000 rows and this read had no pagination.
+         The book is ordered newest-first, so the page received the 1,000 most
+         recent orders and silently discarded the other 739 — every order before
+         roughly the start of 2026. That is why invoice Twiste-303, dated 18 May
+         2025, could not be found by typing its number: it was never in the
+         browser to search. The search box filters an array that had already been
+         cut, and the line under it printed "nothing is paged away" while 739
+         orders had been.
+         `finReadAll` is the primitive that pages, and this same file was already
+         using it on the very next line for the wholesale report. */
+      finReadAll("v_apex_order_metrc_link", "*", (qy) => qy.order("order_date", { ascending: false, nullsFirst: false })),
       finReadAll("metrc_rpt_wholesale", "manifest_number,invoice_number,amount,voided,created_on,destination_facility,destination_licence"),
       supabase.from("v_dashboard_tasks").select("*"),
       /* NOT `head: true`. A HEAD request has no response body, so PostgREST's
@@ -280,7 +299,10 @@ export default function OrdersPage({ go, session, reports, role, viewAs, onViewA
       ...OWN_TABLES.map(([t]) => supabase.from(t).select("*", { count: "exact" }).limit(1)),
     ]);
     return {
-      orders: grab(orders), wholesale, tasks: grab(tasks),
+      /* `finReadAll` already returns { rows, err, capped, pages } — the same
+         shape `grab` produces plus the cap flag, so it is passed straight
+         through and the cap can be rendered rather than swallowed. */
+      orders, wholesale, tasks: grab(tasks),
       /* THREE STATES, NEVER TWO. A count that is refused, a count that came
          back empty without an error, and a count of zero are three different
          facts and only the last one is "nothing here". `count` stays null for
@@ -314,10 +336,39 @@ export default function OrdersPage({ go, session, reports, role, viewAs, onViewA
   const ambiguous = pick("AMBIGUOUS INVOICE NUMBER");
   const noInvoice = pick("NO INVOICE NUMBER");
 
-  const filtered = q.trim()
-    ? orders.filter((o) => `${o.invoice_number ?? ""} ${o.apex_order_id} ${o.buyer_state_license ?? ""} ${o.link_status}`
-        .toLowerCase().includes(q.trim().toLowerCase()))
-    : orders;
+  /* ─── SEARCH BEATS THE DATE RANGE, ALWAYS ───────────────────────────────
+     Owner rule: when an invoice number is typed, the period filter is ignored.
+     A person who types "303" is asking a question about one invoice, not about
+     a date range, and answering "no results" because their range happened to
+     exclude it is the same defect in a new costume. The UI says out loud that
+     the range was set aside, so the reader is never quietly overruled. */
+  const searching = q.trim().length > 0;
+  const needle = q.trim().toLowerCase();
+  const matchesQ = (o) =>
+    `${o.invoice_number ?? ""} ${o.apex_order_id} ${o.buyer_state_license ?? ""} ${o.link_status}`
+      .toLowerCase().includes(needle);
+
+  const periodStart = () => {
+    if (period === "ytd") return new Date(new Date().getFullYear(), 0, 1);
+    if (period === "12m") { const dt = new Date(); dt.setFullYear(dt.getFullYear() - 1); return dt; }
+    if (period === "custom" && from) return new Date(from);
+    return null;
+  };
+  const periodEnd = () => (period === "custom" && to ? new Date(to) : null);
+  const inPeriod = (o) => {
+    if (period === "all") return true;
+    /* An order with no date is never silently dropped by a range — it is
+       unplaceable, not excluded, and it stays visible so it can be fixed. */
+    if (!o.order_date) return true;
+    const dt = new Date(o.order_date);
+    const s = periodStart();
+    const e = periodEnd();
+    return (!s || dt >= s) && (!e || dt <= e);
+  };
+
+  const periodNarrowed = period !== "all";
+  const rangeSetAside = searching && periodNarrowed;
+  const filtered = searching ? orders.filter(matchesQ) : orders.filter(inPeriod);
 
   const openTasks = d.tasks.rows.filter((t) => t.department === DEPT);
   const T = (k) => tile === k;
@@ -398,6 +449,7 @@ export default function OrdersPage({ go, session, reports, role, viewAs, onViewA
 
         {d.orders.err && <DkErr what="The Apex order book" err={d.orders.err} />}
         {d.wholesale.err && <DkErr what="The Metrc wholesale report" err={d.wholesale.err} />}
+        <FinCapped read={d.orders} what="The Apex order book" />
         <FinCapped read={d.wholesale} what="The Metrc wholesale report" />
 
         <FinKpiStrip department={DEPT} tiles={tiles} targets={targets} trend={trend}
@@ -470,16 +522,56 @@ export default function OrdersPage({ go, session, reports, role, viewAs, onViewA
                   <div className="fin-filters">
                     <label htmlFor="fin-ord-q">Search invoice number, buyer licence or state</label>
                     <input id="fin-ord-q" className="cc-input fin-search" value={q}
-                      onChange={(e) => setQ(e.target.value)} placeholder="type any part of it" />
-                    {q.trim() && <button className="cc-btn" onClick={() => setQ("")} title="Clear the search and show every order.">clear</button>}
+                      onChange={(e) => setQ(e.target.value)} placeholder="type any part of it — any period" />
+                    {searching && <button className="cc-btn" onClick={() => setQ("")} title="Clear the search and show every order.">clear</button>}
+
+                    <label htmlFor="fin-ord-period">Period</label>
+                    <select id="fin-ord-period" className="cc-input" value={period}
+                      onChange={(e) => setPeriod(e.target.value)}
+                      title="Narrow the list by order date. The whole book is already loaded, so this only decides what is shown — it never decides what was read.">
+                      <option value="all">All periods</option>
+                      <option value="ytd">This year to date</option>
+                      <option value="12m">Last 12 months</option>
+                      <option value="custom">Custom range…</option>
+                    </select>
+                    {period === "custom" && (
+                      <>
+                        <label htmlFor="fin-ord-from">From</label>
+                        <input id="fin-ord-from" type="date" className="cc-input" value={from}
+                          onChange={(e) => setFrom(e.target.value)} />
+                        <label htmlFor="fin-ord-to">To</label>
+                        <input id="fin-ord-to" type="date" className="cc-input" value={to}
+                          onChange={(e) => setTo(e.target.value)} />
+                      </>
+                    )}
+                    {periodNarrowed && !searching && (
+                      <button className="cc-btn" onClick={() => setPeriod("all")}
+                        title="Show every period again.">show all periods</button>
+                    )}
+
                     <span className="fin-count">
-                      {q.trim()
-                        ? `${filtered.length.toLocaleString()} of ${orders.length.toLocaleString()} orders match.`
-                        : `All ${orders.length.toLocaleString()} orders shown — nothing is paged away.`}
+                      {searching
+                        ? `${filtered.length.toLocaleString()} of ${orders.length.toLocaleString()} orders match “${q.trim()}”.`
+                        : periodNarrowed
+                          ? `${filtered.length.toLocaleString()} of ${orders.length.toLocaleString()} orders fall in this period. The other ${(orders.length - filtered.length).toLocaleString()} are still loaded — search finds them.`
+                          : `All ${orders.length.toLocaleString()} orders shown, every period. Read in ${d.orders.pages} page${d.orders.pages === 1 ? "" : "s"} of 1,000.`}
                     </span>
+                    {/* The reader is told when their own filter was overruled.
+                        Silently widening a range is better than silently
+                        narrowing one, but neither may happen without a sentence. */}
+                    {rangeSetAside && (
+                      <DkTag tone="attn"
+                        title="A search asks about a specific invoice, so the date range is set aside for it. Clear the search to return to the range.">
+                        date range set aside while searching — every period is being searched
+                      </DkTag>
+                    )}
                   </div>
                   <OrderTable orders={filtered} wholesale={d.wholesale.rows}
-                    emptyWhy={q.trim() ? `Nothing matches “${q}”.` : "The Apex order book holds no orders."} />
+                    emptyWhy={searching
+                      ? `Nothing in the whole order book matches “${q.trim()}” — all ${orders.length.toLocaleString()} orders were searched, not just the recent ones.`
+                      : periodNarrowed
+                        ? "No order falls in this period. Widen the range, or search by invoice number to ignore it."
+                        : "The Apex order book holds no orders."} />
                 </Widget>
               );
               case "own": return (
