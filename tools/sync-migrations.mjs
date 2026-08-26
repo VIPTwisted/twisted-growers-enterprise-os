@@ -84,7 +84,8 @@ for (const r of rows) {
     console.warn(
       `WITHHELD (carries a credential, not written): ${r.version}_${r.name}.sql\n` +
       `    The recorded statements contain a secret. Rotate it, scrub the statements in\n` +
-      `    supabase_migrations.schema_migrations, then re-run to mirror the file.`
+      `    supabase_migrations.schema_migrations, then re-run to mirror the file.\n` +
+      `    Standing cases and the full reasoning: docs/WITHHELD_MIGRATIONS.md`
     );
     // If a previous run already wrote it, take it back off disk.
     if (existsSync(file)) { try { unlinkSync(file); console.warn(`    removed the copy a previous run left behind.`); } catch { /* report only */ } }
