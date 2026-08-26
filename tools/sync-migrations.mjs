@@ -106,10 +106,27 @@ for (const r of rows) {
   console.log(`written: ${r.version}_${r.name}.sql`);
 }
 
+// THE SUMMARY MUST RECONCILE, OR IT IS NOT A SUMMARY.
+//
+// `withheld` was counted and never printed, so a run that refused to mirror three migrations
+// reported "936 applied · 933 already in repo · 0 newly mirrored · 40 diverged · 0 unnamed" and
+// left the reader to notice that 933 is not 936 on their own. Nobody did. Those three -
+// 20260805154324, 20260805173721, 20260807224411 - have been absent from the repository since
+// 5 and 7 Aug, and the WITHHELD warnings explaining why scrolled past every operator who ran
+// this. The gap this tool exists to close was reported as closed.
+//
+// It is also why "Repo is complete against the live database" must not be said while anything
+// is withheld: the repo is INCOMPLETE and the reason is recoverable, which is the one case
+// where saying so matters most.
 console.log(
   `\n${rows.length} applied migrations in the database · ${present} already in repo · ` +
-  `${written} newly mirrored · ${diverged} diverged (left alone) · ${unnamed} unnamed/empty skipped.\n` +
-  (written ? 'Review git status and commit the new files BY NAME - never sweep another agent’s work.' :
-             'Repo is complete against the live database.')
+  `${written} newly mirrored · ${diverged} diverged (left alone) · ${unnamed} unnamed/empty skipped · ` +
+  `${withheld} WITHHELD carrying a credential.\n` +
+  (withheld
+    ? `INCOMPLETE: ${withheld} migration(s) cannot be mirrored until the credential in their\n` +
+      'recorded statements is rotated and supabase_migrations.schema_migrations is scrubbed.\n' +
+      'Until then production is running SQL this repository does not contain.'
+    : written ? 'Review git status and commit the new files BY NAME - never sweep another agent’s work.' :
+                'Repo is complete against the live database.')
 );
 process.exit(0);
