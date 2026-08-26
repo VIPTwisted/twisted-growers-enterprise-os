@@ -73,6 +73,7 @@ import { readFileSync, writeFileSync, existsSync, readdirSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { join, resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import { openClient, refuse } from "../lib/db.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(here, "../..");
@@ -272,48 +273,26 @@ const files = inRepo.map(parseFileName).filter(Boolean);
 
 /* ─────────────────────────────────────────────────────────── the database side ─── */
 async function applied() {
-  let conn = process.env.PGURL || null;
-  if (!conn && existsSync(join(ROOT, ".mcp.json"))) {
-    try {
-      const url = JSON.parse(readFileSync(join(ROOT, ".mcp.json"), "utf8"))
-        ?.mcpServers?.["twisted-growers"]?.args?.[0];
-      if (url) conn = url.replace(/sslmode=[a-z-]+/, "uselibpqcompat=true&sslmode=require");
-    } catch { /* fall through to degraded */ }
-  }
-  if (!conn) return { rows: null, why: "no connection string (no PGURL, no .mcp.json)" };
-
-  let pg;
-  try { pg = (await import("pg")).default; }
-  catch { return { rows: null, why: "the pg driver is not installed here" }; }
-
-  const client = new pg.Client({
-    connectionString: conn, ssl: { rejectUnauthorized: false }, statement_timeout: 30000,
-  });
+  const client = await openClient("migration-drift", ROOT);
   try {
-    await client.connect();
     const { rows } = await client.query("select version, name from public.v_migration_history");
-    return { rows, why: null };
+    return rows;
   } catch (e) {
-    return { rows: null, why: e.message.trim() };
+    /* A connection that opens and then cannot read the history is not a softer failure than
+       no connection at all — it is the same absence of a verdict. */
+    refuse("migration-drift", `v_migration_history could not be read: ${e.message.trim()}`);
   } finally {
     await client.end().catch(() => {});
   }
 }
 
-const { rows, why } = await applied();
-
-if (!rows) {
-  /* Never a bare PASS on a check that did not run — the schema baseline gate read a clock
-     for a full day while production drifted 16 tables. Say the number that was NOT checked. */
-  console.log("migration-drift: PASS (DEGRADED) — no database connection here.");
-  console.log(`    ${why}`);
-  console.log(`    ${files.length} migration file(s) present. NOT compared against`);
-  console.log("    supabase_migrations.schema_migrations, so a migration applied to");
-  console.log("    production with no file here would NOT be caught by this run.");
-  console.log("    Meaningful where a connection exists: `npm run check` locally, and the");
-  console.log("    nightly run registered as gate.migration_drift in checker_registry.");
-  process.exit(0);
-}
+/* NO DATABASE, NO VERDICT — see tools/lib/db.mjs.
+ *
+ * This block used to print PASS (DEGRADED) and exit zero. CI never set PGURL, so that is what
+ * it did on every run from the day it was written. The `missing: 0` ratchet below was set by
+ * hand on 11 Aug specifically to catch a migration reaching production with no file here, and
+ * it caught nothing, because it never once ran. Fourteen migrations drifted underneath it. */
+const rows = await applied();
 
 if (rows.length === 0) {
   console.error("migration-drift: FAIL — v_migration_history returned zero rows.");

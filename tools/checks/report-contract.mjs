@@ -71,6 +71,7 @@
 import { readFileSync, writeFileSync, existsSync, readdirSync, statSync } from "node:fs";
 import { join, resolve, dirname, relative } from "node:path";
 import { fileURLToPath } from "node:url";
+import { openClient, refuse } from "../lib/db.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(here, "../..");
@@ -478,25 +479,11 @@ const measuredRepo = {
 
 /* ═══════════════════════════════════════════════════ the database half ═══════ */
 async function fromDatabase() {
-  let conn = process.env.PGURL || null;
-  if (!conn && existsSync(join(ROOT, ".mcp.json"))) {
-    try {
-      const url = JSON.parse(readFileSync(join(ROOT, ".mcp.json"), "utf8"))
-        ?.mcpServers?.["twisted-growers"]?.args?.[0];
-      if (url) conn = url.replace(/sslmode=[a-z-]+/, "uselibpqcompat=true&sslmode=require");
-    } catch { /* fall through to degraded */ }
-  }
-  if (!conn) return { rows: null, why: "no connection string (no PGURL, no .mcp.json)" };
-
-  let pg;
-  try { pg = (await import("pg")).default; }
-  catch { return { rows: null, why: "the pg driver is not installed here" }; }
-
-  const client = new pg.Client({
-    connectionString: conn, ssl: { rejectUnauthorized: false }, statement_timeout: 30000,
-  });
+  /* NO DATABASE, NO VERDICT — see tools/lib/db.mjs. L6 and I4 are facts about nav_registry
+     and cannot be read out of the source, so without a connection this gate covered three
+     rules of five and called the result a pass. */
+  const client = await openClient("report-contract", ROOT);
   try {
-    await client.connect();
     /* Two round trips rather than one join: the measurements and the limits are
        separate facts and mixing them in one query makes a stale baseline look like a
        measurement. */
@@ -516,7 +503,7 @@ async function fromDatabase() {
     return { rows: m, limits: Object.fromEntries(limits.map((l) => [l.metric_key, l.baseline])),
              why: null };
   } catch (e) {
-    return { rows: null, why: e.message.trim() };
+    refuse("report-contract", `nav_registry / ratchet_baseline could not be read: ${e.message.trim()}`);
   } finally {
     await client.end().catch(() => {});
   }
@@ -611,15 +598,7 @@ if (measuredRepo.c3aReasonsMissing > repoLimits.c3aReasonsMissing) {
 }
 
 const db = await fromDatabase();
-if (!db.rows) {
-  console.log("\nreport-contract: PASS (DEGRADED) — no database connection here.");
-  console.log(`    ${db.why}`);
-  console.log("    L6 (date range) and I4 (reports live in the Reports dropdown) were NOT");
-  console.log("    checked: both are facts about nav_registry, not about the source. The");
-  console.log("    three source rules above DID run and are enforced in this build.");
-  console.log("    Meaningful where a connection exists: `npm run check` locally, and the");
-  console.log("    nightly run registered as gate.report_contract in checker_registry.");
-} else {
+{
   const m = db.rows;
   const L = db.limits ?? {};
   console.log(`\nreport-contract: ${m.reports_total} enabled page(s) declare page_kind='report'.`);
@@ -665,4 +644,4 @@ if (failed) {
   console.error("\nreport-contract: FAIL\n");
   process.exit(1);
 }
-console.log(`\nreport-contract: PASS${db.rows ? " (VERIFIED against nav_registry)" : " (DEGRADED)"}.`);
+console.log("\nreport-contract: PASS (VERIFIED against nav_registry).");

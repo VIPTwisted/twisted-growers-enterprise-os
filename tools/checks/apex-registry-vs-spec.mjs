@@ -62,6 +62,7 @@
 import { readFileSync, existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { openClient, refuse } from "../lib/db.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const SPEC_PATH = join(ROOT, "docs", "apex", "apex-openapi-3.1.json");
@@ -114,42 +115,22 @@ const HEAVY = new Set(
 
 /* ── the registry is the thing under test ─────────────────────────────────────── */
 async function registryFromDatabase() {
-  let conn = process.env.PGURL || null;
-  if (!conn && existsSync(join(ROOT, ".mcp.json"))) {
-    try {
-      const url = JSON.parse(readFileSync(join(ROOT, ".mcp.json"), "utf8"))
-        ?.mcpServers?.["twisted-growers"]?.args?.[0];
-      if (url) conn = url.replace(/sslmode=[a-z-]+/, "uselibpqcompat=true&sslmode=require");
-    } catch { /* fall through */ }
-  }
-  if (!conn) return null;
-
-  let pg;
-  try { pg = (await import("pg")).default; } catch { return null; }
-
-  const client = new pg.Client({ connectionString: conn, ssl: { rejectUnauthorized: false },
-                                 statement_timeout: 30000 });
+  /* NO DATABASE, NO VERDICT — see tools/lib/db.mjs. apex_entity is the thing under test here;
+     parsing the spec alone tests the committed file against itself. */
+  const client = await openClient("apex-registry-vs-spec", ROOT);
   try {
-    await client.connect();
     const { rows } = await client.query(
       `select entity, endpoint, api_version, root_key, required, pull_mode,
               supports_delta, delta_required, supports_paging, min_interval_minutes
          from apex_entity order by entity`);
     return rows;
-  } catch { return null; }
+  } catch (e) {
+    refuse("apex-registry-vs-spec", `apex_entity could not be read: ${e.message.trim()}`);
+  }
   finally { await client.end().catch(() => {}); }
 }
 
 const rows = await registryFromDatabase();
-
-if (!rows) {
-  /* Never a bare PASS on a check that did not run — the schema baseline gate read a clock for
-     a full day while production drifted 16 tables. Say what was NOT verified. */
-  console.log("apex-registry-vs-spec: PASS (DEGRADED) — no database connection available here.");
-  console.log(`  ${Object.keys(PATHS).length} spec paths were parsed, but apex_entity was NOT read.`);
-  console.log("  Registry drift against the contract would not be caught in this run.");
-  process.exit(0);
-}
 
 if (rows.length === 0) {
   console.error("apex-registry-vs-spec: FAIL — apex_entity is EMPTY.");

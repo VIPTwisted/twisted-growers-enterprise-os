@@ -28,6 +28,7 @@
 import { readFileSync, existsSync, readdirSync, statSync } from "node:fs";
 import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
+import { openClient, refuse } from "../lib/db.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const SRC = join(ROOT, "app", "web", "src");
@@ -160,34 +161,12 @@ function checkSharedFolderHoldsNoLayouts() {
  * one does not -- a check whose limits are invisible is how a vacuous gate
  * survives (see schema-baseline-fresh.mjs, which was a clock for a day). */
 async function checkEveryPageDeclaresItself() {
-  let conn = process.env.PGURL || null;
-  if (!conn) {
-    const p = join(ROOT, ".mcp.json");
-    if (existsSync(p)) {
-      try {
-        const url = JSON.parse(readFileSync(p, "utf8"))?.mcpServers?.["twisted-growers"]?.args?.[0];
-        if (url) conn = url.replace(/sslmode=[a-z-]+/, "uselibpqcompat=true&sslmode=require");
-      } catch { /* fall through to degraded */ }
-    }
-  }
-  if (!conn) {
-    console.log("page-architecture: DEGRADED - no database connection here, so archetype");
-    console.log("    coverage was NOT verified. Front-end rules above still ran.");
-    return;
-  }
-
-  let pg;
-  try { pg = (await import("pg")).default; }
-  catch {
-    console.log("page-architecture: DEGRADED - pg driver absent, archetype coverage NOT verified.");
-    return;
-  }
-
-  const client = new pg.Client({
-    connectionString: conn, ssl: { rejectUnauthorized: false }, statement_timeout: 30000,
-  });
+  /* NO DATABASE, NO VERDICT — see tools/lib/db.mjs. Rule 4 is the whole reason this gate
+     exists: 522 pages once shared one layout because nothing made a page declare its kind,
+     and nav_registry is the only place that fact lives. Returning early on a missing
+     connection meant the front-end rules ran and the rule that mattered did not. */
+  const client = await openClient("page-architecture", ROOT);
   try {
-    await client.connect();
     const { rows: [r] } = await client.query(`
       /* coalesce, because NULL created_at fell into NEITHER bucket and the check reported
          "0 overdue" while 142 pages were undeclared -- 129 of them with no creation date at
@@ -233,7 +212,7 @@ async function checkEveryPageDeclaresItself() {
     console.log(`page-architecture: ${r.assigned} assigned - ${r.dumps} data-browser - `
       + `${r.undecided} overdue - ${r.in_grace} in grace`);
   } catch (err) {
-    console.log(`page-architecture: DEGRADED - archetype coverage NOT verified: ${err.message.trim()}`);
+    refuse("page-architecture", `nav_registry could not be read: ${err.message.trim()}`);
   } finally {
     await client.end().catch(() => {});
   }
