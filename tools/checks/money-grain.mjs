@@ -389,7 +389,24 @@ const migrationEntries = files.map((name) => ({
   name,
   sql: readFileSync(join(migrationDir, name), "utf8"),
 }));
-const expectedMigrationTreeDigest = "255de9a8bb57e9cdec36923c3a9d00976f07415dd1e3ea74dbf4bb3ab9376d9a";
+/* RE-PINNED 26 Aug 2026, 939 files. The previous seal (255de9a8…) covered a 925-file tree and
+ * was already stale on main before this branch existed: PR #17 merged 14 Metrc exception-queue
+ * migrations without re-pinning, so main measured 945 files at ee59a4c9… and money-grain was
+ * red on main itself. Verified by running this gate against a pristine checkout of origin/main.
+ *
+ * This tree is that one plus the C1 drift census: 3 migrations mirrored from production, 8
+ * renamed onto the ledger versions apply_migration actually assigned, 10 deleted (2 duplicates
+ * and the 8 the owner ruled abandoned), and the 19 Aug baseline dump replaced by a fresh one.
+ * 945 − 10 + 3 + 1 = 939.
+ *
+ * WHAT A RE-PIN DOES AND DOES NOT MEAN. This is a tamper seal on filenames and bodies, so that
+ * the money contract cannot be circumvented by renaming the seal or backdating a file into the
+ * tree. It is not a semantic approval of the SQL: inspectMoneyContract and
+ * inspectTagMoneyContainment below run against the contract files regardless of this digest,
+ * and both pass on this tree. Re-pinning to whatever happens to be on disk in order to get a
+ * green build would be --bless wearing a different hat; the number is stated here, with the
+ * arithmetic, so the diff that changes it is the thing reviewed. */
+const expectedMigrationTreeDigest = "364abdcb4373fd1d5f58e9b189c37b0a069c24d8a71eee06c5af2bf7c7c74709";
 const actualMigrationTreeDigest = migrationTreeDigest(migrationEntries);
 if (actualMigrationTreeDigest !== expectedMigrationTreeDigest) {
   console.error(`money-grain: FAIL — migration tree differs from the independently reviewed ${files.length}-file manifest (${actualMigrationTreeDigest}).`);
