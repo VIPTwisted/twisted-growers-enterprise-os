@@ -103,16 +103,29 @@ console.log(`ALL ${chain.length} GATES PASSED`);
 console.log(bar("="));
 
 if (degradedGates.length) {
-  /* A green build that quietly contains unverified gates is exactly how a vacuous gate
-     survives. Print it on SUCCESS - nobody reads the middle of a passing build log. */
-  console.log(`\n!! ${degradedGates.length} gate(s) ran DEGRADED and verified NOTHING here:\n`);
+  /* THIS IS NOW A FAILURE, NOT A FOOTNOTE.
+   *
+   * It used to be a banner on a green build: seven gates could not reach a database, answered
+   * PASS without checking anything, and this printed a paragraph asking nobody in particular
+   * not to read the build as proof. Nobody read the paragraph either. Fourteen migrations
+   * drifted into production underneath those green builds.
+   *
+   * Since 26 Aug 2026 a gate that cannot reach the database exits non-zero on its own, so
+   * reaching this line means one has re-acquired a soft-pass path - a new gate written to the
+   * old pattern, or an old one edited back to it. The banner survives as the detector for
+   * that, and it now stops the build rather than narrating it. */
+  console.log(`\n${bar("=")}`);
+  console.log(`GATE FAILED:  ${degradedGates.length} gate(s) reported DEGRADED`);
+  console.log(bar("="));
+  console.log("\nThese gates ran, exited zero, and verified NOTHING:\n");
   for (const g of degradedGates) console.log(`     ${g}`);
   console.log(`
-   These need a database and this build environment has none, so they answered
-   PASS without checking anything. That is the gates being honest, not a bug -
-   but it means drift they exist to catch CANNOT be caught in this build. They
-   are only meaningful where a connection exists.
+   A DEGRADED gate is an unverified gate wearing a pass. Every database-backed
+   gate is supposed to refuse outright now - see tools/lib/db.mjs - so a gate
+   reaching this line has a soft-pass path that needs removing, not reporting.
 
-   Do not read this build as proof that the schema, the documents or the page
-   registry match the database.\n`);
+   Fix the gate. Do not silence this check.
+`);
+  console.log(bar("="));
+  process.exit(1);
 }

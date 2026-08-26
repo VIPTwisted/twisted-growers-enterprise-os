@@ -35,6 +35,26 @@ jobs:
           --health-retries 10
     env:
       MONEY_TEST_PGURL: postgresql://postgres@localhost:5432/postgres
+      # THE GATES THAT NEED THE REAL DATABASE NEED IT HERE, TOO.
+      #
+      # MONEY_TEST_PGURL above is the throwaway service container two lines up. It is NOT the
+      # production database and was never meant to be: money-grain builds its own fixture in it.
+      #
+      # Seven gates read production — migration-drift, report-contract, page-architecture,
+      # docs-vs-database, schema-baseline, apex-registry, no-duplicate-rows. Until this line
+      # existed, none of them could reach it, so every one answered PASS (DEGRADED) and exited
+      # zero. The migration-drift ratchet was set to `missing: 0` on 11 Aug and never once ran:
+      # 14 migrations reached production with no file in this repository and the build stayed
+      # green through all of them.
+      #
+      # THE POOLER HOST, NOT THE DIRECT ONE. Supabase's direct db.<ref>.supabase.co host is
+      # IPv6-only and GitHub's runners are IPv4-only, so a direct string times out here and
+      # times out in a way that looks like a firewall, not a config error. The secret holds the
+      # aws-0-<region>.pooler.supabase.com string, on a read-only role.
+      #
+      # NO FALLBACK IS CORRECT. If the secret is absent the gates fail closed and say so. A gate
+      # that cannot see the database is not a gate that passed.
+      PGURL: ${{ secrets.TG_GATES_PGURL }}
     steps:
       - uses: actions/checkout@v4
         with:

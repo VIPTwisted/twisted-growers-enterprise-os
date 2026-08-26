@@ -27,6 +27,7 @@
 import { readdirSync, statSync, existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { openClient, refuse } from "../lib/db.mjs";
 
 const MAX_AGE_HOURS = 48; // was 168. A week of drift is not a baseline.
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
@@ -100,41 +101,18 @@ if (!m) {
 }
 const recorded = { tables: +m[1], views: +m[2], matviews: +m[3], policies: +m[4] };
 
-/* Connection is optional by design: absent in a bare CI checkout, present locally and in the
-   Netlify build. Never invent one, and never pretend the strict tier ran when it did not. */
-function connectionString() {
-  if (process.env.PGURL) return process.env.PGURL;
-  const p = join(ROOT, ".mcp.json");
-  if (!existsSync(p)) return null;
-  try {
-    const url = JSON.parse(readFileSync(p, "utf8"))?.mcpServers?.["twisted-growers"]?.args?.[0];
-    return url ? url.replace(/sslmode=[a-z-]+/, "uselibpqcompat=true&sslmode=require") : null;
-  } catch { return null; }
-}
-
-const conn = connectionString();
-if (!conn) {
-  console.log("schema-baseline: PASS (DEGRADED) - " + f + ", " + Math.round(hours) + "h old, " +
-              (st.size / 1024).toFixed(0) + " KB.");
-  console.log("  Records " + recorded.tables + " tables, " + recorded.views + " views, " +
-              recorded.policies + " policies.");
-  console.log("  NOT VERIFIED against the live database - no connection available here.");
-  console.log("  Age and size only. Drift would not be caught by this run.");
-  process.exit(0);
-}
-
-let pg;
-try { pg = (await import("pg")).default; }
-catch {
-  console.log("schema-baseline: PASS (DEGRADED) - " + f + ", " + Math.round(hours) + "h old.");
-  console.log("  NOT VERIFIED against live - the pg driver is not installed here.");
-  process.exit(0);
-}
-
-const client = new pg.Client({ connectionString: conn, ssl: { rejectUnauthorized: false },
-                               statement_timeout: 30000 });
+/* NO DATABASE, NO VERDICT — see tools/lib/db.mjs.
+ *
+ * The DEGRADED tier this replaces is not a hypothetical. The header of this file records that
+ * "the schema baseline gate read a clock for a full day while production drifted 16 tables" —
+ * and it is quoted, verbatim, in five other gates as the reason none of them should ever
+ * report a bare pass. Then CI shipped with no PGURL, so THIS gate fell back to the clock on
+ * every run anyway, and the other five printed the warning about it while doing the same.
+ *
+ * There is no age-and-size tier any more. Counting objects is the check; the clock was only
+ * ever the consolation prize for not being able to count. */
+const client = await openClient("schema-baseline", ROOT);
 try {
-  await client.connect();
   const { rows: [live] } = await client.query(`
     select (select count(*) from pg_tables    where schemaname='public')::int as tables,
            (select count(*) from pg_views     where schemaname='public')::int as views,
@@ -161,11 +139,9 @@ try {
   console.log("  " + live.tables + " tables, " + live.views + " views, " +
               live.matviews + " matviews, " + live.policies + " policies - all match.");
 } catch (err) {
-  /* A connection that exists but fails must not be silently downgraded to a pass-by-clock:
-     that is indistinguishable from the vacuous behaviour being fixed. Report and pass, loudly. */
-  console.log("schema-baseline: PASS (DEGRADED) - " + f + ", " + Math.round(hours) + "h old.");
-  console.log("  NOT VERIFIED against live - " + err.message.trim());
-  console.log("  Age and size only. Drift would not be caught by this run.");
+  /* A connection that opens and then fails to count must not be downgraded to a pass-by-clock:
+     that is indistinguishable from the vacuous behaviour this gate exists to prevent. */
+  refuse("schema-baseline", `the live object counts could not be read: ${err.message.trim()}`);
 } finally {
   await client.end().catch(() => {});
 }

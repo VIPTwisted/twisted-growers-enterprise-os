@@ -54,6 +54,7 @@
 import { readFileSync, existsSync } from "node:fs";
 import { resolve, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { openClient } from "../lib/db.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 
@@ -64,37 +65,14 @@ const SYNC_TARGETS = [
   "product_inventory", "third_party_material", "apex_raw", "customers",
 ];
 
-function connString() {
-  if (process.env.PGURL) return process.env.PGURL;
-  const p = join(ROOT, ".mcp.json");
-  if (!existsSync(p)) return null;
-  try {
-    const url = JSON.parse(readFileSync(p, "utf8"))?.mcpServers?.["twisted-growers"]?.args?.[0];
-    return url ? url.replace(/sslmode=[a-z-]+/, "uselibpqcompat=true&sslmode=require") : null;
-  } catch { return null; }
-}
-
-const conn = connString();
-if (!conn) {
-  console.log("no-duplicate-rows: SKIPPED — no PGURL and no .mcp.json, so the database could not be read.");
-  console.log("               This is NOT a pass. Nothing was checked.");
-  process.exit(0);
-}
-
-let pg;
-try { pg = (await import("pg")).default; }
-catch {
-  console.log("no-duplicate-rows: SKIPPED — the pg module is not installed. Nothing was checked.");
-  process.exit(0);
-}
-
-const client = new pg.Client({ connectionString: conn, ssl: { rejectUnauthorized: false },
-                               statement_timeout: 60000 });
+/* NO DATABASE, NO VERDICT — see tools/lib/db.mjs. The file's own header already said "NO
+   DATABASE, NO VERDICT. Without a connection this SKIPS and says so loudly rather than
+   passing" — but a loud SKIP that exits zero is a pass to everything downstream, and
+   run-gates printed it in the green column. The intent was right; the exit code was not. */
+const client = await openClient("no-duplicate-rows", ROOT, { statement_timeout: 60000 });
 let failed = 0;
 
 try {
-  await client.connect();
-
   const { rows: audit } = await client.query(
     "select table_name, key_columns, dup_groups, extra_rows, unique_indexes from v_duplicate_audit order by table_name");
 

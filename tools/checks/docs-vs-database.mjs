@@ -46,6 +46,7 @@ import { readFileSync, existsSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { openClient, refuse } from "../lib/db.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 
@@ -152,23 +153,11 @@ const live = files.filter((f) => !ARCHIVE.some((re) => re.test(f)));
 
 /* ── the database is the authority ───────────────────────────────────────────── */
 async function licencesFromDatabase() {
-  let conn = process.env.PGURL || null;
-  if (!conn && existsSync(join(ROOT, ".mcp.json"))) {
-    try {
-      const url = JSON.parse(readFileSync(join(ROOT, ".mcp.json"), "utf8"))
-        ?.mcpServers?.["twisted-growers"]?.args?.[0];
-      if (url) conn = url.replace(/sslmode=[a-z-]+/, "uselibpqcompat=true&sslmode=require");
-    } catch { /* fall through */ }
-  }
-  if (!conn) return null;
-
-  let pg;
-  try { pg = (await import("pg")).default; } catch { return null; }
-
-  const client = new pg.Client({ connectionString: conn, ssl: { rejectUnauthorized: false },
-                                 statement_timeout: 30000 });
+  /* NO DATABASE, NO VERDICT — see tools/lib/db.mjs. company_licenses IS the authority this
+     gate compares documents against; with no connection there is no authority and therefore
+     nothing to compare, which is not the same as agreement. */
+  const client = await openClient("docs-vs-database", ROOT);
   try {
-    await client.connect();
     const { rows } = await client.query(
       "select license, kind, active from company_licenses");
     /* Counterparty licences the database can ATTEST — each one carries real Metrc transfer
@@ -180,7 +169,9 @@ async function licencesFromDatabase() {
        where destination_licence ~ '^M[CP][0-9]{6}$'
        group by 1`);
     return { ours: rows, counterparties: cp };
-  } catch { return null; }
+  } catch (e) {
+    refuse("docs-vs-database", `company_licenses could not be read: ${e.message.trim()}`);
+  }
   finally { await client.end().catch(() => {}); }
 }
 
@@ -188,16 +179,7 @@ selfTest();
 if (process.argv.includes("--selftest")) process.exit(0);
 
 const db = await licencesFromDatabase();
-const rows = db?.ours ?? null;
-
-if (!rows) {
-  /* Never a bare PASS on a check that did not run. That is how a vacuous gate survives — the
-     schema baseline gate read a clock for a full day while production drifted 16 tables. */
-  console.log("docs-vs-database: PASS (DEGRADED) — no database connection available here.");
-  console.log(`  ${live.length} live documents were NOT verified against company_licenses.`);
-  console.log("  This check is only meaningful with a connection. Drift would not be caught.");
-  process.exit(0);
-}
+const rows = db.ours;
 
 const known = new Map(rows.map((r) => [r.license, r]));
 /* Attested counterparties. Keyed by licence, valued by the evidence, so the output can say
