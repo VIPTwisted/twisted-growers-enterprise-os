@@ -101,6 +101,11 @@ const Genetics = lazy(() => import("./cult-genetics.jsx"));
 const RoomTurnAudit = lazy(() => import("./cult-room-turn-audit.jsx"));
 const MoistureRegister = lazy(() => import("./cult-moisture-register.jsx"));
 const Grading = lazy(() => import("./cult-grading.jsx"));
+/* METRC EXCEPTION QUEUES — ticket C2, 26 Aug 2026. Four Metrc-driven queues on
+   one page_archetype `issue_queue` surface: harvest moisture and residual,
+   packages never submitted for testing, failed tests with no disposition, and
+   harvests open past the 28-day limit. Same prop contract as every page above. */
+const MetrcExceptions = lazy(() => import("./metrc-exceptions.jsx"));
 /* PLANT CENSUS AND THE METRC MIRROR — 15 Aug 2026. The plant record was
    reconciled against both of Metrc's paths on 14-15 Aug and v_plant_census and
    v_plant_mirror_balance were named by no component in this tree, so none of it
@@ -11714,6 +11719,7 @@ export default function App() {
     room_turn_audit: <RoomTurnAudit go={setView} session={session} role={role} viewAs={viewAsRole} reports={reports} />,
     moisture_loss_register: <MoistureRegister go={setView} session={session} role={role} viewAs={viewAsRole} reports={reports} />,
     grading: <Grading go={setView} session={session} role={role} viewAs={viewAsRole} reports={reports} />,
+    xq_metrc_exceptions: <MetrcExceptions go={setView} session={session} role={role} viewAs={viewAsRole} reports={reports} />,
     menu_manager: isExec
       ? <MenuManager onChanged={() => setNavVersion((v) => v + 1)} />
       : <div className="empty"><div className="eicon">{I.shield}</div><b>Admin area</b>Menu Manager is restricted to executives. Ask an owner if a menu change is needed.</div>,
