@@ -68,6 +68,33 @@ export function resolveConnection(ROOT) {
   }
 }
 
+/* WHAT THE CONNECTION IS POINTED AT, WITH THE CREDENTIAL REMOVED.
+ *
+ * On 27 Aug 2026 the Gates workflow failed with:
+ *
+ *     the connection from the PGURL environment variable failed: getaddrinfo EAI_AGAIN base
+ *
+ * "base" is the tail of "supabase". The secret had been truncated inside the hostname. That
+ * took an hour to establish, because the refusal named the VARIABLE but never the TARGET, and
+ * the value is masked in CI logs — so the one fact that identifies a malformed connection
+ * string was the one fact nobody could see.
+ *
+ * The host and port are not the secret; the password is. Printing host:port/database turns a
+ * mangled secret into a self-evident failure, and printing anything from the userinfo would
+ * put a credential in a build log that thousands of runs keep forever. Hence the explicit
+ * blanking of username and password below rather than a substring of the URL. */
+export function describeTarget(conn) {
+  try {
+    const u = new URL(conn);
+    u.username = "";
+    u.password = "";
+    const db = u.pathname.replace(/^\//, "") || "(no database in the string)";
+    return `${u.hostname || "(no host)"}:${u.port || "(no port)"}/${db}`;
+  } catch {
+    return "(the connection string is not a parseable URL)";
+  }
+}
+
 /* THE REFUSAL IS THE PRODUCT. It must name the gate, say plainly that nothing was verified,
    and give the one instruction that fixes it — a red build whose reason nobody can read is
    the failure mode run-gates.mjs was built to end, and this must not reintroduce it. */
@@ -110,7 +137,11 @@ export async function openClient(gate, ROOT, { statement_timeout = 30000 } = {})
     await client.connect();
   } catch (e) {
     await client.end().catch(() => {});
-    refuse(gate, `the connection from ${source} failed: ${e.message.trim()}`);
+    refuse(gate,
+      `the connection from ${source} failed: ${e.message.trim()}\n`
+      + `      it was pointed at ${describeTarget(conn)} (credential removed)\n`
+      + "      if that host is not the one you expect, the value is malformed — a secret\n"
+      + "      truncated inside its own hostname reads exactly like a DNS outage.");
   }
   return client;
 }
