@@ -2,27 +2,37 @@
 
 **Measured 26 August 2026 against `fxetuqjryttnypgepsru`. Owner ruling the same day: names only, and they stay unfiled.**
 
-Three migrations ran in production and have no file in this repository. They are not
-missing through neglect — `tools/sync-migrations.mjs` **refuses to write them**, because
-their recorded statements in `supabase_migrations.schema_migrations` carry live
-credentials.
+**Four** migrations ran in production and have no file in this repository, because their
+recorded statements in `supabase_migrations.schema_migrations` carry live credentials.
 
 ```
-20260805154324  metrc_auto_sync_schedule
-20260805173721  metrc_reference_tables_and_schedule
-20260807224411  permanent_document_urls_no_expiry_anywhere
+20260805154324  metrc_auto_sync_schedule                      withheld by the mirror
+20260805173721  metrc_reference_tables_and_schedule           withheld by the mirror
+20260807224411  permanent_document_urls_no_expiry_anywhere    withheld by the mirror
+20260805215014  vincent_user_and_ai_budget                    gitignored by name
 ```
+
+They are excluded two different ways, and the difference matters. The first three trip
+`SECRET_PATTERNS`, so `tools/sync-migrations.mjs` refuses to write them at all. The fourth
+does **not** trip the patterns — the mirror writes it to disk on every run — and it is kept
+out of the repository by name in `.gitignore` instead.
+
+So a machine that has run the mirror has one more file in `supabase/migrations/` than a
+clean clone does. That is not cosmetic: `tools/checks/money-grain.mjs` seals the migration
+tree by reading the **directory**, so the two disagree on the digest. It turned the Netlify
+build red on 26 Aug, when a re-pin was measured on a working tree instead of on a clean
+checkout. Measure that digest in a fresh clone, never in a tree where the mirror has run.
 
 ## No SQL lives in this file, and none may be added to it
 
 This directory has a sibling, `docs/rejected-migrations/`, which holds the *body* of
 migrations that were rejected. That convention is deliberately **not** followed here.
-A rejected migration is safe to keep because it never ran; these three ran, and the
+A rejected migration is safe to keep because it never ran; these four ran, and the
 reason they cannot be filed is the very thing a file would contain.
 
 `tools/hooks/guard-secrets.mjs` blocks a credential-bearing body from reaching disk
 whatever the intent, and it is right to. Do not work around it to "complete the record".
-The record is the three names above.
+The record is the four names above.
 
 ## Why nobody noticed for three weeks
 

@@ -405,8 +405,21 @@ const migrationEntries = files.map((name) => ({
  * inspectTagMoneyContainment below run against the contract files regardless of this digest,
  * and both pass on this tree. Re-pinning to whatever happens to be on disk in order to get a
  * green build would be --bless wearing a different hat; the number is stated here, with the
- * arithmetic, so the diff that changes it is the thing reviewed. */
-const expectedMigrationTreeDigest = "364abdcb4373fd1d5f58e9b189c37b0a069c24d8a71eee06c5af2bf7c7c74709";
+ * arithmetic, so the diff that changes it is the thing reviewed.
+ *
+ * CORRECTED 26 Aug 2026, and the correction is the instructive part. The first re-pin said 939
+ * files at 364abdcb… and turned the Netlify build red, because it was measured on a working
+ * tree and not on what git carries. This gate reads the DIRECTORY. Four migrations whose
+ * recorded statements contain live credentials are ignored by name in .gitignore, and
+ * sync-migrations.mjs rewrites them onto disk on every run — so an operator who has run the
+ * mirror has 939 files and a clean clone has 938, and only one of those is what CI builds.
+ *
+ * The repo already learned this once, in migration-drift.mjs: "the comparison runs against what
+ * GIT has, not what this disk has ... judging the working tree instead would make the verdict
+ * depend on who is sitting at the machine." That note was written about a different gate and
+ * this one still reads the disk. 58b63b00… is the clean-clone tree, verified by running the
+ * full chain in a fresh checkout of main with the mirror never run. */
+const expectedMigrationTreeDigest = "58b63b009214a20a1368134668b6c93a8b8e04648229bb6f4bee796b9bb87482";
 const actualMigrationTreeDigest = migrationTreeDigest(migrationEntries);
 if (actualMigrationTreeDigest !== expectedMigrationTreeDigest) {
   console.error(`money-grain: FAIL — migration tree differs from the independently reviewed ${files.length}-file manifest (${actualMigrationTreeDigest}).`);
