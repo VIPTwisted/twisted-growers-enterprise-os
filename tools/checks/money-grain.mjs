@@ -506,8 +506,18 @@ const migrationEntries = files.map((name) => ({
  *
  * THREE readings agreed this time, the CI one having been unavailable for the previous two pins:
  * the gate on the clean-clone file set, the recomputation from the git object store, and the
- * failing Gates run on 2a34037 itself. All three give 951 files at 0eb93a71… . */
-const expectedMigrationTreeDigest = "0eb93a71f8ff0bceefb6044541c6c2d35519d7d6501bdb015b3c831cef4fc814";
+ * failing Gates run on 2a34037 itself. All three give 951 files at 0eb93a71… .
+ *
+ * RE-PINNED 28 Aug 2026, 952 files, off a4b1af4. One migration landed, from PR #38:
+ * 20260828181427_three_hr_pages_open_on_the_frame_that_fits_them.sql - six HR pages joining the
+ * period bus. Not this lane's work and not read for meaning here.
+ *
+ * The baseline was checked before pinning and again did not need a re-dump: schema-baseline
+ * still passes against live at 450 / 521 / 28 / 850. Pin only.
+ *
+ * Two readings: the gate on the clean-clone file set, and the recomputation from the git object
+ * store with the working directory untouched. Both give 952 files at a327d5a9… . */
+const expectedMigrationTreeDigest = "a327d5a9fc289bdff7a945d221da1817f9568b1213e71700c19ae6a5f02b4466";
 const actualMigrationTreeDigest = migrationTreeDigest(migrationEntries);
 if (actualMigrationTreeDigest !== expectedMigrationTreeDigest) {
   console.error(`money-grain: FAIL — migration tree differs from the independently reviewed ${files.length}-file manifest (${actualMigrationTreeDigest}).`);
