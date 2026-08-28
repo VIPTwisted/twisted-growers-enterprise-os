@@ -464,8 +464,25 @@ const migrationEntries = files.map((name) => ({
  * to change, and burned a second re-pin.
  *
  * Same clean-clone measure: credential migration aside, 949 files at b7ef410c… locally, and the
- * Gates run on f1a4481 printed the same count and the same b7ef410c… . Two readings. */
-const expectedMigrationTreeDigest = "b7ef410c2a816a3312ed6f242d080ef6d6b2f174785860b9402031d1e30eaf7a";
+ * Gates run on f1a4481 printed the same count and the same b7ef410c… . Two readings.
+ *
+ * RE-PINNED 28 Aug 2026, 950 files, off 6e4abf1. One migration landed on the 949 tree, from
+ * PR #31: 20260828172903_a_report_states_which_system_it_read.sql. Not this lane's work and not
+ * read for meaning here.
+ *
+ * THE SECOND READING CAME FROM SOMEWHERE ELSE THIS TIME, and the difference is worth recording.
+ * The two previous pins were corroborated by the failing Gates run printing the same digest. On
+ * 6e4abf1 Gates failed EARLIER, on "Schema baseline is fresh", so the money-grain step never ran
+ * and there was no CI digest to compare against. Pinning on a single reading is exactly how the
+ * 26 Aug re-pin turned the build red, so the corroboration was taken a different way: the tree
+ * digest was recomputed from the GIT OBJECT STORE at HEAD - file list and every body read via
+ * git ls-tree and git show, never touching the working directory - and independently reproduced
+ * 950 files at 0941b504… . That path cannot see the gitignored credential migration at all,
+ * which makes it a cleaner reading of what CI checks out than moving a file aside and trusting
+ * the disk. Both readings agree.
+ *
+ * Nothing about the gate changes but the digest. */
+const expectedMigrationTreeDigest = "0941b504b0f1f66040eb6f075bf1de8ab0caf449b3d4b84453c4e2cbdfc708f0";
 const actualMigrationTreeDigest = migrationTreeDigest(migrationEntries);
 if (actualMigrationTreeDigest !== expectedMigrationTreeDigest) {
   console.error(`money-grain: FAIL — migration tree differs from the independently reviewed ${files.length}-file manifest (${actualMigrationTreeDigest}).`);
