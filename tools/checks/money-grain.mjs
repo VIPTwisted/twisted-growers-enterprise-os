@@ -434,8 +434,23 @@ const migrationEntries = files.map((name) => ({
  * printed. Two independent readings agreeing is the only reason this number is written down.
  *
  * Nothing about the gate is loosened. The digest is the only line that changes; every check
- * below it runs unchanged and passes on this tree. */
-const expectedMigrationTreeDigest = "c5e292943199de2ffc04bfc6cf09b40e2663907b40d74da6984848d6a7f257fb";
+ * below it runs unchanged and passes on this tree.
+ *
+ * RE-PINNED AGAIN 28 Aug 2026, 948 files, after main went red at f6f2d9c. Two migrations landed
+ * on top of the 946-file tree, both from PR #25, the period bus tower:
+ *
+ *   20260828165623_last_12_calendar_months_is_not_365_days.sql
+ *   20260828165638_dashboards_open_on_the_week_so_far.sql
+ *
+ * Neither is this lane's work and neither was read for meaning here - re-pinning is a tamper
+ * seal, not an approval of their SQL, and the money contract checks below run against the
+ * contract files regardless and pass.
+ *
+ * Measured on the clean-clone file set as this block requires: the gitignored credential
+ * migration 20260805215014_vincent_user_and_ai_budget.sql was moved aside first, giving 948
+ * files at 0bd978a2… . The failing Gates run on f6f2d9c printed the same 948 files and the same
+ * 0bd978a2… . Two independent readings agreeing is again the only reason this number is here. */
+const expectedMigrationTreeDigest = "0bd978a22a924d0be5fefd674edc6aec45886b68a67d4217c67c2b1caa0cb71a";
 const actualMigrationTreeDigest = migrationTreeDigest(migrationEntries);
 if (actualMigrationTreeDigest !== expectedMigrationTreeDigest) {
   console.error(`money-grain: FAIL — migration tree differs from the independently reviewed ${files.length}-file manifest (${actualMigrationTreeDigest}).`);
