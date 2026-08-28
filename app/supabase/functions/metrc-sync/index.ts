@@ -405,7 +405,15 @@ const SPECS: Spec[] = [
    on 28 Aug - six hangs, every one closed half an hour later by
    tg_close_stuck_sync_runs instead of by the worker itself. Rows already written
    are kept and counted; the run closes itself as partial and holds its cursor. */
-const WRITE_BATCH = 500;
+/* A batch is capped by BYTES as well as by rows, because these tables carry the
+   whole Metrc record in `raw` and the widest one is not the most numerous.
+   Measured on production, length(raw::text): plants average 1,098 bytes and peak
+   1,173; harvests 879/904; packages 1,888 but peaking at 5,998. A flat 500-row
+   batch is therefore ~0.6 MB of plants and up to ~3 MB of packages, and the row
+   count alone gives no warning of that. Whichever limit is reached first closes
+   the batch, so the request stays about a megabyte whatever the endpoint. */
+const WRITE_BATCH_ROWS = 500;
+const WRITE_BATCH_BYTES = 1_000_000;
 
 async function writeRows(spec: Spec, rows: Row[], license: string, state: string,
   outOfTime: () => boolean, alreadyWritten: number): Promise<{ written: number; ranOut: boolean }> {
@@ -417,16 +425,34 @@ async function writeRows(spec: Spec, rows: Row[], license: string, state: string
   }
   const rowsToWrite = [...byKey.values()];
   let written = 0;
-  for (let i = 0; i < rowsToWrite.length; i += WRITE_BATCH) {
-    if (outOfTime()) return { written, ranOut: true };
-    const batch = rowsToWrite.slice(i, i + WRITE_BATCH);
+  let batch: Row[] = [];
+  let bytes = 0;
+
+  const flush = async (): Promise<void> => {
+    if (!batch.length) return;
     const { error } = await supa.from(spec.table).upsert(batch, { onConflict: spec.conflict });
-    if (error) throw new Error(`upsert ${spec.table} ${i}-${i + batch.length}: ${error.message}`);
+    if (error) throw new Error(`upsert ${spec.table} x${batch.length}: ${error.message}`);
     written += batch.length;
     /* Cumulative across sub-states: the beforeunload backstop reads this to close
        the run if we are killed, and a per-sub-state count would under-report what
        actually landed. */
     if (OPEN_RUN) OPEN_RUN.records = alreadyWritten + written;
+    batch = [];
+    bytes = 0;
+  };
+
+  for (const row of rowsToWrite) {
+    const size = JSON.stringify(row).length;
+    if (batch.length && (batch.length >= WRITE_BATCH_ROWS || bytes + size > WRITE_BATCH_BYTES)) {
+      if (outOfTime()) return { written, ranOut: true };
+      await flush();
+    }
+    batch.push(row);
+    bytes += size;
+  }
+  if (batch.length) {
+    if (outOfTime()) return { written, ranOut: true };
+    await flush();
   }
   return { written, ranOut: false };
 }
