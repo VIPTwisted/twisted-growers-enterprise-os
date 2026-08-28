@@ -2496,8 +2496,29 @@ function RpReportHeader({ title, reportKey, factView, dateCol, from, to, presetK
       + (prov.row.truncated_at_depth ? " · dependency walk hit its depth limit, so this list may be short" : "");
   })();
 
+  /* THE RUNNING IDENTITY, ON EVERY PRINTED PAGE.
+   *
+   * The block below states the five facts once, at the top. That is enough for a
+   * one-page report and not enough for anything else: a forty-page export of the
+   * order book puts figures on page thirty with nothing on that sheet saying which
+   * company, which window, or read when. A number photographed off page thirty and
+   * pasted into an email is then a number with no period attached, which is the
+   * whole failure the header exists to prevent.
+   *
+   * So the same facts repeat as a fixed one-line strip, which print engines paint
+   * into the @page top margin on every sheet. It is aria-hidden: on screen it is
+   * display:none, and a screen reader must not read the identity twice. */
+  const printIdent = [
+    title,
+    licences.length ? `Twisted Growers ${licences.map((l) => l.license).join("/")}` : null,
+    dateCol ? periodLine : "all dates",
+    readAt ? `as of ${new Date(readAt).toLocaleString()}` : null,
+    prov.row && rhArray(prov.row.sources).length ? rhArray(prov.row.sources).join(" + ") : null,
+  ].filter(Boolean).join("  ·  ");
+
   return (
     <div className="rp-reporthead">
+      <div className="rp-printident" aria-hidden="true">{printIdent}</div>
       <div className="rp-rh-title">{title}</div>
       <dl className="rp-rh-facts">
         <div><dt>Company</dt><dd>{companyLine}</dd></div>
