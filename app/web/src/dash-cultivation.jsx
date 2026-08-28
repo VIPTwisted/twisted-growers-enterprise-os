@@ -614,6 +614,30 @@ export default function CultivationDashboard({ go, session, reports, role, viewA
       <DkHead title={`${DEPT} dashboard`} viewKey={VIEW_KEY} dept={DEPT} role={role}
         viewAs={viewAs} computed={computed} busy={busy} />
 
+      {/* THE SCHEDULE-VERSUS-WEIGHT COMPARISON IS NOT HERE, AND SAYS SO.
+        *
+        * Owner ruling, 28 Aug 2026. v_harvest_schedule_vs_metrc does not exist in
+        * public — measured, not assumed: pg_class returns nothing for that name.
+        *
+        * There are two dishonest ways to handle a missing source and this is
+        * neither. Rendering nothing hides it, and a reader cannot tell an absent
+        * comparison from one that came back clean. Computing something local —
+        * joining the schedule to Metrc weights here in the page — invents the
+        * very figure the view is supposed to govern, in a place with no contract
+        * and no test behind it.
+        *
+        * So the page states the absence, in the same row as the figures it sits
+        * beside, and stops. When the view lands this chip is replaced by the
+        * comparison wired through rangeSearch like every other list here. */}
+      <div className="cc-tools">
+        <div className="cc-tools-l">
+          <DkTag tone="attn"
+            title="v_harvest_schedule_vs_metrc is not present in this database. The comparison of scheduled pulls against Metrc's recorded weights therefore has no source, and this dashboard will not compute a substitute for it locally — a figure invented on the page is worse than a figure that is openly missing.">
+            schedule-vs-weight view not in database — not hidden, not invented
+          </DkTag>
+        </div>
+      </div>
+
       <div className="cc-tools">
         <div className="cc-tools-l">
           <button className="cc-btn" title="Collapse every section — remembered per user on this device"
