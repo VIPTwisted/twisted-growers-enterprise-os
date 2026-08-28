@@ -168,6 +168,25 @@ export default function StaffForms({ mode = "callout", go }) {
     <div className="sf">
       {msg && <div className="sfmsg">{msg}</div>}
 
+      {/* THIS PAGE DECLARES ITSELF UNDATED, AND THAT IS THE CORRECT ANSWER.
+        *
+        * docs/TODO_EVERY_PAGE.md: every page either uses the frame or declares
+        * as-of / undated / snapshot with a visible chip. This one declares.
+        *
+        * It is a form, not a list. It inserts into callouts, time_off_requests
+        * and hr_incidents and browses no records at all — the schedules and
+        * policies it reads are the inputs to the form, not a result set. A date
+        * range would have nothing to narrow and a search would have nothing to
+        * find, and mounting either would put a control on the page that changes
+        * no number on it. That is the dead control the standard forbids, not a
+        * step toward the standard.
+        *
+        * What it submits is stamped as of now, which is what the chip says. */}
+      <div className="sfasof">
+        This is a form, not a record list — there is no period to choose. What you
+        send is filed as of the moment you send it.
+      </div>
+
       {/* ── CALL OUT — urgent, one-shot, notice shown before sending ── */}
       {mode === "callout" && (
         <>

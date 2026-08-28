@@ -15,6 +15,11 @@
 --------------------------------------------------------------------------- */
 import React, { useEffect, useMemo, useState } from "react";
 import { supabase } from "./lib/supabase.js";
+/* The one date control and the one catalogue — imported, never rebuilt. */
+import { DateRangeSelect } from "./App.jsx";
+import { useDefaultRange, DkRangeSearch, rangeSearch } from "./dashkit.jsx";
+
+const VIEW_KEY = "employee_file";
 
 const DAY = 86400000;
 const daysTo = (d) => (d ? Math.round((new Date(d + "T00:00:00") - new Date().setHours(0,0,0,0)) / DAY) : null);
@@ -27,7 +32,15 @@ const when = (d) => (d ? new Date(d).toLocaleDateString(undefined, { day:"numeri
    screens can never produce two different kinds of the same item. */
 const RENEWAL_AGENT = "hr_compliance";
 
-export default function EmployeeFile({ employeeId, go }) {
+export default function EmployeeFile({ employeeId, go, session }) {
+  /* A PERSON'S FILE IS THEIR WHOLE RECORD, SO THE FRAME OPENS UNBOUNDED.
+     nav_registry held no default_range for this page, so f_date_default fell to
+     the snapshot fallback of 'today' — an employee file showing one day of a
+     career. The governed default is now 'all' (see the migration alongside this
+     change); the control still narrows the history when somebody asks it to. */
+  const [range, setRange] = useState({ from: "", to: "" });
+  const dateDefault = useDefaultRange(session, VIEW_KEY, setRange);
+  const [q, setQ] = useState("");
   const [id, setId] = useState(employeeId || null);
   const [list, setList] = useState([]);
   const [p, setP] = useState(null);
@@ -147,6 +160,22 @@ export default function EmployeeFile({ employeeId, go }) {
 
   const active = String(p.status) === "active";
 
+  /* Two histories, one primitive, each named by its own business date: an
+     occurrence happened on work_date, a wage rate took effect on effective_from.
+     Neither is the date the row was typed. rangeSearch carries the rules — a
+     search beats the range, an undated row is never dropped — so this file holds
+     no opinion about either. */
+  const occRs = rangeSearch(occ, {
+    from: range.from, to: range.to, dateField: "work_date", q,
+    fields: ["kind", "note", "work_date"],
+  });
+  const rateRs = rangeSearch(rates, {
+    from: range.from, to: range.to, dateField: "effective_from", q,
+    fields: ["rate_kind", "note", "effective_from"],
+  });
+  const shownOcc = occRs.rows;
+  const shownRates = rateRs.rows;
+
   return (
     <div className="empfile">
       <div className="efbar">
@@ -165,6 +194,17 @@ export default function EmployeeFile({ employeeId, go }) {
         <span className={`efav ${!active ? "off" : lic?.tone === "bad" ? "bad" : ""}`}>{initials(p.full_name)}</span>
         <div className="efwho">
           <h1>{nameOf(p.full_name)}</h1>
+          <div className="eftools">
+            <DkRangeSearch id="ef-q" label="Find in this file" placeholder="a rate, note or occurrence"
+              q={q} onQ={setQ} result={occRs} noun="occurrences" />
+            <DateRangeSelect label="Between" from={range.from} to={range.to}
+              onFrom={(v) => setRange((prev) => ({ ...prev, from: v }))}
+              onTo={(v) => setRange((prev) => ({ ...prev, to: v }))}
+              presetKey={dateDefault.presetKey} session={session}
+              viewKey={VIEW_KEY} allowSave />
+            {dateDefault.error && <span className="note bad" role="alert">{dateDefault.error}</span>}
+
+          </div>
           <div className="efsub">
             {lk.roles[p.primary_role_id] ?? "No position set"}
             {lk.depts[p.primary_department_id] ? " · " + lk.depts[p.primary_department_id] : ""}
@@ -217,7 +257,7 @@ export default function EmployeeFile({ employeeId, go }) {
             <table className="eftable"><thead><tr>
               <th>Date</th><th>Type</th><th>Detail</th><th>Reason given</th>
               <th className="r">Points</th><th>Clears</th><th>Status</th></tr></thead>
-              <tbody>{occ.map(o => (
+              <tbody>{shownOcc.map(o => (
                 <tr key={o.id}>
                   <td>{when(o.work_date)}</td><td>{o.kind}</td>
                   <td>{o.minutes ? o.minutes + " min" : "—"}</td>
@@ -297,7 +337,7 @@ export default function EmployeeFile({ employeeId, go }) {
             <table className="eftable"><thead><tr>
               <th>From</th><th>To</th><th>Basis</th><th className="r">Rate</th>
               <th className="r">OT ×</th><th className="r">Burden</th><th>Note</th>
-            </tr></thead><tbody>{rates.map(r => (
+            </tr></thead><tbody>{shownRates.map(r => (
               <tr key={r.id} className={!r.effective_to ? "efcurrent" : ""}>
                 <td>{when(r.effective_from)}</td>
                 <td>{r.effective_to ? when(r.effective_to) : "current"}</td>

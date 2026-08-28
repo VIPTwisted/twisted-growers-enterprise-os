@@ -1731,3 +1731,18 @@ button.narrblock:hover { outline: 1px solid var(--line); }
      period it selected is stated in words in the header instead. */
   .rp-rowactions,.rp-fieldsbtn,.rp-savedviews,.pager,.rp-exportbar{display:none!important}
 }
+
+/* The undated declaration on the staff forms — docs/TODO_EVERY_PAGE.md requires
+   a page that does not use the frame to SAY so, visibly, rather than simply
+   having no control and leaving the reader to wonder which period they are
+   looking at. Existing tokens only; the theme is locked. */
+.sfasof{
+  border:1px solid var(--line);
+  border-left:3px solid var(--muted);
+  background:var(--surface);
+  border-radius:6px;
+  padding:8px 10px;
+  margin:0 0 10px;
+  color:var(--ink-2);
+  font-size:.78rem;
+}

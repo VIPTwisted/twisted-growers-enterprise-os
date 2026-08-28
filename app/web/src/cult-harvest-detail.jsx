@@ -26,8 +26,11 @@ import { DateRangeSelect } from "./App.jsx";
 import {
   useDefaultRange, DkRangeSearch, rangeSearch,
   grab, listOf, DkTag, DkErr, DkEmpty, DkKpiStrip, DkDrill, DrillRoot, DkHead, useSectionStore,
-  useWidgetLayout, Widget, WidgetBoard, WidgetBarControls, DkReports,
+  useWidgetLayout, Widget, WidgetBoard, WidgetBarControls, DkReports, useDefaultRange,
+  DkRangeSearch, rangeSearch,
 } from "./dashkit.jsx";
+/* The one date control and the one catalogue — imported, never rebuilt. */
+import { DateRangeSelect } from "./App.jsx";
 import {
   CULT_DEPT, useCultMeasures, cultTargetMap, cultTrendMap, cultLicenceMap, cultRoomLabel,
   cultTile, cultInPlace, CultActivity, cultNum, CULT_ROOM_UNQUALIFIED,
@@ -44,6 +47,12 @@ const SOURCE_NOTE = {
 };
 
 export default function HarvestDetail({ go, session, role, viewAs, reports }) {
+  /* Governed by nav_registry.default_range for harvest_detail (this_month_td).
+     The frame is harvest_date — the pull itself — not created_at, because a plan
+     typed up a week late still describes the harvest it was written about. */
+  const [range, setRange] = useState({ from: "", to: "" });
+  const dateDefault = useDefaultRange(session, VIEW_KEY, setRange);
+  const [q, setQ] = useState("");
   const store = useSectionStore(session && session.user ? session.user.id : null, PAGE_KEY);
   /* THE SECTIONS ARE ARRANGEABLE AND THE ARRANGEMENT IS THE USER'S OWN. Owner,
      16 Aug 2026: "every single dashboard need to have section as I stated where
@@ -91,7 +100,14 @@ export default function HarvestDetail({ go, session, role, viewAs, reports }) {
   }), [allRows, range.from, range.to, q]);
   const rows = rs.rows;
   const roomNames = useMemo(() => [...new Set(listOf(rows).map((r) => r.room_qualified))].sort(), [rows]);
-  const shown = useMemo(() => listOf(rows).filter((r) => !roomPick || r.room_qualified === roomPick), [rows, roomPick]);
+  /* rangeSearch is the shared primitive: one definition of "a search beats the
+     range" and "an undated row is never dropped", unit-tested, used by every
+     page that lists records. The room filter is this page's own and stays. */
+  const rs = useMemo(() => rangeSearch(listOf(rows).filter((r) => !roomPick || r.room_qualified === roomPick), {
+    from: range.from, to: range.to, dateField: "harvest_date", q,
+    fields: ["cultivar", "room_qualified", "license"],
+  }), [rows, roomPick, range.from, range.to, q]);
+  const shown = rs.rows;
 
   const pulls = useMemo(() => {
     const m = new Map();
@@ -157,8 +173,22 @@ export default function HarvestDetail({ go, session, role, viewAs, reports }) {
         <DkHead title="Harvest detail by cultivar — the plan" viewKey={VIEW_KEY} dept={CULT_DEPT}
           role={role} viewAs={viewAs} computed={null} busy={false}>
           <DkTag tone="attn" title={SOURCE_NOTE.why}>every weight on this page is a projection</DkTag>
-          <DkTag tone="neutral">{shown.length.toLocaleString()} of {rows.length.toLocaleString()} lines</DkTag>
+          <DkTag tone="neutral">{shown.length.toLocaleString()} of {listOf(rows).length.toLocaleString()} lines</DkTag>
         </DkHead>
+
+        <div className="cc-tools">
+          <div className="cc-tools-l">
+            <DkRangeSearch id="hd-q" label="Find a cultivar or room" placeholder="cultivar, room or licence"
+              q={q} onQ={setQ} result={rs} noun="lines" />
+            <DateRangeSelect label="Harvested between" from={range.from} to={range.to}
+              onFrom={(v) => setRange((prev) => ({ ...prev, from: v }))}
+              onTo={(v) => setRange((prev) => ({ ...prev, to: v }))}
+              presetKey={dateDefault.presetKey} session={session}
+              viewKey={VIEW_KEY} allowSave />
+            {dateDefault.error && <span className="note bad" role="alert">{dateDefault.error}</span>}
+
+          </div>
+        </div>
 
         <div className="cc-tools">
           <div className="cc-tools-l">

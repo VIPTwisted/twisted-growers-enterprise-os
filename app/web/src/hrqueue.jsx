@@ -22,6 +22,11 @@
 --------------------------------------------------------------------------- */
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "./lib/supabase.js";
+/* The one date control and the one catalogue — imported, never rebuilt. */
+import { DateRangeSelect } from "./App.jsx";
+import { useDefaultRange, DkRangeSearch, rangeSearch } from "./dashkit.jsx";
+
+const VIEW_KEY = "hr_review_queue";
 
 const AGE = (t) => {
   const m = Math.floor((Date.now() - new Date(t)) / 60000);
@@ -47,7 +52,14 @@ const IGNORE_REASONS = [
   "Other",
 ];
 
-export default function HrQueue({ go }) {
+export default function HrQueue({ go, session }) {
+  /* Governed by nav_registry.default_range for hr_review_queue (this_month_td).
+     The frame is created_at — when the item was RAISED. A queue item decided
+     late still belongs to the day somebody raised it, and filing it by the
+     decision date would move work out of the week it landed in. */
+  const [range, setRange] = useState({ from: "", to: "" });
+  const dateDefault = useDefaultRange(session, VIEW_KEY, setRange);
+  const [q, setQ] = useState("");
   const [rows, setRows] = useState(null);
   const [open, setOpen] = useState(null);        /* id whose draft is expanded */
   const [seen, setSeen] = useState(new Set());   /* drafts actually opened */
@@ -124,6 +136,17 @@ export default function HrQueue({ go }) {
     };
   }, [rows]);
 
+  /* rangeSearch is the shared primitive — one definition of "a search beats the
+     range" and "an undated row is never dropped", unit-tested. The frame is
+     created_at: when the item was RAISED. An item decided late still belongs to
+     the day it landed, and filing it by the decision date moves work out of the
+     week it arrived in. */
+  const rs = rangeSearch(rows ?? [], {
+    from: range.from, to: range.to, dateField: "created_at", q,
+    fields: ["full_name", "employee_code", "headline", "kind"],
+  });
+  const shownRows = rs.rows;
+
   if (rows === null) return <div className="hqload">Loading the queue…</div>;
 
   return (
@@ -131,6 +154,17 @@ export default function HrQueue({ go }) {
       <div className="hqhead">
         <div>
           <h1>Review queue</h1>
+          <div className="hqtools">
+            <DkRangeSearch id="hq-q" label="Find a person or reason" placeholder="name, code or reason"
+              q={q} onQ={setQ} result={rs} noun="items" />
+            <DateRangeSelect label="Raised between" from={range.from} to={range.to}
+              onFrom={(v) => setRange((prev) => ({ ...prev, from: v }))}
+              onTo={(v) => setRange((prev) => ({ ...prev, to: v }))}
+              presetKey={dateDefault.presetKey} session={session}
+              viewKey={VIEW_KEY} allowSave />
+            {dateDefault.error && <span className="note bad" role="alert">{dateDefault.error}</span>}
+
+          </div>
           <div className="hqsub">
             An agent drafted these. <b>Nothing reaches an employee until you send it.</b>
           </div>
@@ -159,7 +193,7 @@ export default function HrQueue({ go }) {
           <span>The agents have drafted nothing that needs a decision. This is the
             normal state — the queue fills when something changes.</span>
         </div>
-      ) : rows.map((r) => {
+      ) : shownRows.map((r) => {
         const conf = CONFIDENCE[r.agent_confidence] ?? CONFIDENCE.likely;
         const mustRead = /write.?up|warning|discipl|terminat/i.test(r.kind + " " + r.headline);
         const canSend = !mustRead || seen.has(r.id);
