@@ -2084,3 +2084,82 @@ export function DkRangeSearch({
     </div>
   );
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   THE HARVEST CONTROL BANNER — docs/HARVEST_CONTROL_LAW.md, owner 28 Aug 2026.
+
+   "Ignored variance is a management failure." The law asks for an in-app banner
+   on Cultivation home and the Tower for anything at severity 3 or above, each
+   line carrying its count and a way into the queue that holds it.
+
+   IT COMPUTES NOTHING. Every figure is a row of `v_harvest_control_banner`,
+   which holds the one definition of these four lines so the two pages that show
+   them cannot drift apart. The open limit and the contracted floor are owner
+   rows read through f_rule inside that view — nothing here carries a threshold.
+
+   REFUSE, DON'T ZERO. If the read fails the banner prints the database's own
+   reason. It does NOT disappear and it does not render "all clear": a control
+   surface that goes quiet when it cannot see is worse than one that is absent,
+   because silence reads as good news.
+
+   A LINE THAT CANNOT BE MEASURED IS STILL A LINE. `not_measured` means the
+   policy row behind it was never set — a contract nobody recorded. It shows as
+   a finding in words rather than being dropped or shown as zero. */
+export function DkHarvestControlBanner({ go, minSeverity = 3 }) {
+  const [state, setState] = useState({ rows: null, err: null });
+  useEffect(() => {
+    let live = true;
+    supabase.from("v_harvest_control_banner").select("*").order("ord")
+      .then(({ data, error }) => {
+        if (!live) return;
+        setState(error ? { rows: null, err: error.message } : { rows: rowsOr(data), err: null });
+      });
+    return () => { live = false; };
+  }, []);
+
+  if (state.err) {
+    return (
+      <div className="cc-hcb crit" role="alert">
+        <b>The harvest control lines could not be read.</b>
+        <span className="cc-hcb-why">{state.err}</span>
+        <span className="cc-hcb-why">
+          This banner is not saying the position is clear — it is saying it cannot see it. Nothing
+          here is being shown as zero.
+        </span>
+      </div>
+    );
+  }
+  if (state.rows === null) return <div className="cc-hcb"><span className="cc-hcb-why">Reading the harvest control lines…</span></div>;
+
+  const severe = listOf(state.rows).filter((r) => Number(r.severity) >= minSeverity);
+  if (severe.length === 0) {
+    return (
+      <div className="cc-hcb ok">
+        <b>Every harvest control line is clear.</b>
+        <span className="cc-hcb-why">Counted from v_harvest_control_banner, not assumed.</span>
+      </div>
+    );
+  }
+  return (
+    <div className="cc-hcb crit" role="alert">
+      <div className="cc-hcb-head">
+        <b>Harvest control — {severe.length} line{severe.length === 1 ? "" : "s"} need action today</b>
+        <DkTag tone="crit" title="The owner's harvest control law sets a four-hour service level to a named manager for anything on this banner.">
+          four hours to a named manager
+        </DkTag>
+      </div>
+      {severe.map((r) => (
+        <div className="cc-hcb-line" key={r.line_key}>
+          <span className="cc-hcb-n">
+            {r.not_measured
+              ? <em title={r.basis}>never set</em>
+              : <>{Number(r.measure).toLocaleString()} <em>{r.unit}</em></>}
+          </span>
+          <span className="cc-hcb-t" title={r.basis}>{r.headline}</span>
+          <button type="button" className="cc-btn" onClick={() => go(r.drill)}
+            title={`Open the queue that holds these: ${r.drill}`}>open the queue →</button>
+        </div>
+      ))}
+    </div>
+  );
+}
