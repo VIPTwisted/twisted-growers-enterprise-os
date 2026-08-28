@@ -26,11 +26,9 @@ import { DateRangeSelect } from "./App.jsx";
 import {
   useDefaultRange, DkRangeSearch, rangeSearch,
   grab, listOf, DkTag, DkErr, DkEmpty, DkKpiStrip, DkDrill, DrillRoot, DkHead, useSectionStore,
-  useWidgetLayout, Widget, WidgetBoard, WidgetBarControls, DkReports, useDefaultRange,
-  DkRangeSearch, rangeSearch,
+  useWidgetLayout, Widget, WidgetBoard, WidgetBarControls, DkReports,
 } from "./dashkit.jsx";
 /* The one date control and the one catalogue — imported, never rebuilt. */
-import { DateRangeSelect } from "./App.jsx";
 import {
   CULT_DEPT, useCultMeasures, cultTargetMap, cultTrendMap, cultLicenceMap, cultRoomLabel,
   cultTile, cultInPlace, CultActivity, cultNum, CULT_ROOM_UNQUALIFIED,
@@ -78,11 +76,6 @@ export default function RoomTurnAudit({ go, session, role, viewAs, reports }) {
   const [d, setD] = useState(null);
   const [openKpi, setOpenKpi] = useState(null);
   const [ver, setVer] = useState(0);
-  /* ON THE BUS. The range is resolved by useDefaultRange over f_date_presets —
-     the one catalog. Nothing about a preset or a week-start is defined here. */
-  const [range, setRange] = useState({ from: "", to: "" });
-  const dateDefault = useDefaultRange(session, VIEW_KEY, setRange);
-  const [q, setQ] = useState("");
 
   useEffect(() => {
     let live = true;
@@ -103,14 +96,6 @@ export default function RoomTurnAudit({ go, session, role, viewAs, reports }) {
     () => listOf(d ? d.t.rows : []).map((r) => ({ ...r, room_qualified: cultRoomLabel(r.room, r.license, licMap) })),
     [d, licMap],
   );
-  /* Range and search decided by the shared primitive, so this page cannot drift
-     from the others. A turn with no start date is kept, not dropped. */
-  const rs = useMemo(() => rangeSearch(allRows, {
-    from: range.from, to: range.to, dateField: "harvest_started", q,
-    fields: ["room_qualified", "verdict"],
-  }), [allRows, range.from, range.to, q]);
-  const rows = rs.rows;
-
   /* ONE FILTERING POINT, SO EVERY TILE MOVES TOGETHER. Pass, fail, unjudged, the
      gap figures and the activity strip all derive from `rows`, so narrowing here
      is what makes the whole page honour the frame rather than one tile honouring
@@ -218,7 +203,8 @@ export default function RoomTurnAudit({ go, session, role, viewAs, reports }) {
           <div className="cc-tools-l">
             <button type="button" className="cc-btn" onClick={() => setVer((v) => v + 1)}>↻ read again</button>
             <DkRangeSearch id="rta-q" label="Find a room or verdict" placeholder="room, verdict or licence"
-              q={q} onQ={setQ} result={rs} noun="turns" />
+              q={q} onQ={setQ} result={rs} noun="turns" rangeLabel="this range"
+              source="v_room_turn_audit" err={d.t.err} />
             <DateRangeSelect label="Turned between" from={range.from} to={range.to}
               onFrom={(v) => setRange((prev) => ({ ...prev, from: v }))}
               onTo={(v) => setRange((prev) => ({ ...prev, to: v }))}
@@ -232,10 +218,6 @@ export default function RoomTurnAudit({ go, session, role, viewAs, reports }) {
             <button type="button" className="cc-btn" title="Expand every section"
               onClick={() => store.setAll(WIDGETS.map((x) => x.key), true)}>+ expand all</button>
             <WidgetBarControls layout={layout} />
-            <DateRangeSelect label="Turn started" from={range.from} to={range.to}
-              onFrom={(v) => setRange((prev) => ({ ...prev, from: v }))}
-              onTo={(v) => setRange((prev) => ({ ...prev, to: v }))}
-              presetKey={dateDefault.presetKey} session={session} viewKey={VIEW_KEY} allowSave />
           </div>
           <div className="cc-tools-r">
             <button type="button" className="cc-btn" onClick={() => go("harvest_lifecycle")}>Harvest lifecycle →</button>
@@ -243,10 +225,6 @@ export default function RoomTurnAudit({ go, session, role, viewAs, reports }) {
             <button type="button" className="cc-btn" onClick={() => go("dept_dash_cultivation")}>Cultivation dashboard →</button>
           </div>
         </div>
-
-                <DkRangeSearch id="rta-q" label="Search room or verdict"
-          q={q} onQ={setQ} result={rs} noun="turns" rangeLabel="this range"
-          source="v_room_turn_audit" err={d.t.err} />
 
         {d.t.err ? <DkErr what="The room turn audit" err={d.t.err} /> : (
           <DkKpiStrip dept={CULT_DEPT} tiles={tiles} trend={trend} targets={targets} go={go}

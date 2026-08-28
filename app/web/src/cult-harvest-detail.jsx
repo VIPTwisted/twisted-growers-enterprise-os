@@ -26,11 +26,9 @@ import { DateRangeSelect } from "./App.jsx";
 import {
   useDefaultRange, DkRangeSearch, rangeSearch,
   grab, listOf, DkTag, DkErr, DkEmpty, DkKpiStrip, DkDrill, DrillRoot, DkHead, useSectionStore,
-  useWidgetLayout, Widget, WidgetBoard, WidgetBarControls, DkReports, useDefaultRange,
-  DkRangeSearch, rangeSearch,
+  useWidgetLayout, Widget, WidgetBoard, WidgetBarControls, DkReports,
 } from "./dashkit.jsx";
 /* The one date control and the one catalogue — imported, never rebuilt. */
-import { DateRangeSelect } from "./App.jsx";
 import {
   CULT_DEPT, useCultMeasures, cultTargetMap, cultTrendMap, cultLicenceMap, cultRoomLabel,
   cultTile, cultInPlace, CultActivity, cultNum, CULT_ROOM_UNQUALIFIED,
@@ -69,11 +67,6 @@ export default function HarvestDetail({ go, session, role, viewAs, reports }) {
   const [d, setD] = useState(null);
   const [openKpi, setOpenKpi] = useState(null);
   const [ver, setVer] = useState(0);
-  /* ON THE BUS. The range is resolved by useDefaultRange over f_date_presets —
-     the one catalog. Nothing about a preset or a week-start is defined here. */
-  const [range, setRange] = useState({ from: "", to: "" });
-  const dateDefault = useDefaultRange(session, VIEW_KEY, setRange);
-  const [q, setQ] = useState("");
   const [roomPick, setRoomPick] = useState("");
 
   useEffect(() => {
@@ -94,11 +87,11 @@ export default function HarvestDetail({ go, session, role, viewAs, reports }) {
     () => listOf(d ? d.p.rows : []).map((r) => ({ ...r, room_qualified: cultRoomLabel(r.flower_room, r.license, licMap) })),
     [d, licMap],
   );
-  const rs = useMemo(() => rangeSearch(allRows, {
-    from: range.from, to: range.to, dateField: "harvest_date", q,
-    fields: ["room_qualified", "cultivar", "day_of_week", "dry_window"],
-  }), [allRows, range.from, range.to, q]);
-  const rows = rs.rows;
+  /* One list, one filtering point. `rows` is every planned pull as read; the
+     range and the search are applied ONCE below, together with this page's own
+     flower-room filter, so no tile can narrow on a different population from
+     the table beside it. */
+  const rows = allRows;
   const roomNames = useMemo(() => [...new Set(listOf(rows).map((r) => r.room_qualified))].sort(), [rows]);
   /* rangeSearch is the shared primitive: one definition of "a search beats the
      range" and "an undated row is never dropped", unit-tested, used by every
@@ -179,7 +172,9 @@ export default function HarvestDetail({ go, session, role, viewAs, reports }) {
         <div className="cc-tools">
           <div className="cc-tools-l">
             <DkRangeSearch id="hd-q" label="Find a cultivar or room" placeholder="cultivar, room or licence"
-              q={q} onQ={setQ} result={rs} noun="lines" />
+              q={q} onQ={setQ} result={rs} noun="lines" rangeLabel="this range"
+              source="harvest_pull_details" err={d.p.err}
+              asOf="a plan, not a record of what happened — the range narrows which pulls are listed" />
             <DateRangeSelect label="Harvested between" from={range.from} to={range.to}
               onFrom={(v) => setRange((prev) => ({ ...prev, from: v }))}
               onTo={(v) => setRange((prev) => ({ ...prev, to: v }))}
@@ -199,10 +194,6 @@ export default function HarvestDetail({ go, session, role, viewAs, reports }) {
             <button type="button" className="cc-btn" title="Expand every section"
               onClick={() => store.setAll(WIDGETS.map((x) => x.key), true)}>+ expand all</button>
             <WidgetBarControls layout={layout} />
-            <DateRangeSelect label="Harvest date" from={range.from} to={range.to}
-              onFrom={(v) => setRange((prev) => ({ ...prev, from: v }))}
-              onTo={(v) => setRange((prev) => ({ ...prev, to: v }))}
-              presetKey={dateDefault.presetKey} session={session} viewKey={VIEW_KEY} allowSave />
             <label className="cc-fine" htmlFor="hd-room">Flower room</label>
             <select id="hd-room" className="cc-input" value={roomPick} onChange={(e) => setRoomPick(e.target.value)}
               title="Narrow the plan to one room. Every figure above recounts for the narrowed set.">
@@ -217,11 +208,6 @@ export default function HarvestDetail({ go, session, role, viewAs, reports }) {
             <button type="button" className="cc-btn" onClick={() => go("dept_dash_cultivation")}>Cultivation dashboard →</button>
           </div>
         </div>
-
-                <DkRangeSearch id="hd-q" label="Search room, cultivar, day or dry window"
-          q={q} onQ={setQ} result={rs} noun="pulls" rangeLabel="this range"
-          source="harvest_pull_details" err={d.p.err}
-          asOf="a plan, not a record of what happened — the range narrows which pulls are listed" />
 
         {d.p.err ? <DkErr what="The planned pulls" err={d.p.err} /> : (
           <DkKpiStrip dept={CULT_DEPT} tiles={tiles} trend={trend} targets={targets} go={go}
