@@ -49,9 +49,12 @@ import { supabase } from "./lib/supabase.js";
 import { rowsOr } from "./App.jsx";
 import {
   grab, listOf, DkTag, DkErr, DkEmpty, DkHead, DkDrill, DrillRoot, DkCaret,
+  useDefaultRange,
   Widget, WidgetBoard, WidgetBarControls, useWidgetLayout, useSectionStore,
   TagEvidence, TagEvidenceProvider, DkNarrative, DkReports, DkTasks,
 } from "./dashkit.jsx";
+/* The one date control the rest of the OS already uses — imported, not rebuilt. */
+import { DateRangeSelect } from "./App.jsx";
 import {
   FinKpiStrip, FinMoney, FinQty, FinBasis, FinDefect, FinCard, FinActions, FinAnswer,
   FinReading, FinCapped, finReadAll, finTotalsByUnit, useFinTargets, useFinRead,
@@ -437,6 +440,12 @@ export default function SalesHistoryPage({ go, session, reports, role, viewAs, o
   const store = useSectionStore(session?.user?.id, VIEW_KEY);
   const [ver, setVer] = useState(0);
   const [tile, setTile] = useState(null);
+  /* Governed by nav_registry.default_range for view_key 'sales_history'
+     (this_month_td), resolved by f_date_default. Declared above the early return
+     below, because a hook that runs only when the read has landed changes the
+     hook order between renders. */
+  const [range, setRange] = useState({ from: "", to: "" });
+  const dateDefault = useDefaultRange(session, VIEW_KEY, setRange);
   const { targets, trend, err: targetErr } = useFinTargets(DEPT);
 
   const WIDGETS = useMemo(() => [
@@ -470,7 +479,26 @@ export default function SalesHistoryPage({ go, session, reports, role, viewAs, o
     return <div className="finpage"><FinReading what="the whole sales ledger" /></div>;
   }
 
-  const wRows = d.w.rows;
+  /* ONE PLACE, SO EVERY TILE MOVES TOGETHER. The month ledger, the revenue
+     answers, the counterparty split and every manifest list all derive from
+     wRows, so narrowing it here is what makes the whole page honour the period
+     rather than one widget honouring it and the rest quietly not.
+
+     Compared as ISO text: created_on already starts with YYYY-MM-DD and so does
+     the bus, so no timezone can move a line out of its own day.
+
+     A line with no created_on is unplaceable, not excluded — spec: "Undated rows
+     are not dropped." It stays in every figure so it can be found and fixed. */
+  const inRange = (r) => {
+    if (!range.from && !range.to) return true;
+    if (!r.created_on) return true;
+    const d0 = String(r.created_on).slice(0, 10);
+    if (range.from && d0 < range.from) return false;
+    if (range.to && d0 > range.to) return false;
+    return true;
+  };
+  const periodNarrowed = Boolean(range.from || range.to);
+  const wRows = d.w.rows.filter(inRange);
   const live = {
     lines: wRows.filter((r) => !r.voided).length,
     manifests: uniq(wRows, "manifest_number"),
@@ -567,6 +595,23 @@ export default function SalesHistoryPage({ go, session, reports, role, viewAs, o
       <div className="finpage">
         <DkHead title="Sales history — every manifest" viewKey={VIEW_KEY} dept={DEPT}
           role={role} viewAs={viewAs} computed={null} busy={false} />
+        <div className="fin-filters">
+          <DateRangeSelect label="Shipped between" from={range.from} to={range.to}
+            onFrom={(v) => setRange((p) => ({ ...p, from: v }))}
+            onTo={(v) => setRange((p) => ({ ...p, to: v }))}
+            presetKey={dateDefault.presetKey} session={session}
+            viewKey={VIEW_KEY} allowSave />
+          {dateDefault.error && <span className="note bad" role="alert">{dateDefault.error}</span>}
+          {periodNarrowed && (
+            <button className="cc-btn" onClick={() => setRange({ from: "", to: "" })}
+              title="Show every period again.">show all periods</button>
+          )}
+          <span className="fin-count">
+            {periodNarrowed
+              ? `${wRows.length.toLocaleString()} of ${d.w.rows.length.toLocaleString()} wholesale lines fall in this period.`
+              : `All ${d.w.rows.length.toLocaleString()} wholesale lines shown, every period.`}
+          </span>
+        </div>
 
         <div className="cc-tools">
           <div className="cc-tools-l">
@@ -703,7 +748,7 @@ export default function SalesHistoryPage({ go, session, reports, role, viewAs, o
               );
               case "words": return (
                 <Widget key={w.key} w={w} layout={layout} store={store} defaultOpen={false}>
-                  <DkNarrative page={PAGE_KEY} range={{ from: "", to: "" }} role={role} session={session} go={go} />
+                  <DkNarrative page={PAGE_KEY} range={range} role={role} session={session} go={go} />
                 </Widget>
               );
               case "tasks": return (

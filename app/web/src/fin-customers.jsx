@@ -41,9 +41,12 @@ import { supabase } from "./lib/supabase.js";
 import { rowsOr } from "./App.jsx";
 import {
   grab, listOf, DkTag, DkErr, DkEmpty, DkHead, DkDrill, DrillRoot, DkCaret,
+  useDefaultRange,
   Widget, WidgetBoard, WidgetBarControls, useWidgetLayout, useSectionStore,
   DkNarrative, DkReports, DkTasks,
 } from "./dashkit.jsx";
+/* The one date control the rest of the OS already uses — imported, not rebuilt. */
+import { DateRangeSelect } from "./App.jsx";
 import {
   FinKpiStrip, FinMoney, FinBasis, FinDefect, FinCard, FinActions, FinAnswer,
   FinReading, FinCapped, finReadAll, useFinTargets, useFinRead,
@@ -270,6 +273,10 @@ export default function CustomersPage({ go, session, reports, role, viewAs, onVi
   const [ver, setVer] = useState(0);
   const [tile, setTile] = useState(null);
   const [q, setQ] = useState("");
+  /* Governed by nav_registry.default_range for view_key 'customers'
+     (this_month_td, range_kind 'activity'), resolved by f_date_default. */
+  const [range, setRange] = useState({ from: "", to: "" });
+  const dateDefault = useDefaultRange(session, VIEW_KEY, setRange);
   const { targets, trend, err: targetErr } = useFinTargets(DEPT);
 
   const WIDGETS = useMemo(() => [
@@ -360,10 +367,34 @@ export default function CustomersPage({ go, session, reports, role, viewAs, onVi
   const noRecord = traded.filter((a) => !a.in_customers);
   const reachable = accounts.filter((a) => a.email || a.c_email);
   const labs = accounts.filter((a) => a.facility_type === "Independent Testing Laboratory");
-  const filtered = q.trim()
+  /* WHAT A RANGE MEANS ON A DIRECTORY.
+   *
+   * This page is half roster and half ledger. An account is a standing fact — it
+   * does not happen on a date — but last_sale does, and nav_registry classes this
+   * view as 'activity'. So the range asks "who traded in this period", not "who
+   * exists", and the control says "Traded between" rather than "Dates" so nobody
+   * reads a filtered roster as the whole customer list.
+   *
+   * AN ACCOUNT THAT HAS NEVER BOUGHT IS NOT DROPPED. It has no last_sale, and a
+   * range cannot exclude a fact it has no date for — spec: "Undated rows are not
+   * dropped." Those accounts are exactly the ones somebody is looking for when
+   * they ask who has never ordered, and a period filter that silently removed
+   * them would answer a different question than the one asked. */
+  const searching = q.trim().length > 0;
+  const tradedInRange = (a) => {
+    if (!range.from && !range.to) return true;
+    if (!a.last_sale) return true;
+    const d0 = String(a.last_sale).slice(0, 10);
+    if (range.from && d0 < range.from) return false;
+    if (range.to && d0 > range.to) return false;
+    return true;
+  };
+  const periodNarrowed = Boolean(range.from || range.to);
+  const rangeSetAside = searching && periodNarrowed;
+  const filtered = searching
     ? accounts.filter((a) => `${a.facility ?? ""} ${a.licence} ${a.company ?? ""} ${a.facility_type ?? ""}`
         .toLowerCase().includes(q.trim().toLowerCase()))
-    : accounts;
+    : accounts.filter(tradedInRange);
 
   const openTasks = d.tasks.rows.filter((t) => t.department === DEPT);
   const T = (k) => tile === k;
@@ -531,6 +562,22 @@ export default function CustomersPage({ go, session, reports, role, viewAs, onVi
                     {q.trim() && (
                       <button className="cc-btn" onClick={() => setQ("")} title="Clear the search and show every account.">clear</button>
                     )}
+                    <DateRangeSelect label="Traded between" from={range.from} to={range.to}
+                      onFrom={(v) => setRange((p) => ({ ...p, from: v }))}
+                      onTo={(v) => setRange((p) => ({ ...p, to: v }))}
+                      presetKey={dateDefault.presetKey} session={session}
+                      viewKey={VIEW_KEY} allowSave />
+                    {dateDefault.error && <span className="note bad" role="alert">{dateDefault.error}</span>}
+                    {periodNarrowed && !searching && (
+                      <button className="cc-btn" onClick={() => setRange({ from: "", to: "" })}
+                        title="Show accounts from every period again.">show all periods</button>
+                    )}
+                    {rangeSetAside && (
+                      <span className="fin-docwhy"
+                        title="A search asks about a named account, so the traded-between range is set aside for it. Clear the search to return to the range.">
+                        date range set aside while searching — every period is being searched
+                      </span>
+                    )}
                     <span className="fin-count">
                       {q.trim()
                         ? `${filtered.length.toLocaleString()} of ${accounts.length.toLocaleString()} accounts match. Nothing is hidden by anything except this search box.`
@@ -554,7 +601,7 @@ export default function CustomersPage({ go, session, reports, role, viewAs, onVi
               );
               case "words": return (
                 <Widget key={w.key} w={w} layout={layout} store={store} defaultOpen={false}>
-                  <DkNarrative page={PAGE_KEY} range={{ from: "", to: "" }} role={role} session={session} go={go} />
+                  <DkNarrative page={PAGE_KEY} range={range} role={role} session={session} go={go} />
                 </Widget>
               );
               case "tasks": return (

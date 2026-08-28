@@ -5224,6 +5224,34 @@ function ControlTower({ go, session }) {
   const [rows, setRows] = useState(null);
   const [err, setErr] = useState(null);
   const sync = useSyncSummary();
+  /* THE PERIOD BUS, MOUNTED — AND HONEST ABOUT WHAT IT CANNOT MOVE.
+   *
+   * Owner spec, docs/PERIOD_BUS_SPEC.md: "Mount the existing catalog + default hook",
+   * and for pages whose figures are a position rather than a flow, "control still
+   * visible; tiles that are position show As-of chip".
+   *
+   * This page is entirely the second kind, and that is a measured fact, not a guess:
+   *
+   *   v_control_tower   is (metric text, value numeric). No date column exists to
+   *                     filter on, so every METRIC_GROUPS card is all-time.
+   *   useLiveCounts()   is select("*", {count:"exact"}).limit(0) per KPI table — a
+   *                     whole-table row count, with no date predicate available.
+   *   useSyncSummary()  is the connector's state right now.
+   *   TodayBoard        is fixed to today by its own definition.
+   *
+   * So the control inherits the governed default and can be changed, and `source`
+   * makes RpDashboardDateRange state plainly that the tiles below do not follow it.
+   * That prop already existed for exactly this case and had no caller until now.
+   *
+   * WHAT WAS DELIBERATELY NOT DONE. Wiring range.from/range.to into these queries
+   * would mean inventing a date dimension the data does not have, and the spec
+   * forbids it: "do not invent figures when the view has no date column — mark
+   * as-of". Making the numbers move under a range they cannot honour is the exact
+   * defect the disclosure exists to prevent. Ranging the Tower for real is a change
+   * to v_control_tower — it must carry the date its own facts already hold — not a
+   * change to this page. */
+  const [, setRange] = useState({ from: "", to: "", ready: false });
+  const onRange = React.useCallback((r) => setRange(r), []);
   useEffect(() => {
     supabase.from("v_control_tower").select("*").then(({ data, error }) => {
       if (error) setErr(error.message); else setRows(data);
@@ -5244,7 +5272,11 @@ function ControlTower({ go, session }) {
           <h1>Executive Control Tower</h1>
           <div className="sub">Every number is computed from live records at read time — and every card drills straight into its source module.</div>
         </div>
-        {session && <SyncCenter session={session} />}
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          <RpDashboardDateRange viewKey="tower" session={session}
+            source="v_control_tower" onRange={onRange} />
+          {session && <SyncCenter session={session} />}
+        </div>
       </div>
       {rows && (
         <div className="hero">
