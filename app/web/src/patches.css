@@ -1668,3 +1668,66 @@ button.narrblock:hover { outline: 1px solid var(--line); }
   .rp-rh-facts dt{color:#000}
   .rp-rh-facts dd{color:#000}
 }
+
+/* ── The printed report: paper is the artefact that leaves the building ──
+ *
+ * Owner ruling, 28 Aug 2026: the printed page and the PDF must show title,
+ * company, period from the bus, as-of and source. The screen already does; this
+ * makes paper agree, and keeps it agreeing on page thirty.
+ *
+ * WHY @page EXISTS AT ALL. This project had no @page rule anywhere, so every
+ * printed report used the browser's default margin and the running identity below
+ * had nowhere to sit — a fixed strip with no reserved margin prints ON TOP of the
+ * first rows of the table. The top margin is the space that strip occupies; the
+ * bottom margin is where the browser's own page number goes.
+ *
+ * WHY THE IDENTITY REPEATS. A one-page report is served by the block at the top.
+ * A forty-page export is not: figures land on sheets that say nothing about which
+ * company, which window or read when, and a figure photographed off page thirty
+ * travels without its period. position:fixed inside @media print is painted into
+ * every sheet's top margin, which is exactly the behaviour wanted.
+ *
+ * WHY thead REPEATS TOO. A table broken across pages leaves columns unlabelled
+ * from page two onward, so a reader matches a number to the wrong column and the
+ * report is worse than no report. display:table-header-group is the one line that
+ * fixes it and it has never been set here.
+ *
+ * Layout only. The theme is locked; #000/#fff are print ink, not theme colour —
+ * paper has no dark mode, and a dark surface prints as a solid block that eats
+ * toner and hides the text under it. */
+.rp-printident{display:none}
+
+@page{
+  margin:22mm 12mm 16mm;
+}
+
+@media print{
+  .rp-printident{
+    display:block;
+    position:fixed;
+    top:-16mm; left:0; right:0;
+    font-size:8.5pt;
+    line-height:1.3;
+    color:#000;
+    border-bottom:0.4pt solid #000;
+    padding-bottom:2mm;
+    overflow:hidden;
+    white-space:nowrap;
+    text-overflow:ellipsis;
+  }
+
+  /* Column headings on every sheet, not just the first. */
+  .tablewrap table thead{display:table-header-group}
+  .tablewrap table tfoot{display:table-footer-group}
+  .tablewrap table tr{break-inside:avoid}
+  .tablewrap{overflow:visible!important}
+
+  /* The record count belongs on paper — it is the population the figures cover. */
+  .modhead{break-inside:avoid;border-bottom:0.4pt solid #000;color:#000}
+  .modhead .mt,.modhead .md,.modhead .mcount .n,.modhead .mcount .l{color:#000}
+
+  /* Chrome that means nothing on paper. The date control itself is inside
+     .filterbar, which styles.css already hides on print — correct, because the
+     period it selected is stated in words in the header instead. */
+  .rp-rowactions,.rp-fieldsbtn,.rp-savedviews,.pager,.rp-exportbar{display:none!important}
+}
