@@ -27,6 +27,7 @@ import {
   useDefaultRange, DkRangeSearch, rangeSearch,
   grab, listOf, DkTag, DkErr, DkEmpty, DkKpiStrip, DkDrill, DrillRoot, DkHead, useSectionStore,
   useWidgetLayout, Widget, WidgetBoard, WidgetBarControls, DkReports, useDefaultRange,
+  DkRangeSearch, rangeSearch,
 } from "./dashkit.jsx";
 /* The one date control and the one catalogue — imported, never rebuilt. */
 import { DateRangeSelect } from "./App.jsx";
@@ -112,33 +113,17 @@ export default function RoomTurnAudit({ go, session, role, viewAs, reports }) {
 
   /* ONE FILTERING POINT, SO EVERY TILE MOVES TOGETHER. Pass, fail, unjudged, the
      gap figures and the activity strip all derive from `rows`, so narrowing here
-     is what makes the whole page honour the frame instead of one tile honouring
+     is what makes the whole page honour the frame rather than one tile honouring
      it and the rest quietly not.
 
-     SEARCH SETS THE RANGE ASIDE — the Orders rule. Somebody typing a room is
-     asking about that room across time, and "no results" because of a month
-     nobody chose is the same defect in cultivation clothing.
-
-     A turn with no start date is never dropped: it has no date to test, and an
-     unjudged turn missing its own date is exactly the row worth finding. */
-  const searching = q.trim().length > 0;
-  const needle = q.trim().toLowerCase();
-  const inFrame = (r) => {
-    if (!range.from && !range.to) return true;
-    const raw = r.harvest_started_date ?? r.harvest_started;
-    if (!raw) return true;
-    const d0 = String(raw).slice(0, 10);
-    if (range.from && d0 < range.from) return false;
-    if (range.to && d0 > range.to) return false;
-    return true;
-  };
-  const periodNarrowed = Boolean(range.from || range.to);
-  const rangeSetAside = searching && periodNarrowed;
-  const rows = useMemo(() => (searching
-    ? allRows.filter((r) => `${r.room_qualified ?? ""} ${r.verdict ?? ""} ${r.license ?? ""}`.toLowerCase().includes(needle))
-    : allRows.filter(inFrame)),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [allRows, searching, needle, range.from, range.to]);
+     rangeSearch is the shared primitive — it decides range and search for every
+     page that lists records, it is unit-tested, and it is why this file holds no
+     opinion about what a search beating a range means. */
+  const rs = useMemo(() => rangeSearch(allRows, {
+    from: range.from, to: range.to, dateField: "harvest_started_date", q,
+    fields: ["room_qualified", "verdict", "license", "room"],
+  }), [allRows, range.from, range.to, q]);
+  const rows = rs.rows;
 
   const failed = useMemo(() => rows.filter((r) => turnTone(r.verdict) === "fail"), [rows]);
   const passed = useMemo(() => rows.filter((r) => turnTone(r.verdict) === "pass"), [rows]);
@@ -232,20 +217,15 @@ export default function RoomTurnAudit({ go, session, role, viewAs, reports }) {
         <div className="cc-tools">
           <div className="cc-tools-l">
             <button type="button" className="cc-btn" onClick={() => setVer((v) => v + 1)}>↻ read again</button>
-            <input className="cc-input" value={q} onChange={(e) => setQ(e.target.value)}
-              aria-label="Find a room or verdict" placeholder="find a room or verdict — any period" />
-            {searching && <button type="button" className="cc-btn" onClick={() => setQ("")}>clear</button>}
+            <DkRangeSearch id="rta-q" label="Find a room or verdict" placeholder="room, verdict or licence"
+              q={q} onQ={setQ} result={rs} noun="turns" />
             <DateRangeSelect label="Turned between" from={range.from} to={range.to}
               onFrom={(v) => setRange((prev) => ({ ...prev, from: v }))}
               onTo={(v) => setRange((prev) => ({ ...prev, to: v }))}
               presetKey={dateDefault.presetKey} session={session}
               viewKey={VIEW_KEY} allowSave />
             {dateDefault.error && <span className="note bad" role="alert">{dateDefault.error}</span>}
-            {rangeSetAside && (
-              <span className="note" title="A search asks about one room, so the date range is set aside for it. Clear the search to return to the range.">
-                date range set aside while searching — every period is being searched
-              </span>
-            )}
+
             <button type="button" className="cc-btn" onClick={() => window.print()}>🖨 print</button>
             <button type="button" className="cc-btn" title="Collapse every section — remembered on your own account"
               onClick={() => store.setAll(WIDGETS.map((x) => x.key), false)}>− collapse all</button>

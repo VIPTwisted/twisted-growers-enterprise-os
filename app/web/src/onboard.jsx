@@ -27,7 +27,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import { supabase } from "./lib/supabase.js";
 /* The one date control and the one catalogue — imported, never rebuilt. */
 import { DateRangeSelect } from "./App.jsx";
-import { useDefaultRange } from "./dashkit.jsx";
+import { useDefaultRange, DkRangeSearch, rangeSearch } from "./dashkit.jsx";
 
 const VIEW_KEY = "onboard";
 
@@ -183,24 +183,15 @@ If anything on this page looks wrong, tell Human Resources — do not work aroun
       : "Welcome drafted. It is NOT sent — it waits in the review queue for a person to read and send, reminders included.");
   }
 
-  /* SEARCH SETS THE RANGE ASIDE — the Orders rule. A person stuck mid-onboarding
-     since June is exactly who this console exists to surface, so a name typed in
-     must reach them whatever frame is showing. Nobody without a hired_on is
-     dropped by the frame: an unhired record is the very thing being onboarded. */
-  const searching = q.trim().length > 0;
-  const needle = q.trim().toLowerCase();
-  const hiredInFrame = (x) => {
-    if (!range.from && !range.to) return true;
-    if (!x.hired_on) return true;
-    const d0 = String(x.hired_on).slice(0, 10);
-    if (range.from && d0 < range.from) return false;
-    if (range.to && d0 > range.to) return false;
-    return true;
-  };
-  const shownStaff = searching
-    ? staff.filter((x) => `${x.full_name ?? ""} ${x.employee_code ?? ""} ${x.email ?? ""}`
-        .toLowerCase().includes(needle))
-    : staff.filter(hiredInFrame);
+  /* rangeSearch is the shared primitive. A person stuck mid-onboarding since June
+     is exactly who this console exists to surface, so a name typed in reaches
+     them whatever frame is showing, and nobody without a hired_on is dropped by
+     the frame — an unhired record is the very thing being onboarded. */
+  const rs = rangeSearch(staff, {
+    from: range.from, to: range.to, dateField: "hired_on", q,
+    fields: ["full_name", "employee_code", "email"],
+  });
+  const shownStaff = rs.rows;
 
   const blocking = steps.filter(s => s.blocks_start);
   const rateIsPlaceholder = conf?.any_placeholder;
@@ -212,20 +203,15 @@ If anything on this page looks wrong, tell Human Resources — do not work aroun
           <h1>Onboarding</h1>
           <div className="obsub">One person, one pass — who they are, how they are paid, how they clock in, what they must do.</div>
           <div className="obtools">
-            <input className="cc-input" value={q} onChange={(e) => setQ(e.target.value)}
-              aria-label="Find a person" placeholder="find a person by name or code — any period" />
-            {q.trim() && <button className="btn ghost small" onClick={() => setQ("")}>clear</button>}
+            <DkRangeSearch id="ob-q" label="Find a person" placeholder="name, code or email"
+              q={q} onQ={setQ} result={rs} noun="people" />
             <DateRangeSelect label="Hired between" from={range.from} to={range.to}
               onFrom={(v) => setRange((prev) => ({ ...prev, from: v }))}
               onTo={(v) => setRange((prev) => ({ ...prev, to: v }))}
               presetKey={dateDefault.presetKey} session={session}
               viewKey={VIEW_KEY} allowSave />
             {dateDefault.error && <span className="note bad" role="alert">{dateDefault.error}</span>}
-            {q.trim() && (range.from || range.to) && (
-              <span className="note" title="A search asks about one person, so the hire-date range is set aside for it. Clear the search to return to the range.">
-                date range set aside while searching — every period is being searched
-              </span>
-            )}
+
           </div>
         </div>
         <button className="btn ghost small" onClick={() => go?.("lifecycle_open")}>All outstanding steps</button>

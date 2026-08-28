@@ -27,6 +27,7 @@ import {
   useDefaultRange, DkRangeSearch, rangeSearch,
   grab, listOf, DkTag, DkErr, DkEmpty, DkKpiStrip, DkDrill, DrillRoot, DkHead, useSectionStore,
   useWidgetLayout, Widget, WidgetBoard, WidgetBarControls, DkReports, useDefaultRange,
+  DkRangeSearch, rangeSearch,
 } from "./dashkit.jsx";
 /* The one date control and the one catalogue — imported, never rebuilt. */
 import { DateRangeSelect } from "./App.jsx";
@@ -99,29 +100,14 @@ export default function HarvestDetail({ go, session, role, viewAs, reports }) {
   }), [allRows, range.from, range.to, q]);
   const rows = rs.rows;
   const roomNames = useMemo(() => [...new Set(listOf(rows).map((r) => r.room_qualified))].sort(), [rows]);
-  /* SEARCH SETS THE RANGE ASIDE — the Orders rule. A cultivar typed into the box
-     is a question about that cultivar across every pull, not about this month.
-     A line with no harvest_date is never dropped by the frame: it has no date to
-     test, and an undated pull is exactly the planning gap worth finding. */
-  const searching = q.trim().length > 0;
-  const needle = q.trim().toLowerCase();
-  const inFrame = (r) => {
-    if (!range.from && !range.to) return true;
-    if (!r.harvest_date) return true;
-    const d0 = String(r.harvest_date).slice(0, 10);
-    if (range.from && d0 < range.from) return false;
-    if (range.to && d0 > range.to) return false;
-    return true;
-  };
-  const periodNarrowed = Boolean(range.from || range.to);
-  const rangeSetAside = searching && periodNarrowed;
-  const shown = useMemo(() => listOf(rows)
-    .filter((r) => !roomPick || r.room_qualified === roomPick)
-    .filter((r) => (searching
-      ? `${r.cultivar ?? ""} ${r.room_qualified ?? ""} ${r.license ?? ""}`.toLowerCase().includes(needle)
-      : inFrame(r))),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [rows, roomPick, searching, needle, range.from, range.to]);
+  /* rangeSearch is the shared primitive: one definition of "a search beats the
+     range" and "an undated row is never dropped", unit-tested, used by every
+     page that lists records. The room filter is this page's own and stays. */
+  const rs = useMemo(() => rangeSearch(listOf(rows).filter((r) => !roomPick || r.room_qualified === roomPick), {
+    from: range.from, to: range.to, dateField: "harvest_date", q,
+    fields: ["cultivar", "room_qualified", "license"],
+  }), [rows, roomPick, range.from, range.to, q]);
+  const shown = rs.rows;
 
   const pulls = useMemo(() => {
     const m = new Map();
@@ -192,20 +178,15 @@ export default function HarvestDetail({ go, session, role, viewAs, reports }) {
 
         <div className="cc-tools">
           <div className="cc-tools-l">
-            <input className="cc-input" value={q} onChange={(e) => setQ(e.target.value)}
-              aria-label="Find a cultivar or room" placeholder="find a cultivar or room — any period" />
-            {searching && <button type="button" className="cc-btn" onClick={() => setQ("")}>clear</button>}
+            <DkRangeSearch id="hd-q" label="Find a cultivar or room" placeholder="cultivar, room or licence"
+              q={q} onQ={setQ} result={rs} noun="lines" />
             <DateRangeSelect label="Harvested between" from={range.from} to={range.to}
               onFrom={(v) => setRange((prev) => ({ ...prev, from: v }))}
               onTo={(v) => setRange((prev) => ({ ...prev, to: v }))}
               presetKey={dateDefault.presetKey} session={session}
               viewKey={VIEW_KEY} allowSave />
             {dateDefault.error && <span className="note bad" role="alert">{dateDefault.error}</span>}
-            {rangeSetAside && (
-              <span className="note" title="A search asks about one cultivar, so the date range is set aside for it. Clear the search to return to the range.">
-                date range set aside while searching — every period is being searched
-              </span>
-            )}
+
           </div>
         </div>
 

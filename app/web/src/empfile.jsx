@@ -17,7 +17,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { supabase } from "./lib/supabase.js";
 /* The one date control and the one catalogue — imported, never rebuilt. */
 import { DateRangeSelect } from "./App.jsx";
-import { useDefaultRange } from "./dashkit.jsx";
+import { useDefaultRange, DkRangeSearch, rangeSearch } from "./dashkit.jsx";
 
 const VIEW_KEY = "employee_file";
 
@@ -160,30 +160,21 @@ export default function EmployeeFile({ employeeId, go, session }) {
 
   const active = String(p.status) === "active";
 
-  /* SEARCH SETS THE RANGE ASIDE — the Orders rule, on one person's own file.
-     A manager looking for the write-up from March must find it while the file is
-     showing this month, and a rate with no effective_from is never dropped by a
-     frame it has no date to be tested against.
-
-     Two histories are narrowed here: attendance occurrences by work_date, and
-     wage rates by effective_from. Both are the date the THING happened, not the
-     date the row was typed. */
-  const searchingFile = q.trim().length > 0;
-  const needleFile = q.trim().toLowerCase();
-  const inFileFrame = (raw) => {
-    if (!range.from && !range.to) return true;
-    if (!raw) return true;
-    const d0 = String(raw).slice(0, 10);
-    if (range.from && d0 < range.from) return false;
-    if (range.to && d0 > range.to) return false;
-    return true;
-  };
-  const shownOcc = searchingFile
-    ? occ.filter((o) => `${o.kind ?? ""} ${o.note ?? ""} ${o.work_date ?? ""}`.toLowerCase().includes(needleFile))
-    : occ.filter((o) => inFileFrame(o.work_date));
-  const shownRates = searchingFile
-    ? rates.filter((r) => `${r.rate_kind ?? ""} ${r.note ?? ""} ${r.effective_from ?? ""}`.toLowerCase().includes(needleFile))
-    : rates.filter((r) => inFileFrame(r.effective_from));
+  /* Two histories, one primitive, each named by its own business date: an
+     occurrence happened on work_date, a wage rate took effect on effective_from.
+     Neither is the date the row was typed. rangeSearch carries the rules — a
+     search beats the range, an undated row is never dropped — so this file holds
+     no opinion about either. */
+  const occRs = rangeSearch(occ, {
+    from: range.from, to: range.to, dateField: "work_date", q,
+    fields: ["kind", "note", "work_date"],
+  });
+  const rateRs = rangeSearch(rates, {
+    from: range.from, to: range.to, dateField: "effective_from", q,
+    fields: ["rate_kind", "note", "effective_from"],
+  });
+  const shownOcc = occRs.rows;
+  const shownRates = rateRs.rows;
 
   return (
     <div className="empfile">
@@ -204,20 +195,15 @@ export default function EmployeeFile({ employeeId, go, session }) {
         <div className="efwho">
           <h1>{nameOf(p.full_name)}</h1>
           <div className="eftools">
-            <input className="cc-input" value={q} onChange={(e) => setQ(e.target.value)}
-              aria-label="Find in this file" placeholder="find a rate, note or occurrence — any period" />
-            {q.trim() && <button className="btn ghost small" onClick={() => setQ("")}>clear</button>}
+            <DkRangeSearch id="ef-q" label="Find in this file" placeholder="a rate, note or occurrence"
+              q={q} onQ={setQ} result={occRs} noun="occurrences" />
             <DateRangeSelect label="Between" from={range.from} to={range.to}
               onFrom={(v) => setRange((prev) => ({ ...prev, from: v }))}
               onTo={(v) => setRange((prev) => ({ ...prev, to: v }))}
               presetKey={dateDefault.presetKey} session={session}
               viewKey={VIEW_KEY} allowSave />
             {dateDefault.error && <span className="note bad" role="alert">{dateDefault.error}</span>}
-            {q.trim() && (range.from || range.to) && (
-              <span className="note" title="A search asks about one entry, so the range is set aside for it. Clear the search to return to the range.">
-                date range set aside while searching — every period is being searched
-              </span>
-            )}
+
           </div>
           <div className="efsub">
             {lk.roles[p.primary_role_id] ?? "No position set"}

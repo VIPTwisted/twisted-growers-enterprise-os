@@ -24,7 +24,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "./lib/supabase.js";
 /* The one date control and the one catalogue — imported, never rebuilt. */
 import { DateRangeSelect } from "./App.jsx";
-import { useDefaultRange } from "./dashkit.jsx";
+import { useDefaultRange, DkRangeSearch, rangeSearch } from "./dashkit.jsx";
 
 const VIEW_KEY = "hr_review_queue";
 
@@ -136,24 +136,16 @@ export default function HrQueue({ go, session }) {
     };
   }, [rows]);
 
-  /* SEARCH SETS THE RANGE ASIDE — the Orders rule. Somebody typing a name is
-     asking about that person's item, not about this month, and a queue that
-     answers "nothing waiting" because of a frame nobody chose is how an item
-     sits unactioned. An item with no created_at is never dropped by the frame. */
-  const searching = q.trim().length > 0;
-  const needle = q.trim().toLowerCase();
-  const inFrame = (r) => {
-    if (!range.from && !range.to) return true;
-    if (!r.created_at) return true;
-    const d0 = String(r.created_at).slice(0, 10);
-    if (range.from && d0 < range.from) return false;
-    if (range.to && d0 > range.to) return false;
-    return true;
-  };
-  const shownRows = (rows ?? []).filter((r) => (searching
-    ? `${r.full_name ?? ""} ${r.employee_code ?? ""} ${r.headline ?? ""} ${r.kind ?? ""}`
-        .toLowerCase().includes(needle)
-    : inFrame(r)));
+  /* rangeSearch is the shared primitive — one definition of "a search beats the
+     range" and "an undated row is never dropped", unit-tested. The frame is
+     created_at: when the item was RAISED. An item decided late still belongs to
+     the day it landed, and filing it by the decision date moves work out of the
+     week it arrived in. */
+  const rs = rangeSearch(rows ?? [], {
+    from: range.from, to: range.to, dateField: "created_at", q,
+    fields: ["full_name", "employee_code", "headline", "kind"],
+  });
+  const shownRows = rs.rows;
 
   if (rows === null) return <div className="hqload">Loading the queue…</div>;
 
@@ -163,20 +155,15 @@ export default function HrQueue({ go, session }) {
         <div>
           <h1>Review queue</h1>
           <div className="hqtools">
-            <input className="cc-input" value={q} onChange={(e) => setQ(e.target.value)}
-              aria-label="Find a person or reason" placeholder="find a person or reason — any period" />
-            {q.trim() && <button className="btn ghost small" onClick={() => setQ("")}>clear</button>}
+            <DkRangeSearch id="hq-q" label="Find a person or reason" placeholder="name, code or reason"
+              q={q} onQ={setQ} result={rs} noun="items" />
             <DateRangeSelect label="Raised between" from={range.from} to={range.to}
               onFrom={(v) => setRange((prev) => ({ ...prev, from: v }))}
               onTo={(v) => setRange((prev) => ({ ...prev, to: v }))}
               presetKey={dateDefault.presetKey} session={session}
               viewKey={VIEW_KEY} allowSave />
             {dateDefault.error && <span className="note bad" role="alert">{dateDefault.error}</span>}
-            {q.trim() && (range.from || range.to) && (
-              <span className="note" title="A search asks about one person, so the date range is set aside for it. Clear the search to return to the range.">
-                date range set aside while searching — every period is being searched
-              </span>
-            )}
+
           </div>
           <div className="hqsub">
             An agent drafted these. <b>Nothing reaches an employee until you send it.</b>
