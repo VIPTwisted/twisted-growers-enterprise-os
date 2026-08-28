@@ -26,11 +26,8 @@ import { DateRangeSelect } from "./App.jsx";
 import {
   useDefaultRange, DkRangeSearch, rangeSearch,
   grab, listOf, DkTag, DkErr, DkEmpty, DkKpiStrip, DkDrill, DrillRoot, DkHead, useSectionStore,
-  useWidgetLayout, Widget, WidgetBoard, WidgetBarControls, DkReports, useDefaultRange,
-  DkRangeSearch, rangeSearch,
+  useWidgetLayout, Widget, WidgetBoard, WidgetBarControls, DkReports,
 } from "./dashkit.jsx";
-/* The one date control and the one catalogue — imported, never rebuilt. */
-import { DateRangeSelect } from "./App.jsx";
 import {
   CULT_DEPT, useCultMeasures, cultTargetMap, cultTrendMap, cultLicenceMap, cultRoomLabel,
   cultTile, cultInPlace, CultActivity, cultNum, CULT_ROOM_UNQUALIFIED,
@@ -55,13 +52,6 @@ const turnTone = (v) => {
 };
 
 export default function RoomTurnAudit({ go, session, role, viewAs, reports }) {
-  /* Governed by nav_registry.default_range for room_turn_audit (this_month_td).
-     The frame is harvest_started_date — when the room actually turned — not when
-     the row was written, because a late-entered audit still belongs to the week
-     the room was cut. */
-  const [range, setRange] = useState({ from: "", to: "" });
-  const dateDefault = useDefaultRange(session, VIEW_KEY, setRange);
-  const [q, setQ] = useState("");
   const store = useSectionStore(session && session.user ? session.user.id : null, PAGE_KEY);
   /* THE SECTIONS ARE ARRANGEABLE AND THE ARRANGEMENT IS THE USER'S OWN. Owner,
      16 Aug 2026: "every single dashboard need to have section as I stated where
@@ -108,20 +98,6 @@ export default function RoomTurnAudit({ go, session, role, viewAs, reports }) {
   const rs = useMemo(() => rangeSearch(allRows, {
     from: range.from, to: range.to, dateField: "harvest_started", q,
     fields: ["room_qualified", "verdict"],
-  }), [allRows, range.from, range.to, q]);
-  const rows = rs.rows;
-
-  /* ONE FILTERING POINT, SO EVERY TILE MOVES TOGETHER. Pass, fail, unjudged, the
-     gap figures and the activity strip all derive from `rows`, so narrowing here
-     is what makes the whole page honour the frame rather than one tile honouring
-     it and the rest quietly not.
-
-     rangeSearch is the shared primitive — it decides range and search for every
-     page that lists records, it is unit-tested, and it is why this file holds no
-     opinion about what a search beating a range means. */
-  const rs = useMemo(() => rangeSearch(allRows, {
-    from: range.from, to: range.to, dateField: "harvest_started_date", q,
-    fields: ["room_qualified", "verdict", "license", "room"],
   }), [allRows, range.from, range.to, q]);
   const rows = rs.rows;
 
@@ -210,22 +186,13 @@ export default function RoomTurnAudit({ go, session, role, viewAs, reports }) {
       <div className="ccpage">
         <DkHead title="Room turn audit" viewKey={VIEW_KEY} dept={CULT_DEPT} role={role} viewAs={viewAs}
           computed={null} busy={false}>
-          <DkTag tone="neutral">{rows.length.toLocaleString()} of {allRows.length.toLocaleString()} turns</DkTag>
+          <DkTag tone="neutral">{rows.length.toLocaleString()} turns</DkTag>
           <DkTag tone={failed.length ? "crit" : "ok"}>{failed.length} failed</DkTag>
         </DkHead>
 
         <div className="cc-tools">
           <div className="cc-tools-l">
             <button type="button" className="cc-btn" onClick={() => setVer((v) => v + 1)}>↻ read again</button>
-            <DkRangeSearch id="rta-q" label="Find a room or verdict" placeholder="room, verdict or licence"
-              q={q} onQ={setQ} result={rs} noun="turns" />
-            <DateRangeSelect label="Turned between" from={range.from} to={range.to}
-              onFrom={(v) => setRange((prev) => ({ ...prev, from: v }))}
-              onTo={(v) => setRange((prev) => ({ ...prev, to: v }))}
-              presetKey={dateDefault.presetKey} session={session}
-              viewKey={VIEW_KEY} allowSave />
-            {dateDefault.error && <span className="note bad" role="alert">{dateDefault.error}</span>}
-
             <button type="button" className="cc-btn" onClick={() => window.print()}>🖨 print</button>
             <button type="button" className="cc-btn" title="Collapse every section — remembered on your own account"
               onClick={() => store.setAll(WIDGETS.map((x) => x.key), false)}>− collapse all</button>
