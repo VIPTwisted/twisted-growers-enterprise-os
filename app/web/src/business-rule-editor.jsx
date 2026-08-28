@@ -1,5 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "./lib/supabase.js";
+import { DkRangeSearch } from "./dashkit.jsx";
+import { rangeSearch } from "./lib/range-search.js";
 
 const WRITE_ROLES = new Set(["owner", "executive"]);
 
@@ -76,6 +78,37 @@ export default function BusinessRuleEditor({
     if (onSaved) onSaved(data);
   };
 
+  /* THE PERIOD BUS: THIS DECLARES, AND IT IS A CATALOGUE SO THE CASE IS EASY.
+     docs/TODO_EVERY_PAGE.md gives two roads — take the active frame, or declare
+     as-of with a visible chip. v_business_rules is the catalogue of every
+     owner-set number the platform judges the business by: key, label, value,
+     unit, where it came from, who set it. `set_on` says when a rule was LAST
+     SET, which is a property of the rule, not an event. Ranged on it, the moisture
+     band set in August would vanish from the rules list in September — the rule
+     would still be governing every harvest figure in the platform while the page
+     that is supposed to show it said nothing. A catalogue that hides its own
+     entries is not filtered, it is broken.
+
+     Search is what 88 rules actually need. Finding `harvest_open_max_days` by
+     typing "harvest" beats scrolling a grid of cards. */
+  const [q, setQ] = useState("");
+  const found = useMemo(
+    /* state.rows is null until the first read lands, and rangeSearch treats a
+       non-array as an empty list rather than throwing — which is why these hooks
+       can sit ABOVE the loading return where they belong. */
+    () => rangeSearch(state.rows, {
+      q,
+      fields: ["key", "label", "unit", "what_it_means", "where_it_came_from", "set_by", "standing"],
+    }),
+    [state.rows, q],
+  );
+
+  /* THE EARLY RETURN COMES AFTER THE HOOKS, NOT BEFORE THEM. It was the other
+     way round for one commit: the search hooks sat below this line, so on the
+     first render (rows null) React saw two fewer hooks than on the second, which
+     is "Rendered more hooks than during the previous render" and a blank page
+     the moment the rules finished loading. Every hook in this component runs on
+     every render, unconditionally. */
   if (state.rows === null) return <div className="loading">Reading the business rules…</div>;
   const unset = state.rows.filter((r) => String(r.set_by || "").startsWith("default")).length;
 
@@ -96,8 +129,27 @@ export default function BusinessRuleEditor({
         </div>
       )}
 
+      {/* Embedded compact on other pages (the moisture register mounts five of
+          these), where the host has already named its own source and freshness.
+          Repeating the chips there would be two provenance lines for one set of
+          rows, so compact gets the search and the host keeps the provenance. */}
+      <DkRangeSearch
+        id={`vr-q-${source}`} label="Find a rule by name, unit, or who set it"
+        placeholder="moisture, harvest, per plant"
+        q={q} onQ={setQ} result={found} noun="rules"
+        source={compact ? null : source}
+        asOf={compact ? null : "the catalogue as it stands — no date range"}
+        err={state.error} />
+
+      {state.rows.length > 0 && found.rows.length === 0 && (
+        <div className="vrmsg">
+          No rule matches “{q.trim()}”. All {state.rows.length} were searched — there is no date range here that
+          could have hidden one, including a rule set months ago that is still governing every figure it feeds.
+        </div>
+      )}
+
       <div className="vrgrid">
-        {state.rows.map((r) => {
+        {found.rows.map((r) => {
           const isDefault = String(r.set_by || "").startsWith("default");
           return (
             <div key={r.key} className={`vrcard ${isDefault ? "warn" : "ok"}`}>

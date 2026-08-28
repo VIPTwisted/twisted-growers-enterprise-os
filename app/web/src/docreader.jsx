@@ -24,6 +24,8 @@
 --------------------------------------------------------------------------- */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "./lib/supabase.js";
+import { DkRangeSearch } from "./dashkit.jsx";
+import { rangeSearch } from "./lib/range-search.js";
 
 const when = (d) => (d ? new Date(d).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" }) : "—");
 
@@ -111,6 +113,28 @@ export default function DocReader({ go }) {
 
   const mine = useMemo(() => docs.filter(d => d.employee_id === me), [docs, me]);
 
+  /* THE PERIOD BUS: THIS PAGE DECLARES, AND ON A COMPLIANCE LIST THE ALTERNATIVE
+     IS DANGEROUS.
+     docs/TODO_EVERY_PAGE.md gives two roads — take the active frame, or declare
+     as-of with a visible chip. v_document_compliance does carry real dates
+     (due_on, signed_at, read_at), so a range COULD be applied here, and that is
+     exactly why the choice has to be argued rather than assumed.
+
+     This list answers one question: what do I still owe. A document that fell due
+     last month and is still unsigned is the most important row on the page, and
+     any range ending today or starting this month hides it. The page would then
+     show an employee a clean list while they are overdue — a compliance screen
+     lying by omission, which is worse than no screen. So the dates stay as facts
+     on every card, driving the overdue chip, and none of them is a filter.
+
+     Search is the half worth having: it finds a policy by name whatever its due
+     date or state. */
+  const [q, setQ] = useState("");
+  const found = useMemo(
+    () => rangeSearch(mine, { q, fields: ["title", "kind", "version", "state", "department"] }),
+    [mine, q],
+  );
+
   if (!me) return (
     <div className="drempty"><b>No employee record linked to this login</b>
       <span>Ask HR to link your account before signing anything.</span></div>);
@@ -129,15 +153,36 @@ export default function DocReader({ go }) {
 
       {msg && <div className="drmsg">{msg}</div>}
 
+      {/* Only over the list. Inside a document the reader is reading one thing,
+          and a search box there would be chrome with nothing to search. */}
+      {!doc && mine.length > 0 && (
+        <DkRangeSearch
+          id="dr-q" label="Find a document by title, kind or state"
+          placeholder="handbook, safety, overdue"
+          q={q} onQ={setQ} result={found} noun="documents"
+          source="v_document_compliance"
+          asOf="what you owe now — no date range, so nothing overdue is hidden" />
+      )}
+
       {!doc ? (
         mine.length === 0 ? (
           <div className="drempty">
             <b>Nothing assigned to you</b>
             <span>When HR assigns the manual or a policy it appears here with a due date.</span>
           </div>
+        ) : found.rows.length === 0 ? (
+          /* Assigned-nothing and matched-nothing are different facts. The card
+             above must never be shown to someone who simply mistyped. */
+          <div className="drempty">
+            <b>No document matches “{q.trim()}”</b>
+            <span>
+              All {mine.length} document{mine.length === 1 ? "" : "s"} assigned to you {mine.length === 1 ? "was" : "were"} searched,
+              including anything overdue — there is no date range on this page that could have hidden one.
+            </span>
+          </div>
         ) : (
           <div className="drlist">
-            {mine.map(d => (
+            {found.rows.map(d => (
               <button className="drcard" key={d.document_id} onClick={() => openDoc(d)} disabled={busy}>
                 <div className="drct">
                   <b>{d.title}</b>
