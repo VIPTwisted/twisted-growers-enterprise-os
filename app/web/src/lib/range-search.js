@@ -55,6 +55,43 @@ export function matchesSearch(row, fields, needle) {
 }
 
 /* ─────────────────────────────────────────────────────────────────────────
+   rangePlan(options) → { needle, searching, hasRange, applyRange, setAside }
+
+   THE POLICY, SEPARATED FROM THE MECHANISM — and the reason this exists.
+
+   rangeSearch below filters rows the browser already holds. That is right for a
+   page that loads its whole list, and wrong for one that cannot: ReportScreen
+   serves ~619 registered reports off tables far too large to pull down, so it
+   has to ask the SERVER for the filtered set. Two mechanisms, unavoidably.
+
+   What must NOT be two is the policy. Before this, ReportScreen decided for
+   itself and decided wrongly on both counts: it ANDed the search onto the same
+   PostgREST query as the range, so a search for a July work order returned
+   nothing while this-month was selected; and it filtered with .gte(), which no
+   NULL ever satisfies, so every undated row vanished from every ranged report.
+   Those are rules 1 and 2 broken in the one place that serves the most pages.
+
+   So the decision moves here and both callers ask it: the client filter uses it
+   to choose what to keep, and ReportScreen uses it to choose which predicates to
+   put on the wire. One definition of "a search beats the range", testable on its
+   own, and the next page that needs it does not get a third opinion.
+   ───────────────────────────────────────────────────────────────────────── */
+export function rangePlan({ from = "", to = "", dateField = null, q = "" } = {}) {
+  const needle = String(q ?? "").trim().toLowerCase();
+  const searching = needle.length > 0;
+  const hasRange = Boolean(from || to);
+  return {
+    needle,
+    searching,
+    hasRange,
+    /* RULE 1: a range is applied only when nobody is searching. */
+    applyRange: Boolean(dateField) && hasRange && !searching,
+    /* There WAS a range and it was deliberately ignored — the page must say so. */
+    setAside: searching && hasRange,
+  };
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
    rangeSearch(rows, options) → { rows, kept, outOfRange, undated, setAside,
                                   searching, total }
 
@@ -68,9 +105,9 @@ export function matchesSearch(row, fields, needle) {
    ───────────────────────────────────────────────────────────────────────── */
 export function rangeSearch(rows, { from = "", to = "", dateField, q = "", fields = [] } = {}) {
   const list = Array.isArray(rows) ? rows : [];
-  const needle = String(q ?? "").trim().toLowerCase();
-  const searching = needle.length > 0;
-  const hasRange = Boolean(from || to);
+  /* The same policy the server-side caller asks. Behaviour here is unchanged;
+     what changed is that the decision is no longer made twice. */
+  const { needle, searching, hasRange } = rangePlan({ from, to, dateField, q });
 
   if (searching) {
     /* RULE 1. Every row is searched, whatever the range says. */

@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback, useRef, useMemo, lazy, Suspense } from "react";
 import { fetchDepartmentDashboard } from "./lib/dashboard-range.js";
+import { rangePlan } from "./lib/range-search.js";
 import {
   useDatePresetCatalog,
   useDefaultRange,
@@ -1728,8 +1729,17 @@ function rpFilterSentence({ search, searchCols, filters, dateCol, dFrom, dTo, co
   const kindOf = (c) => cols?.find((x) => x.name === c)?.kind ?? "text";
   const parts = [];
   if (search) parts.push(`text search "${search}" across ${searchCols?.length ?? 0} text columns (${(searchCols ?? []).map(rpLabel).join(", ")})`);
-  if (dateCol && (dFrom || dTo)) {
-    parts.push(`${rpLabel(dateCol)} ${dFrom ? `from ${dFrom}` : "from the earliest record"} ${dTo ? `to ${dTo}` : "to the latest record"}`);
+  /* THIS SENTENCE IS THE EXPORT'S PROVENANCE LINE — it goes onto the CSV, the
+     workbook and the printed PDF. So it has to describe what the query ACTUALLY
+     did, not what the controls are set to. When a search sets the range aside,
+     saying "closed_on from 2026-08-01 to 2026-08-28" would put a filter on paper
+     that was never applied, and a reader reconciling the export against the
+     screen would be chasing a difference that does not exist. */
+  const plan = rangePlan({ from: dFrom, to: dTo, dateField: dateCol, q: search });
+  if (plan.setAside) {
+    parts.push(`date range on ${rpLabel(dateCol)} SET ASIDE for the search - every period was looked at`);
+  } else if (plan.applyRange) {
+    parts.push(`${rpLabel(dateCol)} ${dFrom ? `from ${dFrom}` : "from the earliest record"} ${dTo ? `to ${dTo}` : "to the latest record"}, plus rows carrying no ${rpLabel(dateCol)} at all, which are kept rather than dropped`);
   }
   for (const f of filters ?? []) {
     if (!f.col || !f.op) continue;
@@ -2676,8 +2686,29 @@ function ReportScreen({ entry, actions, session }) {
     const term = rpSanitise(search);
     if (term && textCols.length) qy = qy.or(textCols.map((c) => `${c}.ilike.%${term}%`).join(","));
     qy = rpApplyFilters(qy, filters);
-    if (dateCol && dFrom) qy = qy.gte(dateCol, dFrom);
-    if (dateCol && dTo) qy = qy.lt(dateCol, dateUpperExclusive(dTo));
+    /* THE RANGE, UNDER THE TWO RULES IN lib/range-search.js — and both were
+       broken here, on the one screen that serves ~619 registered reports.
+
+       RULE 1, a search beats the range. The search above and the range below
+       used to go onto the SAME PostgREST query, ANDed. So a reader typing a
+       July work order number on a report opened at this-month-to-date got
+       "no results" — and the report looked empty rather than filtered, which is
+       the Orders defect wearing a new hat. rangePlan answers whether the range
+       applies at all; when somebody is searching, it does not, and the page
+       says so rather than setting it aside silently.
+
+       RULE 2, an undated row is never dropped by a range. This filtered with
+       .gte()/.lt(), and no NULL satisfies either. Every row whose date was never
+       recorded disappeared from every ranged report — silently, and counted
+       nowhere. A row with no date is not outside the window, it is unplaceable,
+       so it is kept: the predicate is now "in the window OR has no date at all". */
+    const plan = rangePlan({ from: dFrom, to: dTo, dateField: dateCol, q: term });
+    if (plan.applyRange) {
+      const bounds = [];
+      if (dFrom) bounds.push(`${dateCol}.gte.${dFrom}`);
+      if (dTo) bounds.push(`${dateCol}.lt.${dateUpperExclusive(dTo)}`);
+      qy = qy.or(`${dateCol}.is.null,and(${bounds.join(",")})`);
+    }
     /* nullsFirst false: rows created before a date was tracked read NULL and
        must sort LAST, never first, and never look like a real empty date. */
     if (sort) qy = qy.order(sort.col, { ascending: sort.asc, nullsFirst: false });
