@@ -527,8 +527,22 @@ const migrationEntries = files.map((name) => ({
  * 450 / 521 / 28 / 850, so this is a pin on its own.
  *
  * Two readings: the gate on the clean-clone file set, and the recomputation from the git object
- * store with the working directory untouched. Both give 953 files at 951ab2e6… . */
-const expectedMigrationTreeDigest = "951ab2e69f95e23af284240974983ea13d109a77ae380f909f0b055f14a275f4";
+ * store with the working directory untouched. Both give 953 files at 951ab2e6… .
+ *
+ * RE-PINNED 28 Aug 2026, 954 files, off e5716dc. One migration landed, from PR #44:
+ * 20260828185029_c2_metrc_exception_queues_are_a_snapshot_not_an_activity_window.sql - the same
+ * single-row correction PR #41 made for plant_census, applied to xq_metrc_exceptions. Both pages
+ * were marked as activity windows and neither has an activity date to window on; a frame over
+ * either could only drop live rows by when they synced, or by when a defect started.
+ *
+ * The owner has closed the nav corrections on this ticket, so this is the last of that sequence.
+ *
+ * Baseline checked before pinning: schema-baseline still passes against live at
+ * 450 / 521 / 28 / 850. Pin only.
+ *
+ * Two readings: the gate on the clean-clone file set, and the recomputation from the git object
+ * store with the working directory untouched. Both give 954 files at a5ed273c… . */
+const expectedMigrationTreeDigest = "a5ed273c90a7695bd2863a2ba130aac59afff6b8ef09f8d716dbfebfc97e106d";
 const actualMigrationTreeDigest = migrationTreeDigest(migrationEntries);
 if (actualMigrationTreeDigest !== expectedMigrationTreeDigest) {
   console.error(`money-grain: FAIL — migration tree differs from the independently reviewed ${files.length}-file manifest (${actualMigrationTreeDigest}).`);
