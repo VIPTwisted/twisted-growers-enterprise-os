@@ -25,6 +25,8 @@
  */
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase, FUNCTIONS_URL } from "./lib/supabase.js";
+import { DkRangeSearch } from "./dashkit.jsx";
+import { rangeSearch } from "./lib/range-search.js";
 
 export default function SyncItems({ session, licences = [] }) {
   const [items, setItems] = useState(null);
@@ -48,14 +50,37 @@ export default function SyncItems({ session, licences = [] }) {
   useEffect(() => { load(); }, [load]);
 
   /* Grouped by source, so the screen has structure rather than one long list. */
+  /* THE PERIOD BUS: THIS PAGE DECLARES, AND SEARCH IS THE HALF THAT MATTERS.
+     docs/TODO_EVERY_PAGE.md gives two roads — take the active frame, or declare
+     as-of with a visible chip. v_sync_item is a registry of what is CONNECTED,
+     not a log of what happened: source, item, function, enabled, supported. Its
+     timestamps — last_success_at, last_status, due — describe the standing state
+     of a connection, not an event on a date. Ranging them would mean an
+     integration that last synced in July disappears from the list of
+     integrations, which is not a filter, it is losing the register.
+
+     Search is the half this page genuinely needs. There are 66 items across
+     three systems, Apex is collapsed by default because 46 rows is a lot of
+     page, and an operator hunting one endpoint has to open a category and read.
+     Search reaches every item in every category, open or collapsed. */
+  const [q, setQ] = useState("");
+  const found = useMemo(
+    () => rangeSearch(items ?? [], {
+      q,
+      fields: ["item_label", "item_key", "source_label", "source_key", "system_label",
+        "source_name", "pulls", "target", "note", "fn", "last_status"],
+    }),
+    [items, q],
+  );
+
   const groups = useMemo(() => {
     const m = new Map();
-    for (const it of items ?? []) {
+    for (const it of found.rows) {
       if (!m.has(it.source_key)) m.set(it.source_key, { label: it.source_label, items: [] });
       m.get(it.source_key).items.push(it);
     }
     return [...m.entries()];
-  }, [items]);
+  }, [found.rows]);
 
   async function runOne(key, it, licence) {
     setRunning(key);
@@ -99,8 +124,35 @@ export default function SyncItems({ session, licences = [] }) {
       </div>
       {out._load && <div className="pill err">Could not load the item list: {out._load.text}</div>}
 
+      {/* The shared control, so these chips read the same as on every other page.
+          No range is passed because there is none — the as-of chip says so, rather
+          than the page simply having no date control and leaving the reader to
+          guess whether one was quietly applied. A search opens across every
+          category, including the collapsed ones. */}
+      <DkRangeSearch
+        id="sync-q" label="Find an integration, endpoint, tab or entity"
+        placeholder="harvests, invoices, Green Valley"
+        q={q} onQ={setQ} result={found} noun="items"
+        source="v_sync_item"
+        asOf="registry — everything connected, no date range"
+        err={out._load ? out._load.text : null} />
+
+      {/* An empty REGISTER and an empty SEARCH are different facts. */}
+      {(items?.length ?? 0) > 0 && found.rows.length === 0 && !out._load && (
+        <div className="note" style={{ marginTop: 12 }}>
+          No integration matches “{q.trim()}”. All {items.length} registered items were searched, across every
+          category including the collapsed ones, and there is no date range on this page that could have hidden
+          one. Clear the search to see the whole register.
+        </div>
+      )}
+
       {groups.map(([key, g]) => {
-        const isOpen = open[key] ?? (key === "apex" ? false : true);
+        /* A SEARCH FORCES ITS CATEGORY OPEN. Apex is collapsed by default
+           because 46 rows is a lot of page — but if a search matched an Apex
+           entity and the category stayed shut, the count above would say "1 of
+           66 items match" while the screen showed nothing. A result that is
+           rendered inside a closed box has not been found. */
+        const isOpen = found.searching ? true : (open[key] ?? (key === "apex" ? false : true));
         const head = g.items[0] ?? {};
         return (
           <div key={key} style={{ marginTop: 20, borderTop: "1px solid var(--line)", paddingTop: 12 }}>

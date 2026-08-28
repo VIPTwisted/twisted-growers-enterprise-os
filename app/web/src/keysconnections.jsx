@@ -33,8 +33,10 @@
  * `data = null`, become `[]`, and render as a silent empty section. On a security page that
  * would be a page confidently reporting "no keys are set".
  */
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "./lib/supabase.js";
+import { DkRangeSearch } from "./dashkit.jsx";
+import { rangeSearch } from "./lib/range-search.js";
 
 const CHROME = 11;   /* DDC scale: chrome 9–11px */
 const BODY = 12;     /* 12px floor for prose, and prose never goes below it */
@@ -81,6 +83,29 @@ export default function KeysConnections({ session }) {
   const [adding, setAdding] = useState(false);
   const [newKey, setNewKey] = useState("");
   const [confirmRemove, setConfirmRemove] = useState(null);
+
+  /* THE PERIOD BUS: THIS PAGE DECLARES, AND THE FILE HEADER ALREADY ARGUED WHY.
+     docs/TODO_EVERY_PAGE.md gives two roads — take the active frame, or declare
+     as-of with a visible chip. A credential register takes the second, and this
+     is one of the few places where the wrong choice is not merely useless but
+     harmful: a range defaulted to this month hides a key set in July, and the
+     operator's next move is to paste a second one and never learn why. That is
+     not a lens over configuration, it is a way to lose it.
+
+     v_secret_status is state, not flow: key, label, status, masked. Its
+     timestamps — updated_at, last_set_at — say WHEN A THING WAS CONFIGURED, not
+     that anything happened on a date. They stay on every row as facts, because
+     rotating a key with confidence needs them. They are not a filter.
+
+     What the page did lack is a way to FIND a key by name, which matters the
+     moment the register is longer than a screen. So it gets the search half of
+     the rule and declares the range half, through the same shared control every
+     other page uses. */
+  const [q, setQ] = useState("");
+  const found = useMemo(
+    () => rangeSearch(rows ?? [], { q, fields: ["key", "label", "help", "status", "last_set_by"] }),
+    [rows, q],
+  );
   const live = useRef(true);
 
   useEffect(() => () => { live.current = false; setDraft({}); }, []);
@@ -179,6 +204,18 @@ export default function KeysConnections({ session }) {
         </div>
       )}
 
+      {/* The shared control, so the chips read the same here as everywhere else.
+          No `result` range fields are passed because there is no range: the
+          as-of chip states that, rather than the page silently having no date
+          control and leaving the reader to wonder whether one was applied. */}
+      <DkRangeSearch
+        id="keys-q" label="Find a key by name, label or who set it"
+        placeholder="alert email, Metrc, Apex"
+        q={q} onQ={setQ} result={found} noun="keys"
+        source="v_secret_status"
+        asOf="registry — every key ever named, no date range"
+        err={loadErr} />
+
       {rows.length === 0 && !loadErr && (
         <div className="panel" style={{ maxWidth: "none", fontSize: BODY }}>
           <div className="ptitle">No keys are registered yet</div>
@@ -190,7 +227,20 @@ export default function KeysConnections({ session }) {
         </div>
       )}
 
-      {rows.map((r) => {
+      {/* An empty REGISTER and an empty SEARCH are different facts and must not
+          render the same. The block above says nothing has been named; this one
+          says the register has keys and none of them match what was typed. */}
+      {rows.length > 0 && found.rows.length === 0 && !loadErr && (
+        <div className="panel" style={{ maxWidth: "none", fontSize: BODY }}>
+          <div className="ptitle">No key matches “{q.trim()}”</div>
+          <div className="note" style={{ fontSize: BODY }}>
+            All {rows.length} registered {rows.length === 1 ? "key was" : "keys were"} searched — there is no date
+            range on this page that could have hidden one. Clear the search to see the whole register.
+          </div>
+        </div>
+      )}
+
+      {found.rows.map((r) => {
         const set = r.status === "SET";
         const msg = said[r.key];
         return (
