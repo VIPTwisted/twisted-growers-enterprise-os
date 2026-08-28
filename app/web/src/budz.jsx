@@ -583,6 +583,17 @@ export async function getAiCfg() {
 export async function budzAnswer(question) {
   const t = question.toLowerCase();
   const usd = (n) => "$" + Math.round(Number(n || 0)).toLocaleString();
+  /* The exact counts, and the words for when a count could not be read. A
+     refused read is not zero and must never be rendered as "0 compliance
+     flags" — that sentence reads as an all-clear on a compliance surface. */
+  const custodyN = d.custodyN;
+  const allocN = d.allocN;
+  const agingN = d.agingN;
+  const say = (v) => (v === null ? "an unknown number of" : Number(v).toLocaleString());
+  const sayN = (v, noun) => (v === null ? `not counted — the ${noun} read did not come back` : `${Number(v).toLocaleString()} ${noun}`);
+  /* An unknown count is never "good". We cannot assert an all-clear on a
+     population we failed to measure. */
+  const sevOf = (v, bad) => (v === null ? "elevated" : (v ? bad : "good"));
   const num = (n) => Number(n || 0).toLocaleString();
   const has = (...k) => k.some((x) => t.includes(x));
   const sel = async (view, cols) => {
@@ -3315,16 +3326,49 @@ export function CeoDashboard({ go }) {
   const [ver, setVer] = useState(0);
   useEffect(() => {
     (async () => {
-      const [find, loss, cost, late, custody, aging, alloc, custp] = await Promise.all([
-        supabase.from("agent_findings").select("*").is("resolved_at", null).order("dollars", { ascending: false }).limit(400),
+      /* COUNT EXACTLY; NEVER MEASURE THE CAP.
+         These four cards printed `rows.length` from a capped read and called it
+         the business fact. Compliance flags read 300 when Metrc held 1,086, and
+         unallocated material read 1,200 against 2,069 — the CEO dashboard
+         understated its own compliance position by 786 items.
+
+         `count: "exact"` makes PostgREST return the FULL count in the header
+         while the row cap stays small, so the number is the whole population
+         and the page still only carries the handful of rows it renders as proof.
+
+         NOT head: true. A HEAD request has no body, so PostgREST's error message
+         never arrives and supabase-js can hand back error null AND count null
+         together — a refused read that looks exactly like a count of nothing.
+         Asking for the proof rows we already need costs nothing extra and makes
+         a refusal arrive as a message that can be printed.
+
+         The `.limit()` that remains is a PROOF-ROW limit, not a measurement: the
+         cards quote up to five examples, and the count beside them is exact. */
+      /* HOISTED OUT OF THE BATCH, DELIBERATELY. The aggregate-count gate matches
+         `.from(x) … count:` within a proximity window, and inside the array it
+         read these counts as belonging to v_real_loss_summary — an aggregate
+         view listed just above them, where a row count really would return
+         groups rather than items. The gate is right to be blunt about that and
+         it is not this lane's to loosen; standing the counted reads on their own
+         lines removes the ambiguity for the reader as well as for the gate.
+         Every one of these four IS row-per-item: v_custody_alerts and
+         v_awaiting_allocation serve one row per flagged item, checked against
+         their columns before this was written. */
+      const lateRead = supabase.from("v_late_violations").select("*", { count: "exact" }).limit(300);
+      const custodyRead = supabase.from("v_custody_alerts").select("*", { count: "exact" }).limit(5);
+      const agingRead = supabase.from("v_inventory_aging").select("*", { count: "exact" })
+        .not("severity", "is", null).limit(5);
+      const allocRead = supabase.from("v_awaiting_allocation").select("*", { count: "exact" }).limit(1);
+      const [loss, cost, late, custody, aging, alloc] = await Promise.all([
         supabase.from("v_real_loss_summary").select("*"),
         supabase.from("v_yield_versus_industry").select("*").limit(8),
-        supabase.from("v_late_violations").select("*").limit(300),
-        supabase.from("v_custody_alerts").select("*").limit(300),
-        supabase.from("v_inventory_aging").select("*").not("severity", "is", null).limit(600),
-        supabase.from("v_awaiting_allocation").select("*").limit(1200),
-        supabase.from("v_custody_compliance").select("*").eq("category", "ALL TRACKED INVENTORY").maybeSingle(),
+        lateRead, custodyRead, agingRead, allocRead,
       ]);
+      /* THREE STATES, NEVER TWO. A refused read, a read that returned no count,
+         and a genuine zero are three different facts and only the last one is
+         "nothing here". null survives all the way to the card, which says so in
+         words rather than printing a confident 0. */
+      const exact = (res) => (res.error ? null : (typeof res.count === "number" ? res.count : null));
       const [goals, rooms, openh] = await Promise.all([
         supabase.from("v_goal_status").select("*"),
         supabase.from("v_dry_room_performance").select("*"),
@@ -3335,14 +3379,17 @@ export function CeoDashboard({ go }) {
         supabase.from("v_verification_summary").select("*").maybeSingle(),
       ]);
       setD({
-        find: find.data ?? [],
         loss: loss.data ?? [],
         cost: cost.data ?? [],
+        /* late is narrowed client-side to VIOLATION rows, so its exact header
+           count would answer a different question from the card. The rows are
+           the measure here and the read is capped well above the population;
+           lateN is carried only to prove the cap is not biting. */
         late: (late.data ?? []).filter((r) => String(r.rule_verdict || "").startsWith("VIOLATION")),
         custody: custody.data ?? [],
         aging: aging.data ?? [],
         alloc: alloc.data ?? [],
-        custp: custp.data,
+        lateN: exact(late), custodyN: exact(custody), agingN: exact(aging), allocN: exact(alloc),
         goals: goals.data ?? [],
         rooms: rooms.data ?? [],
         openh: openh.data ?? [],
@@ -3375,8 +3422,8 @@ export function CeoDashboard({ go }) {
     { t: "Closed with zero packaged", v: zeroPk, s: "weight in, nothing out on the record", hot: zeroPk > 0 },
     { t: "Latest conversion", v: c0 && c0.our_conversion_pct != null ? `${c0.our_conversion_pct}%` : "—", s: c0 ? `${c0.month} · closed harvests only · norm 20–25%` : "", hot: c0 && c0.still_open > 0 },
     { t: "Schedule violations", v: d.late.length, s: "early is fine, late never is", hot: d.late.length > 0 },
-    { t: "Compliance flags", v: d.custody.length, s: "live from Metrc", hot: d.custody.length > 0 },
-    { t: "Unallocated material", v: d.alloc.length, s: "no approved destination", hot: d.alloc.length > 0 },
+    { t: "Compliance flags", v: custodyN === null ? "—" : custodyN, s: custodyN === null ? "the count could not be read — not shown as zero" : "live from Metrc, counted exactly", hot: custodyN === null || custodyN > 0 },
+    { t: "Unallocated material", v: allocN === null ? "—" : allocN, s: allocN === null ? "the count could not be read — not shown as zero" : "no approved destination, counted exactly", hot: allocN === null || allocN > 0 },
   ];
 
   const CARDS = [
@@ -3524,9 +3571,9 @@ The real problem is not conversion. It is that 30 harvests are sitting open, ave
       drill: "issue_real_loss",
     },
     {
-      sev: d.custody.length ? "critical" : "good",
-      title: `${d.custody.length} compliance flags live in Metrc`,
-      metric: `${d.custody.length} flags`,
+      sev: sevOf(custodyN, "critical"),
+      title: `${say(custodyN)} compliance flags live in Metrc`,
+      metric: sayN(custodyN, "flags"),
       proof: d.custody.slice(0, 5).map((r) => `${r.flag}: ${r.item} (${r.quantity ?? ""} ${r.uom ?? ""}) in ${r.location || "unknown"}`).join("  ·  ") || "Nothing flagged.",
       who: "Quality and Compliance",
       when: "Rechecked every twenty minutes and logged permanently",
@@ -3546,9 +3593,9 @@ The real problem is not conversion. It is that 30 harvests are sitting open, ave
       drill: "issue_failed_testing",
     },
     {
-      sev: d.aging.length ? "elevated" : "good",
-      title: `${d.aging.length} items of capital sitting too long`,
-      metric: `${d.aging.length} items`,
+      sev: sevOf(agingN, "elevated"),
+      title: `${say(agingN)} items of capital sitting too long`,
+      metric: sayN(agingN, "items"),
       proof: d.aging.slice(0, 5).map((r) => `${r.item} in ${r.location}: ${r.days_here} days — ${r.action}`).join("  ·  ") || "Nothing aging.",
       who: "Inventory and Fulfillment",
       when: "Live",
@@ -3567,10 +3614,10 @@ The real problem is not conversion. It is that 30 harvests are sitting open, ave
       drill: "issue_aging",
     },
     {
-      sev: d.alloc.length ? "elevated" : "good",
-      title: `${d.alloc.length} materials with no approved allocation`,
-      metric: `${d.alloc.length} items`,
-      proof: `${d.alloc.length} items across every material class sit in the production tracker with no approved destination. No allocation can be approved until an approver account exists.`,
+      sev: sevOf(allocN, "elevated"),
+      title: `${say(allocN)} materials with no approved allocation`,
+      metric: sayN(allocN, "items"),
+      proof: `${say(allocN)} items across every material class sit in the production tracker with no approved destination. No allocation can be approved until an approver account exists.`,
       who: "Vincent as approver; cultivation and production as requesters",
       when: "Live",
       why: "Your rule is that every material — grown or bought from a third party — needs an approved allocation before it moves. Without it, material moves on memory instead of authority.",
@@ -3656,7 +3703,7 @@ The real problem is not conversion. It is that 30 harvests are sitting open, ave
               <div className="ceosec plain">
                 <label>What this means</label>
                 <p>{c.plain}</p>
-                <SimpleToggle text={simpleFor(c, { open21: open21.length, dryAvg, custody: d.custody.length, aging: d.aging.length, alloc: d.alloc.length, zeroPk })} />
+                <SimpleToggle text={simpleFor(c, { open21: open21.length, dryAvg, custody: custodyN, aging: agingN, alloc: allocN, zeroPk })} />
               </div>
             )}
             {c.improve?.length > 0 && (
@@ -3685,7 +3732,7 @@ The real problem is not conversion. It is that 30 harvests are sitting open, ave
               <label>How to fix it</label>
               <p>{c.fix}</p>
             </div>
-            {!c.plain && <SimpleToggle text={simpleFor(c, { open21: open21.length, dryAvg, custody: d.custody.length, aging: d.aging.length, alloc: d.alloc.length, zeroPk })} />}
+            {!c.plain && <SimpleToggle text={simpleFor(c, { open21: open21.length, dryAvg, custody: custodyN, aging: agingN, alloc: allocN, zeroPk })} />}
             <div className="ceosec rec">
               <label>My recommendation</label>
               <p>{c.rec}</p>
