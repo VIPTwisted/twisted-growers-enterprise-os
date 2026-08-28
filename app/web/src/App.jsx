@@ -2404,6 +2404,114 @@ function RpFiltersPanel({ cols, filters, setFilters, onClose }) {
 
 /* Saved views: tabbed, per user, stored in `saved_views` so a layout follows the
    person rather than the browser. `collection` namespaces them to the report. */
+/* ══════════ THE HEADER EVERY REGISTERED REPORT PRINTS ══════════
+ * Owner ruling, 28 Aug 2026: title, company, period from the bus, as-of, source.
+ *
+ * It is one component because it is one engine. A report is a ROW, never a code
+ * change, so a header written per page would be 615 headers to keep honest and
+ * 615 places for one of them to quietly stop saying which system it read.
+ *
+ * NOTHING HERE IS INVENTED WHEN IT IS NOT KNOWN. Each line either states a fact
+ * or states that the fact is missing. A printed report is the artefact that
+ * leaves the building and gets read by somebody who cannot ask the database a
+ * follow-up question, so a blank where the source should be is worse than the
+ * words that say the source could not be derived. */
+/* App.jsx does not import dashkit's listOf, and reaching for it here would add a
+   module edge for three lines. A null result and an error result must both render
+   as "nothing", never throw inside a header. */
+const rhArray = (v) => (Array.isArray(v) ? v : []);
+
+function useCompanyIdentity() {
+  const [state, setState] = useState({ rows: null, error: null });
+  useEffect(() => {
+    let live = true;
+    supabase.from("company_licenses")
+      .select("license,label,kind,active").eq("active", true).order("kind")
+      .then(({ data, error }) => {
+        if (!live) return;
+        setState(error ? { rows: null, error: error.message } : { rows: data ?? [], error: null });
+      });
+    return () => { live = false; };
+  }, []);
+  return state;
+}
+
+/* Provenance is MEASURED, in v_report_provenance, by walking pg_depend to the
+   bottom — see 20260828170000. Read here rather than guessed from the fact_view
+   name, because every enabled report's fact_view begins with a bare `v_` and the
+   name identifies nothing. */
+function useReportProvenance(reportKey) {
+  const [state, setState] = useState({ row: null, error: null });
+  useEffect(() => {
+    let live = true;
+    setState({ row: null, error: null });
+    if (!reportKey) return () => { live = false; };
+    supabase.from("v_report_provenance")
+      .select("sources,relations_read,deepest,truncated_at_depth")
+      .eq("report_key", reportKey).maybeSingle()
+      .then(({ data, error }) => {
+        if (!live) return;
+        setState(error ? { row: null, error: error.message } : { row: data ?? null, error: null });
+      });
+    return () => { live = false; };
+  }, [reportKey]);
+  return state;
+}
+
+function RpReportHeader({ title, reportKey, factView, dateCol, from, to, presetKey, readAt, total }) {
+  const company = useCompanyIdentity();
+  const prov = useReportProvenance(reportKey);
+  /* The label comes from f_date_presets, the same catalogue the control uses, so the
+     printed page and the dropdown can never disagree about what "this month" means.
+     A raw key like this_month_td is not something to print at a reader. */
+  const { rows: presetRows } = useDatePresetCatalog();
+  const presetLabel = rhArray(presetRows).find((r) => r.preset_key === presetKey)?.label ?? null;
+
+  const licences = rhArray(company.rows);
+  const companyLine = company.error
+    ? `Company could not be read: ${company.error}`
+    : licences.length
+      ? `Twisted Growers · ${licences.map((l) => `${l.license} ${l.kind}`).join(" · ")}`
+      : company.rows === null ? "Reading the company licences…" : "No active licence is recorded in company_licenses.";
+
+  /* A report with no date_column is not a report over a period, and saying
+     "1 Aug to 28 Aug" over it would be a claim its own rows cannot support. */
+  const periodLine = !dateCol
+    ? "Every row, all dates — this report declares no date column, so no period was applied."
+    : (from || to)
+      ? `${dateCol} from ${from || "the earliest record"} to ${to || "the latest record"}${presetLabel ? ` · ${presetLabel}` : ""}`
+      : `${dateCol} · every date${presetLabel ? ` · ${presetLabel}` : ""}`;
+
+  const sourceLine = (() => {
+    if (prov.error) {
+      return /does not exist|schema cache|42P01/i.test(prov.error)
+        ? "Source not derived — v_report_provenance is not in this database yet."
+        : `Source could not be read: ${prov.error}`;
+    }
+    if (!reportKey) return "Not a registered report, so no source is recorded for it.";
+    if (prov.row === null) return "Deriving the source…";
+    const src = rhArray(prov.row.sources);
+    if (!src.length) return "This report resolves to no base relation, so no source could be derived.";
+    return `${src.join(" + ")} · ${prov.row.relations_read} relation${prov.row.relations_read === 1 ? "" : "s"}`
+      + (prov.row.truncated_at_depth ? " · dependency walk hit its depth limit, so this list may be short" : "");
+  })();
+
+  return (
+    <div className="rp-reporthead">
+      <div className="rp-rh-title">{title}</div>
+      <dl className="rp-rh-facts">
+        <div><dt>Company</dt><dd>{companyLine}</dd></div>
+        <div><dt>Period</dt><dd>{periodLine}</dd></div>
+        <div><dt>As of</dt><dd>{readAt
+          ? new Date(readAt).toLocaleString()
+          : "not yet read"}{total != null ? ` · ${total.toLocaleString()} records` : ""}</dd></div>
+        <div><dt>Source</dt><dd>{sourceLine}</dd></div>
+        <div><dt>Report</dt><dd>{reportKey ? `${reportKey} · ${factView}` : factView}</dd></div>
+      </dl>
+    </div>
+  );
+}
+
 function RpSavedViews({ viewKey, state, apply, session }) {
   const [views, setViews] = useState(null);
   const [err, setErr] = useState(null);
@@ -2451,6 +2559,11 @@ function ReportScreen({ entry, actions, session }) {
   const [probeError, setProbeError] = useState(null);
   const [rows, setRows] = useState(null);
   const [total, setTotal] = useState(null);
+  /* The moment the rows in front of the reader were actually read. Not a render
+     clock: a printed page that timestamps itself when the paper came out claims a
+     freshness it does not have, and a report left open over lunch would print an
+     as-of an hour newer than its own figures. */
+  const [readAt, setReadAt] = useState(null);
   const [error, setError] = useState(null);
   const [truncated, setTruncated] = useState(false);
   const [rowsContractDigest, setRowsContractDigest] = useState(null);
@@ -2585,6 +2698,7 @@ function ReportScreen({ entry, actions, session }) {
       setRowsContractError(r.proofError || (proofSelection.ambiguous ? "The post-read contract is ambiguous." : null));
       setRows(r.rows); setTruncated(r.truncated);
       setTotal(r.total ?? null);
+      setReadAt(new Date().toISOString());
     });
     return () => { live = false; };
   }, [table, entry.view_key, probe, fetchRows, loadAll, groupBy, dateDefault.ready]);
@@ -2781,6 +2895,17 @@ function ReportScreen({ entry, actions, session }) {
           Totals refused: {regSelection.matches} enabled report contracts point to {table}, but this page names no unique contract. The rows remain available; no contract was guessed.
         </div>
       )}
+
+      <RpReportHeader
+        title={title}
+        reportKey={reg?.report_key ?? null}
+        factView={table}
+        dateCol={dateCol}
+        from={dFrom}
+        to={dTo}
+        presetKey={preset}
+        readAt={readAt}
+        total={total} />
 
       <div className="modhead">
         <div className="mchip">{iconByName(entry.icon)}</div>
