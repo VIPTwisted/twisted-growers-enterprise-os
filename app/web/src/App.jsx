@@ -72,7 +72,7 @@ const CommandCenter = lazy(() => import("./commandcenter.jsx"));
    here so the shared stock-proof drill carries certificate and manifest on
    every row, sitewide (owner hard rule, 12 Aug 2026). Same deliberate,
    render-time-only import cycle as the Command Center above. */
-import { TagEvidence, TagEvidenceProvider } from "./dashkit.jsx";
+import { TagEvidence, TagEvidenceProvider, DkHarvestControlBanner } from "./dashkit.jsx";
 const CultivationDashboard = lazy(() => import("./dash-cultivation.jsx"));
 const InventoryDashboard = lazy(() => import("./dash-inventory.jsx"));
 /* SCHEDULE ADHERENCE — written 13 Aug 2026 and, until now, mounted by nothing.
@@ -5455,6 +5455,20 @@ function ControlTower({ go, session }) {
           {session && <SyncCenter session={session} />}
         </div>
       </div>
+
+      {/* THE HARVEST CONTROL BANNER — docs/HARVEST_CONTROL_LAW.md asks for it on
+          Cultivation home AND here, for anything at severity 3 or above.
+
+          THE SAME COMPONENT AND THE SAME VIEW, not a second copy. It reads
+          v_harvest_control_banner, which holds the one definition of the four
+          lines; Cultivation home mounts the identical component. Two pages, one
+          source — they cannot drift, and a figure that moves on one moves on the
+          other because it IS the other.
+
+          Above the hero deliberately. A control line that waits for someone to
+          scroll past the operational-status ring is not a control. */}
+      <DkHarvestControlBanner go={go} />
+
       {rows && (
         <div className="hero">
           <button className="pulse" onClick={() => go("alerts")} title="Open the Action Register">
