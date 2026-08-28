@@ -22,7 +22,9 @@
    ═══════════════════════════════════════════════════════════════════════════ */
 import React, { useEffect, useMemo, useState } from "react";
 import { supabase } from "./lib/supabase.js";
+import { DateRangeSelect } from "./App.jsx";
 import {
+  useDefaultRange, DkRangeSearch, rangeSearch,
   grab, listOf, DkTag, DkErr, DkEmpty, DkKpiStrip, DkDrill, DrillRoot, DkHead, useSectionStore,
   useWidgetLayout, Widget, WidgetBoard, WidgetBarControls, DkReports,
 } from "./dashkit.jsx";
@@ -58,6 +60,11 @@ export default function HarvestDetail({ go, session, role, viewAs, reports }) {
   const [d, setD] = useState(null);
   const [openKpi, setOpenKpi] = useState(null);
   const [ver, setVer] = useState(0);
+  /* ON THE BUS. The range is resolved by useDefaultRange over f_date_presets —
+     the one catalog. Nothing about a preset or a week-start is defined here. */
+  const [range, setRange] = useState({ from: "", to: "" });
+  const dateDefault = useDefaultRange(session, VIEW_KEY, setRange);
+  const [q, setQ] = useState("");
   const [roomPick, setRoomPick] = useState("");
 
   useEffect(() => {
@@ -74,10 +81,15 @@ export default function HarvestDetail({ go, session, role, viewAs, reports }) {
 
   /* Qualified once. harvest_pull_details carries no licence column, so the
      label states the department is not on the record. */
-  const rows = useMemo(
+  const allRows = useMemo(
     () => listOf(d ? d.p.rows : []).map((r) => ({ ...r, room_qualified: cultRoomLabel(r.flower_room, r.license, licMap) })),
     [d, licMap],
   );
+  const rs = useMemo(() => rangeSearch(allRows, {
+    from: range.from, to: range.to, dateField: "harvest_date", q,
+    fields: ["room_qualified", "cultivar", "day_of_week", "dry_window"],
+  }), [allRows, range.from, range.to, q]);
+  const rows = rs.rows;
   const roomNames = useMemo(() => [...new Set(listOf(rows).map((r) => r.room_qualified))].sort(), [rows]);
   const shown = useMemo(() => listOf(rows).filter((r) => !roomPick || r.room_qualified === roomPick), [rows, roomPick]);
 
@@ -157,6 +169,10 @@ export default function HarvestDetail({ go, session, role, viewAs, reports }) {
             <button type="button" className="cc-btn" title="Expand every section"
               onClick={() => store.setAll(WIDGETS.map((x) => x.key), true)}>+ expand all</button>
             <WidgetBarControls layout={layout} />
+            <DateRangeSelect label="Harvest date" from={range.from} to={range.to}
+              onFrom={(v) => setRange((prev) => ({ ...prev, from: v }))}
+              onTo={(v) => setRange((prev) => ({ ...prev, to: v }))}
+              presetKey={dateDefault.presetKey} session={session} viewKey={VIEW_KEY} allowSave />
             <label className="cc-fine" htmlFor="hd-room">Flower room</label>
             <select id="hd-room" className="cc-input" value={roomPick} onChange={(e) => setRoomPick(e.target.value)}
               title="Narrow the plan to one room. Every figure above recounts for the narrowed set.">
@@ -171,6 +187,11 @@ export default function HarvestDetail({ go, session, role, viewAs, reports }) {
             <button type="button" className="cc-btn" onClick={() => go("dept_dash_cultivation")}>Cultivation dashboard →</button>
           </div>
         </div>
+
+                <DkRangeSearch id="hd-q" label="Search room, cultivar, day or dry window"
+          q={q} onQ={setQ} result={rs} noun="pulls" rangeLabel="this range"
+          source="harvest_pull_details" err={d.p.err}
+          asOf="a plan, not a record of what happened — the range narrows which pulls are listed" />
 
         {d.p.err ? <DkErr what="The planned pulls" err={d.p.err} /> : (
           <DkKpiStrip dept={CULT_DEPT} tiles={tiles} trend={trend} targets={targets} go={go}
