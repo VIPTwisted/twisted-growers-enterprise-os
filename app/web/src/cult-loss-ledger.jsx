@@ -27,7 +27,7 @@ import { supabase } from "./lib/supabase.js";
 import { dateUpperExclusive } from "./lib/date-range-core.js";
 import { DateRangeSelect } from "./App.jsx";
 import {
-  useDefaultRange, grab, listOf, DkTag, DkErr, DkEmpty, DkKpiStrip, DkDrill, DrillRoot, DkHead, useSectionStore,
+  useDefaultRange, DkRangeSearch, rangeSearch, grab, listOf, DkTag, DkErr, DkEmpty, DkKpiStrip, DkDrill, DrillRoot, DkHead, useSectionStore,
   useWidgetLayout, Widget, WidgetBoard, WidgetBarControls, DkReports,
 } from "./dashkit.jsx";
 import {
@@ -80,6 +80,7 @@ export default function LossLedger({ go, session, role, viewAs, reports }) {
   const [d, setD] = useState(null);
   const [openKpi, setOpenKpi] = useState(null);
   const [ver, setVer] = useState(0);
+  const [q, setQ] = useState("");
 
   useEffect(() => {
     if (!dateDefault.ready) return undefined;
@@ -99,15 +100,15 @@ export default function LossLedger({ go, session, role, viewAs, reports }) {
 
   const kinds = useMemo(() => [...new Set(listOf(rows).map((r) => r.loss_type).filter(Boolean))].sort(), [rows]);
 
-  const inRange = useMemo(() => listOf(rows).filter((r) => {
-    if (kind && r.loss_type !== kind) return false;
-    if (!range.from && !range.to) return true;
-    const d0 = r.occurred_on ? String(r.occurred_on).slice(0, 10) : null;
-    if (!d0) return false;
-    if (range.from && d0 < range.from) return false;
-    if (range.to && d0 > range.to) return false;
-    return true;
-  }), [rows, range, kind]);
+  /* THE HAND-ROLLED FILTER IS GONE — it was the fourth copy in this folder, and
+     like the other three it dropped an undated row with `if (!d0) return false`.
+     The loss type stays a separate filter: it is a KIND, not a date, and mixing
+     the two into one predicate is what made the defect hard to see. */
+  const rs = useMemo(() => rangeSearch(rows, {
+    from: range.from, to: range.to, dateField: "occurred_on", q,
+    fields: ["room", "loss_type", "record", "reason_code", "detail"],
+  }), [rows, range.from, range.to, q]);
+  const inRange = useMemo(() => listOf(rs.rows).filter((r) => !kind || r.loss_type === kind), [rs.rows, kind]);
 
   const units = useMemo(() => byUnit(inRange), [inRange]);
 
@@ -217,6 +218,10 @@ export default function LossLedger({ go, session, role, viewAs, reports }) {
             <button type="button" className="cc-btn" onClick={() => go("dept_dash_cultivation")}>Cultivation dashboard →</button>
           </div>
         </div>
+
+                <DkRangeSearch id="ll-q" label="Search room, loss type, record, reason or detail"
+          q={q} onQ={setQ} result={rs} noun="losses" rangeLabel="this range"
+          source="v_loss_ledger" err={d.l.err} />
 
         {d.l.err ? <DkErr what="The loss ledger" err={d.l.err} /> : (
           <DkKpiStrip dept={CULT_DEPT} tiles={tiles} trend={trend} targets={targets} go={go}
