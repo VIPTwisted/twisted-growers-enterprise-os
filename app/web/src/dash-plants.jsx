@@ -472,6 +472,56 @@ export default function PlantCensusDashboard({ go, session, reports, role, viewA
   const [openRoom, setOpenRoom] = useState(null);
   const [ver, setVer] = useState(0);
   const [d, setD] = useState(null);
+
+  /* THE PERIOD BUS: THIS PAGE DECLARES, IT DOES NOT SUBSCRIBE — AND THAT IS
+     MEASURED, NOT PREFERRED.
+     docs/TODO_EVERY_PAGE.md gives two roads: use the active frame, or declare
+     as-of / snapshot with a visible chip. A census is the second by nature — it
+     answers "what is standing right now" — and v_plant_census proves it: its
+     columns are tag, room, phase, strain, source, in_api_mirror, in_metrc_report,
+     api_synced_at, report_as_of, report_age_days, provenance_note,
+     room_disagreement. There is NO activity date on a plant row. The only dates
+     are provenance: when the mirror synced, and what day the Metrc report was
+     as of.
+
+     So a frame could only be applied to api_synced_at, which would drop every
+     plant whose row happened to sync before the 1st — a fake zero of exactly the
+     kind the rule forbids. Declaring is the only truthful road, so the chip below
+     says so on the page rather than the page quietly ignoring a range it appears
+     to offer.
+
+     FLAGGED, NOT FIXED HERE: nav_registry for view_key 'plant_census' carries
+     default_range = 'this_month_td' and range_kind = 'activity'. On the evidence
+     above that row is wrong — this is a snapshot, as dept_dash_inventory is
+     already correctly marked. Correcting it is a data change to the nav registry
+     and is not being made from a front-end branch. */
+  const AS_OF_CHIP = {
+    label: "as-of now · snapshot, not on the date bus",
+    why: "A plant census counts what is standing at this moment, so it is declared as-of rather than taking the active "
+      + "date frame. This is not a page that forgot the bus: v_plant_census carries no activity date on a plant at all — "
+      + "its only dates are provenance (when the mirror synced, what day the Metrc report was as of). Filtering a census "
+      + "to a period could only drop plants by when their row synced, which would be a false zero. The freshness that "
+      + "does matter is the sync age, and that is on the page already.",
+  };
+
+  /* SEARCH REACHES EVERY PLANT, WHATEVER ITS AGE OR ROOM.
+     Server-side ilike over the census, so a tag is found whether or not its room
+     card is open. There is no date range on this page to set aside — it is a
+     declared snapshot — so the result line says what WAS searched instead. */
+  const [q, setQ] = useState("");
+  const [hits, setHits] = useState(null);
+  useEffect(() => {
+    const term = q.trim();
+    if (term.length < 3) { setHits(null); return undefined; }
+    let live = true;
+    const like = `%${term.replace(/[%_]/g, (c) => `\\${c}`)}%`;
+    supabase.from(CENSUS)
+      .select("tag,room,phase,strain,source,in_api_mirror,in_metrc_report,report_age_days,provenance_note,room_disagreement")
+      .or(["tag", "strain", "room", "phase"].map((c) => `${c}.ilike.${like}`).join(","))
+      .limit(200)
+      .then((res) => { if (live) setHits(grab(res)); });
+    return () => { live = false; };
+  }, [q]);
   const reload = useCallback(() => setVer((v) => v + 1), []);
 
   /* THE TILES. One exact count per measure, issued to the database with the
@@ -578,6 +628,7 @@ export default function PlantCensusDashboard({ go, session, reports, role, viewA
             title="Every figure here is counted from a live view at the moment the page loads, so there is no snapshot to go stale. What CAN go stale is Metrc's point-in-time report underneath the mirror board, and that age is stated on every room card.">
             source <b>live views, no snapshot</b>
           </span>
+          <DkTag tone="attn" title={AS_OF_CHIP.why}>{AS_OF_CHIP.label} ⓘ</DkTag>
           {censusTotal != null && <DkTag tone="neutral">{NUM(censusTotal)} standing</DkTag>}
           {reportAge != null && (
             <DkTag tone={reportAge > 14 ? "attn" : "info"}
@@ -606,6 +657,16 @@ export default function PlantCensusDashboard({ go, session, reports, role, viewA
               onClick={() => store.setAll(layoutDefs.map((w) => w.key), true)}>+ expand all</button>
             <WidgetBarControls layout={layout} />
           </div>
+          <div className="cc-tools-c">
+            <label htmlFor="plants-q">Find a plant tag, strain, room or phase</label>
+            <input id="plants-q" className="cc-input" value={q} onChange={(e) => setQ(e.target.value)}
+              placeholder="1A40A020… or Blue Dream"
+              title="Searches every plant in the census at the server, whichever room it is in and whether or not its card is open. Plant tags begin 1A40A020 — packages begin 1A40A030 and live on the Inventory dashboard." />
+            {q.trim().length > 0 && (
+              <button type="button" className="cc-btn" onClick={() => setQ("")}
+                title="Clear the search and return to the census.">clear</button>
+            )}
+          </div>
           <div className="cc-tools-r">
             <button className="cc-btn" type="button"
               title="Re-count every figure and re-read every room against Metrc's report."
@@ -615,6 +676,50 @@ export default function PlantCensusDashboard({ go, session, reports, role, viewA
               onClick={() => go && go("dept_dash_cultivation")}>Cultivation dashboard →</button>
           </div>
         </div>
+
+        {hits && (
+          <DkDrill label={`Search — “${q.trim()}” across every plant in the census`} onClose={() => setQ("")}>
+            {hits.err ? <DkErr what={`The plant search (${CENSUS})`} err={hits.err} />
+              : listOf(hits.rows).length === 0 ? (
+                <DkEmpty
+                  why={`No plant in the census matches “${q.trim()}”.`}
+                  fills={"Every room and every phase was searched at the server, not just the cards that happen to be open, "
+                    + "and the census carries no date range that could have hidden a row. A tag that is absent here is not "
+                    + "standing — it may still exist in Metrc as harvested or destroyed."} />
+              ) : (
+                <>
+                  <div className="cc-fine">
+                    <b>{listOf(hits.rows).length.toLocaleString()}</b> plant
+                    {listOf(hits.rows).length === 1 ? "" : "s"} found
+                    {listOf(hits.rows).length === 200 ? " — showing the first 200" : ""}. The whole census was searched;
+                    this page carries no date range to have narrowed it.
+                  </div>
+                  <div className="tablewrap">
+                    <table>
+                      <thead><tr><th>Tag</th><th>Room</th><th>Phase</th><th>Strain</th><th>Source</th>
+                        <th>In API mirror</th><th>In Metrc report</th><th>Report age</th><th>Provenance</th><th>Room disagreement</th></tr></thead>
+                      <tbody>
+                        {listOf(hits.rows).map((r, i) => (
+                          <tr key={`${r.tag ?? "row"}|${i}`}>
+                            <td>{r.tag ?? "no tag"}</td>
+                            <td>{r.room ?? "room not recorded"}</td>
+                            <td>{r.phase ?? "phase not recorded"}</td>
+                            <td>{r.strain ?? "strain not recorded"}</td>
+                            <td>{r.source ?? "source not recorded"}</td>
+                            <td>{r.in_api_mirror === true ? "Yes" : r.in_api_mirror === false ? "No" : "not stated"}</td>
+                            <td>{r.in_metrc_report === true ? "Yes" : r.in_metrc_report === false ? "No" : "not stated"}</td>
+                            <td>{r.report_age_days === null || r.report_age_days === undefined ? "no report row" : `${r.report_age_days} days`}</td>
+                            <td className="note">{r.provenance_note ?? "not stated"}</td>
+                            <td className="note">{r.room_disagreement ?? "none"}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
+              )}
+          </DkDrill>
+        )}
 
         <KeyFigures counts={counts} targets={targetByKpi} openKey={openKey}
           onOpen={setOpenKey} onAssigned={reload} />
