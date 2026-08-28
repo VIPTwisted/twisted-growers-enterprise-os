@@ -23,7 +23,7 @@ import { supabase } from "./lib/supabase.js";
 import { AssignTask, DateRangeSelect } from "./App.jsx";
 import BusinessRuleEditor from "./business-rule-editor.jsx";
 import {
-  useDefaultRange, grab, listOf, DkTag, DkErr, DkEmpty, DkKpiStrip, DkDrill, DrillRoot, DkHead, useSectionStore,
+  useDefaultRange, DkRangeSearch, rangeSearch, grab, listOf, DkTag, DkErr, DkEmpty, DkKpiStrip, DkDrill, DrillRoot, DkHead, useSectionStore,
   useWidgetLayout, Widget, WidgetBoard, WidgetBarControls, DkReports,
 } from "./dashkit.jsx";
 import {
@@ -61,6 +61,7 @@ export default function MoistureRegister({ go, session, role, viewAs, reports })
   const [d, setD] = useState(null);
   const [openKpi, setOpenKpi] = useState(null);
   const [ver, setVer] = useState(0);
+  const [q, setQ] = useState("");
 
   useEffect(() => {
     let live = true;
@@ -79,12 +80,23 @@ export default function MoistureRegister({ go, session, role, viewAs, reports })
     [d, licMap],
   );
 
-  const inRange = useMemo(() => allRows.filter((r) => {
-    if (!range.from && !range.to) return true;
-    const date = String(r.recorded_on || r.harvest_closed || r.harvest_started || "").slice(0, 10);
-    if (!date) return false;
-    return (!range.from || date >= range.from) && (!range.to || date <= range.to);
-  }), [allRows, range.from, range.to]);
+  /* THE HAND-ROLLED RANGE FILTER IS GONE. It lived here, in three cultivation
+     pages, in three slightly different spellings — and all three dropped an
+     undated row with `if (!d0) return false`, which is precisely what the owner
+     ruled out: an undated row is unplaceable, not outside the window. One
+     primitive now decides range and search for every page, it is unit-tested,
+     and a search sets the range aside and says so. */
+  /* This register dates a row by when the loss was RECORDED, falling back to
+     when the harvest closed and then to when it started — the same order the
+     old filter used, computed once so the primitive has a single field to read. */
+  const dated = useMemo(() => allRows.map((r) => ({
+    ...r, _register_date: r.recorded_on || r.harvest_closed || r.harvest_started || null,
+  })), [allRows]);
+  const rs = useMemo(() => rangeSearch(dated, {
+    from: range.from, to: range.to, dateField: "_register_date", q,
+    fields: ["harvest_name", "strain", "room"],
+  }), [dated, range.from, range.to, q]);
+  const inRange = rs.rows;
   const needs = useMemo(() => allRows.filter((r) => r.needs_recording === true), [allRows]);
   const recorded = useMemo(() => inRange.filter((r) => r.needs_recording !== true), [inRange]);
   const rows = useMemo(() => [...needs, ...recorded], [needs, recorded]);
@@ -195,6 +207,10 @@ export default function MoistureRegister({ go, session, role, viewAs, reports })
             <button type="button" className="cc-btn" onClick={() => go("dept_dash_cultivation")}>Cultivation dashboard →</button>
           </div>
         </div>
+
+        <DkRangeSearch id="mr-q" label="Search harvest name, strain or room"
+          q={q} onQ={setQ} result={rs} noun="harvests" rangeLabel="this range"
+          source="v_moisture_loss_register" err={d.m.err} />
 
         {d.m.err ? <DkErr what="The moisture loss register" err={d.m.err} /> : (
           <DkKpiStrip dept={CULT_DEPT} tiles={tiles} trend={trend} targets={targets} go={go}

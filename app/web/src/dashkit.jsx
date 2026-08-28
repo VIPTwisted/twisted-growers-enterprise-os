@@ -32,6 +32,8 @@
 import React, { useEffect, useState, useCallback, useMemo, useRef, createContext, useContext } from "react";
 import { supabase } from "./lib/supabase.js";
 export { useDefaultRange } from "./lib/date-range.js";
+import { rangeSearchNote } from "./lib/range-search.js";
+export { rangeSearch, rangeSearchNote, matchesSearch } from "./lib/range-search.js";
 import { rowsOr, movementVerdict, useSectionStore, AssignTask } from "./App.jsx";
 /* The .ccpage token scope and every .cc-* class live in the Command Center's
    scoped stylesheet. dashkit consumes them so there is ONE visual system;
@@ -2001,3 +2003,84 @@ export function DkHead({ title, viewKey, dept, role, viewAs, computed, busy, chi
 }
 
 export { useSectionStore };
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   THE SEARCH BOX AND THE THREE CHIPS — owner ruling, 28 August 2026
+   (docs/TODO_EVERY_PAGE.md).
+
+   A PRIMITIVE, NOT A LAYOUT. Every page that lists records gets the same search
+   behaviour and the same four sentences, so a reader who learns to read them on
+   one page has learned to read them on all of them. Where the control sits, and
+   what each page searches on, stays the page's own business.
+
+   IT CONSUMES THE BUS, IT DOES NOT REPLACE IT. The range arrives already
+   resolved by `useDefaultRange` over `f_date_presets`. Nothing here holds a
+   preset, a default or a week-start. `rangeSearch` in lib/range-search.js does
+   the deciding and is unit-tested; this renders what it decided.
+
+   THE THREE CHIPS.
+     · SOURCE — the relation the rows came from, named on the page. A figure
+       whose origin is not on the page is a figure nobody can check.
+     · AS-OF — for a page whose rows are a position rather than a flow, so a
+       reader is never left to assume a snapshot moves with the range when it
+       does not.
+     · RANGE SET ASIDE — shown only while a search is running over a range that
+       was deliberately ignored. Setting it aside is right; setting it aside
+       quietly is not.
+
+   REFUSE, DO NOT ZERO. `err` prints the database's own refusal where the count
+   would go. A read that was denied is not an empty result, and the two must
+   never render the same — that shape has put "0 records" on this platform's
+   Control Tower and zeroed five money tiles on a Finance strip. */
+export function DkRangeSearch({
+  id, label = "Search", placeholder = "type any part of it",
+  q, onQ, result, noun = "rows", rangeLabel = "",
+  source, asOf, err,
+}) {
+  const searching = Boolean(String(q ?? "").trim());
+  return (
+    <div className="cc-rs">
+      <label htmlFor={id}>{label}</label>
+      <input id={id} className="cc-input cc-rs-input" value={q ?? ""}
+        onChange={(e) => onQ(e.target.value)}
+        placeholder={`${placeholder} — any period`} />
+      {searching && (
+        <button className="cc-btn" onClick={() => onQ("")}
+          title="Clear the search and return to the selected date range.">clear</button>
+      )}
+
+      {err ? (
+        /* No count, no "0". The reason, where the number would be. */
+        <DkTag tone="crit" title={`These records could not be read: ${err}. A refused read is not an empty result, so no count is shown in its place.`}>
+          could not be read — no count shown rather than a zero
+        </DkTag>
+      ) : (
+        <span className="cc-rs-note">{rangeSearchNote(result, { noun, rangeLabel })}</span>
+      )}
+
+      {!err && result?.setAside && (
+        <DkTag tone="attn"
+          title="A search asks about one record, not about a date window. The range is set aside for it and every period is searched. Clear the search to return to the range.">
+          date range set aside while searching ⓘ
+        </DkTag>
+      )}
+      {!err && result?.undated > 0 && (
+        <DkTag tone="attn"
+          title="These rows carry no date, so a range cannot place them. They are kept and counted rather than dropped — dropping them would quietly understate the total.">
+          {result.undated.toLocaleString()} undated, kept ⓘ
+        </DkTag>
+      )}
+      {source && (
+        <DkTag tone="neutral" title={`Every row here is read from ${source}. Nothing on this page is computed from anything else.`}>
+          source {source}
+        </DkTag>
+      )}
+      {asOf && (
+        <DkTag tone="info"
+          title="These rows are a position, not a flow. They describe how things stand, so the date range narrows which records are listed and does not restate the position itself.">
+          {asOf}
+        </DkTag>
+      )}
+    </div>
+  );
+}

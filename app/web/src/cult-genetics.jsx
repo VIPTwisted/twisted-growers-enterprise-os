@@ -22,7 +22,9 @@
    ═══════════════════════════════════════════════════════════════════════════ */
 import React, { useEffect, useMemo, useState } from "react";
 import { supabase } from "./lib/supabase.js";
+import { DateRangeSelect } from "./App.jsx";
 import {
+  useDefaultRange, DkRangeSearch, rangeSearch,
   grab, listOf, DkTag, DkErr, DkEmpty, DkKpiStrip, DkDrill, DrillRoot, DkHead, useSectionStore,
   useWidgetLayout, Widget, WidgetBoard, WidgetBarControls, DkReports,
 } from "./dashkit.jsx";
@@ -59,6 +61,13 @@ export default function Genetics({ go, session, role, viewAs, reports }) {
   const [q, setQ] = useState("");
   const [openKpi, setOpenKpi] = useState(null);
   const [ver, setVer] = useState(0);
+  /* ON THE BUS. A strain census is a POSITION — it describes the genetics
+     standing in the rooms now, not a flow of events — so the range narrows
+     WHICH strains are listed by when they were last planted, and the as-of chip
+     says the census itself is not being restated to a past date. Saying that is
+     the difference between a filter and a lie. */
+  const [range, setRange] = useState({ from: "", to: "" });
+  const dateDefault = useDefaultRange(session, VIEW_KEY, setRange);
 
   useEffect(() => {
     let live = true;
@@ -76,7 +85,12 @@ export default function Genetics({ go, session, role, viewAs, reports }) {
   const targets = useMemo(() => cultTargetMap(measures), [measures]);
   const trend = useMemo(() => cultTrendMap(measures), [measures]);
   const cats = useMemo(() => (d ? d.c.rows : []), [d]);
-  const census = useMemo(() => (d ? d.s.rows : []), [d]);
+  const allCensus = useMemo(() => (d ? d.s.rows : []), [d]);
+  const rs = useMemo(() => rangeSearch(allCensus, {
+    from: range.from, to: range.to, dateField: "last_planted", q,
+    fields: ["strain"],
+  }), [allCensus, range.from, range.to, q]);
+  const census = rs.rows;
 
   const shownCats = useMemo(() => {
     const needle = q.trim().toLowerCase();
@@ -154,12 +168,21 @@ export default function Genetics({ go, session, role, viewAs, reports }) {
             <button type="button" className="cc-btn" title="Expand every section"
               onClick={() => store.setAll(WIDGETS.map((x) => x.key), true)}>+ expand all</button>
             <WidgetBarControls layout={layout} />
+            <DateRangeSelect label="Last planted" from={range.from} to={range.to}
+              onFrom={(v) => setRange((prev) => ({ ...prev, from: v }))}
+              onTo={(v) => setRange((prev) => ({ ...prev, to: v }))}
+              presetKey={dateDefault.presetKey} session={session} viewKey={VIEW_KEY} allowSave />
           </div>
           <div className="cc-tools-r">
             <button type="button" className="cc-btn" onClick={() => go("harvests")}>Harvest register →</button>
             <button type="button" className="cc-btn" onClick={() => go("dept_dash_cultivation")}>Cultivation dashboard →</button>
           </div>
         </div>
+
+        <DkRangeSearch id="ge-q" label="Search strain or breeder"
+          q={q} onQ={setQ} result={rs} noun="strains" rangeLabel="this range"
+          source="mv_strain_census" err={d.s.err}
+          asOf="a census as it stands now — the range narrows which strains are listed, it does not restate the census" />
 
         {d.c.err ? <DkErr what="The cultivar catalogue" err={d.c.err} /> : (
           <DkKpiStrip dept={CULT_DEPT} tiles={tiles} trend={trend} targets={targets} go={go}

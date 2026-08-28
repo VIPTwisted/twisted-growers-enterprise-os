@@ -288,3 +288,12 @@ button.cc-mini:hover .cc-mini-go { color: var(--ccok); }
   .cc-schedrow { grid-template-columns: 92px 1fr; row-gap: 2px; }
   .cc-sched-n, .cc-sched-when { text-align: left; }
 }
+
+/* ═══════════ search + range chips — owner ruling, 28 Aug 2026 ═══════════
+   Chrome only: layout and spacing. Every colour is an existing token, so the
+   theme lock is untouched and no palette is defined here. */
+.cc-rs { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin: 6px 0 10px; }
+.cc-rs label { font-size: 10px; letter-spacing: .06em; text-transform: uppercase; color: var(--cct2); }
+.cc-rs-input { min-width: 220px; flex: 0 1 320px; }
+.cc-rs-note { font-size: 11px; color: var(--cct2); font-variant-numeric: tabular-nums; }
+@media (max-width: 760px) { .cc-rs-input { flex: 1 1 100%; } }

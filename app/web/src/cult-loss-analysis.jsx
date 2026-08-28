@@ -22,7 +22,9 @@
    ═══════════════════════════════════════════════════════════════════════════ */
 import React, { useEffect, useMemo, useState } from "react";
 import { supabase } from "./lib/supabase.js";
+import { DateRangeSelect } from "./App.jsx";
 import {
+  useDefaultRange, DkRangeSearch, rangeSearch,
   grab, listOf, DkTag, DkErr, DkEmpty, DkKpiStrip, DkDrill, DrillRoot, DkHead, useSectionStore,
   useWidgetLayout, Widget, WidgetBoard, WidgetBarControls, DkReports,
 } from "./dashkit.jsx";
@@ -70,6 +72,11 @@ export default function LossAnalysis({ go, session, role, viewAs, reports }) {
   const [openKpi, setOpenKpi] = useState(null);
   const [ver, setVer] = useState(0);
   const [room, setRoom] = useState("");
+  /* THE BUS, NOT A SECOND CATALOG. The range is resolved by useDefaultRange over
+     f_date_presets, exactly as every other page on the bus resolves it. */
+  const [range, setRange] = useState({ from: "", to: "" });
+  const dateDefault = useDefaultRange(session, VIEW_KEY, setRange);
+  const [q, setQ] = useState("");
 
   useEffect(() => {
     let live = true;
@@ -95,7 +102,14 @@ export default function LossAnalysis({ go, session, role, viewAs, reports }) {
     () => [...new Set(listOf(rows).map((r) => r.room_qualified))].sort(),
     [rows],
   );
-  const shown = useMemo(() => listOf(rows).filter((r) => !room || r.room_qualified === room), [rows, room]);
+  /* Range and search decided in ONE place, by the shared primitive, so this
+     page cannot drift from the others in what a range means or in what a search
+     overrides. A search sets the range aside and the control says so. */
+  const rs = useMemo(() => rangeSearch(rows, {
+    from: range.from, to: range.to, dateField: "month_date", q,
+    fields: ["room_qualified", "strain", "month", "loss_verdict"],
+  }), [rows, range.from, range.to, q]);
+  const shown = useMemo(() => listOf(rs.rows).filter((r) => !room || r.room_qualified === room), [rs.rows, room]);
 
   const severe = useMemo(() => shown.filter((r) => String(r.loss_verdict ? r.loss_verdict : "").startsWith(V_SEVERE)), [shown]);
   const high = useMemo(() => shown.filter((r) => String(r.loss_verdict ? r.loss_verdict : "").startsWith(V_HIGH)), [shown]);
@@ -190,6 +204,10 @@ export default function LossAnalysis({ go, session, role, viewAs, reports }) {
               <option value="">Every room</option>
               {roomNames.map((rn) => <option key={rn} value={rn}>{rn}</option>)}
             </select>
+            <DateRangeSelect label="Month" from={range.from} to={range.to}
+              onFrom={(v) => setRange((p) => ({ ...p, from: v }))}
+              onTo={(v) => setRange((p) => ({ ...p, to: v }))}
+              presetKey={dateDefault.presetKey} session={session} viewKey={VIEW_KEY} allowSave />
           </div>
           <div className="cc-tools-r">
             <button type="button" className="cc-btn" onClick={() => go("loss_ledger")}
@@ -197,6 +215,10 @@ export default function LossAnalysis({ go, session, role, viewAs, reports }) {
             <button type="button" className="cc-btn" onClick={() => go("dept_dash_cultivation")}>Cultivation dashboard →</button>
           </div>
         </div>
+
+        <DkRangeSearch id="la-q" label="Search room, strain, month or verdict"
+          q={q} onQ={setQ} result={rs} noun="lines" rangeLabel="this range"
+          source="v_loss_analysis" err={d && d.a.err ? d.a.err : null} />
 
         {d.a.err ? <DkErr what="The loss analysis" err={d.a.err} /> : (
           <DkKpiStrip dept={CULT_DEPT} tiles={tiles} trend={trend} targets={targets} go={go}
