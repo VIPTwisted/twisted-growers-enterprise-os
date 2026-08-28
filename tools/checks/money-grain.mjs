@@ -418,8 +418,24 @@ const migrationEntries = files.map((name) => ({
  * GIT has, not what this disk has ... judging the working tree instead would make the verdict
  * depend on who is sitting at the machine." That note was written about a different gate and
  * this one still reads the disk. 58b63b00… is the clean-clone tree, verified by running the
- * full chain in a fresh checkout of main with the mirror never run. */
-const expectedMigrationTreeDigest = "58b63b009214a20a1368134668b6c93a8b8e04648229bb6f4bee796b9bb87482";
+ * full chain in a fresh checkout of main with the mirror never run.
+ *
+ * RE-PINNED 28 Aug 2026, 946 files, at the owner's instruction after main went red at 8f17bb3.
+ * The 58b63b00… seal covered the tree before three merges landed: PR #24 (7 C2 P1 migrations
+ * for the exception-queue role gate), PR #23 (1 recon migration filed from production), and
+ * PR #26, which replaced the 26 Aug schema baseline dump with a fresh one — one file removed,
+ * one added, net zero on the count but a different tree.
+ *
+ * MEASURED THE WAY THIS COMMENT BLOCK SAYS TO, not on the working tree. A local run reported
+ * 947 files at 939d988f… because supabase/migrations/20260805215014_vincent_user_and_ai_budget.sql
+ * is one of the credential-carrying files .gitignore hides and sync-migrations.mjs writes back
+ * on every run — it is on this operator's disk and in no clone. Moving it aside reproduces CI's
+ * file set exactly: 946 files at c5e29294…, the same digest the failing Gates run on 8f17bb3
+ * printed. Two independent readings agreeing is the only reason this number is written down.
+ *
+ * Nothing about the gate is loosened. The digest is the only line that changes; every check
+ * below it runs unchanged and passes on this tree. */
+const expectedMigrationTreeDigest = "c5e292943199de2ffc04bfc6cf09b40e2663907b40d74da6984848d6a7f257fb";
 const actualMigrationTreeDigest = migrationTreeDigest(migrationEntries);
 if (actualMigrationTreeDigest !== expectedMigrationTreeDigest) {
   console.error(`money-grain: FAIL — migration tree differs from the independently reviewed ${files.length}-file manifest (${actualMigrationTreeDigest}).`);
