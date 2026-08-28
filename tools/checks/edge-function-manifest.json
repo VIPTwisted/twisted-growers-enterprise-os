@@ -130,10 +130,10 @@
       "note": "Recovered from production with the shared admin key redacted. Production is the source of record; deploying this copy would break the function."
     },
     "metrc-sync": {
-      "deployed_version": 21,
-      "sha256": "ffba1a1148900dfff5cffcf950804b72e39ee5aaacba04b4b03fe1ed7ddc4d77",
+      "deployed_version": 22,
+      "sha256": "60983ad2c679309d7e50babfaef8ebee48b7bd8595afc71c7b6bc2e694a86520",
       "redacted": false,
-      "note": "Real, deployable source. v20 removed the hardcoded admin key; the function now reads integration_secrets.TG_ADMIN_KEY at call time, so there is no secret in this file to redact. v21 clamped PAGE_SIZE_MAX to 20, Metrc's measured ceiling. Re-pinned 15 Aug 2026 after the key was rotated."
+      "note": "Real, deployable source. v20 removed the hardcoded admin key; the function now reads integration_secrets.TG_ADMIN_KEY at call time, so there is no secret in this file to redact. v21 clamped PAGE_SIZE_MAX to 20, Metrc's measured ceiling. v22 batches the row upserts and checks the soft deadline between batches, so the plants delta can finish and stop holding its cursor. Re-pinned 28 Aug 2026 against deployed version 22, and the repo copy was aligned to the deployed bytes character for character."
     },
     "parse-documents": {
       "deployed_version": 7,

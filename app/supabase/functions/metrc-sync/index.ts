@@ -1,4 +1,14 @@
-// TG Enterprise OS — Metrc sync worker v21.
+// TG Enterprise OS — Metrc sync worker v22.
+//
+// v22, 28 August 2026: one change and nothing else. Rows are upserted in BATCHES
+// of 500 instead of one awaited round trip per row, and the soft deadline is
+// checked between batches. Full reasoning and the measurements sit on writeRows
+// below; the short version is that the per-row write loop ran at ~16 rows/sec,
+// the plants delta needs 2,156 rows, and 2,156 at 16/sec cannot fit inside a
+// 110-second deadline - so the cursor was correctly held and the same 1,054 rows
+// came back 22 times in a row. Cursor discipline is UNCHANGED. Paging, the page
+// size, the deadline value, capability filtering and the auth path are all
+// untouched.
 //
 // v21, 14 August 2026: one change and nothing else. PAGE_SIZE_MAX drops from 500 to
 // 20, because 20 is Metrc's actual ceiling, measured rather than assumed - a request
@@ -354,6 +364,99 @@ const SPECS: Spec[] = [
   },
 ];
 
+/* ── v22: ROWS ARE WRITTEN IN BATCHES, NOT ONE ROUND TRIP EACH ──────────────
+   This is the whole fix, and it is a throughput fix, not a logic fix.
+
+   MEASURED from metrc_sync_runs rather than assumed:
+
+     run 3047   937 rows   60s        run 3149   937 rows   57s
+     run 3391  1054 rows  140s        22 further runs, 1054 rows every time
+
+   A steady ~16 rows per second. At pageSize 20 - Metrc's measured ceiling, see
+   the v21 note - 937 rows is 47 pages, so paging accounts for roughly 9s of that
+   minute. The other ~48s was 937 separately awaited PostgREST round trips, one
+   per row, at about 50ms each. The old loop was:
+
+       for (const r of got.rows) { await supa.from(...).upsert(oneRow); n++; }
+
+   The plants delta has to carry 2,156 changed records - every vegetative and
+   every flowering plant, all modified in Metrc on 17 Aug 2026 between 12:53 and
+   15:06. At 16 rows/sec that is ~135 seconds of writing against a 110-second
+   deadline, so the run can NEVER finish, the cursor is correctly held, and the
+   next run re-asks for the identical window and dies in the identical place.
+   That is why 1,054 came back twenty-two times running: not a flaky sync, a
+   deterministic loop. One batched call carries 500 rows, so those 2,156 records
+   cost 5 round trips instead of 2,156 and the write stops being the constraint.
+
+   NOTHING ABOUT CURSOR DISCIPLINE CHANGES. v20's rule stands exactly as written -
+   the watermark moves only on a genuinely complete run. This does not relax the
+   rule; it lets the run satisfy it.
+
+   DEDUPED ON THE CONFLICT KEY FIRST. Postgres refuses ON CONFLICT DO UPDATE when
+   one statement touches the same row twice - "cannot affect row a second time" -
+   and that would fail a whole batch where the per-row loop silently applied the
+   last write. The batch keeps the LAST occurrence, which is what the row-at-a-time
+   loop effectively did, so behaviour is unchanged and only the round trips differ.
+
+   THE DEADLINE IS NOW CHECKED BETWEEN BATCHES, WHICH IT NEVER WAS BETWEEN ROWS.
+   The old write loop had no time check at all: once fetching finished it wrote
+   until done or until the platform killed it mid-loop, leaving the run row open at
+   "running" forever. That is runs 3042, 3048, 3058, 3150, 3371 and the 21:09 run
+   on 28 Aug - six hangs, every one closed half an hour later by
+   tg_close_stuck_sync_runs instead of by the worker itself. Rows already written
+   are kept and counted; the run closes itself as partial and holds its cursor. */
+/* A batch is capped by BYTES as well as by rows, because these tables carry the
+   whole Metrc record in `raw` and the widest one is not the most numerous.
+   Measured on production, length(raw::text): plants average 1,098 bytes and peak
+   1,173; harvests 879/904; packages 1,888 but peaking at 5,998. A flat 500-row
+   batch is therefore ~0.6 MB of plants and up to ~3 MB of packages, and the row
+   count alone gives no warning of that. Whichever limit is reached first closes
+   the batch, so the request stays about a megabyte whatever the endpoint. */
+const WRITE_BATCH_ROWS = 500;
+const WRITE_BATCH_BYTES = 1_000_000;
+
+async function writeRows(spec: Spec, rows: Row[], license: string, state: string,
+  outOfTime: () => boolean, alreadyWritten: number): Promise<{ written: number; ranOut: boolean }> {
+  const cols = csv(spec.conflict);
+  const byKey = new Map<string, Row>();
+  for (const r of rows) {
+    const mapped = spec.map(r, license, state);
+    byKey.set(JSON.stringify(cols.map((c) => mapped[c] ?? null)), mapped);
+  }
+  const rowsToWrite = [...byKey.values()];
+  let written = 0;
+  let batch: Row[] = [];
+  let bytes = 0;
+
+  const flush = async (): Promise<void> => {
+    if (!batch.length) return;
+    const { error } = await supa.from(spec.table).upsert(batch, { onConflict: spec.conflict });
+    if (error) throw new Error(`upsert ${spec.table} x${batch.length}: ${error.message}`);
+    written += batch.length;
+    /* Cumulative across sub-states: the beforeunload backstop reads this to close
+       the run if we are killed, and a per-sub-state count would under-report what
+       actually landed. */
+    if (OPEN_RUN) OPEN_RUN.records = alreadyWritten + written;
+    batch = [];
+    bytes = 0;
+  };
+
+  for (const row of rowsToWrite) {
+    const size = JSON.stringify(row).length;
+    if (batch.length && (batch.length >= WRITE_BATCH_ROWS || bytes + size > WRITE_BATCH_BYTES)) {
+      if (outOfTime()) return { written, ranOut: true };
+      await flush();
+    }
+    batch.push(row);
+    bytes += size;
+  }
+  if (batch.length) {
+    if (outOfTime()) return { written, ranOut: true };
+    await flush();
+  }
+  return { written, ranOut: false };
+}
+
 async function runSpec(base: string, license: string, auth: string, spec: Spec,
   window: { start: string; end: string } | undefined, label: string | undefined,
   outOfTime: () => boolean, pageSize: number): Promise<{ summary: string; ranOut: boolean; complete: boolean }> {
@@ -368,11 +471,10 @@ async function runSpec(base: string, license: string, auth: string, spec: Spec,
         const got = await metrcGet(base, p.path, license, auth, spec.delta ? window : undefined, outOfTime, pageSize);
         if (got.truncated) anyTrunc = true;
         if (got.ranOut) ranOut = true;
-        for (const r of got.rows) {
-          await supa.from(spec.table).upsert(spec.map(r, license, p.state), { onConflict: spec.conflict });
-          n++;
-          if (OPEN_RUN) OPEN_RUN.records = n;
-        }
+        const w = await writeRows(spec, got.rows, license, p.state, outOfTime, n);
+        n += w.written;
+        if (w.ranOut) ranOut = true;
+        if (OPEN_RUN) OPEN_RUN.records = n;
       } catch (e) {
         subErrors.push(`${p.state}: ${String(e).slice(0, 90)}`);
       }
@@ -523,7 +625,7 @@ Deno.serve(async (req: Request) => {
       + "run row was closed. NOTE: a partial sweep does NOT resume - the next call "
       + "re-walks from the beginning and gets further before the deadline. A real "
       + "resume cursor is a tracked task; v18 attempted it, was not verified, and was "
-      + "rolled back after leaving a run open for 183 seconds.";
+      + "rolled back after leaving a run open for 183 seconds."
   }
   return json({ ok: true, complete: !stoppedEarly, state, results });
 });
