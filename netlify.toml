@@ -60,6 +60,30 @@
   # Supabase URL + publishable (anon) key are public-by-design client values.
   SECRETS_SCAN_OMIT_KEYS = "VITE_SUPABASE_ANON_KEY,VITE_SUPABASE_URL"
 
+# A MISSING BUILD ASSET MUST 404, NOT IMPERSONATE THE APP.
+#
+# This rule comes FIRST because the catch-all below rewrites everything to index.html with a
+# 200, and that includes hashed chunks under /assets/. Netlify serves a real static file ahead
+# of any non-forced rewrite, so every asset that exists is unaffected; only a MISSING one
+# reaches this rule, and it now gets an honest 404 instead of 935 bytes of HTML.
+#
+# WHAT IT COST, 28 Aug 2026, finding #10511. The site sat on the 20 Aug build for eight days.
+# A browser still holding that build's index.html opened My Dashboard, which lazily imports
+# wcanvas-Di9NrK9Q.js. The 28 Aug deploy had rebuilt that module as wcanvas-BqalyVjj.js —
+# identical 91,156 bytes, new content hash — so the old path was gone. The catch-all answered
+# 200 text/html, the browser tried to evaluate index.html as an ES module, and the app reported:
+#
+#     TypeError: Failed to fetch dynamically imported module: .../assets/wcanvas-Di9NrK9Q.js
+#
+# That message sends you hunting for a chunk that was never missing from the build. The deploy
+# was complete and correct; the redirect turned "you are running yesterday's HTML" into what
+# looked like a broken bundle. A 404 says the true thing, and lets the client detect a stale
+# module graph and reload instead of failing with a type error.
+[[redirects]]
+  from = "/assets/*"
+  to = "/assets/:splat"
+  status = 404
+
 [[redirects]]
   from = "/*"
   to = "/index.html"
