@@ -29,7 +29,9 @@
    ═══════════════════════════════════════════════════════════════════════════ */
 import React, { useEffect, useMemo, useState } from "react";
 import { supabase } from "./lib/supabase.js";
+import { DateRangeSelect } from "./App.jsx";
 import {
+  useDefaultRange, DkRangeSearch, rangeSearch,
   grab, listOf, DkTag, DkErr, DkEmpty, DkKpiStrip, DkDrill, DrillRoot, DkHead,
   TagEvidenceProvider, TagEvidence, useSectionStore,
   useWidgetLayout, Widget, WidgetBoard, WidgetBarControls, DkReports,
@@ -68,6 +70,11 @@ export default function Grading({ go, session, role, viewAs, reports }) {
   const [openKpi, setOpenKpi] = useState(null);
   const [ver, setVer] = useState(0);
   const [pickHarvest, setPickHarvest] = useState(null);
+  /* ON THE BUS. The range is resolved by useDefaultRange over f_date_presets —
+     the same catalog every other page reads. Nothing is defined here. */
+  const [range, setRange] = useState({ from: "", to: "" });
+  const dateDefault = useDefaultRange(session, VIEW_KEY, setRange);
+  const [q, setQ] = useState("");
 
   useEffect(() => {
     let live = true;
@@ -87,7 +94,14 @@ export default function Grading({ go, session, role, viewAs, reports }) {
   const trend = useMemo(() => cultTrendMap(measures), [measures]);
   const licMap = useMemo(() => cultLicenceMap(measures), [measures]);
 
-  const harvests = useMemo(() => (d ? d.hf.rows : []), [d]);
+  const allHarvests = useMemo(() => (d ? d.hf.rows : []), [d]);
+  /* Range and search in one place, shared with every other page. A harvest with
+     no close date is kept rather than dropped — it is unplaceable, not absent. */
+  const rs = useMemo(() => rangeSearch(allHarvests, {
+    from: range.from, to: range.to, dateField: "harvest_closed", q,
+    fields: ["harvest_name", "strain", "room", "categories_made"],
+  }), [allHarvests, range.from, range.to, q]);
+  const harvests = rs.rows;
   const rollup = useMemo(() => (d ? d.pk.rows : []), [d]);
   const massBalance = useMemo(() => (d ? d.mb.rows : []), [d]);
 
@@ -189,6 +203,10 @@ export default function Grading({ go, session, role, viewAs, reports }) {
             <button type="button" className="cc-btn" title="Expand every section"
               onClick={() => store.setAll(WIDGETS.map((x) => x.key), true)}>+ expand all</button>
             <WidgetBarControls layout={layout} />
+            <DateRangeSelect label="Closed between" from={range.from} to={range.to}
+              onFrom={(v) => setRange((prev) => ({ ...prev, from: v }))}
+              onTo={(v) => setRange((prev) => ({ ...prev, to: v }))}
+              presetKey={dateDefault.presetKey} session={session} viewKey={VIEW_KEY} allowSave />
           </div>
           <div className="cc-tools-r">
             <button type="button" className="cc-btn" onClick={() => go("harvests")}>Harvest register →</button>
@@ -196,6 +214,10 @@ export default function Grading({ go, session, role, viewAs, reports }) {
             <button type="button" className="cc-btn" onClick={() => go("dept_dash_cultivation")}>Cultivation dashboard →</button>
           </div>
         </div>
+
+        <DkRangeSearch id="gr-q" label="Search harvest name, strain, room or category"
+          q={q} onQ={setQ} result={rs} noun="harvests" rangeLabel="this range"
+          source="v_harvest_forensic" err={d.hf.err} />
 
         {d.hf.err ? <DkErr what="The harvest register behind this page" err={d.hf.err} /> : (
           <DkKpiStrip dept={CULT_DEPT} tiles={tiles} trend={trend} targets={targets} go={go}

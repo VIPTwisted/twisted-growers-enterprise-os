@@ -32,7 +32,7 @@ import { supabase } from "./lib/supabase.js";
 import { dateUpperExclusive } from "./lib/date-range-core.js";
 import { DateRangeSelect } from "./App.jsx";
 import {
-  useDefaultRange, grab, listOf, DkTag, DkErr, DkEmpty, DkKpiStrip, DkDrill, DrillRoot, DkHead,
+  useDefaultRange, DkRangeSearch, rangeSearch, grab, listOf, DkTag, DkErr, DkEmpty, DkKpiStrip, DkDrill, DrillRoot, DkHead,
   DkCaret, TagEvidenceProvider, TagEvidence, useSectionStore,
   useWidgetLayout, Widget, WidgetBoard, WidgetBarControls, DkReports,
 } from "./dashkit.jsx";
@@ -194,6 +194,7 @@ export default function HarvestsRegister({ go, session, role, viewAs, reports })
   const [d, setD] = useState(null);
   const [openKpi, setOpenKpi] = useState(null);
   const [ver, setVer] = useState(0);
+  const [q, setQ] = useState("");
 
   useEffect(() => {
     if (!dateDefault.ready) return undefined;
@@ -227,14 +228,17 @@ export default function HarvestsRegister({ go, session, role, viewAs, reports })
 
   /* The date filter narrows the POPULATION every figure and every band is then
      computed from, so the strip and the list always describe the same set. */
-  const inRange = useMemo(() => listOf(rows).filter((r) => {
-    if (!range.from && !range.to) return true;
-    const d0 = r.harvest_started ? String(r.harvest_started).slice(0, 10) : null;
-    if (!d0) return false;
-    if (range.from && d0 < range.from) return false;
-    if (range.to && d0 > range.to) return false;
-    return true;
-  }), [rows, range]);
+  /* THE HAND-ROLLED RANGE FILTER IS GONE. It lived here, in three cultivation
+     pages, in three slightly different spellings — and all three dropped an
+     undated row with `if (!d0) return false`, which is precisely what the owner
+     ruled out: an undated row is unplaceable, not outside the window. One
+     primitive now decides range and search for every page, it is unit-tested,
+     and a search sets the range aside and says so. */
+  const rs = useMemo(() => rangeSearch(rows, {
+    from: range.from, to: range.to, dateField: "harvest_started", q,
+    fields: ["harvest_name", "strain", "room", "harvest_id"],
+  }), [rows, range.from, range.to, q]);
+  const inRange = rs.rows;
 
   const stillOpen = useMemo(() => inRange.filter((r) => !r.harvest_closed), [inRange]);
   const openTooLong = useMemo(() => (openMax === null ? null
@@ -354,6 +358,10 @@ export default function HarvestsRegister({ go, session, role, viewAs, reports })
             <button type="button" className="cc-btn" onClick={() => go("dept_dash_cultivation")}>Cultivation dashboard →</button>
           </div>
         </div>
+
+        <DkRangeSearch id="h-q" label="Search harvest name, strain, room or tag"
+          q={q} onQ={setQ} result={rs} noun="harvests" rangeLabel="this range"
+          source="v_harvest_forensic" err={d.h.err} />
 
         {d.h.err ? <DkErr what="The harvest register" err={d.h.err} /> : (
           <DkKpiStrip dept={CULT_DEPT} tiles={tiles} trend={trend} targets={targets} go={go}
