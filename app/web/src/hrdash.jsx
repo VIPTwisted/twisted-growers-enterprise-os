@@ -20,7 +20,10 @@
 --------------------------------------------------------------------------- */
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "./lib/supabase.js";
-import { AssignTask } from "./App.jsx";
+import { AssignTask, DateRangeSelect } from "./App.jsx";
+import { useDefaultRange } from "./dashkit.jsx";
+
+const VIEW_KEY = "dept_dash_hr";
 
 const DAY = 86400000;
 const days = (d) => (d ? Math.round((new Date(d + "T00:00:00") - new Date().setHours(0, 0, 0, 0)) / DAY) : null);
@@ -62,7 +65,13 @@ const ACTIONS = [
   { key: "tell",    label: "Tell the floor",    hint: "message a zone, a shift or everyone" },
 ];
 
-export default function HrDashboard({ go }) {
+export default function HrDashboard({ go, session }) {
+  /* Governed by nav_registry.default_range for dept_dash_hr (this_month_td),
+     resolved by f_date_default. The queue below is a list of records, so it gets
+     a search, and the search sets the frame aside like everywhere else. */
+  const [range, setRange] = useState({ from: "", to: "" });
+  const dateDefault = useDefaultRange(session, VIEW_KEY, setRange);
+  const [q, setQ] = useState("");
   const [emp, setEmp] = useState(null);
   const [cost, setCost] = useState([]);
   const [cap, setCap] = useState([]);
@@ -202,6 +211,23 @@ export default function HrDashboard({ go }) {
       <div className="hrhead">
         <div>
           <h1>Human Resources</h1>
+          <div className="hrtools">
+            <label htmlFor="hr-q">Find a person or request</label>
+            <input id="hr-q" className="cc-input" value={q} onChange={(e) => setQ(e.target.value)}
+              placeholder="name, code or reason — any period" />
+            {q.trim() && <button className="btn ghost small" onClick={() => setQ("")}>clear</button>}
+            <DateRangeSelect label="Raised between" from={range.from} to={range.to}
+              onFrom={(v) => setRange((prev) => ({ ...prev, from: v }))}
+              onTo={(v) => setRange((prev) => ({ ...prev, to: v }))}
+              presetKey={dateDefault.presetKey} session={session}
+              viewKey={VIEW_KEY} allowSave />
+            {dateDefault.error && <span className="note bad" role="alert">{dateDefault.error}</span>}
+            {q.trim() && (range.from || range.to) && (
+              <span className="note" title="A search asks about one person, so the range is set aside for it. Clear the search to return to the range.">
+                date range set aside while searching — every period is being searched
+              </span>
+            )}
+          </div>
           <div className="sub">
             Legal readiness first. <b>{m.active.length}</b> active of <b>{m.total}</b> ·
             every figure computed live from the records

@@ -18,6 +18,11 @@
 --------------------------------------------------------------------------- */
 import React, { useEffect, useMemo, useState } from "react";
 import { supabase } from "./lib/supabase.js";
+/* The one date control and the one catalogue — imported, never rebuilt. */
+import { DateRangeSelect } from "./App.jsx";
+import { useDefaultRange } from "./dashkit.jsx";
+
+const VIEW_KEY = "people";
 
 const DAY = 86400000;
 const daysUntil = (d) => (d ? Math.round((new Date(d + "T00:00:00") - new Date().setHours(0, 0, 0, 0)) / DAY) : null);
@@ -60,7 +65,20 @@ const displayName = (name) => {
    rule A3 done properly, not a dead control. */
 const RENEWAL_AGENT = "hr_compliance";
 
-export default function Roster() {
+export default function Roster({ session }) {
+  /* A ROSTER IS A POSITION, NOT A FLOW, AND ITS DEFAULT SAYS SO.
+   *
+   * Who works here is a standing fact; it does not happen on a date. The only
+   * dates an employee row carries are hired_on and terminated_on, so a
+   * this_month_td default — which is what nav_registry held — would have opened
+   * the roster showing only people hired this month and called it the roster.
+   *
+   * The governed default is now 'all' with range_kind 'snapshot' (see the
+   * migration alongside this change). The control is still here and still
+   * narrows by hire date when somebody asks for that, which is a real question:
+   * who joined in the last quarter. It is never the opening question. */
+  const [range, setRange] = useState({ from: "", to: "" });
+  const dateDefault = useDefaultRange(session, VIEW_KEY, setRange);
   const [people, setPeople] = useState(null);
   const [lk, setLk] = useState({ roles: {}, depts: {} });
   const [logins, setLogins] = useState(new Set());
@@ -144,6 +162,7 @@ export default function Roster() {
       lic,
       active,
       name: displayName(p.full_name),
+      hired: p.hired_on ?? null,
       role: lk.roles[p.primary_role_id] ?? null,
       dept: lk.depts[p.primary_department_id] ?? null,
       hasLogin: logins.has(p.id),
@@ -156,9 +175,27 @@ export default function Roster() {
   const blockers = rows.filter((r) => r.blocked).sort((a, b) => a.lic.rank - b.lic.rank);
   const depts = [...new Set(rows.map((r) => r.dept).filter(Boolean))].sort();
 
+  /* SEARCH SETS THE RANGE ASIDE — the Orders rule. Somebody typing a name is
+     asking about that person, and a hire-date window they did not choose must
+     not be the reason the answer is "nobody". */
+  const searching = q.trim().length > 0;
+  const hiredInFrame = (r) => {
+    if (!range.from && !range.to) return true;
+    /* No hire date recorded is not "hired outside the window" — it is a gap in
+       the record, and the person is still on the floor. Never dropped. */
+    if (!r.hired) return true;
+    const d0 = String(r.hired).slice(0, 10);
+    if (range.from && d0 < range.from) return false;
+    if (range.to && d0 > range.to) return false;
+    return true;
+  };
+  const periodNarrowed = Boolean(range.from || range.to);
+  const rangeSetAside = searching && periodNarrowed;
+
   const visible = rows
     .filter((r) => (show === "all" ? true : show === "attention" ? r.blocked || (r.active && !r.hasLogin) : r.active))
     .filter((r) => !dept || r.dept === dept)
+    .filter((r) => (searching ? true : hiredInFrame(r)))
     .filter((r) => !q || `${r.employee_code} ${r.name} ${r.role ?? ""} ${r.dept ?? ""} ${r.email ?? ""} ${r.login_id ?? ""}`
       .toLowerCase().includes(q.toLowerCase()));
 
@@ -258,6 +295,21 @@ export default function Roster() {
           <option value="">All departments</option>
           {depts.map((d) => <option key={d}>{d}</option>)}
         </select>
+        <DateRangeSelect label="Hired between" from={range.from} to={range.to}
+          onFrom={(v) => setRange((prev) => ({ ...prev, from: v }))}
+          onTo={(v) => setRange((prev) => ({ ...prev, to: v }))}
+          presetKey={dateDefault.presetKey} session={session}
+          viewKey={VIEW_KEY} allowSave />
+        {dateDefault.error && <span className="note bad" role="alert">{dateDefault.error}</span>}
+        {periodNarrowed && !searching && (
+          <button className="btn ghost small" onClick={() => setRange({ from: "", to: "" })}
+            title="Show everyone again. A roster is who works here, not who joined in a window.">show everyone</button>
+        )}
+        {rangeSetAside && (
+          <span className="note" title="A search asks about a person, so the hire-date range is set aside for it. Clear the search to return to the range.">
+            date range set aside while searching — every period is being searched
+          </span>
+        )}
       </div>
 
       {/* 3. The roster, by team. */}

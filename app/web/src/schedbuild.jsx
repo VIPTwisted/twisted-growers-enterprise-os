@@ -18,23 +18,46 @@
 --------------------------------------------------------------------------- */
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "./lib/supabase.js";
+/* The one date control and the one catalogue — imported, never rebuilt. */
+import { DateRangeSelect } from "./App.jsx";
+import { useDefaultRange } from "./dashkit.jsx";
+
+const VIEW_KEY = "schedule_builder";
 
 const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const nameOf = (n) => { const [l = "", r = ""] = String(n || "").split(","); return r.trim() ? `${r.trim()} ${l.trim()}` : l.trim(); };
 const initials = (n) => { const [l = "", r = ""] = String(n || "").split(","); return ((r.trim()[0] || "") + (l.trim()[0] || "")).toUpperCase() || "?"; };
 const money = (n) => "$" + Math.round(n || 0).toLocaleString();
-const iso = (d) => d.toISOString().slice(0, 10);
+/* THE WEEK START IS A COMPANY POLICY, NOT A LINE IN THIS FILE.
+ *
+ * mondayOf() computed it here with (getDay() + 6) % 7, off the browser clock.
+ * That put a policy — which day a week begins — in a page, where nobody
+ * governing it would look, and made it depend on the reader's timezone: the same
+ * Sunday evening produced a different week either side of midnight UTC.
+ *
+ * It now comes from the period bus. f_date_presets resolves the week with
+ * date_trunc('week'), Monday in Postgres, computed once on the server.
+ *
+ * THIS PAGE DEFAULTS TO this_week, NOT this_week_td, AND THAT IS DELIBERATE.
+ * A dashboard reports what happened, so it stops at today. A scheduler plans
+ * what has not happened yet — a to-date window would hide the rest of the very
+ * week being built. The governed default is set per page for exactly this kind
+ * of reason; see the migration alongside this change.
+ *
+ * The grid stays seven days wide whatever the frame says. A schedule is posted
+ * a week at a time by f_post_schedule, and painting shifts across a month grid
+ * is not a thing anybody does. The frame chooses WHICH week; it does not stretch
+ * the week. */
+const addDays = (isoDate, n) => {
+  const [y, m, d] = String(isoDate).slice(0, 10).split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d + n)).toISOString().slice(0, 10);
+};
 
-/* Monday of the week containing d. */
-function mondayOf(d) {
-  const x = new Date(d);
-  x.setHours(0, 0, 0, 0);
-  x.setDate(x.getDate() - ((x.getDay() + 6) % 7));
-  return x;
-}
-
-export default function ScheduleBuilder({ go }) {
-  const [weekStart, setWeekStart] = useState(() => mondayOf(new Date()));
+export default function ScheduleBuilder({ go, session }) {
+  const [range, setRange] = useState({ from: "", to: "" });
+  const dateDefault = useDefaultRange(session, VIEW_KEY, setRange);
+  const [q, setQ] = useState("");
+  const weekStart = range.from || "";
   const [people, setPeople] = useState([]);
   const [zones, setZones] = useState([]);
   const [templates, setTemplates] = useState([]);
@@ -48,9 +71,8 @@ export default function ScheduleBuilder({ go }) {
   const [msg, setMsg] = useState(null);
 
   const dates = useMemo(
-    () => Array.from({ length: 7 }, (_, i) => {
-      const d = new Date(weekStart); d.setDate(d.getDate() + i); return d;
-    }), [weekStart]);
+    () => (weekStart ? Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)) : []),
+    [weekStart]);
 
   useEffect(() => {
     Promise.all([
@@ -81,13 +103,16 @@ export default function ScheduleBuilder({ go }) {
     });
   }, []);
 
-  const key = (emp, d) => `${emp}|${iso(d)}`;
+  const key = (emp, d) => `${emp}|${d}`;
 
+  /* d is an ISO day string now, so the weekday is read in UTC from that string
+     rather than from a Date built in the browser's own timezone — which is what
+     used to shift a Sunday-evening reader onto the wrong day. */
   const unavailable = useCallback((empId, d) => {
-    const dow = (d.getDay() + 6) % 7;
+    const dow = new Date(`${d}T00:00:00Z`).getUTCDay();
     return avail.some(a =>
       a.employee_id === empId && a.available === false &&
-      (a.specific_date === iso(d) || a.weekday === ((dow + 1) % 7)));
+      (a.specific_date === d || a.weekday === dow));
   }, [avail]);
 
   /* Hours already placed this week, per person — drives the overtime warning. */
@@ -133,9 +158,9 @@ export default function ScheduleBuilder({ go }) {
   async function saveDraft() {
     setBusy(true); setMsg(null);
     const { data: d, error } = await supabase.from("schedule_drafts").insert({
-      title: `Week of ${iso(weekStart)}`,
-      covers_from: iso(dates[0]),
-      covers_to: iso(dates[6]),
+      title: `Week of ${weekStart}`,
+      covers_from: dates[0],
+      covers_to: dates[6],
       drafted_by_kind: "human",
       status: "draft",
       projected_hours: Number(totals.hours.toFixed(2)),
@@ -194,11 +219,17 @@ export default function ScheduleBuilder({ go }) {
           </div>
         </div>
         <div className="sbweek">
-          <button className="btn ghost small" onClick={() => {
-            const d = new Date(weekStart); d.setDate(d.getDate() - 7); setWeekStart(d); }}>←</button>
-          <span>{dates[0].toLocaleDateString(undefined,{day:"numeric",month:"short"})} – {dates[6].toLocaleDateString(undefined,{day:"numeric",month:"short",year:"numeric"})}</span>
-          <button className="btn ghost small" onClick={() => {
-            const d = new Date(weekStart); d.setDate(d.getDate() + 7); setWeekStart(d); }}>→</button>
+          <button className="btn ghost small" title="The week before this one" disabled={!weekStart}
+            onClick={() => setRange({ from: addDays(weekStart, -7), to: addDays(weekStart, -1) })}>←</button>
+          <span>{dates.length ? `${dates[0]} – ${dates[6]}` : "no week selected"}</span>
+          <button className="btn ghost small" title="The week after this one" disabled={!weekStart}
+            onClick={() => setRange({ from: addDays(weekStart, 7), to: addDays(weekStart, 13) })}>→</button>
+          <DateRangeSelect label="Week of" from={range.from} to={range.to}
+            onFrom={(v) => setRange((prev) => ({ ...prev, from: v }))}
+            onTo={(v) => setRange((prev) => ({ ...prev, to: v }))}
+            presetKey={dateDefault.presetKey} session={session}
+            viewKey={VIEW_KEY} allowSave />
+          {dateDefault.error && <span className="note bad" role="alert">{dateDefault.error}</span>}
         </div>
       </div>
 
