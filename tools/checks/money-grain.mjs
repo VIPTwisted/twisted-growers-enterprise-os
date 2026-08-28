@@ -541,8 +541,25 @@ const migrationEntries = files.map((name) => ({
  * 450 / 521 / 28 / 850. Pin only.
  *
  * Two readings: the gate on the clean-clone file set, and the recomputation from the git object
- * store with the working directory untouched. Both give 954 files at a5ed273c… . */
-const expectedMigrationTreeDigest = "a5ed273c90a7695bd2863a2ba130aac59afff6b8ef09f8d716dbfebfc97e106d";
+ * store with the working directory untouched. Both give 954 files at a5ed273c… .
+ *
+ * RE-PINNED 28 Aug 2026, 955 files, off c9ba29c. Four PRs landed on the 954 tree and only ONE of
+ * them moved it:
+ *
+ *   PR #46, #47  cultivation and HR pages onto the period bus - #47 brought the one migration,
+ *                20260828191021_a_file_and_a_queue_are_positions_not_periods.sql
+ *   PR #48       the report runner's range and search rules - JSX, a lib and a test, no migration
+ *
+ * Worth stating because it is the usual confusion about this seal: it tracks the migration
+ * DIRECTORY, not the branch. Front-end work can merge all day without touching it, and a single
+ * one-row nav migration moves it. #48 in particular changed three files and none of them count.
+ *
+ * Baseline checked before pinning: schema-baseline still passes against live at
+ * 450 / 521 / 28 / 850. Pin only.
+ *
+ * Two readings: the gate on the clean-clone file set, and the recomputation from the git object
+ * store with the working directory untouched. Both give 955 files at a6a9671c… . */
+const expectedMigrationTreeDigest = "a6a9671c9d196bcf06cf9faaf563e9760a2fde41bceb24e97dd3ab800587f11a";
 const actualMigrationTreeDigest = migrationTreeDigest(migrationEntries);
 if (actualMigrationTreeDigest !== expectedMigrationTreeDigest) {
   console.error(`money-grain: FAIL — migration tree differs from the independently reviewed ${files.length}-file manifest (${actualMigrationTreeDigest}).`);
