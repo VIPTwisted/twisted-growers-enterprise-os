@@ -481,8 +481,20 @@ const migrationEntries = files.map((name) => ({
  * which makes it a cleaner reading of what CI checks out than moving a file aside and trusting
  * the disk. Both readings agree.
  *
- * Nothing about the gate changes but the digest. */
-const expectedMigrationTreeDigest = "0941b504b0f1f66040eb6f075bf1de8ab0caf449b3d4b84453c4e2cbdfc708f0";
+ * Nothing about the gate changes but the digest.
+ *
+ * RE-PINNED 28 Aug 2026, 950 files, off eb039fd. This one was PREDICTED: PR #34 re-dumped the
+ * schema baseline, swapping 20260828163820_baseline_live_schema.sql for 20260828173845_ - a
+ * rename at 99% similarity, so the count stays 950 and the tree is different. The dump PR said
+ * in its own body that merging it would turn this gate red and would need a re-pin after, and it
+ * did. A seal and the thing it seals are not bundled into one diff.
+ *
+ * Both readings again, and the CI one was unavailable a second time - the GitHub API refused the
+ * connection while the cross-check was being fetched. The two that stand are the gate itself on
+ * the clean-clone file set (credential migration aside, restored after) and the independent
+ * recomputation from the git object store, working directory untouched. Both give 950 files at
+ * c28491c3… . */
+const expectedMigrationTreeDigest = "c28491c3b0930008dfc643beb9a07bb43dc76181c8d52c7a6e13d238423d231b";
 const actualMigrationTreeDigest = migrationTreeDigest(migrationEntries);
 if (actualMigrationTreeDigest !== expectedMigrationTreeDigest) {
   console.error(`money-grain: FAIL — migration tree differs from the independently reviewed ${files.length}-file manifest (${actualMigrationTreeDigest}).`);
