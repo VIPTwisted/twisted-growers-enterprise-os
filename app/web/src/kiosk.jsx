@@ -199,6 +199,24 @@ export default function Kiosk({ deviceId }) {
 
   return (
     <div className="kiosk">
+      {/* THIS TERMINAL DECLARES ITSELF UNDATED, AND THAT IS THE CORRECT ANSWER.
+        *
+        * docs/REMAINING_PAGES.md: "Declare (no fake range) if there is no list."
+        * This page lists no records. Its only repeated markup is a numeric keypad,
+        * an alphabet picker, the PIN dots, and — when no terminal is configured —
+        * a chooser of devices to BE. It reads punch_devices to know which terminal
+        * it is and calls f_punch_kiosk to write one punch. Nothing on it is a
+        * result set, so a date range would narrow nothing and a search would find
+        * nothing, and mounting either puts a control on a wall-mounted screen that
+        * changes no number on it.
+        *
+        * What it writes is stamped as of the moment somebody taps it, which is
+        * what the line below says — on the terminal itself, where the person
+        * clocking in can read it. */}
+      <div className="kasof">
+        This is a punch terminal, not a record list. Your punch is stamped as of
+        the moment you tap it.
+      </div>
       <div className="ktop">
         <div className="kclock">
           {clock.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}

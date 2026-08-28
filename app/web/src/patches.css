@@ -1746,3 +1746,26 @@ button.narrblock:hover { outline: 1px solid var(--line); }
   color:var(--ink-2);
   font-size:.78rem;
 }
+
+/* Pages that declare they have no period, rather than growing a control that
+   would narrow nothing — docs/REMAINING_PAGES.md: "Declare (no fake range) if
+   there is no list."
+   .kasof sits on a wall-mounted punch terminal and is read by somebody clocking
+   in, so it is larger and centred; .msasof sits above a standing weekly pattern.
+   Existing tokens only; the theme is locked. */
+.kasof{
+  text-align:center;
+  color:var(--muted);
+  font-size:.85rem;
+  padding:6px 12px 0;
+}
+.msasof{
+  border:1px solid var(--line);
+  border-left:3px solid var(--muted);
+  background:var(--surface);
+  border-radius:6px;
+  padding:8px 10px;
+  margin:0 0 10px;
+  color:var(--ink-2);
+  font-size:.78rem;
+}
