@@ -516,8 +516,19 @@ const migrationEntries = files.map((name) => ({
  * still passes against live at 450 / 521 / 28 / 850. Pin only.
  *
  * Two readings: the gate on the clean-clone file set, and the recomputation from the git object
- * store with the working directory untouched. Both give 952 files at a327d5a9… . */
-const expectedMigrationTreeDigest = "a327d5a9fc289bdff7a945d221da1817f9568b1213e71700c19ae6a5f02b4466";
+ * store with the working directory untouched. Both give 952 files at a327d5a9… .
+ *
+ * RE-PINNED 28 Aug 2026, 953 files, off 176b817. One migration landed, from PR #41:
+ * 20260828184523_c2_plant_census_is_a_snapshot_not_an_activity_window.sql - a single nav_registry
+ * row corrected from an activity window to a snapshot, because v_plant_census carries no activity
+ * date to window on.
+ *
+ * Baseline checked before pinning: schema-baseline still passes against live at
+ * 450 / 521 / 28 / 850, so this is a pin on its own.
+ *
+ * Two readings: the gate on the clean-clone file set, and the recomputation from the git object
+ * store with the working directory untouched. Both give 953 files at 951ab2e6… . */
+const expectedMigrationTreeDigest = "951ab2e69f95e23af284240974983ea13d109a77ae380f909f0b055f14a275f4";
 const actualMigrationTreeDigest = migrationTreeDigest(migrationEntries);
 if (actualMigrationTreeDigest !== expectedMigrationTreeDigest) {
   console.error(`money-grain: FAIL — migration tree differs from the independently reviewed ${files.length}-file manifest (${actualMigrationTreeDigest}).`);
