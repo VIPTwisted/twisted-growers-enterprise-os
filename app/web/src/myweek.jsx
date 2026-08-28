@@ -26,6 +26,11 @@
 --------------------------------------------------------------------------- */
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "./lib/supabase.js";
+/* The one date control and the one catalogue — imported, never rebuilt. */
+import { DateRangeSelect } from "./App.jsx";
+import { useDefaultRange } from "./dashkit.jsx";
+
+const VIEW_KEY = "my_week";
 
 const DAY = 86400000;
 const iso = (d) => d.toISOString().slice(0, 10);
@@ -39,7 +44,21 @@ function elapsed(from) {
   return `${Math.floor(m / 60)}h ${String(m % 60).padStart(2, "0")}m`;
 }
 
-export default function MyWeek({ go }) {
+export default function MyWeek({ go, session }) {
+  /* THIS PAGE LOOKED FORWARD FROM TODAY AND NOTHING ELSE.
+   *
+   * The schedule and the open-shift board were pinned to .gte("work_date", today)
+   * with a limit of ten, so a person could not look at last week to check a shift
+   * they think they worked, and had no way to ask. That is not a frame, it is a
+   * hardcoded window, and nav_registry held no default_range for this page at all
+   * — it fell through to the snapshot fallback of "today".
+   *
+   * It now takes the governed frame, defaulting to this_week (Monday to Sunday,
+   * the whole week rather than the week so far) because a personal week is read
+   * to see what is COMING as much as what has gone. */
+  const [range, setRange] = useState({ from: "", to: "" });
+  const dateDefault = useDefaultRange(session, VIEW_KEY, setRange);
+  const [q, setQ] = useState("");
   const [me, setMe] = useState(null);
   const [emp, setEmp] = useState(null);
   const [open, setOpen] = useState(null);        /* live punch */
@@ -69,14 +88,27 @@ export default function MyWeek({ go }) {
       supabase.from("employees").select("*").eq("id", id).maybeSingle(),
       supabase.from("time_entries").select("*").eq("employee_id", id).is("clock_out", null)
         .order("clock_in", { ascending: false }).limit(1),
-      supabase.from("employee_schedules").select("*").eq("employee_id", id)
-        .gte("work_date", today).order("work_date").limit(10),
+      /* The frame decides the window; an unbounded frame still opens forward
+         from today so the page does not become a wall of history by default. */
+      (range.from || range.to
+        ? (() => { let qy = supabase.from("employee_schedules").select("*").eq("employee_id", id);
+                   if (range.from) qy = qy.gte("work_date", range.from);
+                   if (range.to) qy = qy.lte("work_date", range.to);
+                   return qy.order("work_date"); })()
+        : supabase.from("employee_schedules").select("*").eq("employee_id", id)
+            .gte("work_date", today).order("work_date").limit(10)),
       supabase.from("attendance_occurrences").select("*").eq("employee_id", id)
         .order("work_date", { ascending: false }).limit(20),
       supabase.from("v_document_compliance").select("*").eq("employee_id", id),
       supabase.from("time_off_requests").select("*").eq("employee_id", id)
         .order("starts_on", { ascending: false }).limit(6),
-      supabase.from("open_shifts").select("*").eq("status", "open").gte("work_date", today).order("work_date"),
+      (range.from || range.to
+        ? (() => { let qy = supabase.from("open_shifts").select("*").eq("status", "open");
+                   if (range.from) qy = qy.gte("work_date", range.from);
+                   if (range.to) qy = qy.lte("work_date", range.to);
+                   return qy.order("work_date"); })()
+        : supabase.from("open_shifts").select("*").eq("status", "open")
+            .gte("work_date", today).order("work_date")),
     ]);
     setEmp(e.data ?? null);
     setOpen((o.data ?? [])[0] ?? null);
@@ -95,8 +127,10 @@ export default function MyWeek({ go }) {
       .eq("employee_id", id).eq("agent", "hr_compliance")
       .order("created_at", { ascending: false }).limit(1);
     if (!hrqErr && Array.isArray(hrq) && hrq.length) setRenewal(hrq[0]);
-  }, []);
-  useEffect(() => { load(); }, [load]);
+    /* The frame is a real dependency: without it here the control renders,
+       changes state and re-queries nothing — an inert control that looks live. */
+  }, [range.from, range.to]);
+  useEffect(() => { if (dateDefault.ready) load(); }, [load, dateDefault.ready]);
 
   const livePoints = useMemo(() =>
     pts.filter(o => o.status !== "excused" && (!o.clears_on || new Date(o.clears_on) > new Date()))
@@ -133,6 +167,23 @@ export default function MyWeek({ go }) {
     <div className="mw">
       <div className="mwhead">
         <h1>Morning, {firstName(emp.full_name)}</h1>
+        <div className="mwtools">
+          <label htmlFor="mw-q">Find a shift</label>
+          <input id="mw-q" className="cc-input" value={q} onChange={(e) => setQ(e.target.value)}
+            placeholder="date, zone or note — any period" />
+          {q.trim() && <button className="btn ghost small" onClick={() => setQ("")}>clear</button>}
+          <DateRangeSelect label="Week of" from={range.from} to={range.to}
+            onFrom={(v) => setRange((prev) => ({ ...prev, from: v }))}
+            onTo={(v) => setRange((prev) => ({ ...prev, to: v }))}
+            presetKey={dateDefault.presetKey} session={session}
+            viewKey={VIEW_KEY} allowSave />
+          {dateDefault.error && <span className="note bad" role="alert">{dateDefault.error}</span>}
+          {q.trim() && (range.from || range.to) && (
+            <span className="note" title="A search asks about one shift, so the week is set aside for it. Clear the search to return to the week.">
+              date range set aside while searching — every period is being searched
+            </span>
+          )}
+        </div>
         <div className="mwsub">
           {emp.login_id ? <>Your ID is <b>{emp.login_id}</b></> : "No login ID set yet"}
         </div>

@@ -30,6 +30,11 @@
 --------------------------------------------------------------------------- */
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "./lib/supabase.js";
+/* The one date control and the one catalogue — imported, never rebuilt. */
+import { DateRangeSelect } from "./App.jsx";
+import { useDefaultRange } from "./dashkit.jsx";
+
+const VIEW_KEY = "pay_runs";
 
 const money = (n) => (n == null ? "—" : "$" + Number(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
 const when = (d) => (d ? new Date(d).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" }) : "—");
@@ -37,7 +42,13 @@ const nameOf = (n) => { const [l = "", r = ""] = String(n || "").split(","); ret
 
 const FLOW = ["draft", "review", "approved", "paid"];
 
-export default function PayRuns({ go }) {
+export default function PayRuns({ go, session }) {
+  /* The frame is the PAY PERIOD the run covers, not when somebody pressed the
+     button. A run opened on 1 September for August is an August run, and filing
+     it under September is how a period gets paid twice. */
+  const [range, setRange] = useState({ from: "", to: "" });
+  const dateDefault = useDefaultRange(session, VIEW_KEY, setRange);
+  const [q, setQ] = useState("");
   const [runs, setRuns] = useState([]);
   const [periods, setPeriods] = useState([]);
   const [conf, setConf] = useState(null);
@@ -127,6 +138,28 @@ export default function PayRuns({ go }) {
   const openPunches = lines.length === 0 ? 0 : 0; /* reserved: joined check once punches exist */
   const stage = open ? FLOW.indexOf(open.status) : -1;
 
+  /* SEARCH SETS THE RANGE ASIDE — the Orders rule. Somebody typing a run or a
+     period is asking about that one, not about this month, and answering "no
+     results" because of a frame they did not choose is the same defect wearing
+     payroll clothes. A run with no period attached is never dropped by a range:
+     it has no date to test, and it is exactly the broken row worth finding. */
+  const searching = q.trim().length > 0;
+  const needle = q.trim().toLowerCase();
+  const inFrame = (r) => {
+    if (!range.from && !range.to) return true;
+    const d0 = r.pay_periods?.starts_on ? String(r.pay_periods.starts_on).slice(0, 10) : null;
+    if (!d0) return true;
+    if (range.from && d0 < range.from) return false;
+    if (range.to && d0 > range.to) return false;
+    return true;
+  };
+  const periodNarrowed = Boolean(range.from || range.to);
+  const rangeSetAside = searching && periodNarrowed;
+  const shownRuns = searching
+    ? runs.filter((r) => `${r.id} ${r.status} ${r.pay_periods?.starts_on ?? ""} ${r.pay_periods?.ends_on ?? ""}`
+        .toLowerCase().includes(needle))
+    : runs.filter(inFrame);
+
   return (
     <div className="pr">
       <div className="prhead">
@@ -134,7 +167,32 @@ export default function PayRuns({ go }) {
           <h1>Pay runs</h1>
           <div className="prsub">Open, review, approve, lock. <b>An approved run is never edited</b> — a correction is a new run.</div>
         </div>
-        <button className="btn ghost small" onClick={() => go?.("payroll_journal")}>Journal</button>
+        <div className="prtools">
+          <label htmlFor="pr-q">Find a run or period</label>
+          <input id="pr-q" className="cc-input" value={q} onChange={(e) => setQ(e.target.value)}
+            placeholder="status or period dates — any period" />
+          {searching && <button className="btn ghost small" onClick={() => setQ("")}>clear</button>}
+          <DateRangeSelect label="Period starts between" from={range.from} to={range.to}
+            onFrom={(v) => setRange((prev) => ({ ...prev, from: v }))}
+            onTo={(v) => setRange((prev) => ({ ...prev, to: v }))}
+            presetKey={dateDefault.presetKey} session={session}
+            viewKey={VIEW_KEY} allowSave />
+          {dateDefault.error && <span className="note bad" role="alert">{dateDefault.error}</span>}
+          {periodNarrowed && !searching && (
+            <button className="btn ghost small" onClick={() => setRange({ from: "", to: "" })}>show all periods</button>
+          )}
+          <span className="prcount">
+            {searching
+              ? `${shownRuns.length.toLocaleString()} of ${runs.length.toLocaleString()} runs match.`
+              : `${shownRuns.length.toLocaleString()} of ${runs.length.toLocaleString()} runs in this window.`}
+          </span>
+          {rangeSetAside && (
+            <span className="prwhy" title="A search asks about one run, so the period range is set aside for it. Clear the search to return to the range.">
+              date range set aside while searching — every period is being searched
+            </span>
+          )}
+          <button className="btn ghost small" onClick={() => go?.("payroll_journal")}>Journal</button>
+        </div>
       </div>
 
       {blockedByRates && (
@@ -172,7 +230,7 @@ export default function PayRuns({ go }) {
             </div>
           ) : (
             <div className="prlist">
-              {runs.map(r => (
+              {shownRuns.map(r => (
                 <button className="prrow" key={r.id} onClick={() => openRun(r)}>
                   <span className="prno">{r.run_no}</span>
                   <span className="prwhen">{when(r.pay_periods?.starts_on)} – {when(r.pay_periods?.ends_on)}</span>

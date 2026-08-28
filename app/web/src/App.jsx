@@ -9131,8 +9131,12 @@ function Help() {
    roster.jsx — it leads with who cannot legally be on the floor, groups
    by team, and treats a lapsed agent registration as a stop rather than
    a row in a grid. Primitives are shared; the layout is not. */
-function People() {
-  return <Roster />;
+function People({ session }) {
+  /* session is threaded through because Roster now asks f_date_default for this
+     page's governed frame, and that resolution is per user: a person's own saved
+     choice for a page outranks the company default. Without the session it would
+     silently fall back to the company answer for everybody. */
+  return <Roster session={session} />;
 }
 
 /* ---------- Rail widget ---------- */
@@ -11754,7 +11758,7 @@ export default function App() {
     whiteboards: <WhiteboardsScreen session={session} />,
     tasks: <TasksScreen session={session} />,
     messages: <ChatScreen session={session} />,
-    people: <People />,
+    people: <People session={session} />,
     dept_dash_hr: <HrDashboard go={setView} session={session} />,
     employee_file: <EmployeeFile go={setView} session={session} />,
     schedule_builder: <ScheduleBuilder go={setView} session={session} />,
