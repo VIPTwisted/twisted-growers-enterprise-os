@@ -431,6 +431,7 @@ export default function CultivationDashboard({ go, session, reports, role, viewA
   const WIDGETS = React.useMemo(() => [
     { key: "rooms", title: "Flower rooms — the cycle, department-qualified", span: 2 },
     { key: "harvests", title: "Open harvests — every one, with the arithmetic", span: 2 },
+    { key: "schedvsmetrc", title: "Scheduled pull against what Metrc recorded — the gap is the finding", span: 2 },
     { key: "yield", title: "Yield — grams per plant, tick = own strain median", span: 1 },
     { key: "drytime", title: "Dry-time discipline — month by month against the window", span: 1 },
     { key: "stockrooms", title: "What the cultivation rooms are holding", span: 2 },
@@ -478,7 +479,7 @@ export default function CultivationDashboard({ go, session, reports, role, viewA
     if (!dateDefault.ready) return undefined;
     let live = true;
     (async () => {
-      const [tiles, trend, targets, alertRules, limits, yld, dry, tasks] =
+      const [tiles, trend, targets, alertRules, limits, yld, dry, tasks, sched] =
         await Promise.all([
           fetchDepartmentDashboard(supabase, {
             department: DEPT, from: range.from, to: range.to,
@@ -496,6 +497,13 @@ export default function CultivationDashboard({ go, session, reports, role, viewA
           supabase.from("v_harvest_yield_audit").select("*").order("finished_on", { ascending: false }).limit(12),
           supabase.from("v_dry_time_discipline").select("*").order("month", { ascending: false }),
           supabase.from("v_dashboard_tasks").select("*"),
+          /* THE SCHEDULE-VERSUS-WEIGHT COMPARISON, now that it exists.
+             Read whole and unfiltered: the view already carries its own status,
+             its own link quality and its own grain caveat, and this page adds
+             nothing to it. No join is made here — the schedule-to-Metrc match is
+             v_harvest_pull_link's job inside the view, and doing it a second time
+             in a browser is exactly what the chip this replaces refused to do. */
+          supabase.from("v_harvest_schedule_vs_metrc").select("*"),
         ]);
       if (!live) return;
       setD({
@@ -505,7 +513,7 @@ export default function CultivationDashboard({ go, session, reports, role, viewA
         computedFor: { from: range.from, to: range.to },
         tiles: grab(tiles), trend: grab(trend), targets: grab(targets),
         alertRules: grab(alertRules), limits: grab(limits),
-        yld: grab(yld), dry: grab(dry), tasks: grab(tasks),
+        yld: grab(yld), dry: grab(dry), tasks: grab(tasks), sched: grab(sched),
       });
     })();
     return () => { live = false; };
@@ -591,6 +599,23 @@ export default function CultivationDashboard({ go, session, reports, role, viewA
     fields: ["harvest", "strain", "room", "audit_verdict", "concern"],
   });
   const yieldUnder = yieldRs.rows.filter((r) => r.strain_median_dry_g != null && Number(r.dry_g_per_plant) < Number(r.strain_median_dry_g));
+
+  /* SCHEDULE VERSUS METRC. Its own search state, not the yield widget's: two
+     lists sharing one box means typing a harvest name into one silently filters
+     the other, and a reader cannot see why.
+
+     dateField is harvest_started, the Metrc cut date, and not
+     scheduled_pull_date. Every one of the 385 rows has a cut date, so the range
+     places all of them; 285 have no scheduled pull at all, and ranging on the
+     schedule date would file all 285 as "undated, kept" — technically true,
+     useless to read, and it would bury the genuine undated case. The reader's
+     window here is "harvests cut in this period", and the schedule comparison
+     rides along on each one. */
+  const [schedQ, setSchedQ] = useState("");
+  const schedRs = rangeSearch(d.sched.rows, {
+    from: range.from, to: range.to, dateField: "harvest_started", q: schedQ,
+    fields: ["harvest_name", "drying_room", "scheduled_room", "actual_room", "status", "stream"],
+  });
   const openTasks = d.tasks.rows.filter((t) => t.department === DEPT);
   const overdueTasks = openTasks.filter((t) => t.position?.startsWith("OVERDUE"));
   const dryLatest = d.dry.rows[0];
@@ -614,29 +639,30 @@ export default function CultivationDashboard({ go, session, reports, role, viewA
       <DkHead title={`${DEPT} dashboard`} viewKey={VIEW_KEY} dept={DEPT} role={role}
         viewAs={viewAs} computed={computed} busy={busy} />
 
-      {/* THE SCHEDULE-VERSUS-WEIGHT COMPARISON IS NOT HERE, AND SAYS SO.
+      {/* THE SCHEDULE-VERSUS-WEIGHT COMPARISON IS HERE NOW.
         *
-        * Owner ruling, 28 Aug 2026. v_harvest_schedule_vs_metrc does not exist in
-        * public — measured, not assumed: pg_class returns nothing for that name.
+        * This block used to carry a chip reading "schedule-vs-weight view not in
+        * database — not hidden, not invented", because v_harvest_schedule_vs_metrc
+        * did not exist and the page refused to fake it by joining the schedule to
+        * Metrc weights locally. The view was applied to production on 28 Aug 2026
+        * and the chip's own promise was that it would be replaced by the real
+        * comparison wired through rangeSearch. That is what the widget below is.
         *
-        * There are two dishonest ways to handle a missing source and this is
-        * neither. Rendering nothing hides it, and a reader cannot tell an absent
-        * comparison from one that came back clean. Computing something local —
-        * joining the schedule to Metrc weights here in the page — invents the
-        * very figure the view is supposed to govern, in a place with no contract
-        * and no test behind it.
+        * Still no join here. The page reads the view whole; the schedule-to-Metrc
+        * match is v_harvest_pull_link's job inside it, where it has a rule
+        * (pull_link_window_days) and a note on every row saying how good the
+        * match is. Doing it again in a browser is the thing the chip refused.
         *
-        * So the page states the absence, in the same row as the figures it sits
-        * beside, and stops. When the view lands this chip is replaced by the
-        * comparison wired through rangeSearch like every other list here. */}
-      <div className="cc-tools">
-        <div className="cc-tools-l">
-          <DkTag tone="attn"
-            title="v_harvest_schedule_vs_metrc is not present in this database. The comparison of scheduled pulls against Metrc's recorded weights therefore has no source, and this dashboard will not compute a substitute for it locally — a figure invented on the page is worse than a figure that is openly missing.">
-            schedule-vs-weight view not in database — not hidden, not invented
-          </DkTag>
+        * The error case did not get easier, so it did not get quieter: if the
+        * view cannot be read, the widget prints the refusal instead of an empty
+        * list. */}
+      {d.sched.err && (
+        <div className="cc-tools">
+          <div className="cc-tools-l">
+            <DkErr what="The schedule-versus-Metrc comparison (v_harvest_schedule_vs_metrc)" err={d.sched.err} />
+          </div>
         </div>
-      </div>
+      )}
 
       <div className="cc-tools">
         <div className="cc-tools-l">
@@ -803,6 +829,82 @@ export default function CultivationDashboard({ go, session, reports, role, viewA
               <Widget key={w.key} w={w} layout={layout} store={store} defaultOpen={false}
                 chips={<DkTag tone="neutral" title="Every harvest still open, with the wet-to-dry arithmetic shown on the row so no figure has to be taken on trust.">full detail</DkTag>}>
                 <OpenHarvestDetail />
+              </Widget>
+            );
+            case "schedvsmetrc": return (
+              <Widget key={w.key} w={w} layout={layout} store={store} defaultOpen={false}
+                chips={d.sched.err ? <DkTag tone="crit">read failed</DkTag> : (
+                  <>
+                    {(() => {
+                      const short = schedRs.rows.filter((r) => r.status === "SHORTFALL").length;
+                      const weak = schedRs.rows.filter((r) => String(r.status).startsWith("LINK TOO WEAK")).length;
+                      return (
+                        <>
+                          {short > 0
+                            ? <DkTag tone="crit">{short} in a pull that fell short</DkTag>
+                            : <DkTag tone="ok">no confirmed shortfall</DkTag>}
+                          {weak > 0 && (
+                            <DkTag tone="attn"
+                              title="These harvests belong to a pull whose schedule-to-Metrc match was made on date alone, with the room drifted from the plan. The view refuses to call that a shortfall, because a weak match is not evidence of one either way.">
+                              {weak} in a pull too weakly linked to judge ⓘ
+                            </DkTag>
+                          )}
+                        </>
+                      );
+                    })()}
+                  </>
+                )}>
+                <DkRangeSearch id="dc-sched-q" label="Search harvest, room or status"
+                  q={schedQ} onQ={setSchedQ} result={schedRs} noun="harvests" rangeLabel="this range"
+                  source="v_harvest_schedule_vs_metrc" err={d.sched.err} />
+                {d.sched.err
+                  ? <DkErr what="The schedule-versus-Metrc comparison" err={d.sched.err} />
+                  : schedRs.rows.length === 0
+                    ? <DkEmpty why="No harvest matches this range and search."
+                        fills="The comparison reads every harvest in the Metrc mirror. Widen the range, or search a harvest name to ignore it entirely." />
+                    : (
+                      <>
+                        {/* The caveat travels from the view rather than being
+                            restated here, so there is one wording of it. */}
+                        <div className="cc-fine">{schedRs.rows[0].grain_caveat}</div>
+                        <div className="tablewrap">
+                          <table>
+                            <thead><tr>
+                              <th>Harvest</th><th>Room</th><th>Cut on</th><th>Stream</th>
+                              <th>Pull</th><th>Planned</th><th>Scheduled dry (pull)</th>
+                              <th>Metrc wet</th><th>Metrc packaged</th>
+                              <th>Pull packaged</th><th>Gap</th><th>Status</th>
+                            </tr></thead>
+                            <tbody>
+                              {schedRs.rows.map((r) => (
+                                <tr key={r.harvest_id}>
+                                  <td>{r.harvest_name}</td>
+                                  <td>{r.drying_room ?? "room not recorded"}</td>
+                                  <td>{r.harvest_started ?? "not recorded"}</td>
+                                  <td>{r.stream}</td>
+                                  <td>{r.scheduled_pull_no ?? "not on the plan"}</td>
+                                  <td>{r.scheduled_pull_date ?? "—"}</td>
+                                  <td>{r.scheduled_dry_lb_for_the_pull == null ? "no target" : `${r.scheduled_dry_lb_for_the_pull} lb`}</td>
+                                  <td>{r.metrc_wet_lb == null ? "not recorded" : `${r.metrc_wet_lb} lb`}</td>
+                                  {/* Zero packaged is never printed as 0 lb — the
+                                      view already decided which kind of absence
+                                      it is and this prints that sentence. */}
+                                  <td className={r.metrc_packaged_lb == null ? "note" : undefined}>
+                                    {r.metrc_packaged_lb == null ? r.metrc_packaged_state : `${r.metrc_packaged_lb} lb`}
+                                  </td>
+                                  <td>{r.pull_metrc_packaged_lb == null ? "—" : `${r.pull_metrc_packaged_lb} lb`}</td>
+                                  <td className={r.status === "SHORTFALL" ? "bad" : undefined}>
+                                    {r.gap_lb == null ? "—" : `${r.gap_lb} lb`}
+                                    {r.gap_pct == null ? "" : ` (${r.gap_pct}%)`}
+                                  </td>
+                                  <td className="note">{r.status}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </>
+                    )}
               </Widget>
             );
             case "yield": return (
