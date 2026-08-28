@@ -456,10 +456,14 @@ export default function SalesHistoryPage({ go, session, reports, role, viewAs, o
       supabase.from("licence_type_prefix").select("prefix,facility_type"),
       finReadAll("metrc_transfers", "manifest_number,created_on,recipient,license",
         (q) => q.eq("direction", "outgoing").order("created_on", { ascending: false })),
-      supabase.from("v_apex_order_metrc_link").select("link_status,total_dollars"),
+      /* Same 1,000-row PostgREST cap that hid two thirds of the order book on
+         the Orders page. Here it did not hide a row anyone was looking for — it
+         silently understated every Apex figure on this strip, because the counts
+         were taken over the first 1,000 orders and presented as the book. */
+      finReadAll("v_apex_order_metrc_link", "link_status,total_dollars"),
       supabase.from("v_dashboard_tasks").select("*"),
     ]);
-    return { w, prefixes: grab(prefixes), out, apex: grab(apex), tasks: grab(tasks) };
+    return { w, prefixes: grab(prefixes), out, apex, tasks: grab(tasks) };
   }, [], ver);
 
   if (d === null) {
@@ -595,6 +599,7 @@ export default function SalesHistoryPage({ go, session, reports, role, viewAs, o
         {d.prefixes.err && <DkErr what="The owner's licence-type prefixes" err={d.prefixes.err} />}
         <FinCapped read={d.w} what="The Metrc wholesale report" />
         <FinCapped read={d.out} what="The Metrc outgoing transfer record" />
+        <FinCapped read={d.apex} what="The Apex order book" />
 
         <FinKpiStrip department={DEPT} tiles={tiles} targets={targets} trend={trend}
           targetErr={targetErr} onAssigned={() => setVer((v) => v + 1)} />
