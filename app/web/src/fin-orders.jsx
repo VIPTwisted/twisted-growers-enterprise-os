@@ -41,7 +41,11 @@ import {
   grab, listOf, DkTag, DkErr, DkEmpty, DkHead, DkDrill, DrillRoot, DkCaret,
   Widget, WidgetBoard, WidgetBarControls, useWidgetLayout, useSectionStore,
   TagEvidence, TagEvidenceProvider, DkNarrative, DkReports, DkTasks,
+  useDefaultRange,
 } from "./dashkit.jsx";
+/* The one date control the rest of the OS already uses. Imported, not rebuilt:
+   docs/PERIOD_BUS_SPEC.md — "Do not fork a second catalog in React." */
+import { DateRangeSelect } from "./App.jsx";
 import {
   FinKpiStrip, FinMoney, FinQty, FinBasis, FinDefect, FinCard, FinActions,
   FinReading, FinCapped, finReadAll, useFinTargets, useFinRead,
@@ -253,14 +257,25 @@ export default function OrdersPage({ go, session, reports, role, viewAs, onViewA
   const [ver, setVer] = useState(0);
   const [tile, setTile] = useState(null);
   const [q, setQ] = useState("");
-  /* THE PERIOD IS "ALL" UNTIL SOMEBODY NARROWS IT.
-     Owner rule, 26 Aug 2026: any invoice from any period must be reachable. The
-     whole book is now read in one go, so there is no performance reason to
-     default to a recent slice, and a default that hides history is exactly the
-     defect this page had. Narrowing is offered; it is never assumed. */
-  const [period, setPeriod] = useState("all");
-  const [from, setFrom] = useState("");
-  const [to, setTo] = useState("");
+  /* THE PERIOD COMES FROM THE BUS NOW, AND THE 26 AUG RULE STILL HOLDS.
+   *
+   * This page used to hold its own catalogue — all / ytd / 12m / custom, with the
+   * calendar arithmetic written in JavaScript a few lines below. That is the second
+   * catalogue docs/PERIOD_BUS_SPEC.md forbids, and it drifted: its "Last 12 months"
+   * was a rolling year from today, while the governed one is twelve whole calendar
+   * months. Two controls with the same label and different answers.
+   *
+   * The default is no longer "all". It is nav_registry.default_range for view_key
+   * 'orders', which is this_month_td. The owner rule of 26 Aug — "any invoice from
+   * any period must be reachable" — is NOT weakened by that, because it was never
+   * the default that made an invoice reachable: it is the search, which sets the
+   * range aside entirely (see `rangeSetAside` below and the line the UI prints).
+   * Typing 303 still finds Twiste-303 from May 2025 on a page opened on August.
+   *
+   * The whole book is still read in one go. The range decides what is SHOWN, never
+   * what was read, so narrowing can never hide an order from the search. */
+  const [range, setRange] = useState({ from: "", to: "" });
+  const dateDefault = useDefaultRange(session, VIEW_KEY, setRange);
   const { targets, trend, err: targetErr } = useFinTargets(DEPT);
 
   const WIDGETS = useMemo(() => [
@@ -348,25 +363,24 @@ export default function OrdersPage({ go, session, reports, role, viewAs, onViewA
     `${o.invoice_number ?? ""} ${o.apex_order_id} ${o.buyer_state_license ?? ""} ${o.link_status}`
       .toLowerCase().includes(needle);
 
-  const periodStart = () => {
-    if (period === "ytd") return new Date(new Date().getFullYear(), 0, 1);
-    if (period === "12m") { const dt = new Date(); dt.setFullYear(dt.getFullYear() - 1); return dt; }
-    if (period === "custom" && from) return new Date(from);
-    return null;
-  };
-  const periodEnd = () => (period === "custom" && to ? new Date(to) : null);
+  /* Compared as ISO text, not as Date objects. `new Date("2026-08-01")` is midnight
+     UTC and the browser then renders it in local time, so west of Greenwich an order
+     dated the 1st falls out of a range starting on the 1st. The bus hands over
+     YYYY-MM-DD strings and order_date begins with the same ten characters, so
+     comparing them directly has no timezone in it at all. */
   const inPeriod = (o) => {
-    if (period === "all") return true;
+    if (!range.from && !range.to) return true;
     /* An order with no date is never silently dropped by a range — it is
-       unplaceable, not excluded, and it stays visible so it can be fixed. */
+       unplaceable, not excluded, and it stays visible so it can be fixed.
+       Spec: "Undated rows are not dropped." */
     if (!o.order_date) return true;
-    const dt = new Date(o.order_date);
-    const s = periodStart();
-    const e = periodEnd();
-    return (!s || dt >= s) && (!e || dt <= e);
+    const d0 = String(o.order_date).slice(0, 10);
+    if (range.from && d0 < range.from) return false;
+    if (range.to && d0 > range.to) return false;
+    return true;
   };
 
-  const periodNarrowed = period !== "all";
+  const periodNarrowed = Boolean(range.from || range.to);
   const rangeSetAside = searching && periodNarrowed;
   const filtered = searching ? orders.filter(matchesQ) : orders.filter(inPeriod);
 
@@ -525,28 +539,15 @@ export default function OrdersPage({ go, session, reports, role, viewAs, onViewA
                       onChange={(e) => setQ(e.target.value)} placeholder="type any part of it — any period" />
                     {searching && <button className="cc-btn" onClick={() => setQ("")} title="Clear the search and show every order.">clear</button>}
 
-                    <label htmlFor="fin-ord-period">Period</label>
-                    <select id="fin-ord-period" className="cc-input" value={period}
-                      onChange={(e) => setPeriod(e.target.value)}
-                      title="Narrow the list by order date. The whole book is already loaded, so this only decides what is shown — it never decides what was read.">
-                      <option value="all">All periods</option>
-                      <option value="ytd">This year to date</option>
-                      <option value="12m">Last 12 months</option>
-                      <option value="custom">Custom range…</option>
-                    </select>
-                    {period === "custom" && (
-                      <>
-                        <label htmlFor="fin-ord-from">From</label>
-                        <input id="fin-ord-from" type="date" className="cc-input" value={from}
-                          onChange={(e) => setFrom(e.target.value)} />
-                        <label htmlFor="fin-ord-to">To</label>
-                        <input id="fin-ord-to" type="date" className="cc-input" value={to}
-                          onChange={(e) => setTo(e.target.value)} />
-                      </>
-                    )}
+                    <DateRangeSelect label="Ordered between" from={range.from} to={range.to}
+                      onFrom={(v) => setRange((p) => ({ ...p, from: v }))}
+                      onTo={(v) => setRange((p) => ({ ...p, to: v }))}
+                      presetKey={dateDefault.presetKey} session={session}
+                      viewKey={VIEW_KEY} allowSave />
+                    {dateDefault.error && <span className="note bad" role="alert">{dateDefault.error}</span>}
                     {periodNarrowed && !searching && (
-                      <button className="cc-btn" onClick={() => setPeriod("all")}
-                        title="Show every period again.">show all periods</button>
+                      <button className="cc-btn" onClick={() => setRange({ from: "", to: "" })}
+                        title="Show every period again. The whole book is already loaded, so this only decides what is shown — it never decides what was read.">show all periods</button>
                     )}
 
                     <span className="fin-count">
@@ -613,7 +614,10 @@ export default function OrdersPage({ go, session, reports, role, viewAs, onViewA
               );
               case "words": return (
                 <Widget key={w.key} w={w} layout={layout} store={store} defaultOpen={false}>
-                  <DkNarrative page={PAGE_KEY} range={{ from: "", to: "" }} role={role} session={session} go={go} />
+                  {/* The narrative describes the period the reader is actually looking at.
+                      It was pinned to an empty range, so it narrated all time while the
+                      page showed a slice. */}
+                  <DkNarrative page={PAGE_KEY} range={range} role={role} session={session} go={go} />
                 </Widget>
               );
               case "tasks": return (
