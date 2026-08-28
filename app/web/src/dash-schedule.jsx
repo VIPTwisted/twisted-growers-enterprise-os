@@ -84,7 +84,8 @@ import { supabase } from "./lib/supabase.js";
 import { dateUpperExclusive } from "./lib/date-range-core.js";
 import { DateRangeSelect, AssignTask } from "./App.jsx";
 import {
-  useDefaultRange, grab, listOf, DkTag, DkErr, DkEmpty, DkDrill, DrillRoot, DkCaret, DkHead, dkFmt,
+  useDefaultRange, DkRangeSearch, rangeSearch,
+  grab, listOf, DkTag, DkErr, DkEmpty, DkDrill, DrillRoot, DkCaret, DkHead, dkFmt,
   dkRoomQualified, useWidgetLayout, Widget, WidgetBoard, WidgetBarControls,
   useSectionStore, DkNarrative, DkTasks, DkReports,
 } from "./dashkit.jsx";
@@ -1291,6 +1292,7 @@ export default function ScheduleAdherenceDashboard({ go, session, reports, role,
   const [openBand, setOpenBand] = useState(null);
   const [recordTarget, setRecordTarget] = useState(null);
   const [ver, setVer] = useState(0);
+  const [q, setQ] = useState("");
   const [d, setD] = useState(null);
 
   const WIDGETS = useMemo(() => [
@@ -1383,7 +1385,16 @@ export default function ScheduleAdherenceDashboard({ go, session, reports, role,
 
   /* The two populations, counted from real columns on the same served view so
      they cannot drift from the bands below them. */
-  const pastDueRows = d.compliance.rows.filter((r) => bandOf(r) === "pastdue");
+  /* THE SHARED CONTROL over the pull list — the one population on this page a
+     person searches by room or cultivar. The reads above already bind the range
+     server-side; this adds the search, and a pull with no scheduled date is kept
+     rather than dropped, which the old client-side filters on this page's
+     siblings all got wrong. */
+  const complianceRs = rangeSearch(d.compliance.rows, {
+    from: range.from, to: range.to, dateField: "scheduled_date", q,
+    fields: ["room", "cultivars", "event_type", "compliance", "flower_room", "drying_location"],
+  });
+  const pastDueRows = complianceRs.rows.filter((r) => bandOf(r) === "pastdue");
   const pastDue = {
     count: pastDueRows.length,
     days: pastDueRows.reduce((a, r) => a + Number(r.days_late || 0), 0),
@@ -1391,8 +1402,8 @@ export default function ScheduleAdherenceDashboard({ go, session, reports, role,
   /* Resolved here rather than inside the drill's label, so a room name never
      reaches a rendered string without its department already attached (J7). */
   const recordRoomQualified = recordTarget ? qualify(deptOf, recordTarget.room) : null;
-  const lateCount = d.compliance.rows.filter((r) => bandOf(r) === "late").length;
-  const unmeasuredCount = d.compliance.rows.filter((r) => bandOf(r) === "unmeasured").length;
+  const lateCount = complianceRs.rows.filter((r) => bandOf(r) === "late").length;
+  const unmeasuredCount = complianceRs.rows.filter((r) => bandOf(r) === "unmeasured").length;
   const saidUnmeasured = d.adherence.rows.map((r) => r.adherence).filter(Boolean);
 
   return (
@@ -1478,6 +1489,9 @@ export default function ScheduleAdherenceDashboard({ go, session, reports, role,
               it grows every night at midnight. None of them appears in any cost figure on this page,
               because the cost views measure a take-down and there is no take-down to measure.
             </div>
+            <DkRangeSearch id="ds-q" label="Search room, cultivar, event or state"
+              q={q} onQ={setQ} result={complianceRs} noun="pulls" rangeLabel="this range"
+              source="v_schedule_compliance" err={d.compliance.err} />
             {pastDueRows.length === 0
               ? <DkEmpty why="No pull is past due with nothing harvested."
                   fills="Every scheduled pull whose date has passed has a take-down against it. That is the position we want." />

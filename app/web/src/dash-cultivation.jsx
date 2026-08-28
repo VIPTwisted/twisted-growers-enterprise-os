@@ -38,7 +38,8 @@ import {
   AssignTask, DateRangeSelect, rowsOr, OpenHarvestDetail, RoomDrill, RoomStockDrill,
 } from "./App.jsx";
 import {
-  useDefaultRange, grab, DkTag, DkErr, DkEmpty, DkKpiStrip, DkOrphanTargets, DkWorkQueue, useWorkQueue,
+  useDefaultRange, DkRangeSearch, rangeSearch,
+  grab, DkTag, DkErr, DkEmpty, DkKpiStrip, DkOrphanTargets, DkWorkQueue, useWorkQueue,
   DkNarrative, DkReports, DkTasks, DkGapCard, DkHead, DkRoomBoard, useWidgetLayout,
   Widget, WidgetBoard, WidgetBarControls, useSectionStore, DkCaret, DkDrill, DrillRoot,
   DkRowDrill,
@@ -413,6 +414,7 @@ export default function CultivationDashboard({ go, session, reports, role, viewA
   const dateDefault = useDefaultRange(session, VIEW_KEY, setRange);
   const [busy, setBusy] = useState(false);
   const [ver, setVer] = useState(0);
+  const [q, setQ] = useState("");
   const [d, setD] = useState(null);
   /* The three slow views, read in their own wave. `null` means still reading —
      which is a different thing from read-and-empty, and the panels below say
@@ -580,7 +582,15 @@ export default function CultivationDashboard({ go, session, reports, role, viewA
      an empty array would read as "no flower rooms", which is a different claim. */
   const flowerRooms = slow ? slow.rooms.rows.filter((r) => r.room_role === "Flower room") : null;
   const roomsOver = flowerRooms ? flowerRooms.filter((r) => Number(r.days_until) < 0 && Number(r.plants_now) > 0) : null;
-  const yieldUnder = d.yld.rows.filter((r) => r.strain_median_dry_g != null && Number(r.dry_g_per_plant) < Number(r.strain_median_dry_g));
+  /* THE SHARED CONTROL, on the one list this dashboard actually lists records
+     in. The tiles above it come from f_department_dashboard, which ranges them
+     server-side; this widget renders rows, so it gets range and search from the
+     same primitive every cultivation page now uses. */
+  const yieldRs = rangeSearch(d.yld.rows, {
+    from: range.from, to: range.to, dateField: "finished_on", q,
+    fields: ["harvest", "strain", "room", "audit_verdict", "concern"],
+  });
+  const yieldUnder = yieldRs.rows.filter((r) => r.strain_median_dry_g != null && Number(r.dry_g_per_plant) < Number(r.strain_median_dry_g));
   const openTasks = d.tasks.rows.filter((t) => t.department === DEPT);
   const overdueTasks = openTasks.filter((t) => t.position?.startsWith("OVERDUE"));
   const dryLatest = d.dry.rows[0];
@@ -781,7 +791,10 @@ export default function CultivationDashboard({ go, session, reports, role, viewA
                     <DkTag tone="neutral">last {d.yld.rows.length} closed</DkTag>
                   </>
                 )}>
-                {d.yld.err ? <DkErr what="The yield audit" err={d.yld.err} /> : <CvYield rows={d.yld.rows} go={go} />}
+                <DkRangeSearch id="dc-yield-q" label="Search harvest, strain, room or verdict"
+                  q={q} onQ={setQ} result={yieldRs} noun="closed harvests" rangeLabel="this range"
+                  source="v_harvest_yield_audit" err={d.yld.err} />
+                {d.yld.err ? <DkErr what="The yield audit" err={d.yld.err} /> : <CvYield rows={yieldRs.rows} go={go} />}
               </Widget>
             );
             case "drytime": return (
@@ -796,6 +809,16 @@ export default function CultivationDashboard({ go, session, reports, role, viewA
                     </DkTag>
                   </>
                 ) : null}>
+                {/* DECLARED, NOT FILTERED. v_dry_time_discipline is a MONTHLY
+                    AGGREGATE keyed on a month label with no date column on the
+                    row, so the range above cannot narrow it and this says so
+                    rather than letting a reader assume it moved. Filtering it on
+                    a parsed month string would be inventing a date the view does
+                    not serve. */}
+                <DkTag tone="info"
+                  title="This panel is a monthly roll-up: v_dry_time_discipline serves one row per month with no date on it, so a date range has nothing to filter. Every month the view holds is shown, whatever range is chosen above. Narrowing it belongs in the view, not on this page.">
+                  monthly roll-up — the date range does not narrow this panel ⓘ
+                </DkTag>
                 {d.dry.err ? <DkErr what="Dry-time discipline" err={d.dry.err} /> : <CvDryTime rows={d.dry.rows} go={go} />}
               </Widget>
             );
