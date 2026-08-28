@@ -22,6 +22,9 @@
 --------------------------------------------------------------------------- */
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "./lib/supabase.js";
+/* The one date control and the one range/search primitive — imported, never rebuilt. */
+import { DateRangeSelect } from "./App.jsx";
+import { useDefaultRange, DkRangeSearch, rangeSearch } from "./dashkit.jsx";
 
 const DAYS = [
   [1, "Monday"], [2, "Tuesday"], [3, "Wednesday"], [4, "Thursday"],
@@ -32,6 +35,31 @@ const when = (d) => (d ? new Date(d + "T00:00:00").toLocaleDateString(undefined,
 const hhmm = (t) => (t ? String(t).slice(0, 5) : "");
 
 export default function MySchedule({ mode = "availability", go }) {
+  /* THE SESSION IS FETCHED HERE RATHER THAN PASSED IN, AND THAT IS A CONSTRAINT
+   * SPEAKING, NOT A PREFERENCE.
+   *
+   * f_date_default resolves per user — a person's own saved choice for a page
+   * outranks the company default — so the bus needs a session. This component is
+   * rendered as <MySchedule mode=... go=... /> with no session prop, and adding
+   * one means editing App.jsx, which three unmerged branches are currently on
+   * (including claude-c/dashboard-time-frame). Reaching into a file somebody else
+   * is holding to add a prop is how two sessions lose an afternoon to a conflict.
+   *
+   * So it asks Supabase directly for the session it already has. When App.jsx is
+   * free, this should become a prop like every other page and this hook can go.
+   * budz.jsx already reads the session locally, so this is the existing idiom
+   * rather than a new one. */
+  const [session, setSession] = useState(null);
+  useEffect(() => {
+    let live = true;
+    supabase.auth.getSession().then(({ data }) => { if (live) setSession(data?.session ?? null); });
+  return () => { live = false; };
+  }, []);
+
+  const VIEW_KEY = mode === "swap" ? "my_swap" : "my_availability";
+  const [range, setRange] = useState({ from: "", to: "" });
+  const dateDefault = useDefaultRange(session, VIEW_KEY, setRange);
+  const [q, setQ] = useState("");
   const [me, setMe] = useState(null);
   const [rows, setRows] = useState([]);
   const [shifts, setShifts] = useState([]);
@@ -144,6 +172,17 @@ export default function MySchedule({ mode = "availability", go }) {
     <div className="msempty"><b>No employee record linked to this login</b>
       <span>Ask Human Resources to link your account.</span></div>);
 
+  /* rangeSearch is the shared primitive — one unit-tested definition of "a search
+     beats the range" and "an undated row is never dropped". A swap still waiting
+     on a counterparty has no decided_at and is never dropped by the frame: an
+     undecided swap is the one the person came here to chase. The frame is
+     created_at, when the swap was RAISED. */
+  const swapRs = rangeSearch(swaps, {
+    from: range.from, to: range.to, dateField: "created_at", q,
+    fields: ["status", "work_date", "note", "counterparty_name"],
+  });
+  const shownSwaps = swapRs.rows;
+
   return (
     <div className="ms">
       {msg && <div className="msmsg">{msg}</div>}
@@ -152,6 +191,13 @@ export default function MySchedule({ mode = "availability", go }) {
         <>
           <div className="mshead">
             <h1>My availability</h1>
+            {/* The availability grid is a WEEKDAY PATTERN, not dated records — "I
+                cannot work Tuesdays" has no date to range over. It declares that
+                rather than growing a control that would narrow nothing. */}
+            <div className="msasof">
+              This is a standing weekly pattern, not a list of dates — there is no
+              period to choose. It applies until you change it.
+            </div>
             <p>When you can work at all. <b>This is not time off</b> — time off spends a
               balance and needs approval. Availability describes the days you can be
               scheduled, and your manager sees it while building the week.</p>
@@ -201,6 +247,16 @@ export default function MySchedule({ mode = "availability", go }) {
         <>
           <div className="mshead">
             <h1>Swap a shift</h1>
+            <div className="mstools">
+              <DkRangeSearch id="ms-q" label="Find a swap" placeholder="date, mate or status"
+                q={q} onQ={setQ} result={swapRs} noun="swaps" />
+              <DateRangeSelect label="Raised between" from={range.from} to={range.to}
+                onFrom={(v) => setRange((prev) => ({ ...prev, from: v }))}
+                onTo={(v) => setRange((prev) => ({ ...prev, to: v }))}
+                presetKey={dateDefault.presetKey} session={session}
+                viewKey={VIEW_KEY} allowSave />
+              {dateDefault.error && <span className="note bad" role="alert">{dateDefault.error}</span>}
+            </div>
             <p>Pick the shift you cannot work and who is taking it. <b>They agree, then a
               manager approves</b> — two gates, because a swap changes two people&rsquo;s pay
               and the cover on two zones.</p>
@@ -239,11 +295,11 @@ export default function MySchedule({ mode = "availability", go }) {
               </div>
             </>)}
 
-          {swaps.length > 0 && (
+          {shownSwaps.length > 0 && (
             <div className="mscard">
               <h3>Your swaps</h3>
               <div className="msrows">
-                {swaps.map(sw => {
+                {shownSwaps.map(sw => {
                   const mine = sw.requested_by === me;
                   const needsMe = !mine && sw.status === "pending";
                   return (

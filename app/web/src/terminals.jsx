@@ -22,6 +22,11 @@
 --------------------------------------------------------------------------- */
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "./lib/supabase.js";
+/* The one date control and the one range/search primitive — imported, never rebuilt. */
+import { DateRangeSelect } from "./App.jsx";
+import { useDefaultRange, DkRangeSearch, rangeSearch } from "./dashkit.jsx";
+
+const VIEW_KEY = "terminals";
 
 const nameOf = (n) => { const [l = "", r = ""] = String(n || "").split(","); return r.trim() ? `${r.trim()} ${l.trim()}` : l.trim(); };
 const initials = (n) => { const [l = "", r = ""] = String(n || "").split(","); return ((r.trim()[0] || "") + (l.trim()[0] || "")).toUpperCase() || "?"; };
@@ -34,7 +39,16 @@ const ago = (t) => {
   return `${Math.floor(m / 1440)} d ago`;
 };
 
-export default function Terminals({ go }) {
+export default function Terminals({ go, session }) {
+  /* A TERMINAL REGISTRY IS A POSITION. Which devices exist and whether they are
+     still checking in is a standing fact; the governed default is 'all' (see the
+     migration alongside this change) rather than a recent window, because a wall
+     terminal that stopped reporting in June is precisely the one worth finding
+     and any recent frame hides it. The frame narrows on last_seen_at when
+     somebody does ask a period question — "what has not checked in this month". */
+  const [range, setRange] = useState({ from: "", to: "" });
+  const dateDefault = useDefaultRange(session, VIEW_KEY, setRange);
+  const [q, setQ] = useState("");
   const [devices, setDevices] = useState([]);
   const [staff, setStaff] = useState([]);
   const [canDo, setCanDo] = useState(false);
@@ -153,11 +167,31 @@ export default function Terminals({ go }) {
     load();
   }
 
+  /* rangeSearch is the shared primitive — one unit-tested definition of "a search
+     beats the range" and "an undated row is never dropped". A terminal that has
+     never checked in has no last_seen_at, and it is never dropped by the frame:
+     a device that has never reported is the most interesting row on the page. */
+  const rs = rangeSearch(devices, {
+    from: range.from, to: range.to, dateField: "last_seen_at", q,
+    fields: ["label", "name", "zone", "device_code", "location"],
+  });
+  const shownDevices = rs.rows;
+
   return (
     <div className="tm">
       <div className="tmhead">
         <div>
           <h1>Terminals &amp; credentials</h1>
+          <div className="tmtools">
+            <DkRangeSearch id="tm-q" label="Find a terminal or person" placeholder="device, zone or name"
+              q={q} onQ={setQ} result={rs} noun="terminals" />
+            <DateRangeSelect label="Last seen between" from={range.from} to={range.to}
+              onFrom={(v) => setRange((prev) => ({ ...prev, from: v }))}
+              onTo={(v) => setRange((prev) => ({ ...prev, to: v }))}
+              presetKey={dateDefault.presetKey} session={session}
+              viewKey={VIEW_KEY} allowSave />
+            {dateDefault.error && <span className="note bad" role="alert">{dateDefault.error}</span>}
+          </div>
           <div className="tmsub">
             Register the instrument, then give people the credential. <b>Nobody can clock in until both exist.</b>
           </div>
@@ -229,7 +263,7 @@ export default function Terminals({ go }) {
             </div>
           ) : (
             <div className="tmlist">
-              {devices.map(d => (
+              {shownDevices.map(d => (
                 <div className={`tmrow ${d.active ? "" : "off"}`} key={d.id}>
                   <span className={`tmk ${d.kind}`}>{d.kind === "kiosk" ? "terminal" : "scanner"}</span>
                   <span className="tmn"><b>{d.label}</b><i>{d.location || "no location set"}</i></span>
