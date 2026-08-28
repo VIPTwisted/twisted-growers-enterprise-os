@@ -57,11 +57,14 @@
    ═══════════════════════════════════════════════════════════════════════════ */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "./lib/supabase.js";
-import { DkTag, DkErr, DkEmpty, DkCaret, DrillRoot, DkDrill, dkAge } from "./dashkit.jsx";
+import {
+  DkTag, DkErr, DkEmpty, DkCaret, DrillRoot, DkDrill, dkAge,
+  useDefaultRange, DkRangeSearch, rangeSearch,
+} from "./dashkit.jsx";
 /* The per-user collapse memory the whole platform already uses, so a section
    the owner closed here stays closed the way it does everywhere else. One
    definition of the thing, not a second one written locally. */
-import { useSectionStore } from "./App.jsx";
+import { useSectionStore, DateRangeSelect } from "./App.jsx";
 import "./tgworkspace.css";
 
 /* The four priorities are the database's own CHECK constraint
@@ -134,7 +137,16 @@ function minutesText(m) {
 }
 
 /* ═══════════ the page ═══════════ */
+const VIEW_KEY = "tg_workspace";
+
 export default function TgWorkspace({ session, go }) {
+  /* A TASK BOARD IS A WORK QUEUE, SO IT OPENS UNBOUNDED.
+     nav_registry held no default_range, so f_date_default fell to the company
+     fallback and this board would have opened on a month — hiding every task
+     raised before the 1st that is still open, which is exactly the work the
+     board exists to show. Governed default 'all' with range_kind 'snapshot'
+     (see the migration alongside this change). The frame still narrows to
+     "raised this month" when somebody asks that question of it. */
   const uid = session && session.user ? session.user.id : null;
 
   const [spaces, setSpaces] = useState(null);
@@ -151,6 +163,8 @@ export default function TgWorkspace({ session, go }) {
   const [layout, setLayout] = useState("list"); /* list | board | table */
   const [viewId, setViewId] = useState("");
   const [q, setQ] = useState("");
+  const [range, setRange] = useState({ from: "", to: "" });
+  const dateDefault = useDefaultRange(session, VIEW_KEY, setRange);
   const [mineOnly, setMineOnly] = useState(false);
   const [hideClosed, setHideClosed] = useState(false);
   const [openId, setOpenId] = useState(null);
@@ -244,22 +258,29 @@ export default function TgWorkspace({ session, go }) {
 
   /* Tasks in scope: this space, this list, minus subtasks (they render under
      their parent), then the toolbar's filters. */
-  const scoped = useMemo(() => {
-    const needle = q.trim().toLowerCase();
-    return tasks.filter((t) => {
-      if (t.space_id !== spaceId) return false;
-      if (t.parent_task_id) return false;
-      if (listId === "unfiled" && t.list_id) return false;
-      if (listId !== "all" && listId !== "unfiled" && t.list_id !== listId) return false;
-      if (mineOnly && t.assignee_employee_id !== me) return false;
-      if (hideClosed && closedStatus && t.status === closedStatus) return false;
-      if (needle) {
-        const hay = `${t.title || ""} ${t.description || ""}`.toLowerCase();
-        if (!hay.includes(needle)) return false;
-      }
-      return true;
-    });
-  }, [tasks, spaceId, listId, mineOnly, me, hideClosed, closedStatus, q]);
+  /* THE STRUCTURAL FILTERS ARE THIS PAGE'S OWN; THE RANGE AND THE SEARCH ARE NOT.
+     Which space, which list, mine only, hide closed — those are questions only
+     this board asks. Whether a search beats a range, and whether an undated row
+     survives one, are answered the same way on every page in the platform, so
+     they come from rangeSearch rather than being written a second time here. */
+  const structural = useMemo(() => tasks.filter((t) => {
+    if (t.space_id !== spaceId) return false;
+    if (t.parent_task_id) return false;
+    if (listId === "unfiled" && t.list_id) return false;
+    if (listId !== "all" && listId !== "unfiled" && t.list_id !== listId) return false;
+    if (mineOnly && t.assignee_employee_id !== me) return false;
+    if (hideClosed && closedStatus && t.status === closedStatus) return false;
+    return true;
+  }), [tasks, spaceId, listId, mineOnly, me, hideClosed, closedStatus]);
+
+  /* The frame is created_at — when the task was RAISED. A task completed late
+     still belongs to the day somebody asked for it, and a task with no
+     created_at is never dropped by a range it has no date to be tested against. */
+  const rs = useMemo(() => rangeSearch(structural, {
+    from: range.from, to: range.to, dateField: "created_at", q,
+    fields: ["title", "description"],
+  }), [structural, range.from, range.to, q]);
+  const scoped = rs.rows;
 
   const childrenOf = useCallback(
     (id) => tasks.filter((t) => t.parent_task_id === id),
@@ -504,10 +525,14 @@ export default function TgWorkspace({ session, go }) {
             ))}
           </div>
           <div className="cc-tools-c">
-            <label className="cc-check" htmlFor="tgws-q">Find</label>
-            <input id="tgws-q" className="cc-input tgws-grow" value={q}
-              placeholder="Title or description…"
-              onChange={(e) => setQ(e.target.value)} />
+            <DkRangeSearch id="tgws-q" label="Find" placeholder="title or description"
+              q={q} onQ={setQ} result={rs} noun="tasks" />
+            <DateRangeSelect label="Raised between" from={range.from} to={range.to}
+              onFrom={(v) => setRange((prev) => ({ ...prev, from: v }))}
+              onTo={(v) => setRange((prev) => ({ ...prev, to: v }))}
+              presetKey={dateDefault.presetKey} session={session}
+              viewKey={VIEW_KEY} allowSave />
+            {dateDefault.error && <span className="note bad" role="alert">{dateDefault.error}</span>}
             <label className="cc-check" htmlFor="tgws-mine">
               <input id="tgws-mine" type="checkbox" checked={mineOnly}
                 onChange={(e) => setMineOnly(e.target.checked)} />

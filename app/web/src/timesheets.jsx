@@ -22,7 +22,7 @@ import { supabase } from "./lib/supabase.js";
 /* The one date control and the one catalogue. Imported, never rebuilt —
    docs/PERIOD_BUS_SPEC.md: "Do not fork a second catalog in React." */
 import { DateRangeSelect } from "./App.jsx";
-import { useDefaultRange } from "./dashkit.jsx";
+import { useDefaultRange, DkRangeSearch, rangeSearch } from "./dashkit.jsx";
 
 const VIEW_KEY = "timesheets";
 
@@ -63,6 +63,8 @@ export default function Timesheets({ go, session }) {
   const [range, setRange] = useState({ from: "", to: "" });
   const dateDefault = useDefaultRange(session, VIEW_KEY, setRange);
   const [q, setQ] = useState("");
+  /* Derived once so the loader and the filter agree what "searching" means. */
+  const searchingNow = q.trim().length > 0;
   const [entries, setEntries] = useState([]);
   const [cap, setCap] = useState([]);
   const [me, setMe] = useState(null);
@@ -85,10 +87,16 @@ export default function Timesheets({ go, session }) {
     let entryQuery = supabase.from("time_entries")
       .select("*, employees(full_name, employee_code, weekly_target_hours)")
       .order("work_date");
-    /* An unbounded frame reads the whole book, exactly as Orders does. The range
-       decides what is SHOWN; it must never decide what a search can reach. */
-    if (range.from) entryQuery = entryQuery.gte("work_date", range.from);
-    if (range.to) entryQuery = entryQuery.lte("work_date", range.to);
+    /* A SEARCH LEAVES THE WINDOW, INCLUDING AT THE QUERY.
+       The frame here is applied server-side, so setting it aside in the client
+       is not enough on its own: rows outside it were never fetched, and the page
+       would answer "nobody" for a person who simply worked last month. When a
+       search is typed the range predicates are dropped and the whole book is
+       read — which is what Orders does, and why Twiste-303 is findable there. */
+    if (!searchingNow) {
+      if (range.from) entryQuery = entryQuery.gte("work_date", range.from);
+      if (range.to) entryQuery = entryQuery.lte("work_date", range.to);
+    }
     const [t, c, m, p, a] = await Promise.all([
       entryQuery,
       supabase.from("v_employee_capacity").select("*"),
@@ -101,7 +109,7 @@ export default function Timesheets({ go, session }) {
     setMe(m.data ?? null);
     setPolicy(p.data ?? null);
     setCanApprove(!!a.data);
-  }, [range.from, range.to]);
+  }, [range.from, range.to, searchingNow]);
 
   useEffect(() => { if (dateDefault.ready) load(); }, [load, dateDefault.ready]);
 
@@ -136,21 +144,19 @@ export default function Timesheets({ go, session }) {
     return [...by.values()].sort((a, b) => a.name.localeCompare(b.name));
   }, [entries, cap]);
 
-  /* SEARCH SETS THE RANGE ASIDE — the Orders rule, applied here.
-     Somebody typing a name is asking about that person, not about August. When
-     the range is narrowed AND a search is typed, the search wins and the page
-     says so, so a manager is never told a person has no hours when what actually
-     happened is that their hours fall outside a window nobody chose. */
-  const searching = q.trim().length > 0;
-  const needle = q.trim().toLowerCase();
+  /* rangeSearch is the shared primitive — the one unit-tested definition of "a
+     search beats the range" and "an undated row is never dropped". This file had
+     its own copy of those rules, which is the duplication the whole workstream
+     exists to remove.
+
+     No dateField is passed, and that is deliberate: these rows are PEOPLE, each
+     an aggregate of a window, not dated records. The dates were applied to the
+     query itself. What is wanted here is the search half and the honest counts. */
   const byTab = tab === "my" ? rows.filter(r => r.id === me)
               : tab === "approvals" ? rows.filter(r => r.unapproved > 0 || r.open > 0)
               : rows;
-  const visible = searching
-    ? byTab.filter(r => `${r.name} ${r.code}`.toLowerCase().includes(needle))
-    : byTab;
-  const periodNarrowed = Boolean(range.from || range.to);
-  const rangeSetAside = searching && periodNarrowed;
+  const rs = rangeSearch(byTab, { q, fields: ["name", "code"] });
+  const visible = rs.rows;
 
   const totals = useMemo(() => visible.reduce((a, r) => ({
     tracked: a.tracked + r.tracked,
@@ -203,18 +209,11 @@ export default function Timesheets({ go, session }) {
       </div>
 
       <div className="tsfind">
-        <label htmlFor="ts-q">Find a person</label>
-        <input id="ts-q" className="cc-input" value={q} onChange={(e) => setQ(e.target.value)}
-          placeholder="name or employee code — any period" />
-        {searching && <button className="btn ghost small" onClick={() => setQ("")}>clear</button>}
-        <span className="tsfindnote">
-          {searching
-            ? `${visible.length.toLocaleString()} of ${rows.length.toLocaleString()} people match.`
-            : `${visible.length.toLocaleString()} people in this window.`}
-        </span>
-        {rangeSetAside && (
-          <span className="tsaside" title="A search asks about a person, not about a period, so the date range is set aside for it. Clear the search to return to the range.">
-            date range set aside while searching — every period is being searched
+        <DkRangeSearch id="ts-q" label="Find a person" placeholder="name or employee code"
+          q={q} onQ={setQ} result={rs} noun="people" />
+        {searchingNow && (
+          <span className="tsaside" title="The whole book is read while you search, so a person who worked outside the selected window is still found.">
+            the date range is set aside while searching — every period is being read
           </span>
         )}
       </div>
