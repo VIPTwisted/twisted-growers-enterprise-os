@@ -625,7 +625,7 @@ Deno.serve(async (req: Request) => {
       + "run row was closed. NOTE: a partial sweep does NOT resume - the next call "
       + "re-walks from the beginning and gets further before the deadline. A real "
       + "resume cursor is a tracked task; v18 attempted it, was not verified, and was "
-      + "rolled back after leaving a run open for 183 seconds.";
+      + "rolled back after leaving a run open for 183 seconds."
   }
   return json({ ok: true, complete: !stoppedEarly, state, results });
 });
