@@ -493,8 +493,21 @@ const migrationEntries = files.map((name) => ({
  * connection while the cross-check was being fetched. The two that stand are the gate itself on
  * the clean-clone file set (credential migration aside, restored after) and the independent
  * recomputation from the git object store, working directory untouched. Both give 950 files at
- * c28491c3… . */
-const expectedMigrationTreeDigest = "c28491c3b0930008dfc643beb9a07bb43dc76181c8d52c7a6e13d238423d231b";
+ * c28491c3… .
+ *
+ * RE-PINNED 28 Aug 2026, 951 files, off 2a34037. One migration landed, from PR #36:
+ * 20260828175342_the_two_invoice_truth_reports_get_a_page.sql. Not this lane's work and not read
+ * for meaning here.
+ *
+ * The baseline was checked BEFORE pinning and did not need a re-dump: that migration registers a
+ * page and a role, creates no view, and schema-baseline still passes against live at
+ * 450 / 521 / 28 / 850. So this is a pin on its own, with no dump to sequence behind it and no
+ * second red gate waiting after the merge.
+ *
+ * THREE readings agreed this time, the CI one having been unavailable for the previous two pins:
+ * the gate on the clean-clone file set, the recomputation from the git object store, and the
+ * failing Gates run on 2a34037 itself. All three give 951 files at 0eb93a71… . */
+const expectedMigrationTreeDigest = "0eb93a71f8ff0bceefb6044541c6c2d35519d7d6501bdb015b3c831cef4fc814";
 const actualMigrationTreeDigest = migrationTreeDigest(migrationEntries);
 if (actualMigrationTreeDigest !== expectedMigrationTreeDigest) {
   console.error(`money-grain: FAIL — migration tree differs from the independently reviewed ${files.length}-file manifest (${actualMigrationTreeDigest}).`);
