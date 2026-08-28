@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback, useRef, useMemo, lazy, Suspense } from "react";
 import { fetchDepartmentDashboard } from "./lib/dashboard-range.js";
+import { FramePicker, useFramePolicy, resolveFrame } from "./period-frame-ui.jsx";
 import {
   useDatePresetCatalog,
   useDefaultRange,
@@ -5229,6 +5230,42 @@ function ControlTower({ go, session }) {
       if (error) setErr(error.message); else setRows(data);
     });
   }, []);
+
+  /* ── THE TIME FRAME ON THE CONTROL TOWER — owner ruling, 26 Aug 2026 ───────
+     Hour | Shift | Day | Week | Custom, and it had to be a REAL control.
+
+     `v_control_tower` serves (metric, value) and nothing else: twelve counts of
+     a CURRENT state — orders open now, licences expiring now, allocations
+     pending now. There is no date on any of those facts, so a frame cannot
+     restate them, and hanging a picker above them that silently did nothing is
+     the dead control this platform has a gate against.
+
+     So the frame drives what it genuinely can. `f_department_dashboard` already
+     recomputes the Command figures for a window — proved against the live
+     database on 26 Aug 2026, where the week of 17–23 August and the single day
+     of the 19th return different values on seven key figures. Hard rule 4 says
+     every category dashboard replicates up into the Control Tower, so the
+     ranged figures belong here anyway; the frame simply decides their window.
+
+     The twelve state counts keep their own heading and say, on their face, that
+     they are a position as it stands and do not move with the frame. Two kinds
+     of figure, two labels, one page — never one label over both. */
+  const [frame, setFrame] = useState(null);
+  const [custom, setCustom] = useState({ from: "", to: "" });
+  const framePolicy = useFramePolicy();
+  const [framed, setFramed] = useState(null);
+  const resolvedFrame = frame
+    ? resolveFrame({ frame, anchor: new Date(), policy: framePolicy.policy,
+                     customFrom: custom.from, customTo: custom.to })
+    : null;
+  useEffect(() => {
+    if (!resolvedFrame?.ok) { setFramed(null); return undefined; }
+    let live = true;
+    fetchDepartmentDashboard(supabase, {
+      department: "Command", from: resolvedFrame.from, to: resolvedFrame.to,
+    }).then((r) => { if (live) setFramed(r); });
+    return () => { live = false; };
+  }, [resolvedFrame?.ok, resolvedFrame?.from, resolvedFrame?.to]);
   const byMetric = Object.fromEntries((rows ?? []).map((r) => [r.metric, Number(r.value ?? 0)]));
   const cashDays = byMetric.days_since_cash_update ?? 999;
   const alertCount = (rows ?? []).reduce((n, r) => {
@@ -5246,6 +5283,42 @@ function ControlTower({ go, session }) {
         </div>
         {session && <SyncCenter session={session} />}
       </div>
+
+      <FramePicker frame={frame} onFrame={setFrame}
+        customFrom={custom.from} customTo={custom.to}
+        onCustom={(f, t) => setCustom({ from: f, to: t })}
+        resolved={resolvedFrame} policyErr={framePolicy.err} unconfirmed={framePolicy.unconfirmed} />
+
+      {resolvedFrame?.ok && (
+        <div className="msection">
+          <div className="mtitle"><span className="sq" /><h2>Key figures for {resolvedFrame.label}</h2><span className="rule" /></div>
+          {framed === null && <div className="empty">Recomputing the key figures for this frame…</div>}
+          {framed?.error && (
+            <div className="empty">
+              <div className="eicon">{I.shield}</div>
+              <b>These figures could not be recomputed for the frame you chose</b>
+              {framed.error.message}
+              <div className="note">Nothing older is shown in their place. An all-time figure under a chosen
+                frame is worse than no figure — it reads as the answer to a question nobody asked.</div>
+            </div>
+          )}
+          {framed?.data && (
+            <div className="grid">
+              {framed.data.map((t) => (
+                <div className="card" key={`${t.ord}-${t.kpi}`}>
+                  <div className="cl">{t.kpi}</div>
+                  <div className="cv">{Number(t.value ?? 0).toLocaleString()}{t.unit ? ` ${t.unit}` : ""}</div>
+                  <div className="note" title={t.context ?? ""}>
+                    {t.honours_range === false
+                      ? "does not move with the frame — " + (t.range_note ?? "")
+                      : (t.range_note ?? "")}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
       {rows && (
         <div className="hero">
           <button className="pulse" onClick={() => go("alerts")} title="Open the Action Register">

@@ -42,6 +42,7 @@ import {
   useDefaultRange, DkKpiStrip, DkRoomBoard, DkRoomPlantDrill, DkWorkQueue, useWorkQueue, DkCaret, DkDrill, DrillRoot,
   DkStreamDrill, DkRowDrill, DkEmpty, dkRoomQualified,
 } from "./dashkit.jsx";
+import { FramePicker, useFramePolicy, resolveFrame } from "./period-frame-ui.jsx";
 import "./commandcenter.css";
 
 /* ---------- shared primitives of the new tree ---------- */
@@ -1432,6 +1433,40 @@ export default function CommandCenter({ go, session, reports, role, viewAs, onVi
   /* Opens on the company default (this month) instead of all history —
      owner ruling 19 Aug 2026. Seeds once, then the user owns the range. */
   const dateDefault = useDefaultRange(session, "dept_dash_command", setRange);
+
+  /* ── THE TIME FRAME — owner ruling, 26 Aug 2026 ────────────────────────────
+     Hour | Shift | Day | Week | Custom, and the frame RECOMPUTES the page by
+     writing the range every read on it already binds. `range` is the single
+     input to `fetchDepartmentDashboard` and to every `ranged()` read below, so
+     one setRange moves all of them together — there is no second path and no
+     tile that quietly keeps its old window.
+
+     The frame stays null until somebody picks one, so the owner's saved date
+     default is not overwritten by a frame nobody chose. */
+  const [frame, setFrame] = useState(null);
+  const [custom, setCustom] = useState({ from: "", to: "" });
+  const framePolicy = useFramePolicy();
+  const resolvedFrame = frame
+    ? resolveFrame({
+        frame, anchor: new Date(), policy: framePolicy.policy,
+        customFrom: custom.from, customTo: custom.to,
+      })
+    : null;
+  /* A resolved frame writes the range; an unresolvable one writes nothing and
+     is rendered as its reason instead. Never a half-applied window. */
+  const applyFrame = (key) => {
+    setFrame(key);
+    const r = resolveFrame({
+      frame: key, anchor: new Date(), policy: framePolicy.policy,
+      customFrom: custom.from, customTo: custom.to,
+    });
+    if (r.ok) setRange({ from: r.from, to: r.to });
+  };
+  const applyCustom = (from, to) => {
+    setCustom({ from, to });
+    const r = resolveFrame({ frame: "custom", anchor: new Date(), policy: framePolicy.policy, customFrom: from, customTo: to });
+    if (r.ok) setRange({ from: r.from, to: r.to });
+  };
   const [busy, setBusy] = useState(false);
   const [ver, setVer] = useState(0);
   const [d, setD] = useState(null);   // { key: { rows, err } }
@@ -1717,9 +1752,15 @@ export default function CommandCenter({ go, session, reports, role, viewAs, onVi
           )}
         </div>
         <div className="cc-tools-c">
+          {/* The frame writes the same `range` the dates below bind, so picking
+              Week and then typing a date are the same control seen twice, never
+              two windows fighting each other. */}
+          <FramePicker frame={frame} onFrame={applyFrame}
+            customFrom={custom.from} customTo={custom.to} onCustom={applyCustom}
+            resolved={resolvedFrame} policyErr={framePolicy.err} unconfirmed={framePolicy.unconfirmed} />
           <DateRangeSelect label="Dates" from={range.from} to={range.to}
-            onFrom={(v) => setRange((p) => ({ ...p, from: v }))}
-            onTo={(v) => setRange((p) => ({ ...p, to: v }))}
+            onFrom={(v) => { setFrame(null); setRange((p) => ({ ...p, from: v })); }}
+            onTo={(v) => { setFrame(null); setRange((p) => ({ ...p, to: v })); }}
             presetKey={dateDefault.presetKey} session={session} viewKey="dept_dash_command" allowSave />
         </div>
         <div className="cc-tools-r">
