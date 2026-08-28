@@ -26,8 +26,10 @@ import { DateRangeSelect } from "./App.jsx";
 import {
   useDefaultRange, DkRangeSearch, rangeSearch,
   grab, listOf, DkTag, DkErr, DkEmpty, DkKpiStrip, DkDrill, DrillRoot, DkHead, useSectionStore,
-  useWidgetLayout, Widget, WidgetBoard, WidgetBarControls, DkReports,
+  useWidgetLayout, Widget, WidgetBoard, WidgetBarControls, DkReports, useDefaultRange,
 } from "./dashkit.jsx";
+/* The one date control and the one catalogue — imported, never rebuilt. */
+import { DateRangeSelect } from "./App.jsx";
 import {
   CULT_DEPT, useCultMeasures, cultTargetMap, cultTrendMap, cultLicenceMap, cultRoomLabel,
   cultTile, cultInPlace, CultActivity, cultNum, CULT_ROOM_UNQUALIFIED,
@@ -44,6 +46,12 @@ const SOURCE_NOTE = {
 };
 
 export default function HarvestDetail({ go, session, role, viewAs, reports }) {
+  /* Governed by nav_registry.default_range for harvest_detail (this_month_td).
+     The frame is harvest_date — the pull itself — not created_at, because a plan
+     typed up a week late still describes the harvest it was written about. */
+  const [range, setRange] = useState({ from: "", to: "" });
+  const dateDefault = useDefaultRange(session, VIEW_KEY, setRange);
+  const [q, setQ] = useState("");
   const store = useSectionStore(session && session.user ? session.user.id : null, PAGE_KEY);
   /* THE SECTIONS ARE ARRANGEABLE AND THE ARRANGEMENT IS THE USER'S OWN. Owner,
      16 Aug 2026: "every single dashboard need to have section as I stated where
@@ -91,7 +99,29 @@ export default function HarvestDetail({ go, session, role, viewAs, reports }) {
   }), [allRows, range.from, range.to, q]);
   const rows = rs.rows;
   const roomNames = useMemo(() => [...new Set(listOf(rows).map((r) => r.room_qualified))].sort(), [rows]);
-  const shown = useMemo(() => listOf(rows).filter((r) => !roomPick || r.room_qualified === roomPick), [rows, roomPick]);
+  /* SEARCH SETS THE RANGE ASIDE — the Orders rule. A cultivar typed into the box
+     is a question about that cultivar across every pull, not about this month.
+     A line with no harvest_date is never dropped by the frame: it has no date to
+     test, and an undated pull is exactly the planning gap worth finding. */
+  const searching = q.trim().length > 0;
+  const needle = q.trim().toLowerCase();
+  const inFrame = (r) => {
+    if (!range.from && !range.to) return true;
+    if (!r.harvest_date) return true;
+    const d0 = String(r.harvest_date).slice(0, 10);
+    if (range.from && d0 < range.from) return false;
+    if (range.to && d0 > range.to) return false;
+    return true;
+  };
+  const periodNarrowed = Boolean(range.from || range.to);
+  const rangeSetAside = searching && periodNarrowed;
+  const shown = useMemo(() => listOf(rows)
+    .filter((r) => !roomPick || r.room_qualified === roomPick)
+    .filter((r) => (searching
+      ? `${r.cultivar ?? ""} ${r.room_qualified ?? ""} ${r.license ?? ""}`.toLowerCase().includes(needle)
+      : inFrame(r))),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [rows, roomPick, searching, needle, range.from, range.to]);
 
   const pulls = useMemo(() => {
     const m = new Map();
@@ -157,8 +187,27 @@ export default function HarvestDetail({ go, session, role, viewAs, reports }) {
         <DkHead title="Harvest detail by cultivar — the plan" viewKey={VIEW_KEY} dept={CULT_DEPT}
           role={role} viewAs={viewAs} computed={null} busy={false}>
           <DkTag tone="attn" title={SOURCE_NOTE.why}>every weight on this page is a projection</DkTag>
-          <DkTag tone="neutral">{shown.length.toLocaleString()} of {rows.length.toLocaleString()} lines</DkTag>
+          <DkTag tone="neutral">{shown.length.toLocaleString()} of {listOf(rows).length.toLocaleString()} lines</DkTag>
         </DkHead>
+
+        <div className="cc-tools">
+          <div className="cc-tools-l">
+            <input className="cc-input" value={q} onChange={(e) => setQ(e.target.value)}
+              aria-label="Find a cultivar or room" placeholder="find a cultivar or room — any period" />
+            {searching && <button type="button" className="cc-btn" onClick={() => setQ("")}>clear</button>}
+            <DateRangeSelect label="Harvested between" from={range.from} to={range.to}
+              onFrom={(v) => setRange((prev) => ({ ...prev, from: v }))}
+              onTo={(v) => setRange((prev) => ({ ...prev, to: v }))}
+              presetKey={dateDefault.presetKey} session={session}
+              viewKey={VIEW_KEY} allowSave />
+            {dateDefault.error && <span className="note bad" role="alert">{dateDefault.error}</span>}
+            {rangeSetAside && (
+              <span className="note" title="A search asks about one cultivar, so the date range is set aside for it. Clear the search to return to the range.">
+                date range set aside while searching — every period is being searched
+              </span>
+            )}
+          </div>
+        </div>
 
         <div className="cc-tools">
           <div className="cc-tools-l">

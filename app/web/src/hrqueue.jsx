@@ -22,6 +22,11 @@
 --------------------------------------------------------------------------- */
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "./lib/supabase.js";
+/* The one date control and the one catalogue — imported, never rebuilt. */
+import { DateRangeSelect } from "./App.jsx";
+import { useDefaultRange } from "./dashkit.jsx";
+
+const VIEW_KEY = "hr_review_queue";
 
 const AGE = (t) => {
   const m = Math.floor((Date.now() - new Date(t)) / 60000);
@@ -47,7 +52,14 @@ const IGNORE_REASONS = [
   "Other",
 ];
 
-export default function HrQueue({ go }) {
+export default function HrQueue({ go, session }) {
+  /* Governed by nav_registry.default_range for hr_review_queue (this_month_td).
+     The frame is created_at — when the item was RAISED. A queue item decided
+     late still belongs to the day somebody raised it, and filing it by the
+     decision date would move work out of the week it landed in. */
+  const [range, setRange] = useState({ from: "", to: "" });
+  const dateDefault = useDefaultRange(session, VIEW_KEY, setRange);
+  const [q, setQ] = useState("");
   const [rows, setRows] = useState(null);
   const [open, setOpen] = useState(null);        /* id whose draft is expanded */
   const [seen, setSeen] = useState(new Set());   /* drafts actually opened */
@@ -124,6 +136,25 @@ export default function HrQueue({ go }) {
     };
   }, [rows]);
 
+  /* SEARCH SETS THE RANGE ASIDE — the Orders rule. Somebody typing a name is
+     asking about that person's item, not about this month, and a queue that
+     answers "nothing waiting" because of a frame nobody chose is how an item
+     sits unactioned. An item with no created_at is never dropped by the frame. */
+  const searching = q.trim().length > 0;
+  const needle = q.trim().toLowerCase();
+  const inFrame = (r) => {
+    if (!range.from && !range.to) return true;
+    if (!r.created_at) return true;
+    const d0 = String(r.created_at).slice(0, 10);
+    if (range.from && d0 < range.from) return false;
+    if (range.to && d0 > range.to) return false;
+    return true;
+  };
+  const shownRows = (rows ?? []).filter((r) => (searching
+    ? `${r.full_name ?? ""} ${r.employee_code ?? ""} ${r.headline ?? ""} ${r.kind ?? ""}`
+        .toLowerCase().includes(needle)
+    : inFrame(r)));
+
   if (rows === null) return <div className="hqload">Loading the queue…</div>;
 
   return (
@@ -131,6 +162,22 @@ export default function HrQueue({ go }) {
       <div className="hqhead">
         <div>
           <h1>Review queue</h1>
+          <div className="hqtools">
+            <input className="cc-input" value={q} onChange={(e) => setQ(e.target.value)}
+              aria-label="Find a person or reason" placeholder="find a person or reason — any period" />
+            {q.trim() && <button className="btn ghost small" onClick={() => setQ("")}>clear</button>}
+            <DateRangeSelect label="Raised between" from={range.from} to={range.to}
+              onFrom={(v) => setRange((prev) => ({ ...prev, from: v }))}
+              onTo={(v) => setRange((prev) => ({ ...prev, to: v }))}
+              presetKey={dateDefault.presetKey} session={session}
+              viewKey={VIEW_KEY} allowSave />
+            {dateDefault.error && <span className="note bad" role="alert">{dateDefault.error}</span>}
+            {q.trim() && (range.from || range.to) && (
+              <span className="note" title="A search asks about one person, so the date range is set aside for it. Clear the search to return to the range.">
+                date range set aside while searching — every period is being searched
+              </span>
+            )}
+          </div>
           <div className="hqsub">
             An agent drafted these. <b>Nothing reaches an employee until you send it.</b>
           </div>
@@ -159,7 +206,7 @@ export default function HrQueue({ go }) {
           <span>The agents have drafted nothing that needs a decision. This is the
             normal state — the queue fills when something changes.</span>
         </div>
-      ) : rows.map((r) => {
+      ) : shownRows.map((r) => {
         const conf = CONFIDENCE[r.agent_confidence] ?? CONFIDENCE.likely;
         const mustRead = /write.?up|warning|discipl|terminat/i.test(r.kind + " " + r.headline);
         const canSend = !mustRead || seen.has(r.id);

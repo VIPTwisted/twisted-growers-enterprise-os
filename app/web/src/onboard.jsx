@@ -25,10 +25,23 @@
 --------------------------------------------------------------------------- */
 import React, { useCallback, useEffect, useState } from "react";
 import { supabase } from "./lib/supabase.js";
+/* The one date control and the one catalogue — imported, never rebuilt. */
+import { DateRangeSelect } from "./App.jsx";
+import { useDefaultRange } from "./dashkit.jsx";
+
+const VIEW_KEY = "onboard";
 
 const nameOf = (n) => { const [l = "", r = ""] = String(n || "").split(","); return r.trim() ? `${r.trim()} ${l.trim()}` : l.trim(); };
 
-export default function Onboard({ go }) {
+export default function Onboard({ go, session }) {
+  /* AN ONBOARDING CONSOLE IS A WORK QUEUE, NOT A PERIOD REPORT. Who is still
+     mid-onboarding is a position: a person stuck since June is exactly who the
+     page exists to surface, and a this-month frame would hide them. It held no
+     default_range at all and fell to the snapshot fallback of 'today'; the
+     governed default is now 'all' (see the migration alongside this change). */
+  const [range, setRange] = useState({ from: "", to: "" });
+  const dateDefault = useDefaultRange(session, VIEW_KEY, setRange);
+  const [q, setQ] = useState("");
   const [staff, setStaff] = useState([]);
   const [depts, setDepts] = useState([]);
   const [roles, setRoles] = useState([]);
@@ -48,7 +61,7 @@ export default function Onboard({ go }) {
 
   const load = useCallback(async () => {
     const [s, d, r, c, k] = await Promise.all([
-      supabase.from("employees").select("id, full_name, employee_code, login_id, status, pin_set_at, primary_department_id, primary_role_id, manager_id, hours_basis, weekly_target_hours, requires_clock_in, email, badge_code").order("full_name"),
+      supabase.from("employees").select("id, full_name, employee_code, login_id, status, pin_set_at, primary_department_id, primary_role_id, manager_id, hours_basis, weekly_target_hours, requires_clock_in, email, badge_code, hired_on").order("full_name"),
       supabase.from("departments").select("id, name").order("name"),
       supabase.from("roles_catalog").select("id, name").order("name"),
       supabase.from("v_rate_confidence").select("*").maybeSingle(),
@@ -170,6 +183,25 @@ If anything on this page looks wrong, tell Human Resources — do not work aroun
       : "Welcome drafted. It is NOT sent — it waits in the review queue for a person to read and send, reminders included.");
   }
 
+  /* SEARCH SETS THE RANGE ASIDE — the Orders rule. A person stuck mid-onboarding
+     since June is exactly who this console exists to surface, so a name typed in
+     must reach them whatever frame is showing. Nobody without a hired_on is
+     dropped by the frame: an unhired record is the very thing being onboarded. */
+  const searching = q.trim().length > 0;
+  const needle = q.trim().toLowerCase();
+  const hiredInFrame = (x) => {
+    if (!range.from && !range.to) return true;
+    if (!x.hired_on) return true;
+    const d0 = String(x.hired_on).slice(0, 10);
+    if (range.from && d0 < range.from) return false;
+    if (range.to && d0 > range.to) return false;
+    return true;
+  };
+  const shownStaff = searching
+    ? staff.filter((x) => `${x.full_name ?? ""} ${x.employee_code ?? ""} ${x.email ?? ""}`
+        .toLowerCase().includes(needle))
+    : staff.filter(hiredInFrame);
+
   const blocking = steps.filter(s => s.blocks_start);
   const rateIsPlaceholder = conf?.any_placeholder;
 
@@ -179,6 +211,22 @@ If anything on this page looks wrong, tell Human Resources — do not work aroun
         <div>
           <h1>Onboarding</h1>
           <div className="obsub">One person, one pass — who they are, how they are paid, how they clock in, what they must do.</div>
+          <div className="obtools">
+            <input className="cc-input" value={q} onChange={(e) => setQ(e.target.value)}
+              aria-label="Find a person" placeholder="find a person by name or code — any period" />
+            {q.trim() && <button className="btn ghost small" onClick={() => setQ("")}>clear</button>}
+            <DateRangeSelect label="Hired between" from={range.from} to={range.to}
+              onFrom={(v) => setRange((prev) => ({ ...prev, from: v }))}
+              onTo={(v) => setRange((prev) => ({ ...prev, to: v }))}
+              presetKey={dateDefault.presetKey} session={session}
+              viewKey={VIEW_KEY} allowSave />
+            {dateDefault.error && <span className="note bad" role="alert">{dateDefault.error}</span>}
+            {q.trim() && (range.from || range.to) && (
+              <span className="note" title="A search asks about one person, so the hire-date range is set aside for it. Clear the search to return to the range.">
+                date range set aside while searching — every period is being searched
+              </span>
+            )}
+          </div>
         </div>
         <button className="btn ghost small" onClick={() => go?.("lifecycle_open")}>All outstanding steps</button>
       </div>
@@ -224,7 +272,7 @@ If anything on this page looks wrong, tell Human Resources — do not work aroun
               <div className="obf"><label>Manager</label>
                 <select value={f.manager_id} onChange={set("manager_id")} disabled={!canDo}>
                   <option value="">Not set</option>
-                  {staff.filter(x => x.id !== sel).map(x =>
+                  {shownStaff.filter(x => x.id !== sel).map(x =>
                     <option key={x.id} value={x.id}>{nameOf(x.full_name)}</option>)}
                 </select>
                 <i>Decides who approves their time and their write-ups.</i></div>

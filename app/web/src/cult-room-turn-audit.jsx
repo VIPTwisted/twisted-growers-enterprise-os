@@ -26,8 +26,10 @@ import { DateRangeSelect } from "./App.jsx";
 import {
   useDefaultRange, DkRangeSearch, rangeSearch,
   grab, listOf, DkTag, DkErr, DkEmpty, DkKpiStrip, DkDrill, DrillRoot, DkHead, useSectionStore,
-  useWidgetLayout, Widget, WidgetBoard, WidgetBarControls, DkReports,
+  useWidgetLayout, Widget, WidgetBoard, WidgetBarControls, DkReports, useDefaultRange,
 } from "./dashkit.jsx";
+/* The one date control and the one catalogue — imported, never rebuilt. */
+import { DateRangeSelect } from "./App.jsx";
 import {
   CULT_DEPT, useCultMeasures, cultTargetMap, cultTrendMap, cultLicenceMap, cultRoomLabel,
   cultTile, cultInPlace, CultActivity, cultNum, CULT_ROOM_UNQUALIFIED,
@@ -52,6 +54,13 @@ const turnTone = (v) => {
 };
 
 export default function RoomTurnAudit({ go, session, role, viewAs, reports }) {
+  /* Governed by nav_registry.default_range for room_turn_audit (this_month_td).
+     The frame is harvest_started_date — when the room actually turned — not when
+     the row was written, because a late-entered audit still belongs to the week
+     the room was cut. */
+  const [range, setRange] = useState({ from: "", to: "" });
+  const dateDefault = useDefaultRange(session, VIEW_KEY, setRange);
+  const [q, setQ] = useState("");
   const store = useSectionStore(session && session.user ? session.user.id : null, PAGE_KEY);
   /* THE SECTIONS ARE ARRANGEABLE AND THE ARRANGEMENT IS THE USER'S OWN. Owner,
      16 Aug 2026: "every single dashboard need to have section as I stated where
@@ -100,6 +109,36 @@ export default function RoomTurnAudit({ go, session, role, viewAs, reports }) {
     fields: ["room_qualified", "verdict"],
   }), [allRows, range.from, range.to, q]);
   const rows = rs.rows;
+
+  /* ONE FILTERING POINT, SO EVERY TILE MOVES TOGETHER. Pass, fail, unjudged, the
+     gap figures and the activity strip all derive from `rows`, so narrowing here
+     is what makes the whole page honour the frame instead of one tile honouring
+     it and the rest quietly not.
+
+     SEARCH SETS THE RANGE ASIDE — the Orders rule. Somebody typing a room is
+     asking about that room across time, and "no results" because of a month
+     nobody chose is the same defect in cultivation clothing.
+
+     A turn with no start date is never dropped: it has no date to test, and an
+     unjudged turn missing its own date is exactly the row worth finding. */
+  const searching = q.trim().length > 0;
+  const needle = q.trim().toLowerCase();
+  const inFrame = (r) => {
+    if (!range.from && !range.to) return true;
+    const raw = r.harvest_started_date ?? r.harvest_started;
+    if (!raw) return true;
+    const d0 = String(raw).slice(0, 10);
+    if (range.from && d0 < range.from) return false;
+    if (range.to && d0 > range.to) return false;
+    return true;
+  };
+  const periodNarrowed = Boolean(range.from || range.to);
+  const rangeSetAside = searching && periodNarrowed;
+  const rows = useMemo(() => (searching
+    ? allRows.filter((r) => `${r.room_qualified ?? ""} ${r.verdict ?? ""} ${r.license ?? ""}`.toLowerCase().includes(needle))
+    : allRows.filter(inFrame)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [allRows, searching, needle, range.from, range.to]);
 
   const failed = useMemo(() => rows.filter((r) => turnTone(r.verdict) === "fail"), [rows]);
   const passed = useMemo(() => rows.filter((r) => turnTone(r.verdict) === "pass"), [rows]);
@@ -186,13 +225,27 @@ export default function RoomTurnAudit({ go, session, role, viewAs, reports }) {
       <div className="ccpage">
         <DkHead title="Room turn audit" viewKey={VIEW_KEY} dept={CULT_DEPT} role={role} viewAs={viewAs}
           computed={null} busy={false}>
-          <DkTag tone="neutral">{rows.length.toLocaleString()} turns</DkTag>
+          <DkTag tone="neutral">{rows.length.toLocaleString()} of {allRows.length.toLocaleString()} turns</DkTag>
           <DkTag tone={failed.length ? "crit" : "ok"}>{failed.length} failed</DkTag>
         </DkHead>
 
         <div className="cc-tools">
           <div className="cc-tools-l">
             <button type="button" className="cc-btn" onClick={() => setVer((v) => v + 1)}>↻ read again</button>
+            <input className="cc-input" value={q} onChange={(e) => setQ(e.target.value)}
+              aria-label="Find a room or verdict" placeholder="find a room or verdict — any period" />
+            {searching && <button type="button" className="cc-btn" onClick={() => setQ("")}>clear</button>}
+            <DateRangeSelect label="Turned between" from={range.from} to={range.to}
+              onFrom={(v) => setRange((prev) => ({ ...prev, from: v }))}
+              onTo={(v) => setRange((prev) => ({ ...prev, to: v }))}
+              presetKey={dateDefault.presetKey} session={session}
+              viewKey={VIEW_KEY} allowSave />
+            {dateDefault.error && <span className="note bad" role="alert">{dateDefault.error}</span>}
+            {rangeSetAside && (
+              <span className="note" title="A search asks about one room, so the date range is set aside for it. Clear the search to return to the range.">
+                date range set aside while searching — every period is being searched
+              </span>
+            )}
             <button type="button" className="cc-btn" onClick={() => window.print()}>🖨 print</button>
             <button type="button" className="cc-btn" title="Collapse every section — remembered on your own account"
               onClick={() => store.setAll(WIDGETS.map((x) => x.key), false)}>− collapse all</button>
