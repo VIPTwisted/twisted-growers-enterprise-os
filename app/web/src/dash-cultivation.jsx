@@ -39,6 +39,7 @@ import {
 } from "./App.jsx";
 import {
   useDefaultRange, DkRangeSearch, rangeSearch,
+  DkHarvestControlBanner,
   grab, DkTag, DkErr, DkEmpty, DkKpiStrip, DkOrphanTargets, DkWorkQueue, useWorkQueue,
   DkNarrative, DkReports, DkTasks, DkGapCard, DkHead, DkRoomBoard, useWidgetLayout,
   Widget, WidgetBoard, WidgetBarControls, useSectionStore, DkCaret, DkDrill, DrillRoot,
@@ -638,6 +639,12 @@ export default function CultivationDashboard({ go, session, reports, role, viewA
     <div className="ccpage">
       <DkHead title={`${DEPT} dashboard`} viewKey={VIEW_KEY} dept={DEPT} role={role}
         viewAs={viewAs} computed={computed} busy={busy} />
+
+      {/* THE HARVEST CONTROL BANNER sits above everything, per the owner law:
+          a line that has to wait for someone to scroll is not a control. It sits
+          above the schedule comparison deliberately: the comparison is the detail,
+          the banner is the thing that must be seen without scrolling. */}
+      <DkHarvestControlBanner go={go} />
 
       {/* THE SCHEDULE-VERSUS-WEIGHT COMPARISON IS HERE NOW.
         *

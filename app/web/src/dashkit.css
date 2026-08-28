@@ -297,3 +297,16 @@ button.cc-mini:hover .cc-mini-go { color: var(--ccok); }
 .cc-rs-input { min-width: 220px; flex: 0 1 320px; }
 .cc-rs-note { font-size: 11px; color: var(--cct2); font-variant-numeric: tabular-nums; }
 @media (max-width: 760px) { .cc-rs-input { flex: 1 1 100%; } }
+
+/* ═══════════ harvest control banner — owner law, 28 Aug 2026 ═══════════
+   Chrome only; every colour is an existing token. */
+.cc-hcb { display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; margin: 8px 0 12px;
+          border: 1px solid var(--ccline); border-radius: 8px; background: var(--cc1); }
+.cc-hcb.crit { box-shadow: inset 3px 0 0 var(--cccrit); }
+.cc-hcb.ok { box-shadow: inset 3px 0 0 var(--ccok); }
+.cc-hcb-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.cc-hcb-why { font-size: 11px; color: var(--cct2); }
+.cc-hcb-line { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.cc-hcb-n { font-family: var(--ccmono); font-variant-numeric: tabular-nums; font-weight: 700;
+            color: var(--cccrit); min-width: 92px; }
+.cc-hcb-t { flex: 1 1 240px; color: var(--cct1); }
