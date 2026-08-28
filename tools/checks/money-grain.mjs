@@ -449,8 +449,23 @@ const migrationEntries = files.map((name) => ({
  * Measured on the clean-clone file set as this block requires: the gitignored credential
  * migration 20260805215014_vincent_user_and_ai_budget.sql was moved aside first, giving 948
  * files at 0bd978a2… . The failing Gates run on f6f2d9c printed the same 948 files and the same
- * 0bd978a2… . Two independent readings agreeing is again the only reason this number is here. */
-const expectedMigrationTreeDigest = "0bd978a22a924d0be5fefd674edc6aec45886b68a67d4217c67c2b1caa0cb71a";
+ * 0bd978a2… . Two independent readings agreeing is again the only reason this number is here.
+ *
+ * RE-PINNED 28 Aug 2026, 949 files, off f1a4481. ONE re-pin covering a two-PR sequence, at the
+ * owner's instruction to wait for the rename rather than seal a tree twice:
+ *
+ *   PR #28 filed 20260828170000_c_zero_invoice_total_is_not_a_zero_order.sql, but
+ *          apply_migration had given production the version 20260828170957, so migration-drift
+ *          read it as a production migration with no file and main went red on THAT gate.
+ *   PR #30 renamed the file onto the version production actually assigned.
+ *
+ * Net effect on the 948-file tree is a single added file, 20260828170957_c_zero_invoice_total_
+ * is_not_a_zero_order.sql. Sealing after #28 alone would have pinned a tree that #30 was about
+ * to change, and burned a second re-pin.
+ *
+ * Same clean-clone measure: credential migration aside, 949 files at b7ef410c… locally, and the
+ * Gates run on f1a4481 printed the same count and the same b7ef410c… . Two readings. */
+const expectedMigrationTreeDigest = "b7ef410c2a816a3312ed6f242d080ef6d6b2f174785860b9402031d1e30eaf7a";
 const actualMigrationTreeDigest = migrationTreeDigest(migrationEntries);
 if (actualMigrationTreeDigest !== expectedMigrationTreeDigest) {
   console.error(`money-grain: FAIL — migration tree differs from the independently reviewed ${files.length}-file manifest (${actualMigrationTreeDigest}).`);
