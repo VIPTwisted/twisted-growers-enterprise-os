@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { rangeSearch, rangeSearchNote, matchesSearch } from "../../app/web/src/lib/range-search.js";
+import { rangeSearch, rangeSearchNote, matchesSearch, rangePlan } from "../../app/web/src/lib/range-search.js";
 
 const ROWS = [
   { name: "Gelato F3",    closed_on: "2026-08-19", room: "F3" },
@@ -99,5 +99,57 @@ test("a non-array input is handled rather than thrown on", () => {
     const r = rangeSearch(bad, { ...AUG, dateField: "closed_on", fields: FIELDS });
     assert.equal(r.total, 0);
     assert.equal(r.kept, 0);
+  }
+});
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   rangePlan — the policy the SERVER-side caller asks.
+
+   ReportScreen cannot pull ~619 registered reports into the browser to filter
+   them, so it builds a PostgREST query instead. It must reach the same verdict
+   as the client filter above, or the two roads answer differently and the rule
+   is only half kept. These tests pin the verdict itself, independent of either
+   mechanism.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+test("rangePlan — RULE 1: a search suppresses the range, and reports that it did", () => {
+  const p = rangePlan({ from: "2026-08-01", to: "2026-08-28", dateField: "closed_on", q: "Twiste-303" });
+  assert.equal(p.searching, true);
+  assert.equal(p.applyRange, false, "the range must not go on the wire while searching");
+  assert.equal(p.setAside, true, "and the page must be told, so it can say so");
+});
+
+test("rangePlan — no search means the range applies normally", () => {
+  const p = rangePlan({ from: "2026-08-01", to: "2026-08-28", dateField: "closed_on", q: "" });
+  assert.equal(p.searching, false);
+  assert.equal(p.applyRange, true);
+  assert.equal(p.setAside, false);
+});
+
+test("rangePlan — searching with NO range set aside nothing, so the page must not claim it did", () => {
+  const p = rangePlan({ from: "", to: "", dateField: "closed_on", q: "Runtz" });
+  assert.equal(p.searching, true);
+  assert.equal(p.applyRange, false);
+  assert.equal(p.setAside, false, "there was no range to set aside");
+});
+
+test("rangePlan — a range with no date column cannot be applied", () => {
+  const p = rangePlan({ from: "2026-08-01", to: "2026-08-28", dateField: null, q: "" });
+  assert.equal(p.hasRange, true);
+  assert.equal(p.applyRange, false, "nothing to filter on");
+});
+
+test("rangePlan — whitespace is not a search", () => {
+  const p = rangePlan({ from: "2026-08-01", to: "", dateField: "closed_on", q: "   " });
+  assert.equal(p.searching, false);
+  assert.equal(p.applyRange, true, "a space must not silently disable the range");
+});
+
+test("rangePlan and rangeSearch agree on whether a search is happening", () => {
+  for (const q of ["", "   ", "blue", "BLUE", " Runtz "]) {
+    const plan = rangePlan({ ...AUG, dateField: "closed_on", q });
+    const filtered = rangeSearch(ROWS, { ...AUG, dateField: "closed_on", q, fields: FIELDS });
+    assert.equal(plan.searching, filtered.searching, `disagreed on q=${JSON.stringify(q)}`);
+    assert.equal(plan.setAside, filtered.setAside, `disagreed on setAside for q=${JSON.stringify(q)}`);
   }
 });
