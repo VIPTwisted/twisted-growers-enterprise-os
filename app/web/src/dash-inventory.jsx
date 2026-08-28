@@ -132,6 +132,29 @@ export default function InventoryDashboard({ go, session, reports, role, viewAs,
      what is new is that something now RENDERS from it. */
   const [openTile, setOpenTile] = useState(null);
 
+  /* SEARCH, AND WHAT IT DOES TO THE DATE RANGE.
+     docs/TODO_EVERY_PAGE.md: "Typing search sets the date range aside and says
+     so on the page. No page answers 'no results' only because this-month is
+     selected." This dashboard opens on this_month_td, so without a search a tag
+     packaged in May is not on screen — and the honest fix is not to widen the
+     default, it is to make the search ignore the range entirely and print that
+     it has. The query runs at the SERVER against v_stock_packages with no date
+     predicate at all, so it reaches every tag of every age. */
+  const [q, setQ] = useState("");
+  const [hits, setHits] = useState(null);
+  useEffect(() => {
+    const term = q.trim();
+    if (term.length < 3) { setHits(null); return undefined; }
+    let live = true;
+    const like = `%${term.replace(/[%_]/g, (c) => `\\${c}`)}%`;
+    supabase.from("v_stock_packages")
+      .select("package_tag,item_name,strain,stream,license,location,quantity,uom,pounds,packaged_on,source_harvest")
+      .or(["package_tag", "item_name", "strain", "source_harvest", "location"].map((c) => `${c}.ilike.${like}`).join(","))
+      .limit(200)
+      .then((res) => { if (live) setHits(grab(res)); });
+    return () => { live = false; };
+  }, [q]);
+
   const WIDGETS = React.useMemo(() => [
     { key: "streams", title: "Stock by stream", span: 2 },
     { key: "rooms", title: "Where it is — every room holding stock, department-qualified", span: 2 },
@@ -232,6 +255,14 @@ export default function InventoryDashboard({ go, session, reports, role, viewAs,
             onFrom={(v) => setRange((p) => ({ ...p, from: v }))}
             onTo={(v) => setRange((p) => ({ ...p, to: v }))}
             presetKey={dateDefault.presetKey} session={session} viewKey={VIEW_KEY} allowSave />
+          <label htmlFor="inv-q">Find a tag, item, strain, harvest or room</label>
+          <input id="inv-q" className="cc-input" value={q} onChange={(e) => setQ(e.target.value)}
+            placeholder="1A40A030… or Blue Dream"
+            title="Searches every package of every age at the server. The date range above is set aside while you search. Package tags begin 1A40A030 — plant tags begin 1A40A020 and live on the Plant Census." />
+          {q.trim().length > 0 && (
+            <button type="button" className="cc-btn" onClick={() => setQ("")}
+              title="Clear the search and return to the selected date range.">clear</button>
+          )}
         </div>
         <div className="cc-tools-r">
           <button className="cc-btn" onClick={recompute} disabled={busy}
@@ -242,6 +273,55 @@ export default function InventoryDashboard({ go, session, reports, role, viewAs,
           <button className="cc-btn" onClick={() => go("dept_dash_command")}>Command Center →</button>
         </div>
       </div>
+
+      {hits && (
+        <DkDrill label={`Search — “${q.trim()}” across every package, every period`} onClose={() => setQ("")}>
+          <div className="cc-fine">
+            <DkTag tone="attn"
+              title="A search asks about a specific package, so the date range is set aside for it entirely — the query carries no date predicate at all. Clear the search to return to the range.">
+              date range set aside while searching — every period is being searched ⓘ
+            </DkTag>
+          </div>
+          {hits.err ? <DkErr what={`The package search (v_stock_packages)`} err={hits.err} />
+            : rowsOr(hits.rows).length === 0 ? (
+              <DkEmpty
+                why={`No package anywhere matches “${q.trim()}”.`}
+                fills={"Every package of every age was searched, not just the ones in the selected date range, so this is "
+                  + "the real answer rather than an artefact of the period. A tag that is absent here is not held on this "
+                  + "licence — it may still exist in Metrc as finished or transferred."} />
+            ) : (
+              <>
+                <div className="cc-fine">
+                  <b>{rowsOr(hits.rows).length.toLocaleString()}</b> package
+                  {rowsOr(hits.rows).length === 1 ? "" : "s"} found
+                  {rowsOr(hits.rows).length === 200 ? " — showing the first 200" : ""}, ignoring the date range.
+                </div>
+                <div className="tablewrap">
+                  <table>
+                    <thead><tr><th>Tag</th><th>Item</th><th>Strain</th><th>Stream</th><th>Room</th>
+                      <th>Quantity</th><th>Pounds</th><th>Packaged</th><th>From harvest</th><th>Licence</th></tr></thead>
+                    <tbody>
+                      {rowsOr(hits.rows).map((r, i) => (
+                        <tr key={`${r.package_tag ?? "row"}|${i}`}>
+                          <td>{r.package_tag ?? "no tag"}</td>
+                          <td>{r.item_name ?? "item not recorded"}</td>
+                          <td>{r.strain ?? "strain not recorded"}</td>
+                          <td>{r.stream ?? "stream not recorded"}</td>
+                          <td>{r.location ?? "Metrc holds no room for this tag"}</td>
+                          <td>{r.quantity === null || r.quantity === undefined ? "not recorded" : `${r.quantity} ${r.uom ?? ""}`.trim()}</td>
+                          <td>{r.pounds === null || r.pounds === undefined ? "not a weight" : `${r.pounds} lb`}</td>
+                          <td>{r.packaged_on ?? "date not served"}</td>
+                          <td>{r.source_harvest ?? "no source harvest recorded"}</td>
+                          <td>{r.license ?? "not recorded"}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            )}
+        </DkDrill>
+      )}
 
       {d.tiles.err ? <DkErr what="The key figures" err={d.tiles.err} />
         : d.tiles.rows.length === 0

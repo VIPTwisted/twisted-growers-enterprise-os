@@ -46,6 +46,31 @@ const SOURCE_NOTE = {
     + "sync that last ran on the date shown.",
 };
 
+/* THE PERIOD BUS, AND WHY THIS PAGE DECLARES INSTEAD OF SUBSCRIBING.
+   docs/TODO_EVERY_PAGE.md: every page either uses the active frame, OR declares
+   as-of / undated / snapshot with a VISIBLE CHIP. These four are queues of open
+   work. An exception does not stop being an exception because it is old, and a
+   date range over them would answer "no results" for the honest reason that the
+   defect is from July — the exact failure the rule exists to stop. So this page
+   takes the second road, and says so on its face rather than in a comment. */
+const AS_OF_CHIP = {
+  label: "as-of now · snapshot, not on the date bus",
+  why: "This page deliberately does NOT take the active date frame. Every row here is open work, and open work does not "
+    + "age out of a queue — filtering it to a period would hide a live exception because it started last month. The "
+    + "freshness that DOES matter is the Metrc sync behind each queue, and that is on every tile and every row as "
+    + "'Metrc as of'. Declared under the period-bus rule: a page is either on the frame or says plainly that it is not.",
+};
+
+/* Which column carries the thing a person actually types. Search runs against
+   the SERVER, one ilike per queue, so it reaches every row in every queue and
+   not just the ones a widget happens to have loaded. */
+const SEARCH_COLUMNS = {
+  moisture: ["harvest_name", "strain", "drying_room"],
+  never_submitted: ["package_tag", "item", "metrc_room", "from_harvest"],
+  failed_no_disposition: ["package_tag", "item", "metrc_room", "failing_tests"],
+  open_past_limit: ["harvest_name", "strain", "drying_room"],
+};
+
 /* The four queues. `key` matches v_xq_summary.ord, `view` is the drill the tile
    counts, and `columns` is this queue's own — never a shared column set. */
 const QUEUES = [
@@ -170,6 +195,13 @@ export default function MetrcExceptions({ go, session, role, viewAs, reports }) 
   const [d, setD] = useState(null);
   const [openKpi, setOpenKpi] = useState(null);
   const [ver, setVer] = useState(0);
+  const [q, setQ] = useState("");
+  const [hits, setHits] = useState(null);
+  /* null = not asked yet, true = may read, false = REFUSED. Not a boolean with a
+     false default: "we have not asked" and "you may not read this" are different
+     answers and the page must not print the second while it means the first. */
+  const [mayRead, setMayRead] = useState(null);
+  const [gateErr, setGateErr] = useState(null);
 
   useEffect(() => {
     let live = true;
@@ -177,6 +209,43 @@ export default function MetrcExceptions({ go, session, role, viewAs, reports }) 
       .then((res) => { if (live) setD({ s: grab(res) }); });
     return () => { live = false; };
   }, [ver]);
+
+  /* REFUSE, DO NOT ZERO.
+     These five views are SECURITY DEFINER and carry f_xq_reader(). A role the
+     gate declines gets zero rows and NO error — which renders as four tiles
+     reading 0, i.e. "there are no exceptions", which is a lie. It is the exact
+     shape docs/TODO_EVERY_PAGE.md forbids: "Fake zeros from RLS". So the page
+     asks the gate directly and, when refused, says so instead of counting. */
+  useEffect(() => {
+    let live = true;
+    supabase.rpc("f_xq_reader").then(({ data, error }) => {
+      if (!live) return;
+      if (error) { setGateErr(error.message); setMayRead(null); return; }
+      setGateErr(null);
+      setMayRead(data === true);
+    });
+    return () => { live = false; };
+  }, [ver]);
+
+  /* SEARCH REACHES EVERY QUEUE AND EVERY PERIOD.
+     One ilike per searchable column per queue, run at the server, so a tag is
+     found whether or not its queue's section is open and whatever its age. The
+     page carries no date range to set aside — it is a declared snapshot — so
+     what has to be said instead is that all four queues were searched, which the
+     result line does. */
+  useEffect(() => {
+    const term = q.trim();
+    if (term.length < 3) { setHits(null); return undefined; }
+    let live = true;
+    const like = `%${term.replace(/[%_]/g, (c) => `\\${c}`)}%`;
+    Promise.all(QUEUES.map((qq) =>
+      supabase.from(qq.view).select("*")
+        .or(SEARCH_COLUMNS[qq.key].map((c) => `${c}.ilike.${like}`).join(","))
+        .limit(200)
+        .then((res) => ({ queue: qq, ...grab(res) }))))
+      .then((all) => { if (live) setHits(all); });
+    return () => { live = false; };
+  }, [q]);
 
   const summary = useMemo(() => listOf(d ? d.s.rows : []), [d]);
   const byOrd = useMemo(() => {
@@ -237,6 +306,7 @@ export default function MetrcExceptions({ go, session, role, viewAs, reports }) 
           viewAs={viewAs} computed={null} busy={false}>
           <DkTag tone={totals.now ? "crit" : "ok"}>{totals.now.toLocaleString()} need action now</DkTag>
           <DkTag tone="neutral">{totals.items.toLocaleString()} items across four queues</DkTag>
+          <DkTag tone="attn" title={AS_OF_CHIP.why}>{AS_OF_CHIP.label} ⓘ</DkTag>
           <DkTag tone="info"
             title="The four queues read different Metrc sources, and those sources are captured on different days. The oldest of them is shown here so nobody reads a stale queue as today's position.">
             Metrc source {stalest === freshest ? `as of ${freshest ?? "a date not served"}`
@@ -254,6 +324,16 @@ export default function MetrcExceptions({ go, session, role, viewAs, reports }) 
               onClick={() => store.setAll(WIDGETS.map((x) => x.key), true)}>+ expand all</button>
             <WidgetBarControls layout={layout} />
           </div>
+          <div className="cc-tools-c">
+            <label htmlFor="xq-q">Find a tag, harvest, strain or room</label>
+            <input id="xq-q" className="cc-input" value={q} onChange={(e) => setQ(e.target.value)}
+              placeholder="1A40A030000E5B2000000009 or TG Spec Ops"
+              title="Searches all four queues at the server, every row and every age. Three characters to start." />
+            {q.trim().length > 0 && (
+              <button type="button" className="cc-btn" onClick={() => setQ("")}
+                title="Clear the search and go back to the queues.">clear</button>
+            )}
+          </div>
           <div className="cc-tools-r">
             <button type="button" className="cc-btn" onClick={() => go("v-overdue-harvests")}>Overdue harvests →</button>
             <button type="button" className="cc-btn" onClick={() => go("moisture_loss_register")}>Moisture loss register →</button>
@@ -262,7 +342,17 @@ export default function MetrcExceptions({ go, session, role, viewAs, reports }) 
           </div>
         </div>
 
-        {d.s.err
+        {gateErr && <DkErr what="The check for whether your role may read these queues (f_xq_reader)" err={gateErr} />}
+
+        {mayRead === false ? (
+          <DkEmpty
+            why={`Your role may not read the Metrc exception queues, so this page is showing you nothing rather than four zeroes.`}
+            fills={"The four queue views are SECURITY DEFINER and gated by f_xq_reader(), whose allow-list is "
+              + "nav_role_visibility for xq_metrc_exceptions — the same list that decides who sees this page on the menu. "
+              + "A role outside it reads zero rows and gets NO error, which would render as 'no exceptions' and would be "
+              + "false: there may be hundreds. An owner or executive can grant the role on the menu-visibility page, and "
+              + "the data opens in the same statement. Nothing here is broken and nothing is being computed in the browser."} />
+        ) : d.s.err
           ? <DkErr what="The Metrc exception queue summary (v_xq_summary)" err={d.s.err} />
           : (
             <DkKpiStrip dept={DEPT} tiles={tiles} trend={{}} targets={{}} go={go}
@@ -281,6 +371,56 @@ export default function MetrcExceptions({ go, session, role, viewAs, reports }) 
           row a person sets on the Goals and Targets page; this platform never invents one. Until then the colour on a
           tile reflects only whether anything sits at severity 1 or 2.
         </div>
+
+        {hits && (
+          <DkDrill label={`Search — “${q.trim()}” across all four queues`} onClose={() => setQ("")}>
+            <div className="cc-fine">
+              All four queues were searched at the server, every row and every age — this page carries no date range to
+              set aside, because it is a declared snapshot. A tag that is in a queue is found here whether or not that
+              queue&rsquo;s section is open below.
+            </div>
+            {hits.some((h) => h.err) && hits.filter((h) => h.err).map((h) => (
+              <DkErr key={h.queue.key} what={`The search of ${h.queue.title} (${h.queue.view})`} err={h.err} />
+            ))}
+            {hits.every((h) => !h.err && listOf(h.rows).length === 0) ? (
+              <DkEmpty
+                why={`Nothing in any of the four queues matches “${q.trim()}”.`}
+                fills={"All four were searched in full, not just the section that is open and not just recent rows. "
+                  + "A tag that is absent here is a tag that is not currently an exception — it may still exist in Metrc "
+                  + "and be perfectly healthy."} />
+            ) : hits.filter((h) => !h.err && listOf(h.rows).length > 0).map((h) => (
+              <div key={h.queue.key}>
+                <div className="cc-fine">
+                  <b>{h.queue.title}</b> — {listOf(h.rows).length.toLocaleString()} match
+                  {listOf(h.rows).length === 1 ? "" : "es"}
+                  {listOf(h.rows).length === 200 ? " (showing the first 200)" : ""}
+                </div>
+                <div className="tablewrap">
+                  <table>
+                    <thead><tr>{h.queue.columns.map((c) => <th key={c.key}>{c.label}</th>)}</tr></thead>
+                    <tbody>
+                      {listOf(h.rows).map((r, i) => (
+                        <tr key={`${r.package_tag ?? r.harvest_name ?? "row"}|${i}`}>
+                          {h.queue.columns.map((c) => {
+                            const v = r[c.key];
+                            const blank = v === null || v === undefined || v === "";
+                            return (
+                              <td key={c.key} className={c.kind === "note" ? "note" : undefined}>
+                                {blank ? (c.none ?? "not recorded")
+                                  : c.kind === "lb" ? `${NUM(v) ?? v} lb`
+                                  : String(v)}
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ))}
+          </DkDrill>
+        )}
 
         {openQueue && (
           <DkDrill label={`${openQueue.title} — every record behind the figure`} onClose={() => setOpenKpi(null)}>
