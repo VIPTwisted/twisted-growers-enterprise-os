@@ -72,7 +72,7 @@ const CommandCenter = lazy(() => import("./commandcenter.jsx"));
    here so the shared stock-proof drill carries certificate and manifest on
    every row, sitewide (owner hard rule, 12 Aug 2026). Same deliberate,
    render-time-only import cycle as the Command Center above. */
-import { TagEvidence, TagEvidenceProvider } from "./dashkit.jsx";
+import { TagEvidence, TagEvidenceProvider, DkHarvestControlBanner } from "./dashkit.jsx";
 const CultivationDashboard = lazy(() => import("./dash-cultivation.jsx"));
 const InventoryDashboard = lazy(() => import("./dash-inventory.jsx"));
 /* SCHEDULE ADHERENCE — written 13 Aug 2026 and, until now, mounted by nothing.
@@ -5455,6 +5455,36 @@ function ControlTower({ go, session }) {
           {session && <SyncCenter session={session} />}
         </div>
       </div>
+
+      {/* THE HARVEST CONTROL LINES, ON THE TOWER — WHERE THE LAW ALREADY ASKED
+        * FOR THEM.
+        *
+        * DkHarvestControlBanner's own header states the requirement: an in-app
+        * banner "on Cultivation home AND the Tower for anything at severity 3 or
+        * above". Cultivation has mounted it since it was written. The Tower never
+        * did, so half of a stated control surface has been missing.
+        *
+        * THE SAME COMPONENT, NOT A SECOND VIEW. It reads v_harvest_control_banner,
+        * which the component's header calls "the one definition of these four
+        * lines so the two pages that show them cannot drift apart". Building a
+        * Tower-flavoured copy — a second query, a second severity rule, a second
+        * set of four lines — is exactly the drift that view exists to prevent, and
+        * it is how the two surfaces end up disagreeing in front of an inspector.
+        *
+        * ABOVE THE HERO, DELIBERATELY. The hero is the operational status ring,
+        * which reads ALL CLEAR off v_control_tower's own metrics — a different
+        * source with a different question behind it. A severity-3 harvest finding
+        * sitting BELOW a green ALL CLEAR would be read as subordinate to it, when
+        * it is the more serious statement of the two. It is also the same reason
+        * Cultivation puts it above its schedule comparison: the banner is the
+        * thing that must be seen without scrolling.
+        *
+        * The component refuses rather than zeroes — if the read fails it prints
+        * the database's reason instead of disappearing, because a control surface
+        * that goes quiet when it cannot see reads as good news. Nothing here adds
+        * to that behaviour or works around it. */}
+      <DkHarvestControlBanner go={go} />
+
       {rows && (
         <div className="hero">
           <button className="pulse" onClick={() => go("alerts")} title="Open the Action Register">
