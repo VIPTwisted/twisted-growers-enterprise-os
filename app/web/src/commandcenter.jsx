@@ -39,7 +39,7 @@ import {
   RoomStockDrill, ForensicAuditLedger, DEPT_BY_VIEW,
 } from "./App.jsx";
 import {
-  useDefaultRange, DkKpiStrip, DkRoomBoard, DkRoomPlantDrill, DkWorkQueue, useWorkQueue, DkCaret, DkDrill, DrillRoot,
+  useDefaultRange, DkRangeSearch, rangeSearch, DkKpiStrip, DkRoomBoard, DkRoomPlantDrill, DkWorkQueue, useWorkQueue, DkCaret, DkDrill, DrillRoot,
   DkStreamDrill, DkRowDrill, DkEmpty, dkRoomQualified,
 } from "./dashkit.jsx";
 import "./commandcenter.css";
@@ -1433,6 +1433,8 @@ export default function CommandCenter({ go, session, reports, role, viewAs, onVi
      owner ruling 19 Aug 2026. Seeds once, then the user owns the range. */
   const dateDefault = useDefaultRange(session, "dept_dash_command", setRange);
   const [busy, setBusy] = useState(false);
+  const [qYield, setQYield] = useState("");
+  const [qTask, setQTask] = useState("");
   const [ver, setVer] = useState(0);
   const [d, setD] = useState(null);   // { key: { rows, err } }
 
@@ -1606,14 +1608,27 @@ export default function CommandCenter({ go, session, reports, role, viewAs, onVi
   const age = ccAge(computed);
   const trendByKpi = Object.fromEntries(d.trend.rows.map((r) => [r.kpi, r]));
   const targetByKpi = Object.fromEntries(d.targets.rows.map((r) => [r.kpi, r]));
-  const yieldRows = d.yld.rows;
+  /* THE SHARED CONTROL on the two lists this page lists RECORDS in. The tiles
+     above come from f_department_dashboard, already ranged server-side; these
+     two are rows, so they get range and search from the primitive every other
+     page now uses, and a search sets the range aside rather than answering
+     "nothing found" because this month was selected. */
+  const yieldRs = rangeSearch(d.yld.rows, {
+    from: range.from, to: range.to, dateField: "finished_on", q: qYield,
+    fields: ["harvest", "strain", "room", "audit_verdict", "concern"],
+  });
+  const yieldRows = yieldRs.rows;
   const yieldUnder = yieldRows.filter((r) => r.strain_median_dry_g != null && Number(r.dry_g_per_plant) < Number(r.strain_median_dry_g));
   const flowStages = d.flow.rows.filter((r) => r.stage_no > 0);
   const warnRule = d.alertRules.rows.find((x) => x.rule_key === "weekend_warning_days" && x.active);
   const lateRule = d.alertRules.rows.find((x) => x.rule_key === "late_tolerance_days" && x.active);
   const flowerRooms = d.rooms.rows.filter((r) => r.room_role === "Flower room");
   const roomsOver = flowerRooms.filter((r) => Number(r.days_until) < 0 && Number(r.plants_now) > 0);
-  const openTasks = d.tasks.rows;
+  const taskRs = rangeSearch(d.tasks.rows, {
+    from: range.from, to: range.to, dateField: "raised_on", q: qTask,
+    fields: ["title", "description", "status", "priority", "assigned_to", "assignee_department", "raised_from"],
+  });
+  const openTasks = taskRs.rows;
   const overdueTasks = openTasks.filter((t) => t.position?.startsWith("OVERDUE"));
   /* F3, Agent X: "🔍 Open every package" set openTile and NOTHING on this page
      consumed it, so eleven controls on the owner's own frozen cards were live
@@ -1937,6 +1952,9 @@ export default function CommandCenter({ go, session, reports, role, viewAs, onVi
             )}
           </>
         )}>
+        <DkRangeSearch id="cc-task-q" label="Search task title, description, owner or priority"
+          q={qTask} onQ={setQTask} result={taskRs} noun="tasks" rangeLabel="this range"
+          source="v_dashboard_tasks" err={d.tasks.err} />
         <DkWorkQueue causes={queue.causes} lanes={queue.lanes} err={queue.err}
           dept="Command" isAdmin={isAdmin} viewKey="dept_dash_command" go={go} />
       </CcPanel>
@@ -1963,6 +1981,9 @@ export default function CommandCenter({ go, session, reports, role, viewAs, onVi
           : yieldRows.length === 0
             ? <div className="cc-fine">No closed harvests yet — rows appear as soon as a harvest finishes and its dry yield is weighed.</div>
             : <CcYield rows={yieldRows} total={d.yld.total} go={go} />}
+          <DkRangeSearch id="cc-yield-q" label="Search harvest, strain, room or verdict"
+            q={qYield} onQ={setQYield} result={yieldRs} noun="closed harvests" rangeLabel="this range"
+            source="v_harvest_yield_audit" err={d.yld.err} />
       </CcPanel>
 
       {/* ── rooms, department-qualified (J7) — every room, not the flower rooms alone ── */}
