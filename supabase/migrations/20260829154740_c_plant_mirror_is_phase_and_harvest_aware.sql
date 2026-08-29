@@ -1,66 +1,3 @@
--- v_plant_mirror_balance: stop calling a harvested-and-replanted room an emergency.
---
--- Implements OPTION (b) of docs/tickets/PLANT_MIRROR_PHASE.md (merged on main at
--- 1a8481a). Not option (a).
---
--- THE DEFECT
--- The view compares Metrc's plants-by-room report against our live plant mirror.
--- Both sides were flowering-only, and the two sides are not the same instant:
---   report  = Inventory Point in Time export, as-of 2026-08-06
---   mirror  = live metrc_plants, as of now
--- A room cut inside that window does not become empty, it becomes VEGETATIVE. The
--- flowering-only mirror side then reads 0 and the view emitted:
---   "THE MIRROR HOLDS NONE OF THIS ROOM ... escalated as an operational emergency"
--- against a perfectly healthy room. Measured 29 Aug 2026: Flower Room #4 report
--- 1,050 Flowering as-of 6 Aug, mirror 1,050 VEGETATIVE today, harvested 10-11 Aug
--- (4 batches, 907 plants), replanted 4-17 Aug. Nothing was missing.
--- Left alone this fires on every room after every harvest, once per 56-day cycle,
--- which trains the reader to ignore the one time it is real.
---
--- WHAT OPTION (b) DOES
--- Keep the flowering comparison. Detect whether a harvest for that room sits
--- between report_as_of and today. If one does, the two sides are measuring
--- different populations and the view says so: verdict NOT COMPARABLE, naming the
--- batches. It does not guess, does not net, and does not raise an emergency.
---
--- WHAT THIS DELIBERATELY DOES NOT DO
---  * It does NOT widen flowering into vegetative for the flower rooms. That would
---    net Flower Room #4 to zero by coincidence and would hide a genuine flowering
---    shortfall behind a vegetative surplus. FR4 still shows report 1,050 /
---    mirror 0 / gap -1,050 as plain numbers; only the VERDICT changes.
---  * It does NOT touch the 143 open on the ticket (1,050 flowering reported on
---    6 Aug vs 907 on the harvest batches). That stays open there and is not
---    absorbed here.
---  * It invents no plants anywhere.
---
--- ROOMS OUTSIDE THE FLOWER ROOMS - AN INTERPRETATION, FLAG IT IF WRONG
--- The owner asked that Mother Room -3 stay "a number on the page, not invented to
--- 33". A flowering-only, Flower-Room-only view cannot show it at all: Mother Room
--- is vegetative. So the scope now also emits any OTHER cultivation room the report
--- holds, at that room's own reported phase, as its own row. Mother Room therefore
--- appears as Vegetative, report 33, mirror 30, gap -3, MIRROR SHORT.
--- This is NOT the prohibited widening: no flower room gains a vegetative row, so
--- FR4 cannot net to zero. If the intent was to leave the view flower-rooms-only
--- and keep Mother Room on the ticket alone, drop the second leg of `scope`.
---
--- KEPT EXACTLY: report_as_of, report_age_days, staleness_note, and the original
--- verdict wording for rooms that ARE comparable - including the emergency text,
--- which is correct when a room is genuinely unsynced and no harvest explains it.
--- Column names, order and types are unchanged; four columns are appended.
---
--- Licence fencing is unchanged: company_licenses kind='cultivation', on both
--- sides, with the literal fallback so the view can never silently empty itself.
--- Room name mapping comes from cult_cycle_policy (mirror_room_name <->
--- metrc_room_code), not from a CASE buried in the view.
---
--- MEASURED ON PRODUCTION BEFORE WRITING (read-only, nothing applied):
---   Flower Room #1  Flowering  1140 / 1140  gap 0      BALANCED
---   Flower Room #2  Flowering  1050 / 1050  gap 0      BALANCED
---   Flower Room #3  Flowering  1140 / 1140  gap 0      BALANCED
---   Flower Room #4  Flowering  1050 /    0  gap -1050  NOT COMPARABLE (5 batches)
---   Mother Room     Vegetative   33 /   30  gap -3     MIRROR SHORT
--- Note metrc_rpt_point_in_time.licence is now licence_number on main.
-
 create or replace view v_plant_mirror_balance as
 with rpt_day as (
   select max(as_of_date) as d from metrc_rpt_point_in_time
@@ -71,11 +8,6 @@ cult as (
            array['MC281714']) as lic
     from company_licenses
 ),
--- One row per (room, phase) this view is willing to speak about.
--- Leg 1: the flower rooms, flowering only - the original scope, unchanged.
--- Leg 2: every other cultivation room the report holds, at its own phase, so a
---        real difference like Mother Room -3 is a number on the page and not
---        silently outside the frame. No flower room gets a vegetative row.
 scope as (
   select p.mirror_room_name as room,
          'Flowering'::text  as phase,
@@ -111,14 +43,6 @@ mir as (
      and upper(btrim(mp.license)) = any (cult.lic)
    group by 1, 2
 ),
--- A harvest's ROOM comes from its own plants first, the name parse second.
--- metrc_harvests.flower_room is derived from the harvest NAME, and a name can
--- lose the room digit: "TG Jet Fuel Gelato - 20260810 f" ends " f" where its four
--- siblings end " f4", so its flower_room is NULL and every room-scoped query
--- silently dropped a real 143-plant F4 harvest. The plants on a harvest carry
--- LocationName themselves and cannot be defeated by a typo, so they lead.
--- Estate-wide 9 of 385 harvests have flower_room NULL. See
--- docs/tickets/F4_143_TAGS.md.
 hroom as (
   select h.metrc_id,
          h.name,
@@ -135,7 +59,6 @@ hroom as (
          ) as room
     from metrc_harvests h
 ),
--- The whole point of option (b): did this room get cut between the report and now?
 hv as (
   select s.room,
          count(*) as n,
@@ -158,8 +81,6 @@ select s.room,
        current_date - (select rpt_day.d from rpt_day) as report_age_days,
        m.last_synced,
        case
-         -- A harvest sits between the two sides. They are measuring different
-         -- populations, so no gap statement is honest. Say that, name the cut.
          when hv.n is not null
            then 'NOT COMPARABLE. ' || s.room || ' was cut between the report date ('
                 || (select rpt_day.d from rpt_day) || ') and today: ' || hv.n
@@ -190,7 +111,6 @@ select s.room,
                 || 'whole room is not.'
          else null
        end as staleness_note,
-       -- Appended, so create-or-replace stays valid and no dependent breaks.
        s.phase                                   as phase,
        (hv.n is null)                            as comparable,
        coalesce(hv.n, 0)                         as harvests_since_report,
