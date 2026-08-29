@@ -559,7 +559,29 @@ const migrationEntries = files.map((name) => ({
  *
  * Two readings: the gate on the clean-clone file set, and the recomputation from the git object
  * store with the working directory untouched. Both give 955 files at a6a9671c… . */
-const expectedMigrationTreeDigest = "a6a9671c9d196bcf06cf9faaf563e9760a2fde41bceb24e97dd3ab800587f11a";
+/* RE-PINNED 29 Aug 2026 — 967 files at 13e79de3… , up from 955 at a6a9671c… .
+ *
+ * MEASURED FROM A PRISTINE CHECKOUT, NOT A WORKING TREE, AND THAT IS THE WHOLE
+ * DISCIPLINE OF THIS LINE. This gate reads the DIRECTORY. Four migrations whose
+ * recorded statements carry live credentials are ignored by name in .gitignore,
+ * and tools/sync-migrations.mjs writes them back onto disk every time it runs —
+ * so an operator who has run the mirror sees 971 files where a clean clone sees
+ * 967, and only the clean clone is what CI builds. Pinning from a working tree is
+ * how this seal turned the Netlify build red on 27 Aug: the number was true of one
+ * machine and of nowhere else.
+ *
+ * So: a fresh detached worktree at origin/main, mirror never run, verified to hold
+ * no ignored migrations before anything was counted. `ls *.sql` and
+ * `git ls-files` both return 967, which is the check that no untracked file crept
+ * into the count.
+ *
+ * DERIVED TWICE. The gate's own migrationTreeDigest over that checkout, and an
+ * independent recomputation of the same algorithm from scratch. Both return
+ * 13e79de3d84b8870536ae50e5268f91287105066dad91adab290e68b9d94557d.
+ *
+ * The two filename corrections from #76 are already in this tree — checked, not
+ * assumed — so this pin does not go stale the moment that merges. */
+const expectedMigrationTreeDigest = "13e79de3d84b8870536ae50e5268f91287105066dad91adab290e68b9d94557d";
 const actualMigrationTreeDigest = migrationTreeDigest(migrationEntries);
 if (actualMigrationTreeDigest !== expectedMigrationTreeDigest) {
   console.error(`money-grain: FAIL — migration tree differs from the independently reviewed ${files.length}-file manifest (${actualMigrationTreeDigest}).`);
