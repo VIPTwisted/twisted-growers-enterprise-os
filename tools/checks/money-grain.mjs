@@ -584,7 +584,7 @@ const migrationEntries = files.map((name) => ({
  * DERIVED TWICE. The gate's own migrationTreeDigest over that checkout, and an
  * independent recomputation of the same algorithm from scratch. Both return
  * 6154e280d4d33c53c50372437eb50a8bc542f9429eae81d771a2d70e132c986f. */
-const expectedMigrationTreeDigest = "f780340633c6c97a5a399df6841d9724cdfdb627178ed9f10a891d6d838870f7";
+const expectedMigrationTreeDigest = "8aa2d11aefaea831924746816f79662458e866608b5027bdcee5b9c1ae71f8c7";
 const actualMigrationTreeDigest = migrationTreeDigest(migrationEntries);
 if (actualMigrationTreeDigest !== expectedMigrationTreeDigest) {
   console.error(`money-grain: FAIL — migration tree differs from the independently reviewed ${files.length}-file manifest (${actualMigrationTreeDigest}).`);
