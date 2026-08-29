@@ -592,18 +592,32 @@ const migrationEntries = files.map((name) => ({
  * Re-taken after the room-resolution patch changed this branch own migration:
  * a harvest room now resolves from its plants LocationName first and the name
  * parse second, so FR4 names five harvests including 2343302.
- * ONE new migration since the previous 979-file seal:
- *   20260829153000_c_plant_mirror_is_phase_and_harvest_aware.sql
+ * ONE new migration since the previous 979-file seal, and on 29 Aug it was RENAMED
+ * to the version production actually recorded:
+ *   20260829153000_c_plant_mirror_is_phase_and_harvest_aware.sql   (placeholder)
+ *   20260829154740_c_plant_mirror_is_phase_and_harvest_aware.sql   (prod stamp)
  * The pin travels in the same PR as the .sql, per the owner's standing rule, so
  * the tree and the seal are never briefly out of step on any branch.
  *
+ * A RENAME MOVES THIS DIGEST EVEN THOUGH THE COUNT DOES NOT. The manifest hashes
+ * `name\0sqlDigest` per entry, so 980 -> 980 with one different name is a different
+ * tree. Anyone reading only the count would conclude nothing changed and would pin
+ * the old value; the file list is the thing that moved, not its length.
+ *
+ * The body was also replaced with the exact bytes of schema_migrations.statements
+ * for 20260829154740 (md5 a051947237fbf6cea10605c244ec0fe5). Supabase strips
+ * comment-only lines when it records statements, so the file lost 63 header lines
+ * and 12 inline ones. ZERO executable SQL differs - verified line by line against
+ * the previous content, not assumed.
+ *
  * Counted with listMigrationSqlFiles(), i.e. `git ls-files`, so the count is what
- * CI sees rather than what happens to be sitting on this laptop. The file was
- * `git add`ed BEFORE the digest was taken - untracked it would not have counted,
- * and the seal would have been computed over a tree that does not exist anywhere.
- * 979 -> 980 is the whole delta; nothing else in supabase/migrations moved.
+ * CI sees rather than what happens to be sitting on this laptop. The rename was
+ * COMMITTED before the digest was taken - staged-but-uncommitted, `git ls-tree`
+ * and `git ls-files` disagree and the seal would cover a tree that never existed.
+ * Measured twice by different routes that agreed: money-grain's own run, and an
+ * independent recomputation over the blobs in the HEAD tree.
  */
-const expectedMigrationTreeDigest = "6c4ffe6eeda6037c8a6ed430f2374fe4d6a385a90f6c79ad2b10185ac6cbff3c";
+const expectedMigrationTreeDigest = "af652ee17f719838c12a8dbdd974a0a4cea2f2a057423c425890989c9936686c";
 const actualMigrationTreeDigest = migrationTreeDigest(migrationEntries);
 if (actualMigrationTreeDigest !== expectedMigrationTreeDigest) {
   console.error(`money-grain: FAIL — migration tree differs from the independently reviewed ${files.length}-file manifest (${actualMigrationTreeDigest}).`);
