@@ -391,7 +391,7 @@ const migrationEntries = files.map((name) => ({
 }));
 /* RE-PINNED 26 Aug 2026, 939 files. The previous seal (255de9a8…) covered a 925-file tree and
  * was already stale on main before this branch existed: PR #17 merged 14 Metrc exception-queue
- * migrations without re-pinning, so main measured 945 files at ee59a4c9… and money-grain was
+ * migrations without re-pinning, so main measured 973 files at d4137e63… and money-grain was
  * red on main itself. Verified by running this gate against a pristine checkout of origin/main.
  *
  * This tree is that one plus the C1 drift census: 3 migrations mirrored from production, 8
@@ -578,13 +578,13 @@ const migrationEntries = files.map((name) => ({
  * machine and of nowhere else.
  *
  * So: a fresh detached worktree at this commit, mirror never run. `ls *.sql` and
- * `git ls-files` both return 969 and `git status` on that directory is empty,
+ * `git ls-files` both return 973 and `git status` on that directory is empty,
  * which together are the check that no untracked file crept into the count.
  *
  * DERIVED TWICE. The gate's own migrationTreeDigest over that checkout, and an
  * independent recomputation of the same algorithm from scratch. Both return
- * 6154e280d4d33c53c50372437eb50a8bc542f9429eae81d771a2d70e132c986f. */
-const expectedMigrationTreeDigest = "6154e280d4d33c53c50372437eb50a8bc542f9429eae81d771a2d70e132c986f";
+ * d4137e6378486fe029ea390757bb41463cc4e6c4a74a3a8d721660f7eae74633. */
+const expectedMigrationTreeDigest = "d4137e6378486fe029ea390757bb41463cc4e6c4a74a3a8d721660f7eae74633";
 const actualMigrationTreeDigest = migrationTreeDigest(migrationEntries);
 if (actualMigrationTreeDigest !== expectedMigrationTreeDigest) {
   console.error(`money-grain: FAIL — migration tree differs from the independently reviewed ${files.length}-file manifest (${actualMigrationTreeDigest}).`);
