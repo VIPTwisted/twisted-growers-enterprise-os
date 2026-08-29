@@ -11,18 +11,25 @@
    ─────────────────────────────────────────────────────────────────────────────
    THE FIRST THING A READER MUST KNOW, AND IT IS ON THE PAGE.
 
-   `nav_registry` points this page at `sales_orders`. That table is EMPTY, and
-   so is every other order table this platform owns. Measured 15 Aug 2026:
+   `nav_registry` points this page at `sales_orders`, and that table is empty —
+   BY DESIGN, not by fault. Owner ruling, 29 Aug 2026: Apex remains the order
+   book, the platform's own order tables are NOT populated from it in Phase 1,
+   and this page stays on `v_apex_order_metrc_link`.
 
-     sales_orders 0 · sales_order_lines 0 · shipments 0 · invoices 0
-     purchase_orders 0 · work_orders 0 · demand_forecasts 0
-     customer_notes 0 · sales_rep 0
+   This page carried a "Known defect: sales_orders is empty" banner until that
+   ruling. It now carries a SOURCE line instead. The distinction matters: a
+   defect banner over a deliberate choice teaches a reader to scroll past defect
+   banners, which is how the real one gets missed.
 
-   The real order book is Apex, mirrored into apex_raw as 1,739 shipping-orders
-   and reconciled to Metrc by `v_apex_order_metrc_link`. A page that rendered
-   `sales_orders` would show an empty grid and a manager would reasonably
-   conclude no orders exist. Nine empty tables are stated as nine empty tables,
-   and the orders are read from where they actually are.
+   The nine empty platform tables are still counted and still listed in their own
+   section — an empty table and a table nobody read look identical on a screen
+   and mean opposite things, so both are named. What changed is that "empty" is
+   no longer dressed as a warning while the Apex book has rows.
+
+   THE COUNT IS ONE ROW PER ORDER. apex_raw is append-only: the Apex pull inserts
+   rather than upserts, so a revised order keeps its earlier snapshot. 2,063 raw
+   rows stand behind 1,860 real orders as at 29 Aug 2026, and the view emits the
+   newest version of each. Every figure on this page counts orders, never rows.
 
    ─────────────────────────────────────────────────────────────────────────────
    THE MONEY BASIS, STATED BECAUSE IT IS THE ONE THAT CATCHES PEOPLE.
@@ -47,7 +54,7 @@ import {
    docs/PERIOD_BUS_SPEC.md — "Do not fork a second catalog in React." */
 import { DateRangeSelect } from "./App.jsx";
 import {
-  FinKpiStrip, FinMoney, FinQty, FinBasis, FinDefect, FinCard, FinActions,
+  FinKpiStrip, FinMoney, FinQty, FinBasis, FinCard, FinActions,
   FinReading, FinCapped, finReadAll, useFinTargets, useFinRead,
 } from "./fin-kit.jsx";
 
@@ -451,15 +458,24 @@ export default function OrdersPage({ go, session, reports, role, viewAs, onViewA
           <FinActions onReread={() => setVer((v) => v + 1)} busy={false} go={go} />
         </div>
 
-        <FinDefect
-          object="sales_orders is empty"
-          what="This page is registered against the sales_orders table, and that table holds nothing. Neither does any other order table this platform owns. The real order book is Apex, mirrored into apex_raw and reconciled to Metrc's own reports by v_apex_order_metrc_link."
-          measured={`Counted live on this page load: ${d.own.map((o) => `${o.table} ${
-            o.state === "counted" ? o.count
-              : o.state === "refused" ? "REFUSED, not zero"
-              : "no count returned — unknown, not zero"}`).join(" · ")}. Against that, the Apex book holds ${orders.length.toLocaleString()} orders.`}
-          instead="Every order below comes from the Apex book. The empty platform tables are listed in their own section rather than rendered as a blank grid, because an empty grid reads as “no orders exist”."
-          filed="Whether the platform should own its own order records or continue mirroring Apex is an owner decision. It is stated here rather than decided here." />
+        {/* SOURCE, NOT A DEFECT — owner ruling, 29 Aug 2026.
+            This carried a "Known defect: sales_orders is empty" banner. The
+            ruling settles what that banner was asking: Apex REMAINS the order
+            book, the platform will not be populated from it in Phase 1, and this
+            page stays on v_apex_order_metrc_link. An empty sales_orders is
+            therefore the design, not a fault, and a defect banner over a
+            deliberate choice trains a reader to ignore defect banners.
+
+            N IS THE DISTINCT NEWEST-VERSION COUNT. apex_raw is append-only, so a
+            revised order keeps its earlier snapshot: 2,063 raw rows stand behind
+            1,860 real orders today. The view now emits one row per order, so
+            orders.length IS that distinct count — and the number here is the
+            same number the tile below opens, one read used twice, which is why
+            they cannot disagree. */}
+        <FinBasis
+          source={`Apex (mirrored) · ${orders.length.toLocaleString()} orders · reconciled to Metrc`}
+          included="one row per order, newest version — apex_raw is append-only and superseded revisions are not counted"
+          caution="Platform sales_orders is unused in Phase 1. That is the owner's ruling, not a gap: Apex is the order book and this page reads it directly." />
 
         {d.orders.err && <DkErr what="The Apex order book" err={d.orders.err} />}
         {d.wholesale.err && <DkErr what="The Metrc wholesale report" err={d.wholesale.err} />}
@@ -578,7 +594,17 @@ export default function OrdersPage({ go, session, reports, role, viewAs, onViewA
               case "own": return (
                 <Widget key={w.key} w={w} layout={layout} store={store} defaultOpen={false}
                   chips={<>
-                    <DkTag tone="attn">{d.own.filter((o) => o.state === "counted" && o.count === 0).length} of {d.own.length} counted and empty</DkTag>
+                    {/* EMPTY IS EXPECTED HERE, so it is not dressed as a warning.
+                        The tone is attn only when the Apex book ALSO has nothing —
+                        that combination would mean the page has no order source at
+                        all, which is the real failure this chip should catch. */}
+                    <DkTag tone={orders.length > 0 ? "neutral" : "attn"}
+                      title={orders.length > 0
+                        ? `Expected: Phase 1 does not populate the platform's own order tables. The order book is Apex, and it holds ${orders.length.toLocaleString()} orders on this page load.`
+                        : "Both the platform tables AND the Apex book are empty. That is not the Phase 1 design — this page has no order source at all."}>
+                      {d.own.filter((o) => o.state === "counted" && o.count === 0).length} of {d.own.length} counted and empty
+                      {orders.length > 0 ? " — expected in Phase 1" : " — AND the Apex book is empty too"}
+                    </DkTag>
                     {d.own.some((o) => o.state !== "counted") && (
                       <DkTag tone="crit" title="A table whose count could not be read is not an empty table. These are shown as unknown, never folded into the empty count.">
                         {d.own.filter((o) => o.state !== "counted").length} could not be counted
