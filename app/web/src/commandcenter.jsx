@@ -39,7 +39,7 @@ import {
   RoomStockDrill, ForensicAuditLedger, DEPT_BY_VIEW,
 } from "./App.jsx";
 import {
-  useDefaultRange, DkRangeSearch, rangeSearch, DkKpiStrip, DkRoomBoard, DkRoomPlantDrill, DkWorkQueue, useWorkQueue, DkCaret, DkDrill, DrillRoot,
+  useDefaultRange, DkRangeSearch, rangeSearch, DkFrameNote, DkKpiStrip, DkRoomBoard, DkRoomPlantDrill, DkWorkQueue, useWorkQueue, DkCaret, DkDrill, DrillRoot,
   DkStreamDrill, DkRowDrill, DkEmpty, dkRoomQualified,
 } from "./dashkit.jsx";
 import "./commandcenter.css";
@@ -63,7 +63,20 @@ import "./commandcenter.css";
    A panel mounts the first time it is opened and STAYS mounted after that, so
    collapsing a section you have read does not throw its state away and does not
    re-run its query when you open it again. Cheap on arrival, cheap thereafter. */
-function CcPanel({ id, store, title, chips, defaultOpen = true, children }) {
+/* `frame` — HOW THIS PANEL STANDS TO THE DATE CONTROL AT THE TOP OF THE PAGE.
+   Owner, 29 Aug 2026: "Every number on those pages must take the bus."
+
+   THE DEFECT IT CLOSES. This page mounts one date control and thirteen panels,
+   and until now four of the thirteen moved with it. The other nine were computed
+   over the whole table — not because that is wrong for them, but because a
+   position has no duration to narrow. Nothing on the screen said which was
+   which, so a reader who picked "this week" was told by the layout that all
+   thirteen answered for this week. Four did.
+
+   IT IS RENDERED HERE AND NOT AT THIRTEEN CALL SITES so the chip cannot end up
+   in a different place, or with different words, depending on the panel. Each
+   call passes what its own figures are and this decides how to say it. */
+function CcPanel({ id, store, title, chips, frame, defaultOpen = true, children }) {
   const open = store.isOpen(id, defaultOpen);
   const [everOpened, setEverOpened] = useState(open);
   useEffect(() => { if (open && !everOpened) setEverOpened(true); }, [open, everOpened]);
@@ -75,7 +88,12 @@ function CcPanel({ id, store, title, chips, defaultOpen = true, children }) {
           ? "Collapse this section. It keeps what it has already read; nothing is re-queried when you open it again."
           : "Expand this section. It reads its data the first time it is opened, which is why closed sections cost nothing on arrival."}>
         <span className="cc-panel-title">{title}</span>
-        {chips && <span className="cc-panel-chips">{chips}</span>}
+        {(chips || frame) && (
+          <span className="cc-panel-chips">
+            {chips}
+            {frame && <DkFrameNote {...frame} />}
+          </span>
+        )}
         <span className="cc-panel-caret">{open ? "−" : "+"}</span>
       </button>
       <div className="cc-panel-body" style={open ? undefined : { display: "none" }}>
@@ -1862,7 +1880,8 @@ export default function CommandCenter({ go, session, reports, role, viewAs, onVi
       {d.trend.err && <CcErr what="The trend snapshots" err={d.trend.err} />}
 
       {/* ── order 3 · band order: seed-to-sale FIRST ── */}
-      <CcPanel id="flow" store={store} title="Seed to sale — where everything is right now"
+      <CcPanel id="flow" frame={{ basis: "undated", range, what: "The seed-to-sale stage counts", why: "mv_flow_stages and v_flow_failed_split carry no date column at all, so no period can reach them. They count what is standing in each stage right now. This is a fact about the source, not a choice made on this page." }}
+        store={store} title="Seed to sale — where everything is right now"
         chips={d.flow.err ? <CcTag tone="crit">read failed</CcTag> : (
           <>
             <CcTag tone="neutral">{flowStages.length} stages</CcTag>
@@ -1881,7 +1900,8 @@ export default function CommandCenter({ go, session, reports, role, viewAs, onVi
       <CcWords store={store} range={range} role={role} session={session} go={go} />
 
       {/* ── order 3 · global management THIRD ── */}
-      <CcPanel id="global" store={store} title="Global management — every department, one view"
+      <CcPanel id="global" frame={{ basis: "queue", range, what: "The per-department finding counts", why: "v_global_management counts OPEN findings and carries only the age of the oldest one. Open work does not stop being open because it is old, and narrowing it to a period would hide a live finding for the sole reason that it was raised last month." }}
+        store={store} title="Global management — every department, one view"
         chips={d.global.err ? <CcTag tone="crit">read failed</CcTag> : (
           <>
             <CcTag tone="neutral">{d.global.rows.length} departments</CcTag>
@@ -1904,7 +1924,8 @@ export default function CommandCenter({ go, session, reports, role, viewAs, onVi
       </CcPanel>
 
       {/* ── WO-004 · who is on today, and in which zone ── */}
-      <CcPanel id="people" store={store} title="People — who is on today, and in which zone"
+      <CcPanel id="people" frame={{ basis: "as-of", range, what: "Who is on today and in which zone", why: "v_zone_now answers for right now and v_schedulable carries a badge expiry, which is a position rather than an event. The staffing detail beneath them DOES take the period, on work_date." }}
+        store={store} title="People — who is on today, and in which zone"
         chips={(d.zones.err || d.people.err || d.staffing.err) ? <CcTag tone="crit">read failed</CcTag> : (
           <>
             {zoneRows.length === 0
@@ -1924,7 +1945,8 @@ export default function CommandCenter({ go, session, reports, role, viewAs, onVi
       </CcPanel>
 
       {/* ── WO-004 · the production schedule ── */}
-      <CcPanel id="production" store={store} title="Production schedule — what is coming, and when"
+      <CcPanel id="production" frame={{ basis: "period", range, what: "The production forecast" }}
+        store={store} title="Production schedule — what is coming, and when"
         chips={d.sched.err ? <CcTag tone="crit">read failed</CcTag> : (
           <>
             <CcTag tone="neutral">
@@ -1963,7 +1985,8 @@ export default function CommandCenter({ go, session, reports, role, viewAs, onVi
       <CcGoals goals={d.goals.rows} err={d.goals.err} go={go} />
 
       {/* ── order 5 · yield, single-line rows, tone from the served numbers ── */}
-      <CcPanel id="yield" store={store} title="Yield — grams per plant, tick = own strain median"
+      <CcPanel id="yield" frame={{ basis: "period", range, what: "Grams per plant, on the harvest's finish date" }}
+        store={store} title="Yield — grams per plant, tick = own strain median"
         chips={d.yld.err ? <CcTag tone="crit">read failed</CcTag> : (
           <>
             {yieldUnder.length > 0
@@ -1987,7 +2010,8 @@ export default function CommandCenter({ go, session, reports, role, viewAs, onVi
       </CcPanel>
 
       {/* ── rooms, department-qualified (J7) — every room, not the flower rooms alone ── */}
-      <CcPanel id="rooms" store={store} title="Rooms — every room, department-qualified"
+      <CcPanel id="rooms" frame={{ basis: "as-of", range, what: "Every room and what is standing in it", why: "v_room_board_complete describes how the rooms stand now. Its only date is next_event_date, which looks FORWARD — measured 29 Aug 2026: 22 rooms, of which 8 carry that date at all, running to 19 Oct. Narrowing on it would empty the board of fourteen rooms and hide everything still to come." }}
+        store={store} title="Rooms — every room, department-qualified"
         chips={d.rooms.err ? <CcTag tone="crit">read failed</CcTag> : (
           <>
             {roomsOver.length > 0
@@ -2017,7 +2041,8 @@ export default function CommandCenter({ go, session, reports, role, viewAs, onVi
       </CcPanel>
 
       {/* ── owner keep-list · Where the Money Is Standing, internals untouched ── */}
-      <CcPanel id="money" store={store} title="Where the money is standing"
+      <CcPanel id="money" frame={{ basis: "undated", range, what: "Where the money is standing", why: "v_money_position carries no date column. It is a position by construction — what is owed and owing right now — and a position has no duration for a period to narrow." }}
+        store={store} title="Where the money is standing"
         chips={d.money.err ? <CcTag tone="crit">read failed</CcTag>
           : d.money.count === 0 ? <CcTag tone="attn" title="v_money_position served no rows — the bar below stays empty for that reason, not by design.">no rows served</CcTag>
           : <CcTag tone="neutral">{d.money.count == null ? "bands not counted" : `${d.money.count} bands`}</CcTag>}>
@@ -2025,7 +2050,8 @@ export default function CommandCenter({ go, session, reports, role, viewAs, onVi
       </CcPanel>
 
       {/* ── owner keep-list · Stock by Stream cards, internals untouched ── */}
-      <CcPanel id="stock" store={store} title="Stock by stream"
+      <CcPanel id="stock" frame={{ basis: "undated", range, what: "Stock by stream", why: "v_stock_summary and v_stock_by_department carry no date column. They answer what is on hand now, which is the question stock is asked, and it does not have a period." }}
+        store={store} title="Stock by stream"
         chips={d.stock.err ? <CcTag tone="crit">read failed</CcTag> : (
           <>
             <CcTag tone="neutral">{d.stock.rows.length} streams</CcTag>
@@ -2058,7 +2084,8 @@ export default function CommandCenter({ go, session, reports, role, viewAs, onVi
       </CcPanel>
 
       {/* ── tasks raised from dashboards, queue pattern ── */}
-      <CcPanel id="tasks" store={store} title="Tasks raised from dashboards"
+      <CcPanel id="tasks" frame={{ basis: "period", range, what: "Tasks, on the date they were raised" }}
+        store={store} title="Tasks raised from dashboards"
         chips={d.tasks.err ? <CcTag tone="crit">read failed</CcTag> : (
           <>
             <CcTag tone="neutral">{openTasks.length} open</CcTag>

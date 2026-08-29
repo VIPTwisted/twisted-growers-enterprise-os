@@ -5474,8 +5474,20 @@ function ControlTower({ go, session }) {
           <div className="sub">Every number is computed from live records at read time — and every card drills straight into its source module.</div>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          {/* THE DISCLOSURE NAMED ONE OF FOUR POSITION SOURCES.
+              It said the tiles are read from v_control_tower, which is true of the
+              METRIC_GROUPS cards and of nothing else on the page. The operational
+              ring is useLiveCounts() — a whole-table count per KPI, no date
+              predicate available; the sync line is the connector's state right
+              now; TodayBoard is fixed to today by its own definition. Three of the
+              four position sources on this page went undisclosed, so a reader who
+              hovered the chip was told the caveat was narrower than it is.
+              All four are named now. Nothing else about the control changes: the
+              owner set its size and place on 8 Aug and that is not this lane's. */}
           <RpDashboardDateRange viewKey="tower" session={session}
-            source="v_control_tower" onRange={onRange} />
+            source={"v_control_tower for the metric cards, a whole-table row count per KPI for the operational "
+              + "ring, the connector's current state for the sync line, and today for the day board — each of which"}
+            onRange={onRange} />
           {session && <SyncCenter session={session} />}
         </div>
       </div>
@@ -10631,11 +10643,14 @@ function RpDashboardDateRange({ viewKey, session, source, onRange }) {
         <span
           className="note"
           style={{ fontSize: "0.72rem", marginLeft: "auto", cursor: "help" }}
+          /* The template used to assume ONE view and say "which holds one
+             pre-computed row per figure". Tower reads four different position
+             sources and only the first is that shape, so the sentence is now
+             written to carry however many the caller names. */
           title={"The tiles below do not honour this range. They are read from " + source +
-                 ", which holds one pre-computed row per figure with no date on it and accepts no " +
-                 "range, so every number is computed over all data, all time. A figure covering " +
-                 "three years reads like a current position and is not one. The fix belongs in the " +
-                 "view, not on this page: it must carry the date its own facts already hold."}
+                 " carries no date to filter on, so every number covers all data, all time. A figure " +
+                 "covering three years reads like a current position and is not one. The fix belongs " +
+                 "in the source, not on this page: it must carry the date its own facts already hold."}
         >
           tiles cover all time ⓘ
         </span>

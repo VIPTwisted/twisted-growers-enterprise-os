@@ -153,3 +153,54 @@ test("rangePlan and rangeSearch agree on whether a search is happening", () => {
     assert.equal(plan.setAside, filtered.setAside, `disagreed on setAside for q=${JSON.stringify(q)}`);
   }
 });
+
+/* ─── MONTH GRAIN ───────────────────────────────────────────────────────────
+   Several served views ARE monthly and carry `month` as the text "2026-08":
+   v_dry_time_discipline (28 months, May 2024 to Aug 2026, measured 29 Aug 2026),
+   v_production_forecast, v_goal_status. Asking whether such a row falls inside a
+   DAY range is the wrong question — a month is a span, and the right question is
+   whether it overlaps. */
+const MONTHS = [
+  { month: "2026-08", label: "August" },
+  { month: "2026-07", label: "July" },
+  { month: "2024-05", label: "the oldest scored month" },
+  { month: null, label: "unscored" },
+];
+
+test("month grain — a partial month at the start of the range is IN range", () => {
+  /* this_month_td on 29 August: the range covers 1–29 August, not all 31 days.
+     A day comparison would put "2026-08" before "2026-08-01" and drop the very
+     month the reader is looking at. */
+  const r = rangeSearch(MONTHS, {
+    from: "2026-08-01", to: "2026-08-29", dateField: "month", grain: "month", fields: ["label"],
+  });
+  assert.ok(r.rows.some((x) => x.month === "2026-08"), "August survives its own to-date range");
+  assert.equal(r.outOfRange, 2, "July and May 2024 fall outside");
+  assert.equal(r.undated, 1, "the unscored month is kept and counted, never dropped");
+});
+
+test("month grain — a month is never parsed through Date", () => {
+  /* new Date("2026-08") is midnight UTC on the 1st, which west of Greenwich
+     reads back as 31 July — the row would leave a range starting on its own
+     first day. Comparing YYYY-MM as text has no timezone in it at all. */
+  const r = rangeSearch([{ month: "2026-08" }], {
+    from: "2026-08-01", to: "2026-08-31", dateField: "month", grain: "month",
+  });
+  assert.equal(r.kept, 1);
+  assert.equal(r.outOfRange, 0);
+});
+
+test("month grain — a full YYYY-MM-DD date is cut to its month, not rejected", () => {
+  const r = rangeSearch([{ month: "2026-07-14" }], {
+    from: "2026-07-01", to: "2026-07-31", dateField: "month", grain: "month",
+  });
+  assert.equal(r.kept, 1, "a date-shaped value still places into its month");
+  assert.equal(r.undated, 0);
+});
+
+test("day grain is unchanged by the month option existing", () => {
+  const r = rangeSearch(ROWS, { ...AUG, dateField: "closed_on", fields: FIELDS });
+  assert.equal(r.kept, 2);
+  assert.equal(r.outOfRange, 2);
+  assert.equal(r.undated, 1);
+});

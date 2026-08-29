@@ -38,7 +38,7 @@ import {
   AssignTask, DateRangeSelect, rowsOr, OpenHarvestDetail, RoomDrill, RoomStockDrill,
 } from "./App.jsx";
 import {
-  useDefaultRange, DkRangeSearch, rangeSearch,
+  useDefaultRange, DkRangeSearch, rangeSearch, DkFrameNote,
   DkHarvestControlBanner,
   grab, DkTag, DkErr, DkEmpty, DkKpiStrip, DkOrphanTargets, DkWorkQueue, useWorkQueue,
   DkNarrative, DkReports, DkTasks, DkGapCard, DkHead, DkRoomBoard, useWidgetLayout,
@@ -628,7 +628,27 @@ export default function CultivationDashboard({ go, session, reports, role, viewA
   });
   const openTasks = d.tasks.rows.filter((t) => t.department === DEPT);
   const overdueTasks = openTasks.filter((t) => t.position?.startsWith("OVERDUE"));
-  const dryLatest = d.dry.rows[0];
+
+  /* ─── THE DRY-TIME HISTORY TAKES THE FRAME, AND ITS ROWS ARE MONTHS ──────
+     v_dry_time_discipline holds 28 months of scored discipline — May 2024 to
+     August 2026, measured on production 29 Aug 2026. The whole 28 rendered
+     under whatever period the reader had chosen, and the headline chip took
+     rows[0]: always the newest month, whatever the control said. So the panel
+     answered a question nobody asked and contradicted the control above it.
+
+     `grain: "month"` because these rows ARE months. A day comparison puts
+     "2026-08" before "2026-08-01" and would drop August from a this-month-to-date
+     frame — the very month the reader is looking at. A month is a span; it is in
+     range when it overlaps. That rule lives in lib/range-search.js with its own
+     tests, not here.
+
+     dryLatest is now the newest month WITHIN the frame, so the chip and the table
+     beneath it describe the same period. */
+  const dryRs = rangeSearch(d.dry.rows, {
+    from: range.from, to: range.to, dateField: "month", grain: "month",
+  });
+  const dryRows = dryRs.rows;
+  const dryLatest = dryRows[0];
 
   /* EVERY PUBLISHED FIGURE OPENS ITS OWN RECORDS, IN PLACE. The two that are
      defined by an owner-set limit join the map only once that limit has been
@@ -951,17 +971,30 @@ export default function CultivationDashboard({ go, session, reports, role, viewA
                     </DkTag>
                   </>
                 ) : null}>
-                {/* DECLARED, NOT FILTERED. v_dry_time_discipline is a MONTHLY
-                    AGGREGATE keyed on a month label with no date column on the
-                    row, so the range above cannot narrow it and this says so
-                    rather than letting a reader assume it moved. Filtering it on
-                    a parsed month string would be inventing a date the view does
-                    not serve. */}
-                <DkTag tone="info"
-                  title="This panel is a monthly roll-up: v_dry_time_discipline serves one row per month with no date on it, so a date range has nothing to filter. Every month the view holds is shown, whatever range is chosen above. Narrowing it belongs in the view, not on this page.">
-                  monthly roll-up — the date range does not narrow this panel ⓘ
-                </DkTag>
-                {d.dry.err ? <DkErr what="Dry-time discipline" err={d.dry.err} /> : <CvDryTime rows={d.dry.rows} go={go} />}
+                {/* THIS PANEL USED TO DECLARE ITSELF UNFILTERABLE, AND THE
+                    PREMISE WAS WRONG. It said v_dry_time_discipline has "no date
+                    column on the row". It has one — `month`, text, "2026-08" —
+                    and the view holds 28 of them, May 2024 to August 2026. The
+                    declaration was honest about what it believed and the belief
+                    was untrue, which is the worse of the two failures: a reader
+                    was told the panel COULD NOT follow the period when it could.
+
+                    A month is a span, so it is in range when it overlaps. That
+                    rule is lib/range-search.js's, under `grain: "month"`, with
+                    its own tests — not a month string parsed here. */}
+                <DkFrameNote basis="period" range={range}
+                  what={`Dry-time discipline — ${dryRs.kept} of ${dryRs.total} scored month${dryRs.total === 1 ? "" : "s"}`}
+                  why="One row per month, kept when the month overlaps the selected period. A month is a span, so the month a to-date range starts in is included even though the range does not cover all of it. The headline chip above describes the newest month INSIDE the period, not the newest month the view holds." />
+                {dryRs.undated > 0 && (
+                  <DkTag tone="attn" title="These rows carry no month the page can place. They are kept and counted rather than dropped.">
+                    {dryRs.undated} month row{dryRs.undated === 1 ? "" : "s"} carry no month, kept ⓘ
+                  </DkTag>
+                )}
+                {d.dry.err ? <DkErr what="Dry-time discipline" err={d.dry.err} />
+                  : dryRows.length === 0
+                    ? <DkEmpty why="No scored month falls in this period."
+                        fills="v_dry_time_discipline scores a harvest once it has been packaged. Widen the range to reach the months either side of it." />
+                    : <CvDryTime rows={dryRows} go={go} />}
               </Widget>
             );
             case "stockrooms": return (
