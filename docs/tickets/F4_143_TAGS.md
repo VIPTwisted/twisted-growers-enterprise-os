@@ -73,6 +73,26 @@ roll on a single batch. Nothing is interleaved with the other four harvests.
 
 **Residual: 0.** No plant left Flower Room #4 without a harvest record.
 
+### Classification of every leftover tag — MOVED / HARVESTED / UNLOCATED
+
+Each of the 143 was bucketed explicitly, so nothing hides in a summary:
+
+| classification | tags | last movement | last modified |
+|---|---:|---|---|
+| **HARVESTED** onto `TG Jet Fuel Gelato - 20260810 f` | **143** | 2026-08-10 | 2026-08-17 |
+| MOVED — still live in another room | **0** | — | — |
+| STILL LIVE in Flower Room #4 | **0** | — | — |
+| DESTROYED (recorded) | **0** | — | — |
+| **UNLOCATED** — not in `metrc_plants`, or inactive with no harvest and no destroy | **0** | — | — |
+
+**Nothing is UNLOCATED and nothing is MOVED.** All 143 are accounted for on a
+single named harvest. There is no open tail to carry forward.
+
+The destroy report was **not** used as a date filter anywhere in this work. It
+cannot answer the question — `destroyed_on` is 100% NULL across its 3,773 rows and
+its newest `phase_date` is 2026-05-18. The link used is `HarvestId` on
+`metrc_plants` (the API mirror, system of record), corroborated by `HarvestedDate`.
+
 ### A false lead, recorded because it nearly shipped
 
 On first pass the 143 profiled as *inactive, still Flowering, still in FR4, no
