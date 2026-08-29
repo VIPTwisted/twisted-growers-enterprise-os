@@ -164,6 +164,29 @@ export function stripComments(text) {
   return out;
 }
 
+/* A SEARCH HAYSTACK IS NOT A FILTER LIST — 29 August 2026.
+ *
+ * §7 is about the filters a USER CAN PICK: "a hard-coded filter list means every
+ * new filter is a code change... so it never happens." The cost it names is a
+ * person who cannot narrow a report without a deploy.
+ *
+ * Which columns the ONE search box reads is a different thing. There is no
+ * control per column, nothing for a user to pick, and no filter that fails to
+ * exist because the list is in the source. It is an argument to a shared,
+ * unit-tested primitive — lib/range-search.js `fields`, a named SEARCH_COLUMNS
+ * map, or the columns an `.or(... ilike ...)` is built from.
+ *
+ * WHAT IT COST TO LEARN THIS. Rolling that one primitive across fifteen pages
+ * took this metric from 18 to 33 overnight without freezing a single filter
+ * list, and every production build from 28 Aug 18:45 UTC failed here. The site
+ * sat 79 commits behind on a finding that described work the rule wants done.
+ *
+ * THE EXEMPTION IS NARROW AND IT IS TESTED BOTH WAYS. Only these three shapes
+ * are skipped, and the self-test below still requires a genuine frozen filter
+ * list — including one of column names — to fire. A list that is not built into
+ * a search is caught exactly as before; App.jsx's seventeen all remain. */
+const SEARCH_HAYSTACK = /\bfields\s*:|SEARCH_(?:COLUMNS|FIELDS)|\.map\([\s\S]{0,80}?ilike/;
+
 /** §7 — a list of column or filter names frozen into the source. */
 export function hardcodedColumnLists(text) {
   const ARRAY_OF_STRINGS =
@@ -182,6 +205,12 @@ export function hardcodedColumnLists(text) {
        requiring two snake_case members is what makes it a list of DATABASE COLUMNS,
        which is the thing §7 is about. */
     if (idents / items.length < 0.8 || snakes < 2) continue;
+    /* The window is deliberately tight: 200 characters either side reaches the
+       `fields:` key in front of the array, the `.ilike` the array is mapped
+       into behind it, and — for a named map of per-queue search columns — the
+       declaration a few lines up. It does not reach the next statement. */
+    const around = text.slice(Math.max(0, m.index - 200), m.index + m[0].length + 200);
+    if (SEARCH_HAYSTACK.test(around)) continue;
     out.push({ line: text.slice(0, m.index).split("\n").length, n: items.length,
                head: items.slice(0, 4).join(", ") });
   }
@@ -306,6 +335,33 @@ function selfTest() {
   add("POSITIVE §7 — operator keys DO carry snake_case and ARE flagged; recorded rather "
     + "than tuned away, and exempted in the baseline with a reason", () =>
     hardcodedColumnLists('["is_null", "not_null", "is_true", "is_false"]').length === 1);
+
+  /* THE SEARCH-HAYSTACK EXEMPTION, tested in both directions. Fifteen findings
+     appeared overnight from one shared primitive and held production for
+     sixteen hours; the exemption that answers them must not open a door. */
+  add("NEGATIVE §7 — the fields a search box reads is a haystack, not a filter list: "
+    + "no control per column, and nothing a user cannot narrow without a deploy", () =>
+    hardcodedColumnLists(
+      'rangeSearch(rows, { from, to, dateField: "raised_on", q, '
+      + 'fields: ["title", "description", "status", "priority", "assigned_to"] });',
+    ).length === 0);
+
+  add("NEGATIVE §7 — a named map of per-queue search columns is the same haystack", () =>
+    hardcodedColumnLists(
+      'const SEARCH_COLUMNS = {\n  never_submitted: ["package_tag", "item", "metrc_room", "from_harvest"],\n};',
+    ).length === 0);
+
+  add("NEGATIVE §7 — columns mapped into a server-side ilike are a search, not filters", () =>
+    hardcodedColumnLists(
+      '.or(["package_tag", "item_name", "strain", "source_harvest"].map((c) => `${c}.ilike.${like}`).join(","))',
+    ).length === 0);
+
+  add("POSITIVE §7 — the exemption does not swallow a real frozen filter list that "
+    + "happens to sit near a search box", () =>
+    hardcodedColumnLists(
+      'const FILTERS = ["stock_status", "origin", "stream", "lab_state"];\n'
+      + 'const onSearch = (q) => setQuery(q);',
+    ).length === 1);
 
   /* ── J7 ─────────────────────────────────────────────────────────────────── */
   add("POSITIVE J7 — a room shown in a label with no department", () =>
