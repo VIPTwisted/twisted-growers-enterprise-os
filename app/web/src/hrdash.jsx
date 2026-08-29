@@ -21,7 +21,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "./lib/supabase.js";
 import { AssignTask, DateRangeSelect } from "./App.jsx";
-import { useDefaultRange } from "./dashkit.jsx";
+import { useDefaultRange, DkFrameNote } from "./dashkit.jsx";
 
 const VIEW_KEY = "dept_dash_hr";
 
@@ -406,7 +406,32 @@ export default function HrDashboard({ go, session }) {
             </>)}
         </div>)}
 
-      {/* 2 — The numbers that matter. Every one assigns and drills. */}
+      {/* 2 — The numbers that matter. Every one assigns and drills.
+
+          NONE OF THEM MOVES WITH THE FRAME, AND UNTIL NOW NOTHING SAID SO.
+          This page mounts one date control labelled "Raised between", which
+          narrows the review queue and nothing else. Every tile below is a
+          position: who is legally able to work today, what this week costs at
+          today's rates, who cannot sign in right now. A reader who picked a
+          period was told by the layout that all six answered for it. None did.
+
+          Measured before declaring, rather than assumed:
+            employees.badge_expires  a FORWARD expiry — a position, not an event
+            v_payroll_forecast       no date column at all
+            v_employee_capacity      no date column at all
+            app_users / departments  standing reference data
+
+          So the honest reading is as-of for the licence and roster figures and
+          undated for the two money-and-hours figures, and both are said out
+          loud beside the strip they govern. */}
+      <div className="cc-tools-l" style={{ marginBottom: 8 }}>
+        <DkFrameNote basis="as-of" range={range}
+          what="Legal readiness, licences needing action, who cannot sign in, and the roster"
+          why="These describe how the workforce stands right now. A licence expiry is a date in the FUTURE, so narrowing it to a past window would empty the very tile that exists to warn you. The date control above narrows the review queue only, and is labelled for it." />
+        <DkFrameNote basis="undated" range={range}
+          what="Weekly labour cost and weekly capacity"
+          why="v_payroll_forecast and v_employee_capacity carry no date column at all, so no frame can reach them. They price the current roster at current rates. This is a fact about the sources, not a choice made on this page." />
+      </div>
       <div className="hrtiles">
         {tile("ready", "Legally ready to work", m.active.length - m.blocked.length - m.urgent.length, `of ${m.active.length}`,
           m.blocked.length + m.urgent.length > 0 ? "warn" : "ok",

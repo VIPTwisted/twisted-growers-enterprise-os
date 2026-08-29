@@ -28,7 +28,11 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "./lib/supabase.js";
 /* The one date control and the one catalogue — imported, never rebuilt. */
 import { DateRangeSelect } from "./App.jsx";
-import { useDefaultRange } from "./dashkit.jsx";
+import { useDefaultRange, DkFrameNote } from "./dashkit.jsx";
+/* One definition of "narrow a query to the active frame". This file spelled
+   it out twice, and with .lte, which ends at midnight — harmless on a DATE
+   column and wrong the day either of these becomes a timestamp. */
+import { applyRange } from "./lib/date-range-core.js";
 
 const VIEW_KEY = "my_week";
 
@@ -91,10 +95,8 @@ export default function MyWeek({ go, session }) {
       /* The frame decides the window; an unbounded frame still opens forward
          from today so the page does not become a wall of history by default. */
       (range.from || range.to
-        ? (() => { let qy = supabase.from("employee_schedules").select("*").eq("employee_id", id);
-                   if (range.from) qy = qy.gte("work_date", range.from);
-                   if (range.to) qy = qy.lte("work_date", range.to);
-                   return qy.order("work_date"); })()
+        ? applyRange(supabase.from("employee_schedules").select("*").eq("employee_id", id),
+                     "work_date", { from: range.from, to: range.to }).order("work_date")
         : supabase.from("employee_schedules").select("*").eq("employee_id", id)
             .gte("work_date", today).order("work_date").limit(10)),
       supabase.from("attendance_occurrences").select("*").eq("employee_id", id)
@@ -103,10 +105,8 @@ export default function MyWeek({ go, session }) {
       supabase.from("time_off_requests").select("*").eq("employee_id", id)
         .order("starts_on", { ascending: false }).limit(6),
       (range.from || range.to
-        ? (() => { let qy = supabase.from("open_shifts").select("*").eq("status", "open");
-                   if (range.from) qy = qy.gte("work_date", range.from);
-                   if (range.to) qy = qy.lte("work_date", range.to);
-                   return qy.order("work_date"); })()
+        ? applyRange(supabase.from("open_shifts").select("*").eq("status", "open"),
+                     "work_date", { from: range.from, to: range.to }).order("work_date")
         : supabase.from("open_shifts").select("*").eq("status", "open")
             .gte("work_date", today).order("work_date")),
     ]);
@@ -183,6 +183,22 @@ export default function MyWeek({ go, session }) {
               date range set aside while searching — every period is being searched
             </span>
           )}
+          {/* WHAT THE WEEK MOVES, AND WHAT IT DELIBERATELY DOES NOT.
+              Your roster and the open shifts you could pick up ARE the week, and
+              they follow the frame on work_date. The three blocks below are your
+              standing personal record: narrowing them to seven days would tell
+              you that you have no attendance points and owe no documents, which
+              is a different claim from "none this week" and the one a reader
+              would take away. */}
+          <DkFrameNote basis="period" range={range}
+            what="Your shifts and the open shifts you can claim"
+            why="Both follow the frame on work_date, resolved by the bus from nav_registry.default_range for my_week. With no frame set they open forward from today rather than becoming a wall of history." />
+          <DkFrameNote basis="as-of" range={range}
+            what="Your attendance points and your time-off requests"
+            why="These are your standing record, not events inside one week. Points sit against you until they clear, and a request you filed last month is still the last thing you asked for. Filtering them to seven days would read as 'you have none' rather than 'none in this week'." />
+          <DkFrameNote basis="queue" range={range}
+            what="Documents you still owe"
+            why="An unsigned document does not stop being owed because it was issued last month. This block is open work and is never narrowed to a period." />
         </div>
         <div className="mwsub">
           {emp.login_id ? <>Your ID is <b>{emp.login_id}</b></> : "No login ID set yet"}
