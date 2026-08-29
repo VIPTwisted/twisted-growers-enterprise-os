@@ -46,7 +46,7 @@ Two-way Metrc/Apex is Phase 2.
 | P29 | **Feature freeze 10 Sep 23:59 ET.** After that: defects, pins, dumps, QBO/payroll wiring only. No new modules. |
 | P30 | **Implementation week (15 Sep+) is QBO + payroll + remaining HR.** Not new Metrc write paths. |
 | P31 | **Phase 2 only:** two-way Metrc, two-way Apex, ingest of the 67 staged files after MC-file analysis. |
-| P32 | **Dual-licence PIT key** stays an open defect until a dedicated PR. Do not sneak it into harvest. |
+| P32 | **Dual-licence PIT key is APPLIED, not an open defect.** `metrc_rpt_point_in_time` is keyed `(as_of_date, licence_number, tag)` in production; verified `0` null licences and `0` rows violating the key. The SQL is filed at its stamped versions `20260829133527` and `20260829133604` — corrected by #96 after #92 filed the pre-adaptation draft, and landed on main by #98. The rule that remains is the original intent: **never key a point-in-time position without its licence**, because one tag can legitimately sit in both licences' snapshots at the same instant while material is in transit between MC281714 and MP281909. Cert table reads 5/5 MATCH, MP281909 6 Aug at 648/648. |
 | P33 | **Credential-bearing SQL is never filed.** Mirror withholds. Rotation after 15 Sep unless a write-capable secret leaked. |
 | P34 | **Agent stop.** Done means: PR number, stamped versions, what was applied, what was not, Gates on that branch. No essay. |
 | P35 | **Live site lag is a P0.** `deploy-watch` red means the floor is on old software. Fix publish before new features. |
