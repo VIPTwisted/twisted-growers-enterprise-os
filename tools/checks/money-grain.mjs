@@ -559,13 +559,14 @@ const migrationEntries = files.map((name) => ({
  *
  * Two readings: the gate on the clean-clone file set, and the recomputation from the git object
  * store with the working directory untouched. Both give 955 files at a6a9671c… . */
-/* RE-PINNED 29 Aug 2026 — 968 files at f7bb1d5c… , up from 967 at 13e79de3… .
+/* RE-PINNED 29 Aug 2026 — 969 files at 6154e280… , up from 967 at 13e79de3… .
  *
- * WHAT MOVED. Nothing was written to production and no SQL changed. Five
- * migrations that had run in production were brought into line with the
- * repository so migration-drift could pass and the site could publish again:
- * five renamed onto the versions apply_migration actually assigned them, and the
- * superseded schema baseline replaced by a current one. One net file.
+ * WHAT MOVED. Five migrations that had already run in production were brought
+ * into line with the repository so migration-drift could pass and the site could
+ * publish again: renamed onto the versions apply_migration actually assigned
+ * them, with the superseded schema baseline replaced by a current one. Plus one
+ * genuinely new migration, which appends a measured sentence to ten nav
+ * descriptions and changes no schema. Two net files.
  *
  * MEASURED FROM A PRISTINE CHECKOUT, NOT A WORKING TREE, AND THAT IS THE WHOLE
  * DISCIPLINE OF THIS LINE. This gate reads the DIRECTORY. Four migrations whose
@@ -577,13 +578,13 @@ const migrationEntries = files.map((name) => ({
  * machine and of nowhere else.
  *
  * So: a fresh detached worktree at this commit, mirror never run. `ls *.sql` and
- * `git ls-files` both return 968 and `git status` on that directory is empty,
+ * `git ls-files` both return 969 and `git status` on that directory is empty,
  * which together are the check that no untracked file crept into the count.
  *
  * DERIVED TWICE. The gate's own migrationTreeDigest over that checkout, and an
  * independent recomputation of the same algorithm from scratch. Both return
- * f7bb1d5cfe895536c6ef8ba4afdbf521a2312f4715220e309ff13bc69f39c509. */
-const expectedMigrationTreeDigest = "f7bb1d5cfe895536c6ef8ba4afdbf521a2312f4715220e309ff13bc69f39c509";
+ * 6154e280d4d33c53c50372437eb50a8bc542f9429eae81d771a2d70e132c986f. */
+const expectedMigrationTreeDigest = "6154e280d4d33c53c50372437eb50a8bc542f9429eae81d771a2d70e132c986f";
 const actualMigrationTreeDigest = migrationTreeDigest(migrationEntries);
 if (actualMigrationTreeDigest !== expectedMigrationTreeDigest) {
   console.error(`money-grain: FAIL — migration tree differs from the independently reviewed ${files.length}-file manifest (${actualMigrationTreeDigest}).`);
