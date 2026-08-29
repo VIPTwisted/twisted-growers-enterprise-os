@@ -22,9 +22,10 @@
       "note": "Real source, read-only GET probe, admin-key gated. Deployed v1 on 10 Aug 2026 and recovered into the repo in 4222e85 because the source existed only in the deployment. Reads TG_ADMIN_KEY from integration_secrets at run time \u2014 no literal in the file, so this is the real source and not a redacted recovery copy. verify_jwt true."
     },
     "apex-sync": {
-      "deployed_version": 5,
-      "sha256": "8ea93147e87fe6fcbcc53c52c8ea1a724dc319ccc79874bbcbb0c5522031ed37",
+      "deployed_version": 6,
+      "sha256": "a648082323f3efa70c113d60973e3bb538b68e192e798186525273e6c47f3c6d",
       "redacted": false,
+      "known_delta_vs_deployment": "v6 was deployed through the management API, which means the source was retyped rather than uploaded from disk. The deployed copy was fetched back and compared: every line of CODE is identical, including the new x-admin-key branch, the cursor discipline, the credit accounting and the final response. The ONE difference is cosmetic - the rule of box-drawing dashes on the '?probe=metrc' banner comment is a few characters shorter in the deployment than in this file. It is inside a comment and changes no behaviour. It is recorded here rather than papered over, because this manifest already documents what a pin that quietly disagreed with production cost once. The auth change itself was verified live, not assumed: a dispatch of a non-existent entity returned HTTP 200 with ok:true and total:0, where the same call before v6 returned 403. The pull path was not exercised, because no pull was authorised.",
       "note": "Real source. Deployed v5 on 11 Aug 2026, and pinned at deployed_version 2 while production ran 4 - which is how the divergence hid. Production v4 held entityHasEverReturnedRows()/holdCursor and the REPO DID NOT; the repo also held the 71-line ?probe=metrc block that production did not. Neither side was a superset. Production's guard was merged into the repo FIRST (209b212), so this deploy adds the probe without deleting the zero-row cursor hold. verify_jwt TRUE, unchanged."
     },
     "bridge-queue": {
