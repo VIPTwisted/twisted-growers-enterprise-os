@@ -416,6 +416,15 @@ export default function CultivationDashboard({ go, session, reports, role, viewA
   const [busy, setBusy] = useState(false);
   const [ver, setVer] = useState(0);
   const [q, setQ] = useState("");
+  /* HOISTED ABOVE THE EARLY RETURNS. This lived beside the schedule-versus-Metrc
+     derivation, which sits after `if (!dateDefault.ready) return …` — so React
+     saw a hook that was called on some renders and not others, which is a
+     rules-of-hooks error and a real crash risk the day the order shifts.
+
+     Its own state, not the yield widget's: two lists sharing one search box
+     means typing a harvest name into one silently filters the other, and a
+     reader cannot see why. */
+  const [schedQ, setSchedQ] = useState("");
   const [d, setD] = useState(null);
   /* The three slow views, read in their own wave. `null` means still reading —
      which is a different thing from read-and-empty, and the panels below say
@@ -601,18 +610,18 @@ export default function CultivationDashboard({ go, session, reports, role, viewA
   });
   const yieldUnder = yieldRs.rows.filter((r) => r.strain_median_dry_g != null && Number(r.dry_g_per_plant) < Number(r.strain_median_dry_g));
 
-  /* SCHEDULE VERSUS METRC. Its own search state, not the yield widget's: two
-     lists sharing one box means typing a harvest name into one silently filters
-     the other, and a reader cannot see why.
-
+  /* SCHEDULE VERSUS METRC.
      dateField is harvest_started, the Metrc cut date, and not
      scheduled_pull_date. Every one of the 385 rows has a cut date, so the range
      places all of them; 285 have no scheduled pull at all, and ranging on the
      schedule date would file all 285 as "undated, kept" — technically true,
      useless to read, and it would bury the genuine undated case. The reader's
      window here is "harvests cut in this period", and the schedule comparison
-     rides along on each one. */
-  const [schedQ, setSchedQ] = useState("");
+     rides along on each one.
+
+     `schedQ` is declared with the other hooks at the top of this component, not
+     here: there are early returns above this line, so a hook declared here runs
+     on some renders and not others. */
   const schedRs = rangeSearch(d.sched.rows, {
     from: range.from, to: range.to, dateField: "harvest_started", q: schedQ,
     fields: ["harvest_name", "drying_room", "scheduled_room", "actual_room", "status", "stream"],
