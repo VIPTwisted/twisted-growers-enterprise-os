@@ -57,7 +57,7 @@
 --   Flower Room #1  Flowering  1140 / 1140  gap 0      BALANCED
 --   Flower Room #2  Flowering  1050 / 1050  gap 0      BALANCED
 --   Flower Room #3  Flowering  1140 / 1140  gap 0      BALANCED
---   Flower Room #4  Flowering  1050 /    0  gap -1050  NOT COMPARABLE (4 batches)
+--   Flower Room #4  Flowering  1050 /    0  gap -1050  NOT COMPARABLE (5 batches)
 --   Mother Room     Vegetative   33 /   30  gap -3     MIRROR SHORT
 -- Note metrc_rpt_point_in_time.licence is now licence_number on main.
 
@@ -111,19 +111,43 @@ mir as (
      and upper(btrim(mp.license)) = any (cult.lic)
    group by 1, 2
 ),
+-- A harvest's ROOM comes from its own plants first, the name parse second.
+-- metrc_harvests.flower_room is derived from the harvest NAME, and a name can
+-- lose the room digit: "TG Jet Fuel Gelato - 20260810 f" ends " f" where its four
+-- siblings end " f4", so its flower_room is NULL and every room-scoped query
+-- silently dropped a real 143-plant F4 harvest. The plants on a harvest carry
+-- LocationName themselves and cannot be defeated by a typo, so they lead.
+-- Estate-wide 9 of 385 harvests have flower_room NULL. See
+-- docs/tickets/F4_143_TAGS.md.
+hroom as (
+  select h.metrc_id,
+         h.name,
+         h.harvest_start,
+         h.license,
+         coalesce(
+           (select mode() within group (order by pl.raw ->> 'LocationName')
+              from metrc_plants pl
+             where pl.raw ->> 'HarvestId' = h.metrc_id::text
+               and nullif(pl.raw ->> 'LocationName', '') is not null),
+           (select p.mirror_room_name
+              from cult_cycle_policy p
+             where p.active and p.metrc_room_code = h.flower_room)
+         ) as room
+    from metrc_harvests h
+),
 -- The whole point of option (b): did this room get cut between the report and now?
 hv as (
   select s.room,
          count(*) as n,
-         string_agg(h.name, '; ' order by h.harvest_start) as batches,
-         min(h.harvest_start) as first_cut,
-         max(h.harvest_start) as last_cut
+         string_agg(hr.name || ' [' || hr.metrc_id || ']', '; ' order by hr.harvest_start, hr.name) as batches,
+         min(hr.harvest_start) as first_cut,
+         max(hr.harvest_start) as last_cut
     from scope s
-    join metrc_harvests h on h.flower_room = s.metrc_room_code,
+    join hroom hr on hr.room = s.room,
          rpt_day, cult
-   where upper(btrim(h.license)) = any (cult.lic)
-     and h.harvest_start >  rpt_day.d
-     and h.harvest_start <= current_date
+   where upper(btrim(hr.license)) = any (cult.lic)
+     and hr.harvest_start >  rpt_day.d
+     and hr.harvest_start <= current_date
    group by s.room
 )
 select s.room,

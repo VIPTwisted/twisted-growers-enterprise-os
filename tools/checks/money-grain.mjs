@@ -589,6 +589,9 @@ const migrationEntries = files.map((name) => ({
  * independent recomputation of the same algorithm from scratch. Both return
  * 6154e280d4d33c53c50372437eb50a8bc542f9429eae81d771a2d70e132c986f. */
 /* RE-PINNED 29 Aug 2026, 980 files, for the phase-aware plant-mirror branch.
+ * Re-taken after the room-resolution patch changed this branch own migration:
+ * a harvest room now resolves from its plants LocationName first and the name
+ * parse second, so FR4 names five harvests including 2343302.
  * ONE new migration since the previous 979-file seal:
  *   20260829153000_c_plant_mirror_is_phase_and_harvest_aware.sql
  * The pin travels in the same PR as the .sql, per the owner's standing rule, so
@@ -600,7 +603,7 @@ const migrationEntries = files.map((name) => ({
  * and the seal would have been computed over a tree that does not exist anywhere.
  * 979 -> 980 is the whole delta; nothing else in supabase/migrations moved.
  */
-const expectedMigrationTreeDigest = "d43a338c97f36d40b76bd1345a067aff214b7767d29fd148019c7246719caa94";
+const expectedMigrationTreeDigest = "6c4ffe6eeda6037c8a6ed430f2374fe4d6a385a90f6c79ad2b10185ac6cbff3c";
 const actualMigrationTreeDigest = migrationTreeDigest(migrationEntries);
 if (actualMigrationTreeDigest !== expectedMigrationTreeDigest) {
   console.error(`money-grain: FAIL — migration tree differs from the independently reviewed ${files.length}-file manifest (${actualMigrationTreeDigest}).`);
