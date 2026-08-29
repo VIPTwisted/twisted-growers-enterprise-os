@@ -3,8 +3,14 @@
 -- Owner instruction, 28 Aug 2026: "Write the Apex dispatcher. Vault only. First
 -- object: Sales orders. PR. Do not APPLY until I send APPLY."
 --
--- NOT APPLIED. Written and reviewed against production read-only; held for APPLY.
--- No Apex call is made by this file. Nothing here pulls anything.
+-- APPLIED to production 29 Aug 2026 on the owner's APPLY, as version 20260828235438.
+-- The file was written before the apply and named 20260829001500; the version above is
+-- the one the management API stamped when it ran, and this file has been renamed to
+-- match it. No Apex call is made by this file itself - it installs the dispatcher.
+--
+-- Stage two landed too: apex-sync v6 now accepts the x-admin-key, so the 403 described
+-- below is history. Sales orders was pulled once, on the owner's PULL - 324 rows, 121
+-- new orders, watermark advanced from 10 Aug to 29 Aug 00:13.
 --
 -- ═══════════════════════════════════════════════════════════════════════════
 -- READ THIS BEFORE APPLYING: THIS DISPATCHER CANNOT SUCCEED ON ITS OWN YET.
