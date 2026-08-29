@@ -48,8 +48,12 @@ import {
   grab, listOf, DkTag, DkErr, DkEmpty, DkHead, DkDrill, DrillRoot, DkCaret,
   Widget, WidgetBoard, WidgetBarControls, useWidgetLayout, useSectionStore,
   TagEvidence, TagEvidenceProvider, DkNarrative, DkReports, DkTasks,
-  useDefaultRange,
+  useDefaultRange, DkFrameNote,
 } from "./dashkit.jsx";
+/* The range/search rule itself, written once and unit-tested. This page used to
+   spell it out inline — a `matchesQ` and an `inPeriod` that reimplemented rules
+   1 and 2 of lib/range-search.js in this file's own words. */
+import { rangeSearch } from "./lib/range-search.js";
 /* The one date control the rest of the OS already uses. Imported, not rebuilt:
    docs/PERIOD_BUS_SPEC.md — "Do not fork a second catalog in React." */
 import { DateRangeSelect } from "./App.jsx";
@@ -342,8 +346,35 @@ export default function OrdersPage({ go, session, reports, role, viewAs, onViewA
   if (d === null) return <div className="finpage"><FinReading what="the Apex order book and every shipment matched to it" /></div>;
 
   const orders = d.orders.rows;
+
+  /* ─── THE WHOLE PAGE NARROWS TOGETHER, OR THE PICKER IS A LIE ───────────
+     Owner, 29 August 2026: "Every number on those pages must take the bus."
+
+     THE DEFECT THIS CLOSES. Until now the date control moved the order LIST and
+     nothing else. Every key figure above it — orders in the book, matched value,
+     unexplained value, cancelled, unmatchable — and every state card below it
+     were computed from the whole book, because `byStatus` was built from
+     `orders` rather than from the rows the reader had actually asked for. Open
+     the page on this_month_td, read "$2.1m matched", and the layout has told you
+     that is this month's figure. Nothing on the screen said otherwise.
+
+     It is the same defect in the drills, too, and worse there: a tile that
+     counts the period and opens a drawer holding the whole book is a tile whose
+     own evidence contradicts it. `pick()` now serves the same rows the tiles
+     counted, so tile and drill cannot disagree.
+
+     `rangeSearch` decides, not this file. Rule 1 (a search beats the range) and
+     rule 2 (an undated order is kept, never dropped) live in one unit-tested
+     place and this page consumes them. The two hand-written copies that used to
+     stand here are gone. */
+  const rs = rangeSearch(orders, {
+    from: range.from, to: range.to, dateField: "order_date", q,
+    fields: ["invoice_number", "apex_order_id", "buyer_state_license", "link_status"],
+  });
+  const shown = rs.rows;
+
   const byStatus = new Map();
-  for (const o of orders) {
+  for (const o of shown) {
     const g = byStatus.get(o.link_status) ?? { status: o.link_status, orders: [], value: 0 };
     g.orders.push(o);
     g.value += Number(o.total_dollars ?? 0);
@@ -358,38 +389,17 @@ export default function OrdersPage({ go, session, reports, role, viewAs, onViewA
   const ambiguous = pick("AMBIGUOUS INVOICE NUMBER");
   const noInvoice = pick("NO INVOICE NUMBER");
 
-  /* ─── SEARCH BEATS THE DATE RANGE, ALWAYS ───────────────────────────────
-     Owner rule: when an invoice number is typed, the period filter is ignored.
-     A person who types "303" is asking a question about one invoice, not about
-     a date range, and answering "no results" because their range happened to
-     exclude it is the same defect in a new costume. The UI says out loud that
-     the range was set aside, so the reader is never quietly overruled. */
-  const searching = q.trim().length > 0;
-  const needle = q.trim().toLowerCase();
-  const matchesQ = (o) =>
-    `${o.invoice_number ?? ""} ${o.apex_order_id} ${o.buyer_state_license ?? ""} ${o.link_status}`
-      .toLowerCase().includes(needle);
-
-  /* Compared as ISO text, not as Date objects. `new Date("2026-08-01")` is midnight
-     UTC and the browser then renders it in local time, so west of Greenwich an order
-     dated the 1st falls out of a range starting on the 1st. The bus hands over
-     YYYY-MM-DD strings and order_date begins with the same ten characters, so
-     comparing them directly has no timezone in it at all. */
-  const inPeriod = (o) => {
-    if (!range.from && !range.to) return true;
-    /* An order with no date is never silently dropped by a range — it is
-       unplaceable, not excluded, and it stays visible so it can be fixed.
-       Spec: "Undated rows are not dropped." */
-    if (!o.order_date) return true;
-    const d0 = String(o.order_date).slice(0, 10);
-    if (range.from && d0 < range.from) return false;
-    if (range.to && d0 > range.to) return false;
-    return true;
-  };
-
+  /* SEARCH BEATS THE DATE RANGE, ALWAYS — and the decision is `rangeSearch`'s,
+     above, not this file's. Owner rule: when an invoice number is typed, the
+     period filter is ignored. A person who types "303" is asking a question
+     about one invoice, not about a date range, and answering "no results"
+     because their range happened to exclude it is the same defect in a new
+     costume. The UI says out loud that the range was set aside, so the reader is
+     never quietly overruled. */
+  const searching = rs.searching;
   const periodNarrowed = Boolean(range.from || range.to);
-  const rangeSetAside = searching && periodNarrowed;
-  const filtered = searching ? orders.filter(matchesQ) : orders.filter(inPeriod);
+  const rangeSetAside = rs.setAside;
+  const filtered = shown;
 
   const openTasks = d.tasks.rows.filter((t) => t.department === DEPT);
   const T = (k) => tile === k;
@@ -402,9 +412,20 @@ export default function OrdersPage({ go, session, reports, role, viewAs, onViewA
 
   const tiles = [
     {
-      key: "all", label: "Orders in the Apex order book", value: orders.length, unit: "orders",
+      key: "all",
+      /* The label states the population, because the population now moves. A
+         figure that changes with the picker under a heading that says "the
+         order book" is the defect this ticket closes, not a smaller version
+         of it. */
+      label: searching ? "Orders matching your search, every period" : "Orders in the period",
+      value: shown.length, unit: "orders",
       tone: "plain", open: T("all"), onOpen: () => toggle("all"), unknown: ordUnknown,
-      basis: "Every row of v_apex_order_metrc_link, which is apex_raw entity shipping-orders. Opens all of them.",
+      context: searching
+        ? `The date range is set aside while you search. ${shown.length.toLocaleString()} of ${orders.length.toLocaleString()} orders in the whole book match.`
+        : periodNarrowed
+          ? `${orders.length.toLocaleString()} orders in the whole book; ${rs.outOfRange.toLocaleString()} fall outside this period${rs.undated ? `, and ${rs.undated.toLocaleString()} carry no order date and are kept rather than dropped` : ""}.`
+          : `Every period. ${rs.undated ? `${rs.undated.toLocaleString()} carry no order date.` : "Every order carries an order date."}`,
+      basis: "Rows of v_apex_order_metrc_link — apex_raw entity shipping-orders — narrowed to the selected period on order_date. Opens exactly the orders counted.",
     },
     {
       key: "matched", label: "Orders matched to a Metrc manifest", value: money(matched, "total_dollars"), unit: "$",
@@ -482,12 +503,32 @@ export default function OrdersPage({ go, session, reports, role, viewAs, onViewA
         <FinCapped read={d.orders} what="The Apex order book" />
         <FinCapped read={d.wholesale} what="The Metrc wholesale report" />
 
+        {/* THE FRAME, STATED ABOVE THE FIGURES IT GOVERNS. Every tile below is
+            now computed for the selected period; saying so is what stops the
+            next reader assuming the opposite, which is what the previous
+            version of this page taught them to do. */}
+        <div className="cc-tools-l" style={{ marginBottom: 8 }}>
+          <DkFrameNote basis={searching ? "queue" : "period"} range={range}
+            what="Every key figure and every state card below"
+            why={searching
+              ? "A search asks about one invoice, so the period is set aside and the whole book is searched. The figures below count what matched, across every period."
+              : "These figures are computed from the orders that fall in the selected period on order_date, and they change when you move it. Orders with no order date are kept and counted separately rather than dropped."} />
+        </div>
+
         <FinKpiStrip department={DEPT} tiles={tiles} targets={targets} trend={trend}
           targetErr={targetErr} onAssigned={() => setVer((v) => v + 1)} />
 
         {T("all") && (
-          <DkDrill label="Every order in the Apex book" onClose={() => setTile(null)}>
-            <OrderTable orders={orders} wholesale={d.wholesale.rows} emptyWhy="The Apex order book holds no orders." />
+          /* The drill opens exactly the orders the tile counted. It used to open
+             the whole book under a tile that counted the period — a tile whose
+             own evidence contradicted it. */
+          <DkDrill label={searching ? "Every order matching your search, any period" : "Every order in the period"} onClose={() => setTile(null)}>
+            <OrderTable orders={shown} wholesale={d.wholesale.rows}
+              emptyWhy={searching
+                ? `Nothing in the whole order book matches “${q.trim()}”.`
+                : periodNarrowed
+                  ? "No order falls in this period. Widen the range, or search by invoice number to ignore it."
+                  : "The Apex order book holds no orders."} />
           </DkDrill>
         )}
         {T("matched") && (

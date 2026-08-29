@@ -31,6 +31,45 @@ export function dateUpperExclusive(to) {
   return `${next.getUTCFullYear()}-${String(next.getUTCMonth() + 1).padStart(2, "0")}-${String(next.getUTCDate()).padStart(2, "0")}`;
 }
 
+/* ─────────────────────────────────────────────────────────────────────────
+   applyRange(query, column, range) — THE SERVER-SIDE TWIN OF rangeSearch.
+
+   `rangeSearch` in lib/range-search.js decides which ALREADY-LOADED rows a
+   frame shows. This decides which rows the database sends in the first place.
+   Same frame, same rule, two places it has to be applied — and until now it was
+   written out by hand in every one of them.
+
+   IT IS NOT A SECOND DATE SYSTEM, AND IT CANNOT BECOME ONE. It holds no preset,
+   no default, no week-start and no calendar arithmetic beyond the exclusive
+   upper boundary above. The range arrives already resolved by the bus —
+   `useDefaultRange` over `f_date_presets` — and this only narrows a query to it.
+   Ask it what "this week" means and it has no opinion, which is the point.
+
+   WHY IT EXISTS. `if (range.from) q = q.gte(col, range.from)` followed by
+   `if (range.to) q = q.lt(col, dateUpperExclusive(range.to))` was written out
+   seven times across the front end, and the copies had already drifted: some
+   used `.lte(col, range.to)`, which ends at midnight and silently drops the
+   other 23:59:59 of the owner's To day on any timestamp column. DDC: count the
+   definitions of a primitive; more than one is the defect.
+
+   THE UPPER BOUND IS ALWAYS EXCLUSIVE, on a date column as much as a timestamp.
+   `< the day after` and `<= the day` select exactly the same rows from a DATE
+   column, so one spelling serves both and no caller has to know which kind of
+   column it is holding — which is precisely the knowledge the drifted copies
+   got wrong.
+   ───────────────────────────────────────────────────────────────────────── */
+export function applyRange(query, column, range) {
+  if (!query || typeof query.gte !== "function" || typeof query.lt !== "function") {
+    throw new Error("applyRange needs a PostgREST query builder to narrow.");
+  }
+  if (!column) throw new Error("applyRange needs the column the frame applies to.");
+  const { from, to } = normaliseDateRange(range?.from, range?.to);
+  let narrowed = query;
+  if (from) narrowed = narrowed.gte(column, from);
+  if (to) narrowed = narrowed.lt(column, dateUpperExclusive(to));
+  return narrowed;
+}
+
 export function validateDatePresetCatalog(rows) {
   if (!Array.isArray(rows) || rows.length === 0) {
     throw new Error("Supabase returned no date presets.");

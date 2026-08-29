@@ -33,20 +33,49 @@
       cannot be told from a whole one is how a number becomes a lie.
    ═══════════════════════════════════════════════════════════════════════════ */
 
+/* A DATE-ONLY value carries no time and no zone, so it must never be handed to
+   `new Date`. "2026-08-01" parses as midnight UTC and every local accessor then
+   reports it in the reader's own zone — which, anywhere west of Greenwich, is
+   31 July. A row dated the 1st then falls outside a range starting on the 1st,
+   for no reason a reader could ever see. The bus speaks YYYY-MM-DD and so does
+   the column; comparing them as text has no timezone in it at all.
+
+   A real TIMESTAMP is a different thing and keeps its existing behaviour: it
+   names an instant, and the calendar day of an instant is the reader's local
+   day, which is what the Date path below computes. */
+const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
+
+/* A MONTH IS A SPAN, NOT A DAY, AND THE QUESTION IS DIFFERENT.
+   Several served views are monthly and carry `month` as the text "2026-08":
+   v_dry_time_discipline, v_production_forecast, v_goal_status. Asking whether
+   such a row falls inside a day range is the wrong question — the right one is
+   whether its month OVERLAPS the range. Callers say `grain: "month"` and the
+   comparison happens on the YYYY-MM prefix of both sides, as text, with no Date
+   object anywhere near it. "2026-08" through `new Date` is midnight UTC on the
+   1st, which west of Greenwich is 31 July — the row would leave a range that
+   starts on the 1st of its own month. */
+const MONTH_ONLY = /^\d{4}-\d{2}$/;
+
 /* A date on a row may be a date, a timestamp, or absent. Absent is a state, not
-   a zero — it returns null and rule 2 takes over. */
-function rowDate(row, field) {
+   a zero — it returns null and rule 2 takes over. Returns the calendar day the
+   row belongs to, as text, because that is the only thing a range needs. */
+function rowDayKey(row, field, grain) {
   const raw = row?.[field];
   if (raw === null || raw === undefined || raw === "") return null;
+  if (grain === "month") {
+    const t = typeof raw === "string" ? raw.trim() : "";
+    if (MONTH_ONLY.test(t)) return t;
+    if (DATE_ONLY.test(t)) return t.slice(0, 7);
+    return null;   /* not a month the caller promised — unplaceable, rule 2 */
+  }
+  if (typeof raw === "string" && DATE_ONLY.test(raw.trim())) return raw.trim();
   const d = new Date(raw);
-  return Number.isNaN(d.getTime()) ? null : d;
+  if (Number.isNaN(d.getTime())) return null;
+  /* Compares on the calendar day, not the instant, because the bus deals in
+     YYYY-MM-DD and a timestamp late on the To-day would otherwise fall outside
+     a range that plainly includes it. */
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
-
-/* Compares on the calendar day, not the instant, because the bus deals in
-   YYYY-MM-DD and a timestamp late on the To-day would otherwise fall outside a
-   range that plainly includes it. */
-const dayKey = (d) =>
-  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 
 export function matchesSearch(row, fields, needle) {
   if (!needle) return true;
@@ -102,8 +131,11 @@ export function rangePlan({ from = "", to = "", dateField = null, q = "" } = {})
                   the page knows which of its dates the reader means
      q            what was typed
      fields       which fields the search reads
+     grain        "day" (the default) or "month", for a served view whose rows
+                  ARE months. A month overlaps the range when its YYYY-MM sits
+                  between the range's own months; see MONTH_ONLY above.
    ───────────────────────────────────────────────────────────────────────── */
-export function rangeSearch(rows, { from = "", to = "", dateField, q = "", fields = [] } = {}) {
+export function rangeSearch(rows, { from = "", to = "", dateField, q = "", fields = [], grain = "day" } = {}) {
   const list = Array.isArray(rows) ? rows : [];
   /* The same policy the server-side caller asks. Behaviour here is unchanged;
      what changed is that the decision is no longer made twice. */
@@ -124,19 +156,24 @@ export function rangeSearch(rows, { from = "", to = "", dateField, q = "", field
     return {
       rows: list, total: list.length, kept: list.length,
       outOfRange: 0,
-      undated: dateField ? list.filter((r) => rowDate(r, dateField) === null).length : 0,
+      undated: dateField ? list.filter((r) => rowDayKey(r, dateField, grain) === null).length : 0,
       searching: false, setAside: false,
     };
   }
 
   let outOfRange = 0;
   let undated = 0;
+  /* Both sides are cut to the same grain before they are compared. A day range
+     of 2026-08-01 to 2026-08-29 asks a monthly view about 2026-08, and the month
+     the range starts in is IN range even though the range does not cover all of
+     it — a month is a span, and a span that overlaps the window is in. */
+  const lo = grain === "month" ? from.slice(0, 7) : from;
+  const hi = grain === "month" ? to.slice(0, 7) : to;
   const kept = list.filter((r) => {
-    const d = rowDate(r, dateField);
-    if (d === null) { undated += 1; return true; }   /* RULE 2 */
-    const k = dayKey(d);
-    if (from && k < from) { outOfRange += 1; return false; }
-    if (to && k > to) { outOfRange += 1; return false; }
+    const k = rowDayKey(r, dateField, grain);
+    if (k === null) { undated += 1; return true; }   /* RULE 2 */
+    if (lo && k < lo) { outOfRange += 1; return false; }
+    if (hi && k > hi) { outOfRange += 1; return false; }
     return true;
   });
 

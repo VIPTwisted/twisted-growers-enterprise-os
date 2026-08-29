@@ -49,10 +49,13 @@ import { supabase } from "./lib/supabase.js";
 import { rowsOr } from "./App.jsx";
 import {
   grab, listOf, DkTag, DkErr, DkEmpty, DkHead, DkDrill, DrillRoot, DkCaret,
-  useDefaultRange,
+  useDefaultRange, DkFrameNote,
   Widget, WidgetBoard, WidgetBarControls, useWidgetLayout, useSectionStore,
   TagEvidence, TagEvidenceProvider, DkNarrative, DkReports, DkTasks,
 } from "./dashkit.jsx";
+/* The range rule itself, written once and unit-tested. This page spelled it out
+   inline as `inRange`, and applied it to one of the three reads. */
+import { rangeSearch } from "./lib/range-search.js";
 /* The one date control the rest of the OS already uses — imported, not rebuilt. */
 import { DateRangeSelect } from "./App.jsx";
 import {
@@ -469,7 +472,10 @@ export default function SalesHistoryPage({ go, session, reports, role, viewAs, o
          the Orders page. Here it did not hide a row anyone was looking for — it
          silently understated every Apex figure on this strip, because the counts
          were taken over the first 1,000 orders and presented as the book. */
-      finReadAll("v_apex_order_metrc_link", "link_status,total_dollars"),
+      /* order_date is read for one reason: without it the four Apex figures on
+         this strip cannot honour the period, and a figure that cannot honour the
+         period must say so. It can, so it does. */
+      finReadAll("v_apex_order_metrc_link", "link_status,total_dollars,order_date"),
       supabase.from("v_dashboard_tasks").select("*"),
     ]);
     return { w, prefixes: grab(prefixes), out, apex, tasks: grab(tasks) };
@@ -489,16 +495,9 @@ export default function SalesHistoryPage({ go, session, reports, role, viewAs, o
 
      A line with no created_on is unplaceable, not excluded — spec: "Undated rows
      are not dropped." It stays in every figure so it can be found and fixed. */
-  const inRange = (r) => {
-    if (!range.from && !range.to) return true;
-    if (!r.created_on) return true;
-    const d0 = String(r.created_on).slice(0, 10);
-    if (range.from && d0 < range.from) return false;
-    if (range.to && d0 > range.to) return false;
-    return true;
-  };
   const periodNarrowed = Boolean(range.from || range.to);
-  const wRows = d.w.rows.filter(inRange);
+  const wRs = rangeSearch(d.w.rows, { from: range.from, to: range.to, dateField: "created_on" });
+  const wRows = wRs.rows;
   const live = {
     lines: wRows.filter((r) => !r.voided).length,
     manifests: uniq(wRows, "manifest_number"),
@@ -516,11 +515,28 @@ export default function SalesHistoryPage({ go, session, reports, role, viewAs, o
   };
   const transporterRows = wRows.filter((r) => !r.voided && typeOf(r.destination_licence) === "Transporter");
 
-  /* The pricing coverage gap, computed from the two reads this page already made
-     so the tile and its drill cannot disagree. */
+  /* ─── THE TWO SIDES OF A DIFFERENCE MUST COVER THE SAME PERIOD ──────────
+     The pricing coverage gap, computed from the two reads this page already made
+     so the tile and its drill cannot disagree.
+
+     THE DEFECT THIS CLOSES, AND IT WAS A WRONG NUMBER ON A MONEY SURFACE.
+     `pricedSet` was built from wRows, which the period narrows, while the
+     population it was subtracted from was every outgoing manifest ever recorded.
+     Open the page on its governed default of this_month_td and the tile compared
+     THREE YEARS of outgoing manifests against ONE MONTH of priced ones, so almost
+     every manifest the company has ever shipped read as "left the building, went
+     to somebody else, and Metrc puts no price on it". The figure was not slightly
+     off; under any narrow frame it was very nearly the whole book, and it sat on a
+     tile toned `warn` next to real money.
+
+     A difference is only meaningful when both of its sides answer the same
+     question. Both are now narrowed by the same rule on the same field, so the
+     tile asks "of the manifests that went out in THIS period, how many does the
+     wholesale report price" — which is the question the label always claimed. */
+  const outRs = rangeSearch(d.out.rows, { from: range.from, to: range.to, dateField: "created_on" });
   const pricedSet = new Set(wRows.map((r) => r.manifest_number));
   const outByManifest = new Map();
-  for (const r of d.out.rows) {
+  for (const r of outRs.rows) {
     if (!outByManifest.has(r.manifest_number)) outByManifest.set(r.manifest_number, r);
   }
   const unpriced = [...outByManifest.values()].filter((r) => !pricedSet.has(r.manifest_number));
@@ -529,7 +545,12 @@ export default function SalesHistoryPage({ go, session, reports, role, viewAs, o
      ledger classifies on the same basis in the database. */
   const unpricedExternal = unpriced.filter((r) => !/twisted/i.test(String(r.recipient ?? "")));
 
-  const apexRows = d.apex.rows;
+  /* The Apex side takes the period too. It was the last block on this page
+     computed over the whole book while the control above it moved everything
+     else — so a reader comparing "value shipped" against "matched in Apex" was
+     comparing one month against three years without being told. */
+  const apexRs = rangeSearch(d.apex.rows, { from: range.from, to: range.to, dateField: "order_date" });
+  const apexRows = apexRs.rows;
   const apexAgg = {
     err: d.apex.err,
     matched: apexRows.filter((r) => r.link_status === "MATCHED").length,
@@ -586,7 +607,7 @@ export default function SalesHistoryPage({ go, session, reports, role, viewAs, o
          difference between them meaningless rather than zero. */
       unknown: outUnknown || wUnknown,
       context: "Left the building, went to somebody else, and Metrc's wholesale report puts no price on it.",
-      basis: `${unpriced.length.toLocaleString()} of ${outByManifest.size.toLocaleString()} outgoing manifests are unpriced; ${(unpriced.length - unpricedExternal.length).toLocaleString()} of those are moves to ourselves and are excluded here.`,
+      basis: `${unpriced.length.toLocaleString()} of ${outByManifest.size.toLocaleString()} outgoing manifests ${periodNarrowed ? "in this period " : ""}are unpriced; ${(unpriced.length - unpricedExternal.length).toLocaleString()} of those are moves to ourselves and are excluded here. Both sides of that difference are narrowed by the same period on the same field — comparing every manifest ever sent against one month of priced ones is what this tile used to do.`,
     },
   ];
 
@@ -645,6 +666,22 @@ export default function SalesHistoryPage({ go, session, reports, role, viewAs, o
         <FinCapped read={d.w} what="The Metrc wholesale report" />
         <FinCapped read={d.out} what="The Metrc outgoing transfer record" />
         <FinCapped read={d.apex} what="The Apex order book" />
+
+        {/* THREE READS, ONE FRAME, SAID OUT LOUD. The wholesale report, the
+            outgoing transfer record and the Apex order book are now narrowed by
+            the same period on their own business date. Until today only the first
+            of the three was, and the tiles that subtracted one from another were
+            silently comparing different spans of time. */}
+        <div className="cc-tools-l" style={{ marginBottom: 8 }}>
+          <DkFrameNote basis="period" range={range}
+            what="Every figure on this strip — the wholesale report, the outgoing manifests and the Apex book"
+            why="All three sources are narrowed by the selected period on their own date: created_on for the two Metrc reports, order_date for Apex. Any tile that subtracts one from another therefore compares the same span on both sides. Lines carrying no date are kept and counted rather than dropped." />
+          {(wRs.undated > 0 || outRs.undated > 0 || apexRs.undated > 0) && (
+            <DkTag tone="attn" title="A row with no date is unplaceable, not outside the window. These are kept in every figure so they can be found and fixed rather than quietly reducing a total.">
+              undated and kept — {wRs.undated.toLocaleString()} priced lines, {outRs.undated.toLocaleString()} outgoing manifests, {apexRs.undated.toLocaleString()} Apex orders ⓘ
+            </DkTag>
+          )}
+        </div>
 
         <FinKpiStrip department={DEPT} tiles={tiles} targets={targets} trend={trend}
           targetErr={targetErr} onAssigned={() => setVer((v) => v + 1)} />

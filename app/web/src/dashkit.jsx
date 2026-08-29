@@ -2086,6 +2086,83 @@ export function DkRangeSearch({
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
+   DkFrameNote — WHAT THIS FIGURE'S RELATIONSHIP TO THE PERIOD ACTUALLY IS.
+
+   Owner, 29 August 2026: "Every number on those pages must take the bus."
+   docs/TODO_EVERY_PAGE.md gives the number two honest ways to do that, and only
+   two: it MOVES with the active frame, or it DECLARES that it does not and says
+   what it is instead — as-of, undated, or a snapshot — with a VISIBLE CHIP.
+
+   THE DEFECT THIS CLOSES, AND IT IS THE WORSE OF THE TWO. A page that mounts a
+   date control and then computes its tiles over the whole table is not neutral
+   about the period; it actively asserts one. A reader who has just chosen
+   "this week" and sees "Orders in the book: 1,739" has been told, by the
+   layout, that 1,739 orders happened this week. Nothing on the screen corrects
+   them. That is the whole of the Orders defect, and hrdash, Cultivation,
+   Inventory and the Tower each carried a version of it.
+
+   IT IS NOT A SECOND DATE SYSTEM AND IT HOLDS NO DATES OF ITS OWN. It prints
+   the frame it was handed — the same `range` every other consumer of the bus
+   receives — and a sentence about how this figure stands to it. There is no
+   preset here, no default, no calendar arithmetic. Ask it what "this week"
+   means and it has no opinion.
+
+   FOUR BASES, AND EACH ONE EXISTS BECAUSE A REAL TILE NEEDED IT.
+     · period   — moves with the frame. Stated where a neighbouring block does
+                  not, so "which of these two did the picker just move" is never
+                  a guess.
+     · as-of    — a position, not a flow: what is true right now. Stock on hand,
+                  who is badged today, what is in a room. Narrowing a position
+                  to a week is meaningless, and pretending otherwise invents a
+                  date dimension the data does not have.
+     · undated  — the source carries no date column at all, so no frame can
+                  reach it. Different from as-of: as-of is a choice, undated is
+                  a fact about the source, and a reader deserves to know which.
+     · queue    — open work, which does not age out. Filtering it to a period
+                  hides a live exception because it started last month — the
+                  exact failure the rule exists to stop.
+
+   `what` NAMES THE FIGURES IT COVERS. A chip floating beside a strip of eight
+   tiles that says only "as-of" leaves the reader to guess how far it reaches.
+   ═══════════════════════════════════════════════════════════════════════════ */
+const FRAME_BASIS = {
+  period: {
+    tone: "neutral",
+    text: (r) => (r.from || r.to ? `moves with the period · ${r.from || "…"} → ${r.to || "…"}` : "moves with the period · all time"),
+    why: "This figure is computed for the selected period and changes when you move it.",
+  },
+  "as-of": {
+    tone: "info",
+    text: () => "as-of now · a position, not a period",
+    why: "This describes how things stand right now, not what happened during a window. A position has no duration to narrow, "
+      + "so the selected period does not move it — and making it appear to move would mean inventing a date the figure does not have.",
+  },
+  undated: {
+    tone: "attn",
+    text: () => "undated source · no period can reach it",
+    why: "The rows behind this figure carry no date at all, so no frame can place them. This is a fact about the source, not a "
+      + "choice made on this page. It is said out loud rather than left for the reader to assume the period applied.",
+  },
+  queue: {
+    tone: "attn",
+    text: () => "open work · not filtered to a period",
+    why: "Open work does not stop being open because it is old. Filtering this to the selected period would hide a live item for "
+      + "the sole reason that it started last month, which is the failure the period rule exists to prevent.",
+  },
+};
+
+export function DkFrameNote({ basis = "as-of", what, range, why }) {
+  const spec = FRAME_BASIS[basis];
+  if (!spec) throw new Error(`DkFrameNote: unknown basis "${basis}".`);
+  const r = range ?? {};
+  return (
+    <DkTag tone={spec.tone} title={`${what ? `${what}. ` : ""}${why ?? spec.why}`}>
+      {what ? `${what} — ` : ""}{spec.text({ from: r.from ?? "", to: r.to ?? "" })} ⓘ
+    </DkTag>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
    THE HARVEST CONTROL BANNER — docs/HARVEST_CONTROL_LAW.md, owner 28 Aug 2026.
 
    "Ignored variance is a management failure." The law asks for an in-app banner
