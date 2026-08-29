@@ -583,17 +583,6 @@ export async function getAiCfg() {
 export async function budzAnswer(question) {
   const t = question.toLowerCase();
   const usd = (n) => "$" + Math.round(Number(n || 0)).toLocaleString();
-  /* The exact counts, and the words for when a count could not be read. A
-     refused read is not zero and must never be rendered as "0 compliance
-     flags" — that sentence reads as an all-clear on a compliance surface. */
-  const custodyN = d.custodyN;
-  const allocN = d.allocN;
-  const agingN = d.agingN;
-  const say = (v) => (v === null ? "an unknown number of" : Number(v).toLocaleString());
-  const sayN = (v, noun) => (v === null ? `not counted — the ${noun} read did not come back` : `${Number(v).toLocaleString()} ${noun}`);
-  /* An unknown count is never "good". We cannot assert an all-clear on a
-     population we failed to measure. */
-  const sevOf = (v, bad) => (v === null ? "elevated" : (v ? bad : "good"));
   const num = (n) => Number(n || 0).toLocaleString();
   const has = (...k) => k.some((x) => t.includes(x));
   const sel = async (view, cols) => {
@@ -3401,6 +3390,17 @@ export function CeoDashboard({ go }) {
   if (!d) return <ScanningPanel />;
 
   const usd = (n) => "$" + Math.round(Number(n || 0)).toLocaleString();
+  /* The exact counts, and the words for when a count could not be read. A
+     refused read is not zero and must never be rendered as "0 compliance
+     flags" — that sentence reads as an all-clear on a compliance surface. */
+  const custodyN = d.custodyN;
+  const allocN = d.allocN;
+  const agingN = d.agingN;
+  const say = (v) => (v === null ? "an unknown number of" : Number(v).toLocaleString());
+  const sayN = (v, noun) => (v === null ? `not counted — the ${noun} read did not come back` : `${Number(v).toLocaleString()} ${noun}`);
+  /* An unknown count is never "good". We cannot assert an all-clear on a
+     population we failed to measure. */
+  const sevOf = (v, bad) => (v === null ? "elevated" : (v ? bad : "good"));
   const money = d.loss.reduce((a, r) => a + Number(r.dollars_at_target_cost || 0), 0);
   const c0 = d.cost[0];
   const cBest = [...d.cost].sort((a, b) => (b.our_conversion_pct || 0) - (a.our_conversion_pct || 0))[0];
