@@ -5,7 +5,15 @@
 // CALLS - ALWAYS SETUP FOR FEWEST CALLS SO WE CAN HANDLE THE CHEAPEST WAY
 // POSSIBLE", "ALL API MUST BE SECURE ON OUR SITE".
 //
-// SECURITY. Executive-only, checked against app_users on every request. The key is
+// v6, 29 Aug 2026: one change and nothing else. callerIsExecutive now also accepts a
+// valid x-admin-key, the pattern metrc-sync has had since v20, so tg_apex_sync_now can
+// drive this from the database instead of every server-side call being a 403. The key
+// is looked up from integration_secrets at call time, never baked in, and it fails
+// closed. Nothing else moves: not the entity list, not the cursor discipline, not the
+// credit accounting, not the person path. See callerIsExecutive for the full reasoning.
+//
+// SECURITY. Executive-only, checked against app_users on every request - or the shared
+// admin key, held only by the database dispatcher. The key is
 // read by service_role and never returned, never logged, and never placed in a URL
 // (query strings land in access logs; the Authorization header does not). Raw
 // payloads land in apex_raw, which no browser role can read.
@@ -63,7 +71,31 @@ const MAX_PAGES = 60;
 const MAX_RATE_RETRIES = 3;
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+/* v6, 29 Aug 2026: THE ADMIN KEY IS ACCEPTED, SO THE DATABASE CAN DRIVE THIS.
+   Pattern copied from metrc-sync, which has had it since v20.
+
+   Until now this function authenticated a PERSON and nothing else: a bearer token
+   resolved through supa.auth.getUser() to an app_users row with role owner or
+   executive. That is why nothing has ever driven it from Postgres - measured, no
+   function in the database mentioned apex-sync and nothing scheduled it. A dispatch
+   from tg_apex_fire carries the anon key as its bearer, which satisfies the Supabase
+   gateway and then resolves to NO USER here, so every server-side call was a 403.
+
+   The key is LOOKED UP, never baked in, and it fails CLOSED: an absent header is
+   rejected before the lookup, and a missing or empty secret leaves `real` empty so the
+   comparison can never succeed. A vanished secret locks the door rather than opening
+   it - which is also what makes the key rotatable with a row edit and no redeploy.
+
+   This does NOT widen who may pull Apex. It adds one caller that already holds the
+   shared admin secret, and tg_apex_sync_now is the only thing that sends it: that
+   function carries the owner/executive/backend gate, the never-succeeded refusal, and
+   the credit throttle. The person path below is untouched. */
 async function callerIsExecutive(req: Request): Promise<boolean> {
+  const presented = req.headers.get("x-admin-key");
+  if (presented) {
+    const real = await secret("TG_ADMIN_KEY");
+    if (real && presented === real) return true;
+  }
   const token = (req.headers.get("Authorization") ?? "").replace("Bearer ", "");
   if (!token) return false;
   const { data } = await supa.auth.getUser(token);
