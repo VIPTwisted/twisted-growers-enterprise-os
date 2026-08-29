@@ -33,20 +33,32 @@
       cannot be told from a whole one is how a number becomes a lie.
    ═══════════════════════════════════════════════════════════════════════════ */
 
+/* A DATE-ONLY value carries no time and no zone, so it must never be handed to
+   `new Date`. "2026-08-01" parses as midnight UTC and every local accessor then
+   reports it in the reader's own zone — which, anywhere west of Greenwich, is
+   31 July. A row dated the 1st then falls outside a range starting on the 1st,
+   for no reason a reader could ever see. The bus speaks YYYY-MM-DD and so does
+   the column; comparing them as text has no timezone in it at all.
+
+   A real TIMESTAMP is a different thing and keeps its existing behaviour: it
+   names an instant, and the calendar day of an instant is the reader's local
+   day, which is what the Date path below computes. */
+const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
+
 /* A date on a row may be a date, a timestamp, or absent. Absent is a state, not
-   a zero — it returns null and rule 2 takes over. */
-function rowDate(row, field) {
+   a zero — it returns null and rule 2 takes over. Returns the calendar day the
+   row belongs to, as text, because that is the only thing a range needs. */
+function rowDayKey(row, field) {
   const raw = row?.[field];
   if (raw === null || raw === undefined || raw === "") return null;
+  if (typeof raw === "string" && DATE_ONLY.test(raw.trim())) return raw.trim();
   const d = new Date(raw);
-  return Number.isNaN(d.getTime()) ? null : d;
+  if (Number.isNaN(d.getTime())) return null;
+  /* Compares on the calendar day, not the instant, because the bus deals in
+     YYYY-MM-DD and a timestamp late on the To-day would otherwise fall outside
+     a range that plainly includes it. */
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
-
-/* Compares on the calendar day, not the instant, because the bus deals in
-   YYYY-MM-DD and a timestamp late on the To-day would otherwise fall outside a
-   range that plainly includes it. */
-const dayKey = (d) =>
-  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 
 export function matchesSearch(row, fields, needle) {
   if (!needle) return true;
@@ -124,7 +136,7 @@ export function rangeSearch(rows, { from = "", to = "", dateField, q = "", field
     return {
       rows: list, total: list.length, kept: list.length,
       outOfRange: 0,
-      undated: dateField ? list.filter((r) => rowDate(r, dateField) === null).length : 0,
+      undated: dateField ? list.filter((r) => rowDayKey(r, dateField) === null).length : 0,
       searching: false, setAside: false,
     };
   }
@@ -132,9 +144,8 @@ export function rangeSearch(rows, { from = "", to = "", dateField, q = "", field
   let outOfRange = 0;
   let undated = 0;
   const kept = list.filter((r) => {
-    const d = rowDate(r, dateField);
-    if (d === null) { undated += 1; return true; }   /* RULE 2 */
-    const k = dayKey(d);
+    const k = rowDayKey(r, dateField);
+    if (k === null) { undated += 1; return true; }   /* RULE 2 */
     if (from && k < from) { outOfRange += 1; return false; }
     if (to && k > to) { outOfRange += 1; return false; }
     return true;
