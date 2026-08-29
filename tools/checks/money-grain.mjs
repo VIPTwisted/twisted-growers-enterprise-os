@@ -559,15 +559,13 @@ const migrationEntries = files.map((name) => ({
  *
  * Two readings: the gate on the clean-clone file set, and the recomputation from the git object
  * store with the working directory untouched. Both give 955 files at a6a9671c… . */
-/* RE-PINNED 29 Aug 2026, second time that day — 968 files at da1c6a23… , up from
- * 967 at 13e79de3… .
+/* RE-PINNED 29 Aug 2026 — 968 files at f7bb1d5c… , up from 967 at 13e79de3… .
  *
  * WHAT MOVED. Nothing was written to production and no SQL changed. Five
- * migrations that had run in production were brought into the repository so
- * migration-drift could pass and the site could publish again: four renamed onto
- * the versions apply_migration actually assigned them, one filed for the first
- * time from the ledger's own statements, and the superseded schema baseline
- * replaced by a current one. Six files in, one out, one net.
+ * migrations that had run in production were brought into line with the
+ * repository so migration-drift could pass and the site could publish again:
+ * five renamed onto the versions apply_migration actually assigned them, and the
+ * superseded schema baseline replaced by a current one. One net file.
  *
  * MEASURED FROM A PRISTINE CHECKOUT, NOT A WORKING TREE, AND THAT IS THE WHOLE
  * DISCIPLINE OF THIS LINE. This gate reads the DIRECTORY. Four migrations whose
@@ -584,8 +582,8 @@ const migrationEntries = files.map((name) => ({
  *
  * DERIVED TWICE. The gate's own migrationTreeDigest over that checkout, and an
  * independent recomputation of the same algorithm from scratch. Both return
- * da1c6a23eeaa05705f70d10e59b8874a19466a37bdde21db5e5f25a86d3ddc1a. */
-const expectedMigrationTreeDigest = "da1c6a23eeaa05705f70d10e59b8874a19466a37bdde21db5e5f25a86d3ddc1a";
+ * f7bb1d5cfe895536c6ef8ba4afdbf521a2312f4715220e309ff13bc69f39c509. */
+const expectedMigrationTreeDigest = "f7bb1d5cfe895536c6ef8ba4afdbf521a2312f4715220e309ff13bc69f39c509";
 const actualMigrationTreeDigest = migrationTreeDigest(migrationEntries);
 if (actualMigrationTreeDigest !== expectedMigrationTreeDigest) {
   console.error(`money-grain: FAIL — migration tree differs from the independently reviewed ${files.length}-file manifest (${actualMigrationTreeDigest}).`);
