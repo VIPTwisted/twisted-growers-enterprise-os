@@ -5,7 +5,9 @@
 -- contract number; if no contract row exists the view still ships with the contract
 -- column NULL and evidence_status = 'missing', because that absence IS the finding.
 --
--- NOT APPLIED. Branch only. Both branches were proven by running the SELECT read-only
+-- APPLIED to production 29 Aug 2026 as version 20260829113029, on the owner's APPLY.
+-- The file was named 20260829020000 before the apply and renamed to the stamped version.
+-- Both branches were proven by running the SELECT read-only
 -- against production first: with the rule row present it returns 13 months with
 -- contract_lb 380; against a deliberately non-existent key it still returns 13 months
 -- with contract_lb NULL and evidence_status 'missing'. READ-ONLY - a view over a view
