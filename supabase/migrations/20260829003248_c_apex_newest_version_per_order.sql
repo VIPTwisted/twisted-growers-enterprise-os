@@ -14,9 +14,9 @@
 
      v_apex_order_metrc_link   2,063 rows against 1,860 real orders;
                                24 orders in two link_status groups at once;
-                               $919,848 of order value double-counted
-     v_manifest_reconciliation Apex side summed $7,950,180.54 where the newest
-                               versions total $7,029,270.17 -- $920,910 over
+                               $910,560.63 of order value double-counted
+     v_manifest_reconciliation Apex side $5,396,946.56 against $4,772,325.37 on
+                               the newest versions -- $624,621.19 over
 
    WHY BOTH. v_manifest_reconciliation is not a dependent of the link view; it
    reads apex_raw directly. But it is the other half of the same Apex-Metrc
@@ -50,7 +50,10 @@ create or replace view v_apex_order_metrc_link as
             carry two rows, all 203 with genuinely different payloads -- none is a
             byte-identical copy. Without this CTE the same order is counted twice,
             lands in two different link_status groups at once (24 of them did),
-            and double-counts $919,848 of order value.
+            and double-counts $910,560.63 of order value. (An earlier probe put
+            that at $919,848; it broke ties on order_date, which discards a
+            different copy of each pair, and the copies differ in value. The
+            figure here is the one this rule actually removes.)
 
             fetched_at DESC picks the newest pull; id DESC breaks a tie
             deterministically, because apex_raw.id is append-only so the higher id
@@ -270,7 +273,10 @@ create or replace view v_manifest_reconciliation as
             carry two rows, all 203 with genuinely different payloads -- none is a
             byte-identical copy. Without this CTE the same order is counted twice,
             lands in two different link_status groups at once (24 of them did),
-            and double-counts $919,848 of order value.
+            and double-counts $910,560.63 of order value. (An earlier probe put
+            that at $919,848; it broke ties on order_date, which discards a
+            different copy of each pair, and the copies differ in value. The
+            figure here is the one this rule actually removes.)
 
             fetched_at DESC picks the newest pull; id DESC breaks a tie
             deterministically, because apex_raw.id is append-only so the higher id

@@ -408,6 +408,15 @@ jobs:
       # and costs no credits.
       - name: Apex registry agrees with the committed contract
         run: node tools/checks/apex-registry-vs-spec.mjs
+      # ONE ROW PER ORDER. apex_raw is append-only by owner ruling, so a revised order keeps
+      # its earlier snapshot: on 29 Aug 2026 that was 2,063 shipping-order rows behind 1,860
+      # real orders. Every view reading a row AS AN ORDER counted 203 of them twice, put 24
+      # into two link_status groups at once, and double-counted $910,560.63 of order value.
+      # Nothing errored - the reconciliation just answered with more money than the business
+      # had. This asserts count(*) = count(distinct order key) with no tolerance, because one
+      # duplicated order is one order counted twice.
+      - name: Apex order grain - one row per order
+        run: node tools/checks/apex-order-grain.mjs
       # verify_jwt is per-function and CANNOT be recovered from the source. 13 of the 26
       # functions run verify_jwt=false and authenticate in the body; deploying one of them
       # with the default locks out its real callers, and the reverse publishes an
