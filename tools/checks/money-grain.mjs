@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 /* The published tag-line report must never regain additive invoice money. */
-import { readFileSync, readdirSync } from "node:fs";
+import { readFileSync } from "node:fs";
+import { listMigrationSqlFiles } from "../lib/migration-tree-files.mjs";
 import { createHash } from "node:crypto";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -342,7 +343,10 @@ if (inspectMoneyContract(good).length
   throw new Error("money-grain detector self-test failed");
 }
 
-const files = readdirSync(migrationDir).filter((name) => name.endsWith(".sql")).sort();
+/* git ls-files, not readdirSync: sync-migrations writes gitignored
+   credential-bearing files back onto disk, so a dirty tree and a clean clone
+   disagree and the pin goes red on the first CI run. */
+const files = listMigrationSqlFiles(root);
 const grainFile = "20260819184318_money_grain_is_a_contract_not_a_format.sql";
 const navFile = "20260819203618_every_published_sold_by_tag_road_refuses_line_grain_money.sql";
 const containmentFile = "20260819220553_tag_grain_invoice_money_and_proximity_identity_are_refused.sql";
