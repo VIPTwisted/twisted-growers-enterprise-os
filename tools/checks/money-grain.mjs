@@ -588,7 +588,19 @@ const migrationEntries = files.map((name) => ({
  * DERIVED TWICE. The gate's own migrationTreeDigest over that checkout, and an
  * independent recomputation of the same algorithm from scratch. Both return
  * 6154e280d4d33c53c50372437eb50a8bc542f9429eae81d771a2d70e132c986f. */
-const expectedMigrationTreeDigest = "8aa2d11aefaea831924746816f79662458e866608b5027bdcee5b9c1ae71f8c7";
+/* RE-PINNED 29 Aug 2026, 980 files, for the phase-aware plant-mirror branch.
+ * ONE new migration since the previous 979-file seal:
+ *   20260829153000_c_plant_mirror_is_phase_and_harvest_aware.sql
+ * The pin travels in the same PR as the .sql, per the owner's standing rule, so
+ * the tree and the seal are never briefly out of step on any branch.
+ *
+ * Counted with listMigrationSqlFiles(), i.e. `git ls-files`, so the count is what
+ * CI sees rather than what happens to be sitting on this laptop. The file was
+ * `git add`ed BEFORE the digest was taken - untracked it would not have counted,
+ * and the seal would have been computed over a tree that does not exist anywhere.
+ * 979 -> 980 is the whole delta; nothing else in supabase/migrations moved.
+ */
+const expectedMigrationTreeDigest = "d43a338c97f36d40b76bd1345a067aff214b7767d29fd148019c7246719caa94";
 const actualMigrationTreeDigest = migrationTreeDigest(migrationEntries);
 if (actualMigrationTreeDigest !== expectedMigrationTreeDigest) {
   console.error(`money-grain: FAIL — migration tree differs from the independently reviewed ${files.length}-file manifest (${actualMigrationTreeDigest}).`);
