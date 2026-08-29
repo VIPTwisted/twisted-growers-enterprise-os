@@ -2,7 +2,11 @@
 -- Owner ruling, 28 Aug 2026: "agent may run the sanctioned Metrc worker. Do not
 -- forge auth.uid() or JWT claims."
 --
--- NOT APPLIED. Held for the owner's APPLY, and no scan runs until then.
+-- APPLIED to production 28 Aug 2026 on the owner's APPLY, as version 20260828204138.
+-- The file was written before the apply and named 20260828203247; the version above is
+-- the one the management API stamped when it ran, and this file has been renamed to
+-- match it. A file whose name disagrees with the applied version reads as two separate
+-- migrations to migration-drift - one applied with no file, one file never applied.
 --
 -- ═══════════════════════════════════════════════════════════════════════════
 -- WHAT WAS BLOCKING, MEASURED RATHER THAN ASSUMED.
