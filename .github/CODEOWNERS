@@ -1,0 +1,8 @@
+# Required reviewers when GitHub branch protection is on.
+# Owner must enable: Settings → Branches → main → require CODEOWNERS review.
+
+/supabase/migrations/ @VIPTwisted
+/tools/checks/ @VIPTwisted
+/tools/lib/ @VIPTwisted
+/.github/workflows/ @VIPTwisted
+/app/web/src/ @VIPTwisted
