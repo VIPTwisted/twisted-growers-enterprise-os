@@ -699,10 +699,20 @@ export default function PlantCensusDashboard({ go, session, reports, role, viewA
                       <thead><tr><th>Tag</th><th>Room</th><th>Phase</th><th>Strain</th><th>Source</th>
                         <th>In API mirror</th><th>In Metrc report</th><th>Report age</th><th>Provenance</th><th>Room disagreement</th></tr></thead>
                       <tbody>
-                        {listOf(hits.rows).map((r, i) => (
+                        {listOf(hits.rows).map((r, i) => {
+                          /* J7. These search results rendered a bare room name while
+                             every other room on this page went through `qualify` —
+                             eleven room names occur in BOTH departments, so a reader
+                             had no way to tell which building a hit was standing in.
+                             Resolved here rather than inside the cell so the rendered
+                             value is a qualified name and nothing else, and an absent
+                             room keeps its own sentence rather than being qualified
+                             into something that sounds served. */
+                          const roomQualified = r.room ? qualify(deptOf, r.room) : "room not recorded";
+                          return (
                           <tr key={`${r.tag ?? "row"}|${i}`}>
                             <td>{r.tag ?? "no tag"}</td>
-                            <td>{r.room ?? "room not recorded"}</td>
+                            <td>{roomQualified}</td>
                             <td>{r.phase ?? "phase not recorded"}</td>
                             <td>{r.strain ?? "strain not recorded"}</td>
                             <td>{r.source ?? "source not recorded"}</td>
@@ -712,7 +722,8 @@ export default function PlantCensusDashboard({ go, session, reports, role, viewA
                             <td className="note">{r.provenance_note ?? "not stated"}</td>
                             <td className="note">{r.room_disagreement ?? "none"}</td>
                           </tr>
-                        ))}
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>

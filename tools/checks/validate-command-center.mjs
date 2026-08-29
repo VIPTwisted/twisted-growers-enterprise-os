@@ -86,7 +86,29 @@ const PROSE_TONE = /\/[^/\n]*(?:concern|under|low|short)\|[^/\n]*\//i;
  * department spelled out in the source is the defect, whatever the variable
  * around it happens to be called. */
 const DEPT_WORDS = "Cultivation|Manufacturing|Inventory|Quality|Metrc|Workspace|Settings|Finance";
-const HARDCODED_DEPT = new RegExp("[-—–]\\s*(?:" + DEPT_WORDS + ")\\b(?![\\w\"'`]*\\s*[:=])");
+/* A SEPARATOR, NOT A HYPHEN INSIDE A WORD — narrowed 29 August 2026.
+ *
+ * This fired five times on English prose in dash-cultivation.jsx: "the
+ * schedule-versus-Metrc comparison" and "the schedule-to-Metrc match", in a
+ * comment, a DkErr `what` and a DkTag `title`. None of them composes anything;
+ * "Metrc" there is the second half of a compound word a person wrote in a
+ * sentence. The gate had teeth in the wrong mouth, and the cost was real: every
+ * production build from 28 Aug 18:45 UTC failed here, the site sat 79 commits
+ * behind, and the reason read as a room-qualification defect that did not exist.
+ *
+ * The discriminator is exact. A room qualified with a department is a NAME
+ * followed by a SEPARATOR followed by the department — `r.room + " — Cultivation"`
+ * — and the separator is an em or en dash, or an ASCII hyphen standing on its
+ * own. An ASCII hyphen glued to the word before it is not a separator at all; it
+ * is how English writes a compound. So the em and en dashes still fire wherever
+ * they appear, and a bare `-` fires unless a letter or digit is welded to it.
+ *
+ * WHAT THIS GIVES UP, STATED RATHER THAN HIDDEN. `"Room 7-Cultivation"`, with no
+ * space, is no longer caught. Nothing in this codebase writes that form —
+ * dkRoomQualified emits " — " — and the two self-test fixtures that must fire
+ * both use the em dash. Both halves of the self-test below are extended so the
+ * narrowing is itself tested, not asserted. */
+const HARDCODED_DEPT = new RegExp("(?:[—–]|(?<![A-Za-z0-9])-)\\s*(?:" + DEPT_WORDS + ")\\b(?![\\w\"'`]*\\s*[:=])");
 
 /* ---------- self-test: both halves ---------- */
 function selfTest() {
@@ -119,6 +141,19 @@ function selfTest() {
       "the shared helper reads the served column and must stay quiet"],
     [HARDCODED_DEPT.test('supabase.from("v_stock_by_department").select("*").eq("department", DEPT.toUpperCase())'), false,
       "filtering a query BY a department is not rendering a room without one"],
+    /* The five findings that held production for sixteen hours. A hyphen welded
+       to the word in front of it is a compound word, not a separator, and the
+       thing on its left is a verb rather than a room. */
+    [HARDCODED_DEPT.test('<DkErr what="The schedule-versus-Metrc comparison" err={d.sched.err} />'), false,
+      "a compound word in English prose is not a room qualified with a department"],
+    [HARDCODED_DEPT.test('title="a pull whose schedule-to-Metrc match was made on date alone"'), false,
+      "the same compound in a title attribute is still prose"],
+    [HARDCODED_DEPT.test("  /* This lived beside the schedule-versus-Metrc derivation"), false,
+      "and still prose inside a comment that does not begin with a star"],
+    /* The narrowing has a floor: a lone hyphen IS a separator, and must stay
+       caught, or the fix would have traded one blind spot for another. */
+    [HARDCODED_DEPT.test('const roomQualified = r.room + " - Cultivation";'), true,
+      "a spaced ASCII hyphen is a separator and the defect survives the narrowing"],
     // A stylesheet's own prose is not a stylesheet rule — the comment stripper
     // is what makes this true, and it earned its place by four false findings.
     [/:root/.test("/* No :root rule lives here. */".replace(/\/\*[\s\S]*?\*\//g, " ")), false,

@@ -5,9 +5,17 @@
 -- pull only when the entity is named AND the caller passes acknowledge_first_pull =
 -- true. Do not add buyers, products, or any third entity."
 --
--- NOT APPLIED. Written and reviewed read-only against production; held for APPLY.
--- Nothing here pulls anything, and applying it pulls nothing either - it installs a
--- gate, and the gate still has to be called.
+-- APPLIED to production 2026-08-29 10:14:51 UTC as migration 20260829101451.
+-- This header said NOT APPLIED until then, and the file was named 20260829010000 —
+-- a version nobody assigned. apply_migration picks its own version and does not
+-- write a file, so the name here and the name in the ledger disagreed, and
+-- migration-drift correctly reported one migration as both missing from the repo
+-- and unapplied in production. Renamed onto the ledger's version, 29 Aug 2026.
+-- The SQL below is unchanged and was verified character-for-character against
+-- schema_migrations.statements before the rename.
+--
+-- Nothing here pulls anything, and applying it pulled nothing either - it installs
+-- a gate, and the gate still has to be called.
 --
 -- ═══════════════════════════════════════════════════════════════════════════
 -- THE GUARD WAS KEYED ON THE WRONG COLUMN, AND THE OWNER'S FOURTH RULE IS WHAT
