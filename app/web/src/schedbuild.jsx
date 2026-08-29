@@ -20,7 +20,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "./lib/supabase.js";
 /* The one date control and the one catalogue — imported, never rebuilt. */
 import { DateRangeSelect } from "./App.jsx";
-import { useDefaultRange } from "./dashkit.jsx";
+import { useDefaultRange, DkFrameNote } from "./dashkit.jsx";
 
 const VIEW_KEY = "schedule_builder";
 
@@ -230,6 +230,21 @@ export default function ScheduleBuilder({ go, session }) {
             presetKey={dateDefault.presetKey} session={session}
             viewKey={VIEW_KEY} allowSave />
           {dateDefault.error && <span className="note bad" role="alert">{dateDefault.error}</span>}
+          {/* THE GRID IS THE FRAME, AND THAT IS WORTH SAYING OUT LOUD.
+              weekStart IS range.from and the seven columns are built from it,
+              so this page does not merely mount the control — the control is
+              the page. The arrows move the governed frame rather than a second
+              week-state of their own, which is why there is no Monday
+              arithmetic anywhere in this file. */}
+          <DkFrameNote basis="period" range={range}
+            what="The seven columns and every cell in them"
+            why="The week shown is the frame resolved by the bus from nav_registry.default_range for schedule_builder, measured this_week. Moving it with the arrows or the picker rebuilds the grid; this page holds no week of its own." />
+          <DkFrameNote basis="as-of" range={range}
+            what="The roster, shift templates, zones and availability rules"
+            why="Standing configuration, not events inside a week. v_schedulable carries a badge expiry, which is a position; templates, zones, the attendance policy and availability describe how the place runs. Narrowing them to the week would empty the grid of the people who could fill it." />
+          <DkFrameNote basis="undated" range={range}
+            what="The pay rates behind the cost line"
+            why="v_payroll_forecast carries no date column at all, so no frame can reach it. A week is priced at today's rate, and the page does not imply it knows a rate from a past week it cannot see." />
         </div>
       </div>
 

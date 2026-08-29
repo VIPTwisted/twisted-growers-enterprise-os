@@ -26,7 +26,7 @@ import {
   DateRangeSelect, rowsOr, StockByStreamCards, StockProofTable, RoomStockDrill, InTransitDrill,
 } from "./App.jsx";
 import {
-  useDefaultRange, grab, DkTag, DkErr, DkEmpty, DkKpiStrip, DkOrphanTargets, DkWorkQueue, useWorkQueue,
+  useDefaultRange, DkFrameNote, grab, DkTag, DkErr, DkEmpty, DkKpiStrip, DkOrphanTargets, DkWorkQueue, useWorkQueue,
   DkNarrative, DkReports, DkTasks, DkGapCard, DkHead, DkStreamDrill, useWidgetLayout,
   Widget, WidgetBoard, WidgetBarControls, useSectionStore, DkCaret, DkDrill, DrillRoot,
 } from "./dashkit.jsx";
@@ -135,7 +135,7 @@ export default function InventoryDashboard({ go, session, reports, role, viewAs,
   /* SEARCH, AND WHAT IT DOES TO THE DATE RANGE.
      docs/TODO_EVERY_PAGE.md: "Typing search sets the date range aside and says
      so on the page. No page answers 'no results' only because this-month is
-     selected." This dashboard opens on this_month_td, so without a search a tag
+     selected." This dashboard opens on its governed default, so without a search a tag
      packaged in May is not on screen — and the honest fix is not to widen the
      default, it is to make the search ignore the range entirely and print that
      it has. The query runs at the SERVER against v_stock_packages with no date
@@ -263,6 +263,29 @@ export default function InventoryDashboard({ go, session, reports, role, viewAs,
             <button type="button" className="cc-btn" onClick={() => setQ("")}
               title="Clear the search and return to the selected date range.">clear</button>
           )}
+          {/* WHAT THE FRAME MOVES ON A SNAPSHOT PAGE.
+              nav_registry governs this page as today / snapshot, and that is
+              right: stock is a position. The department key figures DO take the
+              frame — fetchDepartmentDashboard is handed range.from and range.to
+              — but the three panels beneath them read views with no date column
+              at all, measured rather than assumed:
+
+                v_stock_summary         no date column
+                v_stock_by_department   no date column
+                v_dashboard_trend       no date column
+
+              Saying so is the difference between a reader believing the stream
+              totals answer for the selected day and knowing they are on hand
+              now. */}
+          <DkFrameNote basis="period" range={range}
+            what="The department key figures at the top"
+            why="These are computed for the selected frame by the guarded department query, and the strip refuses to show a figure under a label it was not computed for." />
+          <DkFrameNote basis="undated" range={range}
+            what="Stock by stream, stock by room, and the trend panel"
+            why="v_stock_summary, v_stock_by_department and v_dashboard_trend carry no date column, so no frame can reach them. They answer what is on hand now, which is the question stock is asked." />
+          <DkFrameNote basis="queue" range={range}
+            what="The work queue and the tasks raised from this dashboard"
+            why="Open findings and open tasks do not age out. Narrowing them to a period would hide a live finding because it was raised last month." />
         </div>
         <div className="cc-tools-r">
           <button className="cc-btn" onClick={recompute} disabled={busy}
