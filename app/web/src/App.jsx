@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useCallback, useRef, useMemo, lazy, Suspense } from "react";
 import { fetchDepartmentDashboard } from "./lib/dashboard-range.js";
 import { rangePlan } from "./lib/range-search.js";
+import { emptyObjectNote } from "./lib/emptyObjectNote.js";
 import {
   useDatePresetCatalog,
   useDefaultRange,
@@ -3127,13 +3128,36 @@ function ReportScreen({ entry, actions, session }) {
       {!probeError && !error && (
         rows === null ? <div className="empty"><div className="eicon">{I.gauge}</div>Reading {table}…</div>
         : rows.length === 0 ? (
-          <div className="empty">
-            <div className="eicon">{iconByName(entry.icon)}</div>
-            <b>{dirty ? "No rows match these filters" : "No records on this object yet"}</b>
-            {dirty
-              ? <>The query succeeded and returned nothing. Filters in force: {sentence}. Adjust them or press Clear.</>
-              : <>The object <b>{table}</b> is readable and returned zero rows. Records appear here the moment they exist — no sample data will ever be shown.</>}
-          </div>
+          /* EMPTY COPY IS DATA, NOT A STRING IN HERE. "No records on this object
+             yet" is true of 500-odd objects and useful about none of them: it
+             tells a reader the table is empty, which they can already see, and
+             nothing about whether that is expected, a gap, or a finding somebody
+             has already made. The registry can say the specific thing — and can
+             be changed without a deploy, which a sentence in this file cannot.
+             emptyObjectNote holds the precedence (owner note, then the report
+             contract's description, then the nav entry's) so it is decided in one
+             place rather than by a chain of ?? operators here. No figure is
+             written into this file. */
+          (() => {
+            const empty = emptyObjectNote({ dirty, table, entry, reg });
+            return (
+              <div className="empty">
+                <div className="eicon">{iconByName(entry.icon)}</div>
+                <b>{empty.title}</b>
+                {dirty
+                  ? <>The query succeeded and returned nothing. Filters in force: {sentence}. Adjust them or press Clear.</>
+                  : empty.body
+                    ? <>
+                        <div>{empty.body}</div>
+                        <div className="note" style={{ marginTop: 8 }}>
+                          The object <b>{table}</b> is readable and returned zero rows. Records appear here the moment they
+                          exist — no sample data will ever be shown.
+                        </div>
+                      </>
+                    : <>The object <b>{table}</b> is readable and returned zero rows. Records appear here the moment they exist — no sample data will ever be shown.</>}
+              </div>
+            );
+          })()
         ) : (
           <>
             {truncated && (
