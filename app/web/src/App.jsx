@@ -11906,10 +11906,18 @@ export default function App() {
        onto its own page. Routed here plus a nav_registry row — menu structure by
        registry row, which the owner's freeze explicitly permits. */
     goals_targets: <GoalsTargetsPage />,
-    ...Object.fromEntries(Object.keys(DEPT_BY_VIEW).map((k) => [k,
-      <DeptDashboard viewKey={k} go={setView} nav={nav} deep={deep} session={session}
-        reports={reports} role={role} viewAs={viewAsRole} onViewAs={switchViewAs}
-        isAdmin={isAdmin} viewRoles={viewRoles} />])),
+    /* `dept_dash_hr` is excluded from this spread. It is routed explicitly above to
+       HrDashboard (hrdash.jsx), and a spread AFTER that entry silently won — in a JS
+       object literal the later key wins — so the generic DeptDashboard rendered and
+       the whole HR dashboard was unreachable dead code. The other departments whose
+       override is intentional (Command, Cultivation, Inventory and the rest) sit
+       after the spread and need no exclusion; only HR is routed before it. */
+    ...Object.fromEntries(Object.keys(DEPT_BY_VIEW)
+      .filter((k) => k !== "dept_dash_hr")
+      .map((k) => [k,
+        <DeptDashboard viewKey={k} go={setView} nav={nav} deep={deep} session={session}
+          reports={reports} role={role} viewAs={viewAsRole} onViewAs={switchViewAs}
+          isAdmin={isAdmin} viewRoles={viewRoles} />])),
     /* CLEAN-SLATE COMMAND CENTER — owner pivot, 12 Aug 2026. This override sits
        AFTER the spread on purpose: dept_dash_command routes to the new tree and
        the old DeptDashboard rendering for Command is retired from the path. */
