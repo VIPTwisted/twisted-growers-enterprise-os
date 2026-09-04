@@ -642,7 +642,12 @@ const migrationEntries = files.map((name) => ({
  * recomputation over the blobs in the HEAD tree. Both returned 980 files and
  * 69a8a47e7b91c55040edcfdf6ee1f0cfe0d38f667b5ba587c3f5f22a906ddec0.
  */
-const expectedMigrationTreeDigest = "69a8a47e7b91c55040edcfdf6ee1f0cfe0d38f667b5ba587c3f5f22a906ddec0";
+/* RE-PINNED 4 Sep 2026, 981 files, for the applied room-turn pull-grain view.
+ * Production stamp 20260904184006. One file added, no baseline swap.
+ * Counted with listMigrationSqlFiles() after the file was committed.
+ * Digest 0254ae787bfb25a3c9d31daf6144e7ca21d75c0181600061a11499572a613dc2.
+ */
+const expectedMigrationTreeDigest = "0254ae787bfb25a3c9d31daf6144e7ca21d75c0181600061a11499572a613dc2";
 const actualMigrationTreeDigest = migrationTreeDigest(migrationEntries);
 if (actualMigrationTreeDigest !== expectedMigrationTreeDigest) {
   console.error(`money-grain: FAIL — migration tree differs from the independently reviewed ${files.length}-file manifest (${actualMigrationTreeDigest}).`);
