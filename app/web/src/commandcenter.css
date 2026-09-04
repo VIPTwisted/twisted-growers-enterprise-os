@@ -444,3 +444,17 @@ textarea.cc-input { height: auto; padding: 6px 8px; font-size: 12px; line-height
 
 /* ── print: the page is the report; the controls are not ───────────────── */
 @media print { .cc-tools, .cc-kpi-assign, .cc-breach-acts { display: none; } }
+
+/* ── quarantine notice ─────────────────────────────────────────────────────
+   A page whose grouping does not mean what a reader will assume says so at the
+   top, in the existing critical vocabulary — no new colour, no token change.
+   It wraps and is never clipped (F3), and it prints with the page because the
+   warning must travel with any paper copy of the numbers. */
+.cc-quarantine {
+  border: 1px solid var(--cccrit);
+  background: var(--cccrit-glow);
+  color: var(--cct0);
+  font-size: 12px; font-weight: 700; letter-spacing: 0.04em;
+  padding: 8px 12px;
+  white-space: normal; overflow-wrap: anywhere;
+}
