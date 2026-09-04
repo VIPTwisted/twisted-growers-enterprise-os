@@ -647,7 +647,13 @@ const migrationEntries = files.map((name) => ({
  * Counted with listMigrationSqlFiles() after the file was committed.
  * Digest 0254ae787bfb25a3c9d31daf6144e7ca21d75c0181600061a11499572a613dc2.
  */
-const expectedMigrationTreeDigest = "0254ae787bfb25a3c9d31daf6144e7ca21d75c0181600061a11499572a613dc2";
+/* RE-PINNED 4 Sep 2026, 994 files, for nine production stamps filed under git.
+ * Already applied. Bodies are schema_migrations.statements, md5-matched.
+ * Mesh duty 20260904195805 stays on PR #114; not duplicated here.
+ * Counted with listMigrationSqlFiles() after the nine files were committed.
+ * Digest fbec7ecb… from git ls-files and from HEAD blobs; both agreed.
+ */
+const expectedMigrationTreeDigest = "fbec7ecbf4a92850298a6cfdfe7c578c40bc6c3e6bfe3cc62965a0807d0ed756";
 const actualMigrationTreeDigest = migrationTreeDigest(migrationEntries);
 if (actualMigrationTreeDigest !== expectedMigrationTreeDigest) {
   console.error(`money-grain: FAIL — migration tree differs from the independently reviewed ${files.length}-file manifest (${actualMigrationTreeDigest}).`);
