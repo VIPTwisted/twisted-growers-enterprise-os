@@ -199,11 +199,10 @@ export default function RoomTurnAudit({ go, session, role, viewAs, reports }) {
           <DkTag tone={failed.length ? "crit" : "ok"}>{failed.length} failed</DkTag>
         </DkHead>
 
-        {/* QUARANTINE NOTICE. This audit groups its turns by harvest date, not by pull,
-            so a room's sequence here is not the pull sequence a person would be graded
-            on. Stated on the page rather than left for the reader to infer. */}
-        <div className="cc-quarantine" role="alert">
-          QUARANTINED — groups by harvest date, not pull. Do not grade staff from this.
+        {/* LIVE GRAIN. v_room_turn_audit is pull-grain as of 20260904184006.
+            Consecutive harvest dates in the same room are one pull. */}
+        <div className="cc-quarantine" role="status">
+          Counts pulls, not takedown days. Consecutive harvest dates in a room are one pull. Grade the cycle against the required days on the row. EXCEPTION is not FAIL and is not a grade.
         </div>
 
         <div className="cc-tools">
