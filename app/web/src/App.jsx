@@ -108,6 +108,7 @@ const Grading = lazy(() => import("./cult-grading.jsx"));
    packages never submitted for testing, failed tests with no disposition, and
    harvests open past the 28-day limit. Same prop contract as every page above. */
 const MetrcExceptions = lazy(() => import("./metrc-exceptions.jsx"));
+const OsHelp = lazy(() => import("./os-help.jsx"));
 /* PLANT CENSUS AND THE METRC MIRROR — 15 Aug 2026. The plant record was
    reconciled against both of Metrc's paths on 14-15 Aug and v_plant_census and
    v_plant_mirror_balance were named by no component in this tree, so none of it
@@ -11994,6 +11995,7 @@ export default function App() {
     moisture_loss_register: <MoistureRegister go={setView} session={session} role={role} viewAs={viewAsRole} reports={reports} />,
     grading: <Grading go={setView} session={session} role={role} viewAs={viewAsRole} reports={reports} />,
     xq_metrc_exceptions: <MetrcExceptions go={setView} session={session} role={role} viewAs={viewAsRole} reports={reports} />,
+    os_help: <OsHelp go={setView} session={session} role={role} viewAs={viewAsRole} />,
     menu_manager: isExec
       ? <MenuManager onChanged={() => setNavVersion((v) => v + 1)} />
       : <div className="empty"><div className="eicon">{I.shield}</div><b>Admin area</b>Menu Manager is restricted to executives. Ask an owner if a menu change is needed.</div>,
