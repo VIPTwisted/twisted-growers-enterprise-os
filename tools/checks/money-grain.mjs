@@ -617,7 +617,32 @@ const migrationEntries = files.map((name) => ({
  * Measured twice by different routes that agreed: money-grain's own run, and an
  * independent recomputation over the blobs in the HEAD tree.
  */
-const expectedMigrationTreeDigest = "af652ee17f719838c12a8dbdd974a0a4cea2f2a057423c425890989c9936686c";
+/* RE-PINNED 4 Sep 2026, still 980 files, for the schema baseline re-dump.
+ * The schema-baseline gate compares the baseline's own BASELINE COUNTS header to
+ * the live catalogues, and production had moved 455 -> 457 tables and 533 -> 535
+ * views. dump-schema.mjs writes a NEW timestamped file, so the swap is one
+ * deletion and one addition:
+ *   20260829141208_baseline_live_schema.sql   (removed, 455/533/28/859)
+ *   20260904180423_baseline_live_schema.sql   (added,   457/535/28/859)
+ *
+ * THE COUNT IS UNCHANGED AT 980 AND THE DIGEST STILL MOVES, for the same reason
+ * the 29 Aug rename moved it: the manifest hashes `name\0sqlDigest` per entry, so
+ * a swapped name and a rewritten body are a different tree at an identical length.
+ * Reading only the count would say nothing happened.
+ *
+ * Policies did NOT drift. Both baselines record 859, and 859 is what
+ * `pg_policies where schemaname='public'` and a pg_policy/pg_class/pg_namespace
+ * join independently return. The 871 in circulation is `count(*) from pg_policy`
+ * across every schema - public 859 plus storage 10 plus cron 2 - which this
+ * baseline neither dumps nor could recreate.
+ *
+ * Counted with listMigrationSqlFiles(), i.e. `git ls-files`, and the swap was
+ * COMMITTED before the digest was taken. Measured twice by routes that share no
+ * code and agreed: money-grain's own run over the working tree, and a
+ * recomputation over the blobs in the HEAD tree. Both returned 980 files and
+ * 69a8a47e7b91c55040edcfdf6ee1f0cfe0d38f667b5ba587c3f5f22a906ddec0.
+ */
+const expectedMigrationTreeDigest = "69a8a47e7b91c55040edcfdf6ee1f0cfe0d38f667b5ba587c3f5f22a906ddec0";
 const actualMigrationTreeDigest = migrationTreeDigest(migrationEntries);
 if (actualMigrationTreeDigest !== expectedMigrationTreeDigest) {
   console.error(`money-grain: FAIL — migration tree differs from the independently reviewed ${files.length}-file manifest (${actualMigrationTreeDigest}).`);
