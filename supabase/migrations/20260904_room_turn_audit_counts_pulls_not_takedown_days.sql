@@ -24,6 +24,14 @@
  *   already reads this view breaks. harvest_started and harvest_started_date are KEPT
  *   and now carry pull_start.
  *
+ * E1 COLUMN ORDER (4 Sep 2026)
+ *
+ *   CREATE OR REPLACE cannot rename a live column. The live view's first 11 columns
+ *   stay in this exact order: room, plant_capacity, harvest_started, cultivars,
+ *   plants, wet_lb, prev, room_turn_days, required_days, verdict, harvest_started_date.
+ *   Six new columns append after harvest_started_date: pull_id, pull_start, pull_end,
+ *   takedown_days, cycle_days, exception_reason. Numbers do not change.
+ *
  * THE EXCEPTION RULE, AND WHY IT IS NOT A PASS AND NOT A FAIL
  *
  *   Four gaps in the record are under 20 days - three in F2 and one in F4, all in the
@@ -123,18 +131,13 @@ with src as (
                 seq.pull_start - seq.prev as cycle_days
            from seq
      )
-select f.room || '-' || to_char(f.pull_start, 'YYYYMMDD')      as pull_id,
-       f.room,
+select f.room,
        f.plant_capacity,
        f.pull_start                                            as harvest_started,
-       f.pull_start,
-       f.pull_end,
-       f.takedown_days,
        f.cultivars,
        f.plants,
        f.wet_lb,
        f.prev,
-       f.cycle_days,
        f.cycle_days                                            as room_turn_days,
        f_rule('room_cycle_days')                               as required_days,
        case
@@ -154,13 +157,18 @@ select f.room || '-' || to_char(f.pull_start, 'YYYYMMDD')      as pull_id,
            else 'FAIL — ' || f.cycle_days || ' days, '
                 || (f_rule('room_cycle_days') - f.cycle_days::numeric) || ' days EARLY.'
        end                                                     as verdict,
+       f.pull_start                                            as harvest_started_date,
+       f.room || '-' || to_char(f.pull_start, 'YYYYMMDD')      as pull_id,
+       f.pull_start,
+       f.pull_end,
+       f.takedown_days,
+       f.cycle_days,
        case
            when f.prev is not null and f.cycle_days < 20
                then 'Only ' || f.cycle_days || ' days after the previous pull in this room. Read as a '
                     || 'partial pull or a straggler takedown that broke the consecutive-day chain. '
                     || 'Excluded from the cycle PASS/FAIL population.'
-       end                                                     as exception_reason,
-       f.pull_start                                            as harvest_started_date
+       end                                                     as exception_reason
   from fin f
  order by f.room, f.pull_start;
 
@@ -173,4 +181,5 @@ comment on view public.v_room_turn_audit is
 'pull_start, judged against f_rule(''room_cycle_days'') with a +/-2 day tolerance. A gap under '
 '20 days is an EXCEPTION - physically not a room turn - and is neither PASS nor FAIL. '
 'room_turn_days, harvest_started and harvest_started_date are retained and carry cycle_days and '
-'pull_start respectively so existing readers keep working.';
+'pull_start respectively so existing readers keep working. Live column order is preserved '
+'(E1): eleven existing columns first, six new columns appended.';
