@@ -199,6 +199,13 @@ export default function RoomTurnAudit({ go, session, role, viewAs, reports }) {
           <DkTag tone={failed.length ? "crit" : "ok"}>{failed.length} failed</DkTag>
         </DkHead>
 
+        {/* QUARANTINE NOTICE. This audit groups its turns by harvest date, not by pull,
+            so a room's sequence here is not the pull sequence a person would be graded
+            on. Stated on the page rather than left for the reader to infer. */}
+        <div className="cc-quarantine" role="alert">
+          QUARANTINED — groups by harvest date, not pull. Do not grade staff from this.
+        </div>
+
         <div className="cc-tools">
           <div className="cc-tools-l">
             <button type="button" className="cc-btn" onClick={() => setVer((v) => v + 1)}>↻ read again</button>
