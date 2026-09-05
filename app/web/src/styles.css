@@ -527,7 +527,7 @@ button.pulse:hover, button.stat:hover { background: var(--row-hover); }
 .nav.closed .railfoot .synclbl { display: none; }
 .nav .railbots {
   display: flex; align-items: center; gap: 10px; width: 100%;
-  margin-top: 8px; padding: 8px 10px;
+  margin: 0 0 8px; padding: 8px 10px;
   border: 1px solid var(--neon-line); border-radius: 8px;
   background: var(--neon-soft); color: var(--neon);
   cursor: pointer; font-weight: 700; font-size: 13px;

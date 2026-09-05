@@ -12304,8 +12304,6 @@ export default function App() {
           )}
           <button className="burger navburger" onClick={() => prefs.setCollapsed(!prefs.collapsed)} title="Collapse / expand menu">{I.burger}</button>
           <div className="railfoot">
-            {session && <SyncCenter session={session} />}
-            <RailMetrc />
             <button
               type="button"
               className={`railbots ${view === "os_staff" ? "on" : ""}`}
@@ -12316,6 +12314,8 @@ export default function App() {
               <img src="/bots/topg.gif" alt="" />
               <span className="railbots-lbl">Bots</span>
             </button>
+            {session && <SyncCenter session={session} />}
+            <RailMetrc />
           </div>
           {!prefs.collapsed && (
             <div className="dragbar" onMouseDown={(e) => { e.preventDefault(); setDragging(true); }} title="Drag to resize" />
