@@ -654,11 +654,11 @@ const migrationEntries = files.map((name) => ({
  * see a staged rename the same way. The committed figure is the real one, which is
  * why the paragraph above insists on committing first. Pinning 3bdfeb9a.
  */
-/* RE-PINNED 5 Sep 2026, 1019 files at 4ee745fb… . Filed prod stamp
- * 20260905212958 rpt-adjustments default all (period bus, one page).
+/* RE-PINNED 5 Sep 2026, 1020 files at 7f67abc8… . Filed prod stamp
+ * 20260905223006 rpt-harvest-moisture default all (period bus, one page).
  * leftover_grok is 0. Counted with listMigrationSqlFiles() after git add.
  */
-const expectedMigrationTreeDigest = "4ee745fb0dd03e730d6c9fc2d3957022f949cfd166200c9a6c39db65d4d4f2fe";
+const expectedMigrationTreeDigest = "7f67abc83350a8d79c77c445dcfb7967f4d1ea1335c1c75e85af88e29f4a883a";
 const actualMigrationTreeDigest = migrationTreeDigest(migrationEntries);
 if (actualMigrationTreeDigest !== expectedMigrationTreeDigest) {
   console.error(`money-grain: FAIL — migration tree differs from the independently reviewed ${files.length}-file manifest (${actualMigrationTreeDigest}).`);
