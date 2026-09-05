@@ -1,4 +1,4 @@
-/* Staff inbox layout. Colours from locked tokens only. */
+/* Grok Bots clone layout. Colours from locked tokens only. */
 .osstaff {
   display: flex;
   min-height: calc(100dvh - 4rem);
@@ -14,6 +14,7 @@
   flex-direction: column;
   padding: 0.75rem;
   gap: 0.75rem;
+  min-height: 0;
 }
 .osstaff-search input {
   width: 100%;
@@ -26,34 +27,57 @@
 .osstaff-pins {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 0.5rem;
+  gap: 0.75rem;
 }
 .osstaff-pins button {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0.25rem;
+  gap: 0.2rem;
   background: transparent;
   border: 0;
   color: var(--ink);
   font-size: 0.75rem;
+  cursor: pointer;
+}
+.osstaff-pins button em {
+  font-style: normal;
+  font-size: 0.6rem;
+  color: var(--muted);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  background: var(--input-bg);
+  border-radius: 4px;
+  padding: 0 0.35rem;
 }
 .osstaff-face {
+  display: block;
+  position: relative;
+  width: 4rem;
+  height: 4rem;
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--neon-soft);
+  flex-shrink: 0;
+}
+.osstaff-face img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.osstaff-face.sm { width: 2.25rem; height: 2.25rem; }
+.osstaff-face.lg { width: 6rem; height: 6rem; margin: 0 auto; }
+.osstaff-initial {
   display: flex;
+  width: 100%;
+  height: 100%;
   align-items: center;
   justify-content: center;
-  width: 3.5rem;
-  height: 3.5rem;
-  border-radius: 999px;
-  background: var(--neon-soft);
-  color: var(--neon);
   font-weight: 700;
-  box-shadow: var(--glow);
-}
-.osstaff-face.sm {
-  width: 2.25rem;
-  height: 2.25rem;
-  font-size: 0.8rem;
+  color: var(--neon);
 }
 .osstaff-pins button.on .osstaff-face,
 .osstaff-rail li button.on .osstaff-face {
@@ -71,6 +95,7 @@
   margin: 0;
   padding: 0;
   overflow: auto;
+  flex: 1;
 }
 .osstaff-rail li button {
   display: flex;
@@ -82,26 +107,28 @@
   border: 0;
   color: var(--ink);
   padding: 0.4rem 0.2rem;
+  cursor: pointer;
 }
+.osstaff-rail li button.on { background: var(--input-bg); border-radius: 8px; }
 .osstaff-rail li b { display: block; font-size: 0.9rem; }
 .osstaff-rail li i { display: block; font-style: normal; font-size: 0.75rem; color: var(--muted); }
+.osstaff-foot { margin-top: auto; padding-top: 0.5rem; }
 .osstaff-main {
   flex: 1;
   min-width: 0;
   display: flex;
   flex-direction: column;
 }
-.osstaff-main header {
+.osstaff-main > header {
   display: flex;
-  justify-content: space-between;
-  gap: 1rem;
-  align-items: flex-start;
-  padding: 1rem 1.25rem;
+  gap: 0.75rem;
+  align-items: center;
+  padding: 0.85rem 1.25rem;
   border-bottom: 1px solid var(--line);
 }
-.osstaff-main h1 { margin: 0.15rem 0; font-size: 1.4rem; }
-.osstaff-main header p { margin: 0; color: var(--muted); max-width: 36rem; }
-.osstaff-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+.osstaff-main h1 { margin: 0; font-size: 1rem; }
+.osstaff-main header p { margin: 0; color: var(--muted); font-size: 0.8rem; }
+.osstaff-main header .osstaff-go { margin-left: auto; }
 .osstaff-note {
   margin: 0;
   padding: 0.7rem 1.25rem;
@@ -113,19 +140,25 @@
 .osstaff-note a { color: var(--neon); }
 .osstaff-go,
 .osstaff-bubble button,
-.osstaff-main form button {
+.osstaff-main form button,
+.osstaff-prompts button,
+.osstaff-rform button,
+.osstaff-routines li button:last-child {
   border: 1px solid var(--neon-line);
   background: var(--neon-soft);
   color: var(--neon);
   border-radius: 999px;
   padding: 0.4rem 0.9rem;
+  cursor: pointer;
 }
 .osstaff-thread {
   flex: 1;
   overflow: auto;
   padding: 1.25rem;
 }
-.osstaff-empty { text-align: center; color: var(--muted); margin-top: 4rem; }
+.osstaff-empty { text-align: center; color: var(--muted); margin-top: 3rem; max-width: 28rem; margin-left: auto; margin-right: auto; }
+.osstaff-hello { color: var(--ink); font-size: 1.4rem; font-weight: 700; margin: 0.8rem 0 0.4rem; }
+.osstaff-prompts { display: flex; flex-wrap: wrap; gap: 0.4rem; justify-content: center; margin-top: 1rem; }
 .osstaff-bubble {
   max-width: 36rem;
   background: var(--surface-2);
@@ -133,10 +166,7 @@
   padding: 0.8rem 1rem;
   margin-bottom: 0.75rem;
 }
-.osstaff-bubble.me {
-  margin-left: auto;
-  background: var(--input-bg);
-}
+.osstaff-bubble.me { margin-left: auto; background: var(--input-bg); }
 .osstaff-bubble p { margin: 0; }
 .osstaff-bubble button { margin-top: 0.6rem; }
 .osstaff-main form {
@@ -153,12 +183,81 @@
   color: var(--ink);
   padding: 0.7rem 1rem;
 }
+.osstaff-side {
+  width: 20rem;
+  flex-shrink: 0;
+  border-left: 1px solid var(--line);
+  background: var(--surface);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding: 0.75rem;
+  gap: 0.6rem;
+}
+.osstaff-screen {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--canvas);
+  padding: 0.75rem;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+.osstaff-dots { display: flex; gap: 0.3rem; margin-bottom: 0.5rem; }
+.osstaff-dots i {
+  width: 0.5rem; height: 0.5rem; border-radius: 999px;
+  background: var(--muted); display: block;
+}
+.osstaff-routines { flex: 1; min-height: 0; overflow: auto; }
+.osstaff-rtitle { display: flex; align-items: center; justify-content: space-between; }
+.osstaff-rtitle p { margin: 0; font-weight: 700; }
+.osstaff-rtitle button {
+  width: 1.8rem; height: 1.8rem; border-radius: 999px;
+  border: 1px solid var(--line); background: transparent; color: var(--ink); cursor: pointer;
+}
+.osstaff-rform { display: grid; gap: 0.4rem; margin: 0.6rem 0; }
+.osstaff-rform label { display: grid; gap: 0.2rem; font-size: 0.7rem; color: var(--muted); }
+.osstaff-rform input, .osstaff-rform select {
+  border: 1px solid var(--line); border-radius: 6px;
+  background: var(--input-bg); color: var(--ink); padding: 0.4rem 0.5rem;
+}
+.osstaff-routines ul { list-style: none; margin: 0.6rem 0 0; padding: 0; }
+.osstaff-routines li {
+  display: flex; gap: 0.5rem; align-items: center;
+  padding: 0.4rem 0; border-top: 1px solid var(--line);
+}
+.osstaff-rbot { background: transparent; border: 0; padding: 0; cursor: pointer; }
+.osstaff-routines li span { flex: 1; min-width: 0; }
+.osstaff-routines li b { display: block; font-size: 0.8rem; }
+.osstaff-routines li i { display: block; font-style: normal; font-size: 0.7rem; color: var(--muted); }
 .sr-only {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip: rect(0 0 0 0);
+  position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0);
+}
+
+@keyframes osstaff-box {
+  0%, 100% { transform: translateY(0); filter: drop-shadow(0 0 0 transparent); }
+  50% { transform: translateY(-3px); filter: drop-shadow(0 0 8px var(--neon)); }
+}
+@keyframes osstaff-guy {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-2px); }
+}
+@keyframes osstaff-ring {
+  0%, 100% { box-shadow: 0 0 0 0 var(--neon-soft); }
+  50% { box-shadow: 0 0 0 5px transparent; }
+}
+.live-box { animation: osstaff-box 2.8s ease-in-out infinite; border-radius: 999px; }
+.live-guy { animation: osstaff-guy 4.5s ease-in-out infinite; border-radius: 999px; }
+.live-admin { animation: osstaff-guy 5.2s ease-in-out infinite; border-radius: 999px; }
+.live-ring, .live-box-ring, .live-guy-ring, .live-admin-ring, .live-ring-ring {
+  animation: osstaff-ring 2.8s ease-in-out infinite; border-radius: 999px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .live-box, .live-guy, .live-admin, .live-ring, .live-box-ring, .live-guy-ring, .live-admin-ring, .live-ring-ring {
+    animation: none;
+  }
+}
+@media (max-width: 1100px) {
+  .osstaff-side { display: none; }
 }
 @media (max-width: 800px) {
   .osstaff { flex-direction: column; }
