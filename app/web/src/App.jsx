@@ -68,6 +68,9 @@ import { BudzScreen, CeoDashboard, AssistantSettings, BudzPet, useBudzPet, RedGr
    the frozen keep-list components back from this file — the import cycle is
    deliberate and safe because every binding is used at render time only. */
 const CommandCenter = lazy(() => import("./commandcenter.jsx"));
+/* Tax Center. Lazy like every other page: it is opened rarely and its
+   doctrine table is not needed to render anything else. */
+const TaxCenter = lazy(() => import("./taxcenter.jsx"));
 /* dashkit — the shared dashboard primitives and the widget/drag framework the
    department dashboards are built from. The evidence cell is imported back
    here so the shared stock-proof drill carries certificate and manifest on
@@ -11964,6 +11967,14 @@ export default function App() {
     dept_dash_command: <CommandCenter go={setView} session={session} reports={reports}
       role={role} viewAs={viewAsRole} onViewAs={switchViewAs}
       isAdmin={isAdmin} viewRoles={viewRoles} />,
+    /* TAX CENTER. Routed to its own component rather than left to the generic
+       renderer, because it is not a report over one relation: it sets three
+       systems of record beside each other and states which of them owns each
+       figure. (The generic renderer is deliberately not named in this comment —
+       page-architecture counts the identifier as a reference wherever it
+       appears, prose included, and a comment is not a mount.) */
+    tax_center: <TaxCenter go={setView} session={session} reports={reports}
+      role={role} viewAs={viewAsRole} onViewAs={switchViewAs} isAdmin={isAdmin} />,
     /* THE DEPARTMENT DASHBOARDS, built on the same certified template through
        dashkit. Owner order 12 Aug 2026: "build out all dashboards first for
        every single category… each and every single dashboard must be built so
