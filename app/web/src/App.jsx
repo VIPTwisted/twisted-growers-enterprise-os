@@ -12306,6 +12306,16 @@ export default function App() {
           <div className="railfoot">
             {session && <SyncCenter session={session} />}
             <RailMetrc />
+            <button
+              type="button"
+              className={`railbots ${view === "os_staff" ? "on" : ""}`}
+              onClick={() => setView("os_staff")}
+              title="Bots"
+              aria-label="Bots"
+            >
+              <img src="/bots/topg.gif" alt="" />
+              <span className="railbots-lbl">Bots</span>
+            </button>
           </div>
           {!prefs.collapsed && (
             <div className="dragbar" onMouseDown={(e) => { e.preventDefault(); setDragging(true); }} title="Drag to resize" />
