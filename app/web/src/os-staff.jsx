@@ -78,7 +78,7 @@ export default function OsStaff({ go }) {
       <aside className="osstaff-rail">
         <label className="osstaff-search">
           <span className="sr-only">Search staff</span>
-          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search" />
+          <input aria-label="Search staff" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search" />
         </label>
         <div className="osstaff-pins">
           {pins.map((s) => (
@@ -140,6 +140,7 @@ export default function OsStaff({ go }) {
           <input
             value={text}
             onChange={(e) => setText(e.target.value)}
+            aria-label={`Message ${bot.name}`}
             placeholder={`Message ${bot.name}`}
           />
           <button type="submit">Send</button>
