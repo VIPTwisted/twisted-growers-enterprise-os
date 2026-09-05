@@ -11,12 +11,13 @@ export function topGConnected() {
 function sendExt(msg) {
   return new Promise((resolve) => {
     try {
-      if (typeof chrome === "undefined" || !chrome.runtime || !chrome.runtime.sendMessage) {
+      const ext = typeof globalThis !== "undefined" ? globalThis.chrome : null;
+      if (!ext || !ext.runtime || !ext.runtime.sendMessage) {
         resolve({ installed: false });
         return;
       }
-      chrome.runtime.sendMessage(TG_BOTS_ID, msg, (res) => {
-        const err = chrome.runtime.lastError;
+      ext.runtime.sendMessage(TG_BOTS_ID, msg, (res) => {
+        const err = ext.runtime.lastError;
         if (err) resolve({ installed: false });
         else resolve({ installed: true, ...(res || {}) });
       });
