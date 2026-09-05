@@ -134,6 +134,8 @@ const SalesHistoryPage = lazy(() => import("./fin-sales-history.jsx"));
 const CustomersPage = lazy(() => import("./fin-customers.jsx"));
 const CustomerManifestsPage = lazy(() => import("./fin-customer-manifests.jsx"));
 const OrdersPage = lazy(() => import("./fin-orders.jsx"));
+const OsStaff = lazy(() => import("./os-staff.jsx"));
+const OsHelp = lazy(() => import("./os-help.jsx"));
 
 // Laws: live numbers (2) · no fake data (3) · nothing hardwired (4) — navigation itself is DB rows.
 
@@ -11938,6 +11940,8 @@ export default function App() {
     valuation_rates: <ValuationRates session={session} />,
     intelligence_briefing: <IntelligenceBriefing go={setView} />,
     budz: <BudzScreen go={setView} />,
+    os_staff: <OsStaff go={setView} />,
+    os_help: <OsHelp go={setView} />,
     /* Owner ruling 11 Aug 2026: the goals editor moved off the Command dashboard
        onto its own page. Routed here plus a nav_registry row — menu structure by
        registry row, which the owner's freeze explicitly permits. */
