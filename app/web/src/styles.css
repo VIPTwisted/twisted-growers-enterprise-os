@@ -525,6 +525,19 @@ button.pulse:hover, button.stat:hover { background: var(--row-hover); }
   width: min(360px, calc(100vw - 24px));
 }
 .nav.closed .railfoot .synclbl { display: none; }
+.nav .railbots {
+  display: flex; align-items: center; gap: 10px; width: 100%;
+  margin-top: 8px; padding: 8px 10px;
+  border: 1px solid var(--neon-line); border-radius: 8px;
+  background: var(--neon-soft); color: var(--neon);
+  cursor: pointer; font-weight: 700; font-size: 13px;
+}
+.nav .railbots img {
+  width: 28px; height: 28px; border-radius: 50%; object-fit: cover; flex-shrink: 0;
+}
+.nav .railbots:hover, .nav .railbots.on { box-shadow: 0 0 10px var(--neon); }
+.nav.closed .railbots { justify-content: center; padding: 6px; gap: 0; }
+.nav.closed .railbots-lbl { display: none; }
 
 /* Module filter bar: search, date range, clickable status chips, sortable headers */
 .filterbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
