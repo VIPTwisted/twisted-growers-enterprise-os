@@ -798,6 +798,7 @@ function Auth() {
   const [password, setPassword] = useState("");
   const [msg, setMsg] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [showPw, setShowPw] = useState(false);
   async function submit(e) {
     e.preventDefault();
     setBusy(true); setMsg(null);
@@ -829,7 +830,14 @@ function Auth() {
           <label>Email</label>
           <input aria-label="Email address" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required autoComplete="email" />
           <label>Password</label>
-          <input aria-label="Password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={8} autoComplete="current-password" />
+          <div style={{ position: "relative" }}>
+            <input aria-label="Password" type={showPw ? "text" : "password"} value={password} onChange={(e) => setPassword(e.target.value)} required minLength={8} autoComplete="current-password" style={{ paddingRight: 62, width: "100%" }} />
+            <button type="button" onClick={() => setShowPw(!showPw)}
+              aria-label={showPw ? "Hide password" : "Show password"} aria-pressed={showPw}
+              style={{ position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", font: "inherit", fontSize: 12, fontWeight: 600, letterSpacing: ".04em", textTransform: "uppercase", color: "var(--brand, #7CD992)", padding: "4px 6px" }}>
+              {showPw ? "Hide" : "Show"}
+            </button>
+          </div>
           <button className="btn" disabled={busy}>{mode === "signin" ? "Sign in" : "Create account"}</button>
           <button type="button" className="btn ghost" style={{ marginLeft: 10 }} onClick={() => { setMode(mode === "signin" ? "signup" : "signin"); setMsg(null); }}>
             {mode === "signin" ? "First time? Create account" : "Have an account? Sign in"}
