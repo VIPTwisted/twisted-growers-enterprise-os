@@ -3798,7 +3798,7 @@ function SyncCenter({ session }) {
   };
   return (
     <div className="syncwrap">
-      <button className="btn syncbtn" onClick={() => setOpen((v) => !v)}>{I.plug} Sync</button>
+      <button className="btn syncbtn" onClick={() => setOpen((v) => !v)}>{I.plug}<span className="synclbl"> Sync</span></button>
       {open && (
         <div className="syncpanel">
           <div className="sphead">
@@ -5516,7 +5516,6 @@ function ControlTower({ go, session }) {
             source={"v_control_tower for the metric cards, a whole-table row count per KPI for the operational "
               + "ring, the connector's current state for the sync line, and today for the day board — each of which"}
             onRange={onRange} />
-          {session && <SyncCenter session={session} />}
         </div>
       </div>
 
@@ -12116,6 +12115,9 @@ export default function App() {
 
       <header className="topnav">
         <div className="tlogo"><img src="/tg-mark.png" alt="Twisted Growers" style={{ width: 34, height: 34, borderRadius: "50%" }} /><span className="tword">Twisted <b>Growers</b></span></div>
+        <button className="tbot" title="Top G" onClick={() => setView("os_staff")}>
+          <img src="/bots/topg.gif" alt="Top G" />
+        </button>
         <button className="tibtn launchbtn" title="Open TG Workspace" onClick={() => setLauncher(true)}>{I.apps}</button>
         <div className="tdivider" />
         <div className="tcrumb">{current ? `${current.category} / ${current.label}` : view === "alerts" ? "Command / Alerts & Reminders" : "Command / Control Tower"}</div>
@@ -12301,7 +12303,10 @@ export default function App() {
             ))
           )}
           <button className="burger navburger" onClick={() => prefs.setCollapsed(!prefs.collapsed)} title="Collapse / expand menu">{I.burger}</button>
-          <div className="railfoot"><RailMetrc /></div>
+          <div className="railfoot">
+            {session && <SyncCenter session={session} />}
+            <RailMetrc />
+          </div>
           {!prefs.collapsed && (
             <div className="dragbar" onMouseDown={(e) => { e.preventDefault(); setDragging(true); }} title="Drag to resize" />
           )}
