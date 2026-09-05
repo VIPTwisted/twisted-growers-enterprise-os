@@ -101,6 +101,16 @@
 }
 .osstaff-main h1 { margin: 0.15rem 0; font-size: 1.4rem; }
 .osstaff-main header p { margin: 0; color: var(--muted); max-width: 36rem; }
+.osstaff-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+.osstaff-note {
+  margin: 0;
+  padding: 0.7rem 1.25rem;
+  border-bottom: 1px solid var(--line);
+  color: var(--ink);
+  background: var(--surface-2);
+  font-size: 0.85rem;
+}
+.osstaff-note a { color: var(--neon); }
 .osstaff-go,
 .osstaff-bubble button,
 .osstaff-main form button {

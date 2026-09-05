@@ -1,0 +1,39 @@
+{
+  "manifest_version": 3,
+  "name": "TG Bots",
+  "version": "1.0.0",
+  "description": "Twisted Growers OS — answer Staff and Budz from the Grok, Claude, GPT, or Grok Bots tab you already pay for. No extra API bill.",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAtKx4Qqr/zYa8sVpKTZkIYYvsrKNzTkKzZQtg15aJM/ZZ6uy1I2QCkVmNmLZJ/B+DvtsVlOAzP6k0rkxslML9Emob4+qz3/TGYPsx5Mn5zovlmh9cy++DGQYMVJMP5JtThf/vccqtUM908xFgH+qIxR2+vt/b15st2sJiXTpDJtzfTkE6KR9GeEj1BGm9xm0i8EO0t2wvaIqdh8kWaLfsKVr025clX4ETQv61h+/oEcGUDI5VaI7fJiPKdbX7awXVghGkkg0w6A2esXOx1V+Rw9Ak6j2KA50ZYGM8Fx8YqXzpxxTcSBgmNc5YeBAsvhQALCcR/Vw9pr86dm02CsIE+wIDAQAB",
+  "action": {
+    "default_title": "TG Bots",
+    "default_popup": "popup.html",
+    "default_icon": { "16": "icon16.png", "32": "icon32.png", "128": "icon128.png" }
+  },
+  "icons": { "16": "icon16.png", "32": "icon32.png", "128": "icon128.png" },
+  "background": { "service_worker": "background.js" },
+  "permissions": ["storage", "alarms", "tabs", "scripting"],
+  "host_permissions": [
+    "https://fxetuqjryttnypgepsru.supabase.co/*",
+    "https://twisted-growers-enterprise-os.netlify.app/*",
+    "https://grok.com/*",
+    "https://claude.ai/*",
+    "https://chatgpt.com/*"
+  ],
+  "externally_connectable": {
+    "matches": [ "https://twisted-growers-enterprise-os.netlify.app/*" ]
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://grok.com/*",
+        "https://claude.ai/*",
+        "https://chatgpt.com/*"
+      ],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'none'; base-uri 'none'; connect-src https://fxetuqjryttnypgepsru.supabase.co"
+  }
+}
