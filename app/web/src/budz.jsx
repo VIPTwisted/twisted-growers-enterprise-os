@@ -1548,7 +1548,7 @@ async function askMeteredApi(question, history) {
    called, so both surfaces show what is known immediately and fill in the
    composed answer when it lands. Nobody waits on a model to see a number that
    was already sitting in a view. */
-export async function askBudzFull(question, history = [], { onFacts, surface = "assistant" } = {}) {
+export async function askBudzFull(question, history = [], { onFacts, surface = "assistant", desk } = {}) {
   /* MEMORY, BEFORE THE QUESTION IS ANSWERED.
 
      Wired HERE rather than in each screen, because the pet, the assistant page
@@ -1580,6 +1580,18 @@ export async function askBudzFull(question, history = [], { onFacts, surface = "
   const log = history;
   onFacts?.(a, facts);
   const askedAt = Date.now();
+  const asked = desk?.name
+    ? [
+        `You are ${desk.name}, ${desk.role} on the Twisted Growers Enterprise OS staff.`,
+        desk.job ? `Your desk: ${desk.job}` : "",
+        "Buddy on the Grok Bots platform is the ultimate boss. Top G is OS Chief of Staff.",
+        "You never outrank Buddy. METRC IS READ ONLY. Apex invoice is money source of record.",
+        "Do not invent a certified number. Hard gate: anything external is draft until the owner says yes on that exact item.",
+        desk.open ? `When they need to act, send them to the live OS page for this desk.` : "",
+        "",
+        "QUESTION: " + question,
+      ].filter(Boolean).join("\n")
+    : question;
 
       /* ── 1. The desktop bridge ────────────────────────────────────────────
          WHY THIS GOES THROUGH THE DATABASE AND NOT STRAIGHT TO 127.0.0.1.
@@ -1620,7 +1632,7 @@ export async function askBudzFull(question, history = [], { onFacts, surface = "
             .from("ai_bridge_jobs")
             .insert({
               asked_by: uid,
-              question,
+              question: asked,
               /* THE MODEL RIDES INSIDE context, and that is deliberate.
 
                  bridge-queue returns only id, question and context when the
@@ -1631,6 +1643,7 @@ export async function askBudzFull(question, history = [], { onFacts, surface = "
                  the desktop with no edge function redeploy and nothing new to
                  keep in step. The column is still written for the audit trail. */
               context: { summary: a.headline, records: facts.slice(0, 40), model: bridgeModel,
+                         desk: desk ? { name: desk.name, role: desk.role } : null,
                          /* Corrections first in the object: a reader that truncates
                             keeps the thing an owner deliberately approved. */
                          memory },
@@ -1658,7 +1671,7 @@ export async function askBudzFull(question, history = [], { onFacts, surface = "
           let apiRace = null;
           const startApiRace = () => {
             if (apiRace || !cfg.paid_model_enabled) return;
-            apiRace = askMeteredApi(question, log).catch(() => null);
+            apiRace = askMeteredApi(asked, log).catch(() => null);
           };
           const deadline = Date.now() + 150000;
           /* Owner, 8 Aug 2026: "speed is critical". Two seconds, not eight.
@@ -1726,7 +1739,7 @@ export async function askBudzFull(question, history = [], { onFacts, surface = "
                     "LIVE RECORDS FROM THE DATABASE:",
                     JSON.stringify({ summary: a.headline, records: facts.slice(0, 60) }).slice(0, 26000),
                     "",
-                    "QUESTION: " + question,
+                    "QUESTION: " + asked,
                     "",
                     "Answer from these records only. Be specific: name harvests, rooms, strains, dates and numbers. If the records do not contain the answer, say exactly that.",
                   ].join(String.fromCharCode(10)),
@@ -1743,11 +1756,11 @@ export async function askBudzFull(question, history = [], { onFacts, surface = "
       }
       if (!composed && cfg.paid_model_enabled) {
         try {
-          const hist2 = [...log, { who: "me", text: question }]
+          const hist2 = [...log, { who: "me", text: asked }]
             .filter((m) => m.text && !m.rows)
             .slice(-8)
             .map((m) => ({ role: m.who === "me" ? "user" : "assistant", content: m.text }));
-          if (hist2[hist2.length - 1]?.role !== "user") hist2.push({ role: "user", content: question });
+          if (hist2[hist2.length - 1]?.role !== "user") hist2.push({ role: "user", content: asked });
           /* This used to build the URL from import.meta.env.VITE_SUPABASE_URL.
              app/web has no .env and nothing in vite.config defines it, so
              locally it was the string "undefined". On the deployed build it was
