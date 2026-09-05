@@ -340,20 +340,20 @@ export default function OsStaff({ go }) {
           {newRoutine ? (
             <form className="osstaff-rform" onSubmit={(e) => { e.preventDefault(); addRoutine(); }}>
               <label>Bot
-                <select value={form.botId} onChange={(e) => setForm({ ...form, botId: e.target.value })}>
+                <select aria-label="Routine bot" value={form.botId} onChange={(e) => setForm({ ...form, botId: e.target.value })}>
                   {STAFF.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
                 </select>
               </label>
               <label>Name
-                <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
+                <input aria-label="Routine name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
               </label>
               <label>When
-                <select value={form.when} onChange={(e) => setForm({ ...form, when: e.target.value })}>
+                <select aria-label="Routine when" value={form.when} onChange={(e) => setForm({ ...form, when: e.target.value })}>
                   {WHEN_PRESETS.map((w) => <option key={w}>{w}</option>)}
                 </select>
               </label>
               <label>Intent
-                <input value={form.intent} onChange={(e) => setForm({ ...form, intent: e.target.value })} />
+                <input aria-label="Routine intent" value={form.intent} onChange={(e) => setForm({ ...form, intent: e.target.value })} />
               </label>
               <button type="submit">Save routine</button>
             </form>
