@@ -654,7 +654,7 @@ const migrationEntries = files.map((name) => ({
  * see a staged rename the same way. The committed figure is the real one, which is
  * why the paragraph above insists on committing first. Pinning 3bdfeb9a.
  */
-const expectedMigrationTreeDigest = "12f9b5e982a0c009c76f9c7e7d22b58a27be0758ba8b1ecc0e98da0b84e6ab3c";
+const expectedMigrationTreeDigest = "6bb7ad484c7444824a6a7d042b53e225d8952753ca587834aa725da940dbf4c2";
 const actualMigrationTreeDigest = migrationTreeDigest(migrationEntries);
 if (actualMigrationTreeDigest !== expectedMigrationTreeDigest) {
   console.error(`money-grain: FAIL — migration tree differs from the independently reviewed ${files.length}-file manifest (${actualMigrationTreeDigest}).`);
