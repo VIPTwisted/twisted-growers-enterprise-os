@@ -654,13 +654,11 @@ const migrationEntries = files.map((name) => ({
  * see a staged rename the same way. The committed figure is the real one, which is
  * why the paragraph above insists on committing first. Pinning 3bdfeb9a.
  */
-/* RE-PINNED 5 Sep 2026, 982 files at d20fd45f… . Production gained room_stage (+1 table),
- * v_five_alarm (+1 view), and two room_stage policies after the morning dump. leftover_grok
- * is 0 — this is not dumping away the 914 grok blankets. Schema-baseline was red on every
- * rebuild of main@8e2c2a3 (exit code 2 on Netlify). One new Staff inbox migration travels
- * in the same PR. Counted with listMigrationSqlFiles() after git add.
+/* RE-PINNED 5 Sep 2026, 990 files at 1f5322dd… . Filed the 9 prod stamps that
+ * were blocking migration-drift (limit 0). leftover_grok is 0. Counted with
+ * listMigrationSqlFiles() after git add.
  */
-const expectedMigrationTreeDigest = "d20fd45f3e16149a8fe912e21bf40fdcaf21be96e2f18e558574ac93b8d01dd1";
+const expectedMigrationTreeDigest = "1f5322ddd5685d9252e97806947db21a6ea60ad337099daeaac88c7450518ebf";
 const actualMigrationTreeDigest = migrationTreeDigest(migrationEntries);
 if (actualMigrationTreeDigest !== expectedMigrationTreeDigest) {
   console.error(`money-grain: FAIL — migration tree differs from the independently reviewed ${files.length}-file manifest (${actualMigrationTreeDigest}).`);
