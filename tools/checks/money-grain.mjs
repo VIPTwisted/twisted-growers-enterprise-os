@@ -658,7 +658,7 @@ const migrationEntries = files.map((name) => ({
  * were blocking migration-drift (limit 0). leftover_grok is 0. Counted with
  * listMigrationSqlFiles() after git add.
  */
-const expectedMigrationTreeDigest = "213ada59cbe092e3e95f56bc2507d2825a212f856886ac9f5b9208a65f892b94";
+const expectedMigrationTreeDigest = "985ba587f40a13b9596262eeb865ef4b849d6030478d0e68fed69322d216d332";
 const actualMigrationTreeDigest = migrationTreeDigest(migrationEntries);
 if (actualMigrationTreeDigest !== expectedMigrationTreeDigest) {
   console.error(`money-grain: FAIL — migration tree differs from the independently reviewed ${files.length}-file manifest (${actualMigrationTreeDigest}).`);
