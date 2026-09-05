@@ -798,6 +798,7 @@ function Auth() {
   const [password, setPassword] = useState("");
   const [msg, setMsg] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [showPw, setShowPw] = useState(false);
   async function submit(e) {
     e.preventDefault();
     setBusy(true); setMsg(null);
@@ -807,6 +808,18 @@ function Auth() {
     const { error } = await fn;
     if (error) setMsg({ kind: "err", text: error.message });
     else if (mode === "signup") setMsg({ kind: "ok", text: "Account created. If email confirmation is on, check your inbox — then sign in." });
+    setBusy(false);
+  }
+
+  async function sendReset() {
+    if (!email) { setMsg({ kind: "err", text: "Type your email address first, then press Email me a reset link." }); return; }
+    setBusy(true); setMsg(null);
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/#reset_password`,
+    });
+    setMsg(error
+      ? { kind: "err", text: error.message }
+      : { kind: "ok", text: `Reset link sent to ${email}. Check the inbox, and the spam folder. The link opens this site and lets you set a new password.` });
     setBusy(false);
   }
   return (
@@ -829,11 +842,24 @@ function Auth() {
           <label>Email</label>
           <input aria-label="Email address" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required autoComplete="email" />
           <label>Password</label>
-          <input aria-label="Password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={8} autoComplete="current-password" />
+          <div style={{ position: "relative" }}>
+            <input aria-label="Password" type={showPw ? "text" : "password"} value={password} onChange={(e) => setPassword(e.target.value)} required minLength={8} autoComplete="current-password" style={{ paddingRight: 62, width: "100%" }} />
+            <button type="button" onClick={() => setShowPw(!showPw)}
+              aria-label={showPw ? "Hide password" : "Show password"} aria-pressed={showPw}
+              style={{ position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", font: "inherit", fontSize: 12, fontWeight: 600, letterSpacing: ".04em", textTransform: "uppercase", color: "var(--brand, #7CD992)", padding: "4px 6px" }}>
+              {showPw ? "Hide" : "Show"}
+            </button>
+          </div>
           <button className="btn" disabled={busy}>{mode === "signin" ? "Sign in" : "Create account"}</button>
           <button type="button" className="btn ghost" style={{ marginLeft: 10 }} onClick={() => { setMode(mode === "signin" ? "signup" : "signin"); setMsg(null); }}>
             {mode === "signin" ? "First time? Create account" : "Have an account? Sign in"}
           </button>
+          {mode === "signin" && (
+            <button type="button" className="btn ghost" disabled={busy} onClick={sendReset}
+              style={{ marginTop: 10, display: "block", width: "100%" }}>
+              Forgot password? Email me a reset link
+            </button>
+          )}
           {msg && <div className={`msg ${msg.kind}`}>{msg.text}</div>}
           <div className="note">Accounts after the first start read-only until an owner assigns a role.</div>
         </form>

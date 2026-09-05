@@ -641,13 +641,20 @@ const migrationEntries = files.map((name) => ({
  * code and agreed: money-grain's own run over the working tree, and a
  * recomputation over the blobs in the HEAD tree. Both returned 980 files and
  * 69a8a47e7b91c55040edcfdf6ee1f0cfe0d38f667b5ba587c3f5f22a906ddec0.
+ *
+ * RE-PINNED 5 Sep 2026. The baseline was re-dumped — 20260904180423 out,
+ * 20260905130719 in — because production had gained 1 table and 4 views and the
+ * 914 blanket grok policies had been dropped, so schema-baseline was red on every
+ * open PR. A baseline swap moves this digest by construction; that is the same
+ * reason #112 re-pinned it on 4 Sep, and it is not a new migration.
+ *
+ * The order matters and it caught an error here. Run against the UNCOMMITTED
+ * working tree the check reported 979 files and f0a665c7...; run again after the
+ * swap was committed it reported 980 files and 3bdfeb9a.... git ls-files does not
+ * see a staged rename the same way. The committed figure is the real one, which is
+ * why the paragraph above insists on committing first. Pinning 3bdfeb9a.
  */
-/* RE-PINNED 4 Sep 2026, 981 files, for the applied room-turn pull-grain view.
- * Production stamp 20260904184006. One file added, no baseline swap.
- * Counted with listMigrationSqlFiles() after the file was committed.
- * Digest 0254ae787bfb25a3c9d31daf6144e7ca21d75c0181600061a11499572a613dc2.
- */
-const expectedMigrationTreeDigest = "0254ae787bfb25a3c9d31daf6144e7ca21d75c0181600061a11499572a613dc2";
+const expectedMigrationTreeDigest = "6bb7ad484c7444824a6a7d042b53e225d8952753ca587834aa725da940dbf4c2";
 const actualMigrationTreeDigest = migrationTreeDigest(migrationEntries);
 if (actualMigrationTreeDigest !== expectedMigrationTreeDigest) {
   console.error(`money-grain: FAIL — migration tree differs from the independently reviewed ${files.length}-file manifest (${actualMigrationTreeDigest}).`);
