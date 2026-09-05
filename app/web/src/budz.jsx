@@ -1948,6 +1948,21 @@ export function AssistantSettings() {
           </div>
         </div>
       </div>
+      <div className="asetgrp">
+        <h3>TG Bots add-on</h3>
+        <span className="note">
+          Install once per computer. Toggle Grok, Claude, GPT, or Grok Bots. Uses the
+          subscriptions you already pay for. The bridge token stays on that computer —
+          it is never synced and never logged. Command Center → Connect Top G wakes every desk.
+        </span>
+        <div className="asetrow">
+          <a className="btn" href="/tg-ai-ext.zip" download="tg-ai-ext.zip">Download TG Bots</a>
+        </div>
+        <span className="note">
+          Chrome or Edge → extensions → Developer mode → Load unpacked → pick the unzipped folder.
+          Paste the same bridge token as the desktop file. Stay signed in on Grok, Claude, or ChatGPT.
+        </span>
+      </div>
       {/* EVERY ASSISTANT SETTING LIVES ON THIS PAGE - owner, 8 Aug 2026: "why is
           this here, it should be on settings page", "we have a page for uploading
           avatars, move that shit", then "MOVE ALL SETTINGS HERE". The assistant

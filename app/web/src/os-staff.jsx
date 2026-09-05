@@ -3,6 +3,7 @@
    METRC is read-only. No certified number is invented here. */
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { askBudzFull } from "./budz.jsx";
+import { connectTopG, pingTgBots, TG_BOTS_ZIP, topGConnected } from "./lib/topg-connect.js";
 import "./os-staff.css";
 
 const STAFF = [
@@ -61,6 +62,8 @@ export default function OsStaff({ go }) {
   const [text, setText] = useState("");
   const [thread, setThread] = useState(() => loadThread("topg"));
   const [busy, setBusy] = useState(false);
+  const [topg, setTopg] = useState(() => topGConnected());
+  const [extOn, setExtOn] = useState(false);
   const ready = useRef(false);
   const bot = STAFF.find((s) => s.id === sel) || STAFF[0];
   const needle = q.trim().toLowerCase();
@@ -70,6 +73,12 @@ export default function OsStaff({ go }) {
   );
   const pins = STAFF.filter((s) => s.pin);
 
+  useEffect(() => {
+    pingTgBots().then((r) => setExtOn(!!r.installed));
+    const n = () => setTopg(topGConnected());
+    window.addEventListener("tg-topg", n);
+    return () => window.removeEventListener("tg-topg", n);
+  }, []);
   useEffect(() => {
     ready.current = false;
     setThread(loadThread(sel));
@@ -153,10 +162,24 @@ export default function OsStaff({ go }) {
             <h1>{bot.name}</h1>
             <p>{bot.job} Talk here. Same AI as Budz. Nothing here writes to Metrc or Apex.</p>
           </div>
-          {bot.open && go ? (
-            <button type="button" className="osstaff-go" onClick={() => go(bot.open)}>Open desk</button>
-          ) : null}
+          <div className="osstaff-actions">
+            <button type="button" className="osstaff-go" onClick={async () => {
+              const r = await connectTopG("grok");
+              setTopg(true);
+              setExtOn(!!r.installed);
+            }}>{topg ? "Top G on" : "Connect Top G"}</button>
+            {bot.open && go ? (
+              <button type="button" className="osstaff-go" onClick={() => go(bot.open)}>Open desk</button>
+            ) : null}
+          </div>
         </header>
+        {!extOn && (
+          <p className="osstaff-note">
+            TG Bots add-on is not on this computer yet.{" "}
+            <a href={TG_BOTS_ZIP} download="tg-ai-ext.zip">Download TG Bots</a>
+            {" "}then Chrome → extensions → Developer mode → Load unpacked. Toggle Grok, Claude, GPT, or Grok Bots. Token stays on this machine.
+          </p>
+        )}
         <div className="osstaff-thread">
           {thread.length === 0 ? (
             <div className="osstaff-empty">

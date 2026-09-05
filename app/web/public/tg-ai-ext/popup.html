@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>TG Bots</title>
+  <link rel="stylesheet" href="popup.css" />
+</head>
+<body>
+  <header>
+    <h1>TG Bots</h1>
+    <p>Uses the subscription on this computer. No extra bill.</p>
+  </header>
+
+  <label class="row switch">
+    <span>Running</span>
+    <input id="on" type="checkbox" />
+  </label>
+
+  <fieldset>
+    <legend>Answer with</legend>
+    <label><input type="radio" name="provider" value="grok" /> Grok</label>
+    <label><input type="radio" name="provider" value="grokbots" /> Grok Bots</label>
+    <label><input type="radio" name="provider" value="claude" /> Claude</label>
+    <label><input type="radio" name="provider" value="gpt" /> GPT</label>
+  </fieldset>
+
+  <label class="stack">
+    <span>Grok Bots address (https://grok.com/… only)</span>
+    <input id="botsUrl" type="url" placeholder="https://grok.com/" autocomplete="off" spellcheck="false" />
+  </label>
+
+  <label class="stack">
+    <span>Bridge token (same as the desktop file — stored only on this computer)</span>
+    <input id="token" type="password" autocomplete="off" spellcheck="false" />
+  </label>
+  <div class="actions">
+    <button id="save" type="button">Save</button>
+    <button id="clear" type="button" class="ghost">Remove token</button>
+  </div>
+  <p id="msg" class="msg" hidden></p>
+  <p class="fine">Token never syncs. Never logged. Sent only to the OS queue. Stay signed in on Grok, Claude, or ChatGPT. Metrc stays read-only.</p>
+  <script src="popup.js"></script>
+</body>
+</html>

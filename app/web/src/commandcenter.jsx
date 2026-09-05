@@ -43,6 +43,7 @@ import {
   DkStreamDrill, DkRowDrill, DkEmpty, dkRoomQualified,
 } from "./dashkit.jsx";
 import "./commandcenter.css";
+import { connectTopG, topGConnected } from "./lib/topg-connect.js";
 
 /* ---------- shared primitives of the new tree ---------- */
 
@@ -1455,6 +1456,7 @@ export default function CommandCenter({ go, session, reports, role, viewAs, onVi
   const [qTask, setQTask] = useState("");
   const [ver, setVer] = useState(0);
   const [d, setD] = useState(null);   // { key: { rows, err } }
+  const [topgOn, setTopgOn] = useState(() => topGConnected());
 
   useEffect(() => {
     if (!dateDefault.ready) return undefined;
@@ -1739,6 +1741,10 @@ export default function CommandCenter({ go, session, reports, role, viewAs, onVi
       {/* ── order 2 · one 32px toolbar: view | dates | actions ── */}
       <div className="cc-tools">
         <div className="cc-tools-l">
+          <button className="cc-btn primary" title="Wake Top G and every staff desk. Uses Grok, Claude, or GPT you already pay for — no extra bill."
+            onClick={async () => { await connectTopG("grok"); setTopgOn(true); go("os_staff"); }}>
+            {topgOn ? "Top G on →" : "Connect Top G"}
+          </button>
           <button className="cc-btn" title="Collapse every section — remembered per user on this device" onClick={() => store.setAll(SEC_IDS, false)}>− collapse all</button>
           <button className="cc-btn" title="Expand every section" onClick={() => store.setAll(SEC_IDS, true)}>+ expand all</button>
           {isAdmin && (
