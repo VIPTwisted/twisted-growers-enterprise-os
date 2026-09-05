@@ -41,12 +41,15 @@ import { supabase } from "./lib/supabase.js";
 import { rowsOr } from "./App.jsx";
 import {
   grab, listOf, DkTag, DkErr, DkEmpty, DkHead, DkDrill, DrillRoot, DkCaret,
-  useDefaultRange,
+  useDefaultRange, DkFrameNote,
   Widget, WidgetBoard, WidgetBarControls, useWidgetLayout, useSectionStore,
   DkNarrative, DkReports, DkTasks,
 } from "./dashkit.jsx";
 /* The one date control the rest of the OS already uses — imported, not rebuilt. */
 import { DateRangeSelect } from "./App.jsx";
+/* The range/search rule, written once and unit-tested. This page used to
+   spell it out inline. */
+import { rangeSearch } from "./lib/range-search.js";
 import {
   FinKpiStrip, FinMoney, FinBasis, FinDefect, FinCard, FinActions, FinAnswer,
   FinReading, FinCapped, finReadAll, useFinTargets, useFinRead,
@@ -380,21 +383,24 @@ export default function CustomersPage({ go, session, reports, role, viewAs, onVi
    * dropped." Those accounts are exactly the ones somebody is looking for when
    * they ask who has never ordered, and a period filter that silently removed
    * them would answer a different question than the one asked. */
-  const searching = q.trim().length > 0;
-  const tradedInRange = (a) => {
-    if (!range.from && !range.to) return true;
-    if (!a.last_sale) return true;
-    const d0 = String(a.last_sale).slice(0, 10);
-    if (range.from && d0 < range.from) return false;
-    if (range.to && d0 > range.to) return false;
-    return true;
-  };
+  /* ONE DATE SYSTEM. The three rules above were spelled out in this file — a
+     `tradedInRange` and a search filter that reimplemented rules 1 and 2 of
+     lib/range-search.js in this page's own words. They agreed with the shared
+     rule, which is the good case and still the wrong shape: the next edit to
+     either copy is where they stop agreeing, and nothing would say so.
+
+     Behaviour is unchanged and deliberately so. An account that has never
+     bought still survives the frame — it has no last_sale, and a range cannot
+     exclude a fact it has no date for. Those accounts are exactly the ones
+     somebody is looking for when they ask who has never ordered. */
+  const rs = rangeSearch(accounts, {
+    from: range.from, to: range.to, dateField: "last_sale", q,
+    fields: ["facility", "licence", "company", "facility_type"],
+  });
+  const searching = rs.searching;
   const periodNarrowed = Boolean(range.from || range.to);
-  const rangeSetAside = searching && periodNarrowed;
-  const filtered = searching
-    ? accounts.filter((a) => `${a.facility ?? ""} ${a.licence} ${a.company ?? ""} ${a.facility_type ?? ""}`
-        .toLowerCase().includes(q.trim().toLowerCase()))
-    : accounts.filter(tradedInRange);
+  const rangeSetAside = rs.setAside;
+  const filtered = rs.rows;
 
   const openTasks = d.tasks.rows.filter((t) => t.department === DEPT);
   const T = (k) => tile === k;
@@ -568,6 +574,20 @@ export default function CustomersPage({ go, session, reports, role, viewAs, onVi
                       presetKey={dateDefault.presetKey} session={session}
                       viewKey={VIEW_KEY} allowSave />
                     {dateDefault.error && <span className="note bad" role="alert">{dateDefault.error}</span>}
+                    {/* WHAT THE FRAME MOVES HERE, AND WHAT IT CANNOT.
+                        This is a DIRECTORY. The frame narrows the list to
+                        accounts that TRADED in the period, on last_sale — which
+                        is a real business date the directory serves. Everything
+                        an account IS, rather than when it last bought, has no
+                        date to narrow: customers and facility_contacts carry
+                        only updated_at, a maintenance timestamp and not an
+                        event. Measured, not assumed. */}
+                    <DkFrameNote basis="period" range={range}
+                      what="Which accounts are listed"
+                      why="Narrowed on last_sale — accounts that traded in the selected period. An account that has NEVER bought has no last_sale, so no range can place it, and it is kept rather than dropped: those are precisely the accounts somebody is looking for when they ask who has never ordered." />
+                    <DkFrameNote basis="undated" range={range}
+                      what="The contact books, terms and credit limits"
+                      why="customers and facility_contacts carry only updated_at, which records when a row was last touched, not when anything happened. There is no business date to narrow, so these describe the account as it stands however the period moves." />
                     {periodNarrowed && !searching && (
                       <button className="cc-btn" onClick={() => setRange({ from: "", to: "" })}
                         title="Show accounts from every period again.">show all periods</button>
