@@ -11612,6 +11612,7 @@ function ForcePasswordChange({ email, onDone }) {
   const [p2, setP2] = useState("");
   const [msg, setMsg] = useState("");
   const [busy, setBusy] = useState(false);
+  const [showPw, setShowPw] = useState(false);
   const save = async () => {
     if (p1.length < 8) return setMsg("Your new password needs to be at least eight characters.");
     if (p1 !== p2) return setMsg("The two passwords do not match.");
@@ -11635,11 +11636,20 @@ function ForcePasswordChange({ email, onDone }) {
           including whoever set up your account.
         </p>
         <div className="pwmail">{email}</div>
+        <button type="button" onClick={() => setShowPw(!showPw)} aria-pressed={showPw}
+          style={{ display: "block", width: "100%", marginBottom: 10, padding: "10px 12px",
+            background: "none", border: "1px solid var(--brand, #7CD992)", borderRadius: 6,
+            color: "var(--brand, #7CD992)", font: "inherit", fontSize: 15, fontWeight: 600,
+            letterSpacing: ".04em", cursor: "pointer" }}>
+          {showPw ? "HIDE PASSWORD" : "SHOW PASSWORD"}
+        </button>
         <label>New password</label>
-        <input className="inp" type="password" value={p1} autoFocus
+        <input className="inp" type={showPw ? "text" : "password"} value={p1} autoFocus
+          autoComplete="new-password" autoCapitalize="off" autoCorrect="off" spellCheck={false}
           onChange={(e) => setP1(e.target.value)} placeholder="At least eight characters" />
         <label>Type it again</label>
-        <input className="inp" type="password" value={p2}
+        <input className="inp" type={showPw ? "text" : "password"} value={p2}
+          autoComplete="new-password" autoCapitalize="off" autoCorrect="off" spellCheck={false}
           onChange={(e) => setP2(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && save()} />
         {msg && <div className="pwmsg">{msg}</div>}
