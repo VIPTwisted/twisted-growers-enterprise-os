@@ -810,6 +810,18 @@ function Auth() {
     else if (mode === "signup") setMsg({ kind: "ok", text: "Account created. If email confirmation is on, check your inbox — then sign in." });
     setBusy(false);
   }
+
+  async function sendReset() {
+    if (!email) { setMsg({ kind: "err", text: "Type your email address first, then press Email me a reset link." }); return; }
+    setBusy(true); setMsg(null);
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/#reset_password`,
+    });
+    setMsg(error
+      ? { kind: "err", text: error.message }
+      : { kind: "ok", text: `Reset link sent to ${email}. Check the inbox, and the spam folder. The link opens this site and lets you set a new password.` });
+    setBusy(false);
+  }
   return (
     <div className="auth-wrap">
       <div className="auth-brand">
@@ -842,6 +854,12 @@ function Auth() {
           <button type="button" className="btn ghost" style={{ marginLeft: 10 }} onClick={() => { setMode(mode === "signin" ? "signup" : "signin"); setMsg(null); }}>
             {mode === "signin" ? "First time? Create account" : "Have an account? Sign in"}
           </button>
+          {mode === "signin" && (
+            <button type="button" className="btn ghost" disabled={busy} onClick={sendReset}
+              style={{ marginTop: 10, display: "block", width: "100%" }}>
+              Forgot password? Email me a reset link
+            </button>
+          )}
           {msg && <div className={`msg ${msg.kind}`}>{msg.text}</div>}
           <div className="note">Accounts after the first start read-only until an owner assigns a role.</div>
         </form>
