@@ -465,3 +465,36 @@
 @media (max-width: 800px) {
   .osdesk-rail { display: none; }
 }
+.osdesk-jump {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.65rem 0.9rem;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface);
+}
+.osdesk-jump-k {
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  color: var(--neon);
+  margin-right: 0.25rem;
+}
+.osdesk-jump button {
+  min-height: 2.4rem;
+  padding: 0 0.85rem;
+  border-radius: 99px;
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  color: var(--ink);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 650;
+}
+.osdesk-jump button:hover {
+  border-color: var(--neon-line);
+  color: var(--neon);
+  background: var(--neon-soft);
+}
