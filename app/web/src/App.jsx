@@ -2583,7 +2583,7 @@ function RpReportHeader({ title, reportKey, factView, dateCol, from, to, presetK
 
   return (
     <div className="rp-reporthead">
-      <div className="rp-printident" aria-hidden="true">{printIdent}</div>
+      <div className="rp-printident" aria-hidden="true" style={{ display: "none" }}>{printIdent}</div>
       <dl className="rp-rh-facts">
         <div><dt>Company</dt><dd>{companyLine}</dd></div>
         <div><dt>Period</dt><dd>{periodLine}</dd></div>
@@ -12334,7 +12334,7 @@ export default function App() {
               title="Bots"
               aria-label="Bots"
             >
-              <img src="/bots/topg.gif" alt="" />
+              <img src="/bots/topg.gif" alt="" width="28" height="28" />
               <span className="railbots-lbl">Bots</span>
             </button>
             {session && <SyncCenter session={session} />}
