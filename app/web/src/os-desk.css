@@ -1,0 +1,467 @@
+/* Grok Users / Permissions / Help. Layout only. Tokens only. */
+.osdesk {
+  color: var(--ink);
+  background: var(--canvas);
+  min-height: calc(100dvh - 4.5rem);
+}
+.osdesk-kicker {
+  margin: 0;
+  font-size: 0.7rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.osdesk-title {
+  margin: 0.2rem 0 0;
+  font-size: 1.7rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+.osdesk-lede {
+  margin: 0.45rem 0 0;
+  max-width: 46rem;
+  color: var(--muted);
+  font-size: 0.9rem;
+  line-height: 1.55;
+}
+.osdesk-shell {
+  margin-top: 1.25rem;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  overflow: hidden;
+}
+.osdesk-split {
+  display: flex;
+  min-height: 32rem;
+}
+.osdesk-rail {
+  width: 13.5rem;
+  flex-shrink: 0;
+  border-right: 1px solid var(--line);
+  padding: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  background: var(--surface);
+}
+.osdesk-rail-h {
+  padding: 0.55rem 0.7rem 0.85rem;
+}
+.osdesk-rail-h b { display: block; font-size: 0.9rem; }
+.osdesk-online {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-top: 0.25rem;
+  color: var(--neon);
+  font-size: 0.75rem;
+}
+.osdesk-online i {
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 99px;
+  background: var(--neon);
+  display: inline-block;
+}
+.osdesk-rail button {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  width: 100%;
+  min-height: 2.6rem;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  text-align: left;
+  padding: 0 0.7rem;
+  border-radius: 6px;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.88rem;
+}
+.osdesk-rail button:hover { color: var(--ink); background: var(--surface-2); }
+.osdesk-rail button.on,
+.osdesk-sub.on {
+  color: var(--neon);
+  background: var(--neon-soft);
+}
+.osdesk-sub {
+  display: block;
+  width: 100%;
+  min-height: 2.4rem;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  text-align: left;
+  padding: 0 0.7rem 0 2.4rem;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.85rem;
+  border-radius: 6px;
+}
+.osdesk-sub:hover { color: var(--ink); }
+.osdesk-main { flex: 1; min-width: 0; padding: 1.15rem 1.35rem 1.6rem; }
+.osdesk-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  align-items: flex-start;
+}
+.osdesk-head h2 {
+  margin: 0;
+  font-size: 1.35rem;
+  font-weight: 700;
+}
+.osdesk-head p { margin: 0.25rem 0 0; color: var(--muted); font-size: 0.88rem; }
+.osdesk-add {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-height: 2.6rem;
+  padding: 0 0.95rem;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface-2);
+  color: var(--ink);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.88rem;
+}
+.osdesk-add b {
+  display: inline-flex;
+  min-width: 1.4rem;
+  height: 1.4rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 99px;
+  background: var(--neon);
+  color: var(--neon-ink);
+  font-size: 0.75rem;
+}
+.osdesk-own { margin: 0.25rem 0 0; font-size: 0.72rem; color: var(--muted); text-align: right; }
+.osdesk-tablewrap {
+  margin-top: 1.1rem;
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+.osdesk-tablewrap table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 44rem;
+  font-size: 0.88rem;
+}
+.osdesk-tablewrap th {
+  text-align: left;
+  padding: 0.7rem 0.9rem;
+  background: var(--thead);
+  color: var(--muted);
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-weight: 700;
+}
+.osdesk-tablewrap td {
+  padding: 0.55rem 0.9rem;
+  border-top: 1px solid var(--line);
+  vertical-align: middle;
+}
+.osdesk-role {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.65rem;
+  font-weight: 650;
+}
+.osdesk-role svg { color: var(--neon); flex-shrink: 0; }
+.osdesk-yes,
+.osdesk-no {
+  display: inline-flex;
+  min-height: 1.9rem;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0 0.7rem;
+  border-radius: 99px;
+  font-size: 0.78rem;
+  font-weight: 650;
+}
+.osdesk-yes { background: var(--neon-soft); color: var(--neon); }
+.osdesk-no { background: var(--surface-2); color: var(--muted); }
+.osdesk-note {
+  margin: 0.9rem 0 0;
+  padding: 0.7rem 0.85rem;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+.osdesk-tabs {
+  display: flex;
+  gap: 0.25rem;
+  overflow-x: auto;
+  padding: 0.65rem 0.75rem;
+  border-bottom: 1px solid var(--line);
+}
+.osdesk-tabs button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-height: 2.5rem;
+  padding: 0 0.9rem;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.86rem;
+  white-space: nowrap;
+}
+.osdesk-tabs button:hover { color: var(--ink); background: var(--surface-2); }
+.osdesk-tabs button.on {
+  background: var(--neon-soft);
+  color: var(--neon);
+  font-weight: 650;
+}
+.osdesk-body { padding: 1.15rem 1.35rem 1.5rem; }
+.osdesk-mark { color: var(--neon); }
+.osdesk-saved {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+.osdesk-saved i {
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 99px;
+  background: var(--neon);
+  display: inline-block;
+}
+.osdesk-steps {
+  display: grid;
+  gap: 0.7rem;
+  margin: 1rem 0 0;
+}
+@media (min-width: 720px) {
+  .osdesk-steps { grid-template-columns: 1fr 1fr; }
+}
+.osdesk-step {
+  display: flex;
+  gap: 0.7rem;
+  color: var(--muted);
+  font-size: 0.86rem;
+  line-height: 1.5;
+}
+.osdesk-n {
+  flex-shrink: 0;
+  width: 1.6rem;
+  height: 1.6rem;
+  border-radius: 99px;
+  border: 1px solid var(--neon);
+  color: var(--neon);
+  display: grid;
+  place-items: center;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+.osdesk-cellbtn {
+  min-height: 2.5rem;
+  min-width: 2.5rem;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  border-radius: 6px;
+  color: var(--ink);
+}
+.osdesk-cellbtn:hover { background: var(--surface-2); }
+.osdesk-cellbtn .yes { color: var(--neon); }
+.osdesk-cellbtn .no { color: var(--red); }
+.osdesk-save {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-height: 2.6rem;
+  padding: 0 1.1rem;
+  border: 1px solid var(--neon-line);
+  border-radius: 7px;
+  background: transparent;
+  color: var(--neon);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 750;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.osdesk-save:hover { background: var(--neon-soft); }
+.osdesk-save:disabled { opacity: 0.55; cursor: not-allowed; }
+.osdesk-helpbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.65rem 0.9rem;
+  border-bottom: 1px solid var(--line);
+}
+.osdesk-crumb { color: var(--muted); font-size: 0.85rem; }
+.osdesk-crumb b { color: var(--ink); font-weight: 650; }
+.osdesk-search {
+  margin-left: auto;
+  position: relative;
+}
+.osdesk-search input {
+  height: 2.5rem;
+  width: 13rem;
+  padding: 0 0.7rem 0 2rem;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--input-bg);
+  color: var(--ink);
+  font: inherit;
+}
+.osdesk-search svg {
+  position: absolute;
+  left: 0.55rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--muted);
+  pointer-events: none;
+}
+.osdesk-iconbtn {
+  min-height: 2.5rem;
+  min-width: 2.5rem;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  border-radius: 6px;
+  position: relative;
+}
+.osdesk-iconbtn:hover { color: var(--ink); }
+.osdesk-badge {
+  position: absolute;
+  top: 0.25rem;
+  right: 0.2rem;
+  min-width: 0.95rem;
+  height: 0.95rem;
+  border-radius: 99px;
+  background: var(--neon);
+  color: var(--neon-ink);
+  font-size: 0.62rem;
+  font-weight: 700;
+  display: grid;
+  place-items: center;
+}
+.osdesk-support {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  color: var(--neon);
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 650;
+  min-height: 2.5rem;
+}
+.osdesk-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.95rem;
+}
+.osdesk-chips button {
+  min-height: 2.4rem;
+  padding: 0 0.9rem;
+  border-radius: 99px;
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  color: var(--muted);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.84rem;
+}
+.osdesk-chips button.on {
+  background: var(--neon);
+  border-color: var(--neon);
+  color: var(--neon-ink);
+  font-weight: 700;
+}
+.osdesk-cards {
+  display: grid;
+  gap: 0.85rem;
+  margin-top: 1.1rem;
+}
+@media (min-width: 860px) {
+  .osdesk-cards { grid-template-columns: 1fr 1fr; }
+}
+.osdesk-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  text-align: left;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface-2);
+  padding: 1.05rem 1.1rem 0.95rem;
+  color: var(--ink);
+  cursor: pointer;
+  font: inherit;
+}
+.osdesk-card:hover { border-color: var(--neon-line); }
+.osdesk-ico {
+  width: 2.2rem;
+  height: 2.2rem;
+  border-radius: 6px;
+  background: var(--neon-soft);
+  color: var(--neon);
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+.osdesk-tag {
+  display: inline-block;
+  margin-top: 0.2rem;
+  padding: 0.1rem 0.4rem;
+  border-radius: 4px;
+  background: var(--neon-soft);
+  color: var(--neon);
+  font-size: 0.62rem;
+  font-weight: 750;
+  letter-spacing: 0.08em;
+}
+.osdesk-screens { margin: 0.15rem 0 0; color: var(--muted); font-size: 0.8rem; }
+.osdesk-foot {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.6rem;
+  align-items: center;
+  margin-top: auto;
+  padding-top: 0.5rem;
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+.osdesk-open { color: var(--neon); font-weight: 650; }
+.osdesk-guide { max-width: 44rem; }
+.osdesk-guide ol { margin: 1rem 0 0; padding-left: 1.2rem; }
+.osdesk-guide li { margin: 0 0 0.9rem; }
+.osdesk-guide li b { display: block; }
+.osdesk-err { color: var(--red); }
+.osdesk-find {
+  margin: 0.8rem 0 0;
+  height: 2.5rem;
+  width: min(22rem, 100%);
+  padding: 0 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--input-bg);
+  color: var(--ink);
+  font: inherit;
+}
+@media (max-width: 800px) {
+  .osdesk-rail { display: none; }
+}

@@ -733,8 +733,10 @@ const migrationEntries = files.map((name) => ({
  *
  * RE-PINNED 8 Sep 2026, 1038 -> 1039 files, digest 2cbab9f2… . rpt API clones
  * get Compliance & Metrc group + harvests roles so they can be opened. Cycle 56.
+ *
+ * RE-PINNED 8 Sep 2026, 1039 -> 1040 files, digest 0a75e6ed… . os_users Settings -> Users + Grok permissions/help chrome. Cycle 56. No ledger rewrite.
  */
-const expectedMigrationTreeDigest = "2cbab9f2a20cb5c28844f232fd3d45bfbd2e6e378a89ba355a9192ef8b80bd83";
+const expectedMigrationTreeDigest = "0a75e6eda5b3a4c41dd070097569a14bb65c65d36ec54fe3ecb206b94a4674cc";
 const actualMigrationTreeDigest = migrationTreeDigest(migrationEntries);
 if (actualMigrationTreeDigest !== expectedMigrationTreeDigest) {
   console.error(`money-grain: FAIL — migration tree differs from the independently reviewed ${files.length}-file manifest (${actualMigrationTreeDigest}).`);
