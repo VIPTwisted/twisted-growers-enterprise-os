@@ -1,19 +1,12 @@
-/* Settings → Users. Grok design in live OS chrome. Live app_users. Do not invent staff. */
+/* Settings → Users. Live app_users only. Do not invent staff.
+   Owner/admin edits role, display name, password flag. Auth account is not created here. */
 import React, { useEffect, useState } from "react";
 import { supabase } from "./lib/supabase.js";
 import "./os-desk.css";
 
-const SHOW = [
-  ["owner", "Owner", true, true, true],
-  ["executive", "Executive", true, true, true],
-  ["cfo", "CFO", true, true, true],
-  ["admin", "Admin", true, true, false],
-  ["manager", "Manager", true, false, false],
-  ["dept_head", "Dept Head", true, false, false],
-  ["staff", "Staff", false, false, false],
-  ["hr", "HR", false, false, false],
-  ["planner", "Planner", false, false, false],
-  ["readonly", "ReadOnly", false, false, false],
+const ASSIGNABLE = [
+  "owner", "executive", "cfo", "admin", "hr", "manager",
+  "assistant_manager", "dept_head", "planner", "staff", "employee", "readonly",
 ];
 
 function Icon() {
@@ -25,128 +18,181 @@ function Icon() {
   );
 }
 
-function Pill({ on }) {
-  return on ? (
-    <span className="osdesk-yes">Yes
-      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" aria-hidden="true"><path d="M5 12l5 5L20 7" /></svg>
-    </span>
-  ) : (
-    <span className="osdesk-no">No
-      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" aria-hidden="true"><path d="M5 12h14" /></svg>
-    </span>
-  );
-}
-
 export default function OsUsers({ go, session }) {
-  const [counts, setCounts] = useState(null);
+  const [rows, setRows] = useState(null);
   const [err, setErr] = useState(null);
   const [notice, setNotice] = useState(null);
+  const [sel, setSel] = useState(null);
+  const [draft, setDraft] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [adding, setAdding] = useState(false);
+  const [fresh, setFresh] = useState({ user_id: "", display_name: "", role: "staff" });
 
-  useEffect(() => {
-    let live = true;
-    supabase.from("app_users").select("role").then(({ data, error }) => {
-      if (!live) return;
-      if (error) {
-        setErr(error.message);
-        setCounts({});
-        return;
-      }
-      const rows = Array.isArray(data) ? data : [];
-      const next = {};
-      rows.forEach((r) => { next[r.role] = (next[r.role] || 0) + 1; });
-      setCounts(next);
-      setErr(null);
+  function load() {
+    supabase.from("app_users")
+      .select("user_id, display_name, role, must_change_password, created_at, employee_id")
+      .order("created_at")
+      .then(({ data, error }) => {
+        if (error) { setErr(error.message); setRows([]); return; }
+        setRows(Array.isArray(data) ? data : []);
+        setErr(null);
+      });
+  }
+  useEffect(() => { load(); }, []);
+
+  function open(u) {
+    setSel(u.user_id);
+    setDraft({
+      display_name: u.display_name || "",
+      role: u.role,
+      must_change_password: !!u.must_change_password,
     });
-    return () => { live = false; };
-  }, []);
+    setNotice(null);
+  }
 
-  const owners = counts ? (counts.owner || 0) : 0;
+  async function saveEdit() {
+    if (!sel || !draft) return;
+    setSaving(true);
+    const { error } = await supabase.from("app_users").update({
+      display_name: draft.display_name.trim() || null,
+      role: draft.role,
+      must_change_password: !!draft.must_change_password,
+    }).eq("user_id", sel);
+    setSaving(false);
+    if (error) { setErr(error.message); setNotice("Save refused: " + error.message); return; }
+    setNotice("User saved. Role change takes effect on their next page load.");
+    setErr(null);
+    load();
+  }
+
+  async function addUser() {
+    const id = (fresh.user_id || "").trim();
+    if (!/^[0-9a-f-]{36}$/i.test(id)) {
+      setNotice("Paste a real Auth user id (UUID). This pane does not create logins or passwords.");
+      return;
+    }
+    setSaving(true);
+    const { error } = await supabase.from("app_users").insert({
+      user_id: id,
+      display_name: (fresh.display_name || "").trim() || null,
+      role: fresh.role,
+      must_change_password: true,
+    });
+    setSaving(false);
+    if (error) { setErr(error.message); setNotice("Could not provision: " + error.message); return; }
+    setNotice("Provisioned. They already had a login — we assigned a role. Password never prints here.");
+    setAdding(false);
+    setFresh({ user_id: "", display_name: "", role: "staff" });
+    load();
+  }
+
+  const owners = (rows || []).filter((r) => r.role === "owner").length;
 
   return (
     <div className="osdesk">
       <p className="osdesk-kicker">Settings</p>
       <h1 className="osdesk-title">Users</h1>
       <p className="osdesk-lede">
-        Live <b>app_users</b>. {counts ? `${owners} owner row${owners === 1 ? "" : "s"}` : "Reading…"}.
-        Other roles exist in the catalog with 0 provisioned — do not invent staff.
-        Only owner creates a user. Passwords never print here.
+        Live <b>app_users</b>. {rows ? `${rows.length} provisioned · ${owners} owner${owners === 1 ? "" : "s"}` : "Reading…"}.
+        Edit anyone. Do not invent staff. A login is created in Auth first — then you assign a role here.
       </p>
 
       <div className="osdesk-shell">
-        <div className="osdesk-split">
-          <aside className="osdesk-rail">
-            <div className="osdesk-rail-h">
-              <b>Command Center</b>
-              <span className="osdesk-online"><i /> Online</span>
+        <div className="osdesk-tabs">
+          <button type="button" className="on">Users</button>
+          <button type="button" onClick={() => go && go("permissions")}>Permissions</button>
+          <button type="button" onClick={() => go && go("watchdog_log")}>Audit log</button>
+          <button type="button" onClick={() => go && go("people")}>Employees</button>
+          <button type="button" onClick={() => go && go("settings")}>Settings</button>
+        </div>
+        <div className="osdesk-body">
+          <div className="osdesk-head">
+            <div>
+              <h2>Who is on this OS</h2>
+              <p>Click a row. Change name, role, or force a password change. Owner and admin only on save.</p>
             </div>
-            <button type="button" onClick={() => go && go("ops_cm")}>Cultivation</button>
-            <button type="button" onClick={() => go && go("dept_dash_metrc")}>Metrc</button>
-            <button type="button" onClick={() => go && go("orders")}>Finance</button>
-            <button type="button" className="on">HR</button>
-            <button type="button" className="osdesk-sub on" onClick={() => go && go("os_users")}>Users</button>
-            <button type="button" className="osdesk-sub" onClick={() => go && go("permissions")}>Roles & Permissions</button>
-            <button type="button" onClick={() => go && go("settings")}>Settings</button>
-            <button type="button" onClick={() => go && go("watchdog_log")}>Audit Log</button>
-            <button type="button" onClick={() => go && go("cron_health")}>System Status</button>
-          </aside>
-
-          <div className="osdesk-main">
-            <div className="osdesk-head">
-              <div>
-                <h2>Users — who is on this OS</h2>
-                <p>Application roles and access provisioning for this facility.</p>
-              </div>
-              <div>
-                <button
-                  type="button"
-                  className="osdesk-add"
-                  onClick={() => setNotice(
-                    session?.user
-                      ? "Add user is owner-only. This pane does not create auth accounts. Live app_users is owners only until you provision someone. Do not invent staff."
-                      : "Sign in as owner to create a user.",
-                  )}
-                >
-                  Add user <b>{counts ? owners : "…"}</b>
-                </button>
-                <p className="osdesk-own">Owner only</p>
-              </div>
+            <div>
+              <button type="button" className="osdesk-add" onClick={() => { setAdding((v) => !v); setNotice(null); }}>
+                Add user <b>{rows ? rows.length : "…"}</b>
+              </button>
+              <p className="osdesk-own">Does not create a password</p>
             </div>
-
-            {err ? <p className="osdesk-note osdesk-err" role="alert">app_users could not be read: {err}</p> : null}
-
-            <div className="osdesk-tablewrap">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Role</th>
-                    <th>Provisioned</th>
-                    <th>Sees Metrc queues</th>
-                    <th>Sees finance</th>
-                    <th>Can edit policy</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {SHOW.map(([id, label, queues, finance, policy]) => (
-                    <tr key={id}>
-                      <td>
-                        <span className="osdesk-role"><Icon />{label}</span>
-                      </td>
-                      <td>{counts ? (counts[id] || 0) : "…"}</td>
-                      <td><Pill on={queues} /></td>
-                      <td><Pill on={finance} /></td>
-                      <td><Pill on={policy} /></td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            {notice ? (
-              <p className="osdesk-note" role="status">{notice}</p>
-            ) : (
-              <p className="osdesk-note">Live policy, not a mock. Owner sees finance. Staff does not see queues.</p>
-            )}
           </div>
+
+          {err ? <p className="osdesk-note osdesk-err" role="alert">app_users could not be read: {err}</p> : null}
+
+          {adding ? (
+            <div className="osdesk-editor">
+              <b>Provision an existing login</b>
+              <p>Paste the Auth user id. Role is assigned here. Password is never shown or set on this page.</p>
+              <label className="osdesk-field">Auth user id
+                <input value={fresh.user_id} onChange={(e) => setFresh({ ...fresh, user_id: e.target.value })} placeholder="uuid" />
+              </label>
+              <label className="osdesk-field">Display name
+                <input value={fresh.display_name} onChange={(e) => setFresh({ ...fresh, display_name: e.target.value })} placeholder="Vincent" />
+              </label>
+              <label className="osdesk-field">Role
+                <select value={fresh.role} onChange={(e) => setFresh({ ...fresh, role: e.target.value })}>
+                  {ASSIGNABLE.map((r) => <option key={r} value={r}>{r}</option>)}
+                </select>
+              </label>
+              <button type="button" className="osdesk-save" disabled={saving || !session} onClick={addUser}>Provision</button>
+            </div>
+          ) : null}
+
+          <div className="osdesk-tablewrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>User</th>
+                  <th>Role</th>
+                  <th>Must change password</th>
+                  <th>Provisioned</th>
+                  <th>User id</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(rows || []).map((u) => (
+                  <tr key={u.user_id} className={sel === u.user_id ? "on" : ""} onClick={() => open(u)} style={{ cursor: "pointer" }}>
+                    <td><span className="osdesk-role"><Icon />{u.display_name || "Unnamed"}</span></td>
+                    <td>{u.role}</td>
+                    <td>{u.must_change_password ? <span className="osdesk-no">Yes</span> : <span className="osdesk-yes">No</span>}</td>
+                    <td>{u.created_at ? String(u.created_at).slice(0, 10) : "—"}</td>
+                    <td style={{ fontFamily: "ui-monospace, monospace", fontSize: 12 }}>{u.user_id}</td>
+                  </tr>
+                ))}
+                {rows && rows.length === 0 ? (
+                  <tr><td colSpan={5}>No app_users rows. Do not invent staff.</td></tr>
+                ) : null}
+              </tbody>
+            </table>
+          </div>
+
+          {sel && draft ? (
+            <div className="osdesk-editor">
+              <b>Edit user</b>
+              <label className="osdesk-field">Display name
+                <input value={draft.display_name} onChange={(e) => setDraft({ ...draft, display_name: e.target.value })} />
+              </label>
+              <label className="osdesk-field">Role
+                <select value={draft.role} onChange={(e) => setDraft({ ...draft, role: e.target.value })}>
+                  {ASSIGNABLE.map((r) => <option key={r} value={r}>{r}</option>)}
+                </select>
+              </label>
+              <label className="osdesk-field" style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                <input type="checkbox" checked={!!draft.must_change_password} onChange={(e) => setDraft({ ...draft, must_change_password: e.target.checked })} />
+                Must change password on next sign-in
+              </label>
+              <button type="button" className="osdesk-save" disabled={saving || !session} onClick={saveEdit}>
+                {saving ? "Saving…" : "Save user"}
+              </button>
+              <p className="osdesk-own">Owner / admin. Last remaining owner cannot be demoted if the database refuses it.</p>
+            </div>
+          ) : null}
+
+          {notice ? <p className="osdesk-note" role="status">{notice}</p> : (
+            <p className="osdesk-note">Two owners are live. Assign staff by role. Page-level View / Edit / Approve / Export / Delete is on Permissions.</p>
+          )}
         </div>
       </div>
     </div>
