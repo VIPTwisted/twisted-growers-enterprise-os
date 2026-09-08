@@ -12212,7 +12212,7 @@ export default function App() {
         </div>
         <div className="tspacer" />
         <BridgeChip />
-        <span className="tpill"><span className="d" /> LIVE</span>
+        <span className="tpill" title="Cycle 56 locked. LIVE is the OS chrome — Metrc custody SoR, Apex invoice SoR. Hover Sync in the rail for last pull."><span className="d" /> LIVE</span>
         <div className="tuser">
           <button className="tibtn" title="Control Tower" onClick={() => setView("tower")}>{I.gauge}</button>
           <button className="tibtn" title="Tasks" onClick={() => setView("tasks")}>{I.check}</button>
