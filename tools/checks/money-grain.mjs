@@ -688,8 +688,20 @@ const migrationEntries = files.map((name) => ({
  * folder that is not in this repository. It touches the `storage` schema only,
  * so schema-baseline does not move - that gate counts `public` and nothing else,
  * checked rather than assumed.
+ *
+ * AND ONCE MORE, 1031 -> 1032 at a45075e8… : 20260908132603
+ * bridge_tables_reader_select_only, plus the baseline re-dump it forces
+ * (20260908123242 out, 20260908133330 in; 1324 -> 1327 policies).
+ *
+ * That migration closes a regression this session created. 457 public tables
+ * carry tg_reader_select_only for tg_desktop_reader; the three bridge tables
+ * added on 7 Sep did not, so the read-only role got permission denied on all
+ * three. A blind reader does not fail loudly - it reports zero, and zero looks
+ * like a fact. It is the same failure already on the record from the day the
+ * reader lost rolbypassrls. SELECT-only policy and grant; the reader still
+ * cannot write, which is why the load had to go through a privileged connection.
  */
-const expectedMigrationTreeDigest = "c4ed726e8930b3bfa21539dd9dad738e949b91e71ce069431fe82ef32022b234";
+const expectedMigrationTreeDigest = "a45075e8016587b633bd51f4eac1caf5838ccd9c8c48336f295dcb1702be028b";
 const actualMigrationTreeDigest = migrationTreeDigest(migrationEntries);
 if (actualMigrationTreeDigest !== expectedMigrationTreeDigest) {
   console.error(`money-grain: FAIL — migration tree differs from the independently reviewed ${files.length}-file manifest (${actualMigrationTreeDigest}).`);
