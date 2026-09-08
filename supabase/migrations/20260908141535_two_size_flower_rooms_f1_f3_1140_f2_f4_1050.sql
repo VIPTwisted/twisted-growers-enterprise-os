@@ -53,7 +53,6 @@ UPDATE cult_cycle_policy SET
     WHEN 'F1' THEN 'LARGE 1140. Owner 8 Sep 2026 two-size rooms. Short queue can fire. MATCH conversion_factors.room_capacity_f1.'
     WHEN 'F2' THEN 'SMALL 1050. Owner 8 Sep 2026 two-size rooms. Short queue can fire. MATCH conversion_factors.room_capacity_f2.'
     WHEN 'F3' THEN 'LARGE 1140. Owner 8 Sep 2026 two-size rooms. Calendar 950 is stale. MATCH conversion_factors.room_capacity_f3.'
-    WHEN 'F4' THEN 'LARGE 1140. Owner 8 Sep 2026 two-size rooms. Calendar 950 is stale. MATCH conversion_factors.room_capacity_f3.'
     WHEN 'F4' THEN 'SMALL 1050. Owner 8 Sep 2026 two-size rooms. Short queue can fire. MATCH conversion_factors.room_capacity_f4.'
   END,
   updated_at = now(),
