@@ -255,7 +255,13 @@ h1, h2, h3, .display { font-family: "Figtree", "Inter", sans-serif; }
 .nav button.item.on .mtag { color: #05230f; border-color: rgba(0, 0, 0, 0.3); }
 .nav.closed button.item { justify-content: center; padding: 9px 0; }
 .nav.closed button.item .lbl, .nav.closed button.item .mtag { display: none; }
-.nav .railfoot { margin-top: auto; padding: 12px 6px 0; border-top: 1px solid rgba(255, 255, 255, 0.08); }
+.nav .railfoot {
+  margin-top: auto;
+  padding: 12px 6px 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  flex: 0 0 auto;
+  overflow: hidden;
+}
 .nav .railwidget { margin: 0; padding: 12px; background: var(--rail-item-hover-bg); border: 1px solid var(--rail-border); border-radius: 8px; }
 .nav.closed .railwidget { display: none; }
 .railwidget .rw-title { display: flex; align-items: center; gap: 8px; font-size: 9.5px; font-weight: 800; letter-spacing: 0.16em; text-transform: uppercase; color: #7d8f85; }
@@ -531,6 +537,8 @@ button.pulse:hover, button.stat:hover { background: var(--row-hover); }
   border: 1px solid var(--neon-line); border-radius: 8px;
   background: var(--neon-soft); color: var(--neon);
   cursor: pointer; font-weight: 700; font-size: 13px;
+  overflow: hidden;
+  max-height: 48px;
 }
 .nav .railcm {
   display: flex; align-items: center; gap: 10px; width: 100%;
@@ -538,6 +546,8 @@ button.pulse:hover, button.stat:hover { background: var(--row-hover); }
   border: 1px solid var(--neon-line); border-radius: 8px;
   background: var(--surface-2); color: var(--ink);
   cursor: pointer; font-weight: 700; font-size: 13px;
+  overflow: hidden;
+  max-height: 48px;
 }
 .nav .railcm-mark {
   width: 28px; height: 28px; border-radius: 8px; flex-shrink: 0;
@@ -557,7 +567,8 @@ button.pulse:hover, button.stat:hover { background: var(--row-hover); }
   flex-direction: column;
   gap: 2px;
   padding: 6px 8px 10px;
-  flex: 1;
+  flex: 1 1 auto;
+  min-height: 0;
   overflow: auto;
 }
 .nav .cockpit-item {
@@ -637,8 +648,8 @@ button.pulse:hover, button.stat:hover { background: var(--row-hover); }
   background: var(--neon-soft);
 }
 .nav .railbots img {
-.nav .railbots img {
   width: 28px; height: 28px; border-radius: 50%; object-fit: cover; flex-shrink: 0;
+  display: block;
 }
 .nav .railbots:hover, .nav .railbots.on { box-shadow: 0 0 10px var(--neon); }
 .nav.closed .railbots { justify-content: center; padding: 6px; gap: 0; }
@@ -1941,6 +1952,10 @@ button.teamcard:hover { border-color: var(--neon-line); }
 /* Voice. Same shape as the paperclip so the row reads as one set of controls
    rather than three unrelated buttons. */
 .micbtn { font-size: 17px; line-height: 1; color: var(--muted); padding: 8px 11px; }
+
+@media screen {
+  .rp-printident { display: none !important; height: 0 !important; overflow: hidden !important; }
+}
 .micbtn:hover { color: var(--accent); border-color: var(--neon-line); }
 .micbtn.on { color: var(--accent); border-color: var(--accent);
   box-shadow: 0 0 14px rgba(0, 255, 140, 0.30); }
