@@ -11149,7 +11149,7 @@ function DeptDashboard({ viewKey, go, nav, deep, session, reports, role, viewAs,
   if (!range.ready || !rows) return <div className="empty"><div className="eicon">◐</div>Building the {dept} dashboard…</div>;
 
   return (
-    <>
+    <div className="ccpage">
       {/* HEADER — owner layout doctrine, 12 Aug 2026, point 4: header plus every
           control spends at most ~120px; the role/scope/view chips and the live
           line share ONE slim row; the first data section is visible without
@@ -11219,6 +11219,46 @@ function DeptDashboard({ viewKey, go, nav, deep, session, reports, role, viewAs,
         </div>
       )}
 
+      <Section id="figures" store={store} title={`${dept} key figures`} count={rows.length}>
+        <div className="ddgrid">
+          {rows.map((r) => {
+            const tr = trend[r.kpi];
+            const tg = targets[r.kpi];
+            const dl = delta(r.kpi);
+            const offTarget = tg && tg.target != null &&
+              (tg.direction === "at_most" ? Number(r.value) > Number(tg.target) : Number(r.value) < Number(tg.target));
+            return (
+              <div key={r.kpi + r.ord} className={`ddtile ${offTarget ? "bad" : r.tone}`}>
+                <button className="ddmain" onClick={() => r.drill && go(r.drill)} title="Open the records behind this">
+                  <span className="ddkpi">{r.kpi}</span>
+                  <span className="ddval">{fmt(r.value, r.unit)}
+                    <em>{r.unit !== "$" && r.unit !== "%" ? " " + r.unit : ""}</em></span>
+                  {tg && tg.target != null && (
+                    <span className={`ddtarget ${offTarget ? "off" : "on"}`}>
+                      Target {tg.direction === "at_most" ? "no more than" : "at least"} {Number(tg.target).toLocaleString()}
+                      {offTarget ? " — OVER" : " — within"}
+                    </span>
+                  )}
+                  {r.context && <span className="ddctx">{r.context}</span>}
+                  <span className="ddctx">
+                    {r.honours_range === false
+                      ? (r.range_note || "This figure does not honour the selected range.")
+                      : (r.range_note || "Computed for the selected range.")}
+                  </span>
+                  <Spark series={tr?.series} direction={tg?.direction} />
+                  {dl && (
+                    <span className={`dddelta ${DELTA_CLASS[movementVerdict(
+                      dl.d === 0 ? null : dl.d > 0, tg?.direction)]}`}>{dl.txt}</span>
+                  )}
+                  {r.drill && <span className="ddgo">Open the records</span>}
+                </button>
+                <AssignTask dept={dept} kpi={r.kpi} value={r.value} unit={r.unit} drill={r.drill} onDone={() => setVer((v) => v + 1)} />
+              </div>
+            );
+          })}
+        </div>
+      </Section>
+
       {/* The Command-only bands (global management, goals+yield pair, room
           rings, reports shelf, diagnostic footer) were RETIRED from this
           component on 12 Aug 2026: the owner ordered the Command Center rebuilt
@@ -11229,7 +11269,7 @@ function DeptDashboard({ viewKey, go, nav, deep, session, reports, role, viewAs,
       {/* NARRATIVE COMMENTARY — owner-approved 11 Aug 2026: the period story
           (rewrites with the date bar), the standing platform story, and signed
           notes. Byline discipline is the whole design. */}
-      <Section id="narrative" store={store} title="In plain words — the period, the platform, and signed notes">
+      <Section id="narrative" store={store} title="In plain words — the period, the platform, and signed notes" defaultOpen={false}>
         <DashNarratives dept={dept} range={range} role={role} session={session} go={go} />
       </Section>
 
@@ -11254,49 +11294,6 @@ function DeptDashboard({ viewKey, go, nav, deep, session, reports, role, viewAs,
           <GoalsEditor />
         </Section>
       )}
-
-      <Section id="figures" store={store} title={`${dept} key figures`} count={rows.length}>
-        <div className="ddgrid">
-          {rows.map((r) => {
-            const tr = trend[r.kpi];
-            const tg = targets[r.kpi];
-            const dl = delta(r.kpi);
-            const offTarget = tg && tg.target != null &&
-              (tg.direction === "at_most" ? Number(r.value) > Number(tg.target) : Number(r.value) < Number(tg.target));
-            return (
-              <div key={r.kpi + r.ord} className={`ddtile ${offTarget ? "bad" : r.tone}`}>
-                <button className="ddmain" onClick={() => r.drill && go(r.drill)} title="Open the records behind this">
-                  <span className="ddkpi">{r.kpi}</span>
-                  <span className="ddval">{fmt(r.value, r.unit)}
-                    <em>{r.unit !== "$" && r.unit !== "%" ? " " + r.unit : ""}</em></span>
-                  {tg && tg.target != null && (
-                    <span className={`ddtarget ${offTarget ? "off" : "on"}`}>
-                      Target {tg.direction === "at_most" ? "no more than" : "at least"} {Number(tg.target).toLocaleString()}
-                      {offTarget ? " — OVER" : " — within"}
-                    </span>
-                  )}
-                  {r.context && <span className="ddctx">{r.context}</span>}
-                  {/* The database returns the basis for this exact row. Never
-                      replace it with one hardcoded all-time sentence. */}
-                  <span className="ddctx">
-                    {r.honours_range === false
-                      ? (r.range_note || "This figure does not honour the selected range.")
-                      : (r.range_note || "Computed for the selected range.")}
-                  </span>
-                  {/* Both read the SAME verdict, so they can never disagree again. */}
-                  <Spark series={tr?.series} direction={tg?.direction} />
-                  {dl && (
-                    <span className={`dddelta ${DELTA_CLASS[movementVerdict(
-                      dl.d === 0 ? null : dl.d > 0, tg?.direction)]}`}>{dl.txt}</span>
-                  )}
-                  {r.drill && <span className="ddgo">🔍 Open the records</span>}
-                </button>
-                <AssignTask dept={dept} kpi={r.kpi} value={r.value} unit={r.unit} drill={r.drill} onDone={() => setVer((v) => v + 1)} />
-              </div>
-            );
-          })}
-        </div>
-      </Section>
 
       {/* STOCK BY STREAM — FROZEN by the owner, 11 Aug 2026: "DO NOT CHANGE THIS."
           The collapse control on the header is his own later amendment (chrome
@@ -11385,7 +11382,7 @@ function DeptDashboard({ viewKey, go, nav, deep, session, reports, role, viewAs,
           Each gets a proper screen and comes off this list. Kept at the bottom, collapsed,
           so it never competes with the dashboard itself. */}
       {deepItems.length > 0 && (
-        <Section id="deep" store={store} title={`${dept} pages — every tool in this department`} count={deepItems.length}>
+        <Section id="deep" store={store} title={`More tools — type to find. Daily tools are on the left rail.`} count={deepItems.length} defaultOpen={false}>
           <p className="buildnote">
             These {deepItems.length} pages used to sit in the side menu. They live here now.
             Nothing was deleted. Old links still work.
@@ -11394,7 +11391,7 @@ function DeptDashboard({ viewKey, go, nav, deep, session, reports, role, viewAs,
         </Section>
       )}
 
-    </>
+    </div>
   );
 }
 
@@ -11805,6 +11802,7 @@ export default function App() {
   const [openCats, setOpenCats] = useState(() => {
     try { return JSON.parse(localStorage.getItem("tg.nav.open") || "{}"); } catch { return {}; }
   });
+  const [railExpand, setRailExpand] = useState(null);
   useEffect(() => { try { localStorage.setItem("tg.nav.open", JSON.stringify(openCats)); } catch {} }, [openCats]);
   const [dragging, setDragging] = useState(false);
   const [userMenu, setUserMenu] = useState(false);
@@ -12282,8 +12280,8 @@ export default function App() {
         <nav className={`nav ${prefs.collapsed ? "closed" : ""} ${dragging ? "dragging" : ""}`}
           style={prefs.collapsed ? undefined : { width: prefs.navWidth }}>
           <div className="navtools">
-            <button onClick={() => setOpenCats(Object.fromEntries(cats.map((c) => [c.name, true])))}>Expand all</button>
-            <button onClick={() => setOpenCats(Object.fromEntries(cats.map((c) => [c.name, false])))}>Collapse all</button>
+            <button onClick={() => setRailExpand({ n: Date.now(), open: true })}>Expand all</button>
+            <button onClick={() => setRailExpand({ n: Date.now(), open: false })}>Collapse all</button>
           </div>
           {/* An empty rail and a rail we could not build look identical, and the
               second one used to arrive dressed as the first: the owner saw a
@@ -12296,9 +12294,9 @@ export default function App() {
             </div>
           )}
           {prefs.collapsed ? (
-            <CockpitRail view={view} go={setView} collapsed />
+            <CockpitRail view={view} go={setView} collapsed category={current && current.category} expandAll={railExpand} />
           ) : (
-            <CockpitRail view={view} go={setView} collapsed={false} />
+            <CockpitRail view={view} go={setView} collapsed={false} category={current && current.category} expandAll={railExpand} />
           )}
           <button className="burger navburger" onClick={() => prefs.setCollapsed(!prefs.collapsed)} title="Collapse / expand menu">{I.burger}</button>
           <div className="railfoot">

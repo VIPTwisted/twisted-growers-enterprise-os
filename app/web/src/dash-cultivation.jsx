@@ -450,7 +450,7 @@ export default function CultivationDashboard({ go, session, reports, deep, role,
     { key: "targets", title: "Owner-set targets with no published figure", span: 1 },
     { key: "tasks", title: "Tasks raised from this dashboard", span: 1 },
     { key: "reports", title: "Reports — this department", span: 2 },
-    { key: "pages", title: "Cultivation pages — search, then drill. Nothing omitted.", span: 2 },
+    { key: "pages", title: "More tools — type to find. Daily tools are on the left rail.", span: 2 },
   ], []);
   const layout = useWidgetLayout(PAGE_KEY, WIDGETS);
   const queue = useWorkQueue(DEPT);
@@ -1055,7 +1055,7 @@ export default function CultivationDashboard({ go, session, reports, deep, role,
               </Widget>
             );
             case "pages": return (
-              <Widget key={w.key} w={w} layout={layout} store={store}>
+              <Widget key={w.key} w={w} layout={layout} store={store} defaultOpen={false}>
                 <div className="cc-fine" style={{ marginBottom: 8 }}>
                   <button type="button" className="cc-btn" onClick={() => go("dutchie_cult")}>Twisted C&M →</button>
                 </div>

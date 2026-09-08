@@ -164,7 +164,7 @@ export default function InventoryDashboard({ go, session, reports, deep, role, v
     { key: "targets", title: "Owner-set targets with no published figure", span: 1 },
     { key: "tasks", title: "Tasks raised from this dashboard", span: 1 },
     { key: "reports", title: "Reports — this department", span: 2 },
-    { key: "pages", title: "Inventory pages — search, then drill. Nothing omitted.", span: 2 },
+    { key: "pages", title: "More tools — type to find. Daily tools are on the left rail.", span: 2 },
     /* APPENDED, deliberately. useWidgetLayout keeps a saved position for every key
        a user has already arranged and appends only the keys they have never seen,
        so adding this moves nothing on anybody's existing board. */
@@ -449,7 +449,7 @@ export default function InventoryDashboard({ go, session, reports, deep, role, v
               </Widget>
             );
             case "pages": return (
-              <Widget key={w.key} w={w} layout={layout} store={store}>
+              <Widget key={w.key} w={w} layout={layout} store={store} defaultOpen={false}>
                 <DkCockpitPages deep={deep} dept={DEPT} go={go} />
               </Widget>
             );
