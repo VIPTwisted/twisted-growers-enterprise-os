@@ -498,3 +498,13 @@
   color: var(--neon);
   background: var(--neon-soft);
 }
+.osdesk-jump-primary {
+  min-height: 2.8rem !important;
+  padding: 0 1.15rem !important;
+  border-color: var(--neon-line) !important;
+  background: var(--neon-soft) !important;
+  color: var(--neon) !important;
+  font-size: 0.95rem !important;
+  font-weight: 800 !important;
+  letter-spacing: 0.02em;
+}
