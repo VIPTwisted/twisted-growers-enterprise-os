@@ -681,8 +681,15 @@ const migrationEntries = files.map((name) => ({
  * earlier in the same session. Grok had already merged all 16 via #142-#151 with
  * real why-comments, and re-adding Claude's stub-headed copies would have
  * overwritten that reasoning with blanks. Dropped before this pin was taken.
+ *
+ * MOVED AGAIN, same branch, 1030 -> 1031 at c4ed726e… : 20260908130448
+ * bridge_data_private_bucket. A PRIVATE Storage bucket for the Manifest Bridge
+ * source caches, so the loader can read them over HTTPS instead of from a 44 MB
+ * folder that is not in this repository. It touches the `storage` schema only,
+ * so schema-baseline does not move - that gate counts `public` and nothing else,
+ * checked rather than assumed.
  */
-const expectedMigrationTreeDigest = "88fb24416fd824b7cad8acaccb6d00386acb9364e5a061bdf00528c38f5644f0";
+const expectedMigrationTreeDigest = "c4ed726e8930b3bfa21539dd9dad738e949b91e71ce069431fe82ef32022b234";
 const actualMigrationTreeDigest = migrationTreeDigest(migrationEntries);
 if (actualMigrationTreeDigest !== expectedMigrationTreeDigest) {
   console.error(`money-grain: FAIL — migration tree differs from the independently reviewed ${files.length}-file manifest (${actualMigrationTreeDigest}).`);
