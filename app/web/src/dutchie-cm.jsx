@@ -1,5 +1,4 @@
-/* Twisted C&M — Grok chrome on the live OS.
-   Metrc custody SoR. Apex invoice SoR. Write to Metrc NEVER. Cycle 56 locked. */
+/* Twisted C&M — live canopy HUD. Metrc custody SoR. Apex invoice SoR. Write NEVER. Cycle 56. */
 import React, { useCallback, useEffect, useState } from "react";
 import { supabase, FUNCTIONS_URL } from "./lib/supabase.js";
 import "./os-desk.css";
@@ -36,6 +35,16 @@ function n(v) {
   return Number.isFinite(x) ? x.toLocaleString() : "—";
 }
 
+function fillPct(plants, cap) {
+  const p = Number(plants);
+  const c = Number(cap);
+  if (!Number.isFinite(p) || !Number.isFinite(c) || c <= 0) return 0;
+  const x = (p / c) * 100;
+  if (x > 100) return 100;
+  if (x < 0) return 0;
+  return x;
+}
+
 export default function DutchieCm({ go, session }) {
   const [k, setK] = useState(null);
   const [err, setErr] = useState(null);
@@ -51,7 +60,7 @@ export default function DutchieCm({ go, session }) {
       supabase.from("metrc_packages").select("id", { count: "exact", head: true }),
       supabase.from("v_canopy_two_size").select("room,size,cap,plants_now,as_of,verdict"),
     ]);
-    const errs = [flower, veg, batches, harvests, pkgs, canopy].map((x) => x.error?.message).filter(Boolean);
+    const errs = [flower, veg, batches, harvests, pkgs, canopy].map((x) => x.error && x.error.message).filter(Boolean);
     setErr(errs.length ? errs.join(" · ") : null);
     setK({
       flower: flower.count,
@@ -69,48 +78,68 @@ export default function DutchieCm({ go, session }) {
     try {
       const r = await fetch(`${FUNCTIONS_URL}/${fn}`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session?.access_token}` },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session && session.access_token}` },
       });
       const j = await r.json();
-      setNote(j.ok ? `${fn} pulled. ${j.total ?? ""}`.trim() : (j.error || "Pull failed"));
+      setNote(j.ok ? `${fn} pulled. ${j.total || ""}`.trim() : (j.error || "Pull failed"));
       await load();
     } catch (e) {
-      setErr(String(e.message ?? e));
+      setErr(String(e.message || e));
     }
     setBusy(null);
   }
 
   const tiles = [
-    ["Flowering plants", k ? n(k.flower) : "…", "rpt-plants-flowering"],
-    ["Vegetative plants", k ? n(k.veg) : "…", "rpt-plants-vegetative"],
-    ["Plant batches", k ? n(k.batches) : "…", "rpt-plantings"],
-    ["Harvests", k ? n(k.harvests) : "…", "rpt-harvests"],
-    ["Packages", k ? n(k.pkgs) : "…", "rpt-packages-inventory"],
+    ["Flowering", k ? n(k.flower) : "…", "rpt-plants-flowering", "plants"],
+    ["Vegetative", k ? n(k.veg) : "…", "rpt-plants-vegetative", "plants"],
+    ["Batches", k ? n(k.batches) : "…", "rpt-plantings", "lots"],
+    ["Harvests", k ? n(k.harvests) : "…", "rpt-harvests", "since day one"],
+    ["Packages", k ? n(k.pkgs) : "…", "rpt-packages-inventory", "tags"],
   ];
 
-  return (
-    <div className="osdesk">
-      <p className="osdesk-kicker">Cultivation & Manufacturing</p>
-      <h1 className="osdesk-title">Twisted C&M</h1>
-      <p className="osdesk-lede">
-        Twisted Growers cultivation and manufacturing. Metrc stays custody of record. Apex stays the invoice.
-        Phase 1: see everything, write nothing to Metrc. Click a number — forensic drill.
-      </p>
+  const asOf = Array.isArray(k && k.canopy) && k.canopy.length && k.canopy[0].as_of ? k.canopy[0].as_of : "live";
+  const rooms = Array.isArray(k && k.canopy) ? k.canopy : [];
 
-      <div className="osdesk-jump" style={{ marginTop: 14, border: "1px solid var(--line)", borderRadius: 8 }}>
+  return (
+    <div className="osdesk osdesk-cm">
+      <header className="osdesk-hud">
+        <div>
+          <p className="osdesk-kicker">Cultivation & Manufacturing</p>
+          <h1 className="osdesk-title">Twisted C&M</h1>
+          <p className="osdesk-lede">
+            Live canopy. Metrc is custody of record. Apex is the invoice. We watch here — we write nothing to Metrc.
+            Click a number. Forensic drill. Cycle 56 locked.
+          </p>
+        </div>
+        <div className="osdesk-hud-meta">
+          <span className="osdesk-live"><i className="osdesk-pulse" /> LIVE</span>
+          <span className="osdesk-asof">as-of {asOf}</span>
+        </div>
+      </header>
+
+      <div className="osdesk-chips">
+        <span className="osdesk-chip">METRC custody</span>
+        <span className="osdesk-chip">APEX invoice</span>
+        <span className="osdesk-chip osdesk-chip-warn">WRITE NEVER</span>
+        <span className="osdesk-chip">CYCLE 56</span>
+        <span className="osdesk-chip">UNCERTIFIED until dual MATCH</span>
+      </div>
+
+      <div className="osdesk-actions">
         <button type="button" className="osdesk-save" disabled={!!busy} onClick={() => pull("metrc-sync")}>
-          {busy === "metrc-sync" ? "Pulling Metrc…" : "Run — pull live from Metrc"}
+          {busy === "metrc-sync" ? "Pulling Metrc…" : "Pull Metrc"}
         </button>
         <button type="button" className="osdesk-add" disabled={!!busy} onClick={() => pull("apex-sync")}>
-          {busy === "apex-sync" ? "Pulling Apex…" : "Run — pull live from Apex"}
+          {busy === "apex-sync" ? "Pulling Apex…" : "Pull Apex"}
         </button>
         <button type="button" className="osdesk-add" onClick={() => go && go("report_center")}>Report Center</button>
         <button type="button" className="osdesk-add" onClick={() => go && go("report_vault")}>Report Vault</button>
+        <button type="button" className="osdesk-add" onClick={() => go && go("ops_spine")}>Harvest spine</button>
       </div>
       {note ? <p className="osdesk-note">{note}</p> : null}
       {err ? <p className="osdesk-err">{err}</p> : null}
 
-      <div className="osdesk-shell" style={{ marginTop: 16 }}>
+      <div className="osdesk-shell">
         <div className="osdesk-split">
           <aside className="osdesk-rail">
             <div className="osdesk-rail-h">
@@ -129,63 +158,58 @@ export default function DutchieCm({ go, session }) {
             ))}
           </aside>
           <div className="osdesk-main">
-            <div className="osdesk-head">
-              <div>
-                <h2>Live canopy</h2>
-                <p>Metrc plants and rooms. Caps are two-size. 1,150 is labor, not cap.</p>
-              </div>
-            </div>
-
-            <div className="osdesk-cards" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(11rem, 1fr))" }}>
-              {tiles.map(([label, val, drill]) => (
-                <button key={label} type="button" className="osdesk-card" onClick={() => go && go(drill)}>
+            <div className="osdesk-kpis">
+              {tiles.map(([label, val, drill, unit]) => (
+                <button key={label} type="button" className="osdesk-kpi" onClick={() => go && go(drill)}>
                   <span className="osdesk-kicker">{label}</span>
-                  <b style={{ fontSize: "1.55rem", letterSpacing: "-0.03em" }}>{val}</b>
-                  <span className="osdesk-open">Open cloned report →</span>
+                  <b>{val}</b>
+                  <span className="osdesk-open">{unit} → drill</span>
                 </button>
               ))}
             </div>
 
-            <h2 style={{ marginTop: 22, fontSize: 16 }}>Two-size rooms (as-of)</h2>
-            <div className="osdesk-tablewrap">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Room</th>
-                    <th>Size</th>
-                    <th>Plants now</th>
-                    <th>Cap</th>
-                    <th>Verdict</th>
-                    <th>As-of</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {Array.isArray(k?.canopy) && k.canopy.length ? k.canopy.map((r) => (
-                    <tr key={r.room}>
-                      <td>{`${r.room} — cultivation department`}</td>
-                      <td>{r.size}</td>
-                      <td>{n(r.plants_now)}</td>
-                      <td>{n(r.cap)}</td>
-                      <td>{r.verdict || "—"}</td>
-                      <td>{r.as_of || "—"}</td>
-                    </tr>
-                  )) : (
-                    <tr><td colSpan={6}>{k ? "No canopy rows yet." : "Reading…"}</td></tr>
-                  )}
-                </tbody>
-              </table>
+            <div className="osdesk-head" style={{ marginTop: 22 }}>
+              <div>
+                <h2>Two-size rooms</h2>
+                <p>F1 / F3 cap 1,140. F2 / F4 cap 1,050. 1,150 is labor, not cap. Click a room.</p>
+              </div>
             </div>
 
-            <h2 style={{ marginTop: 22, fontSize: 16 }}>Twisted C&M map — what lives where</h2>
-            <div className="osdesk-cards">
+            <div className="osdesk-rooms">
+              {rooms.length ? rooms.map((r) => {
+                const pct = fillPct(r.plants_now, r.cap);
+                return (
+                  <button key={r.room} type="button" className="osdesk-room" onClick={() => go && go("grow_rooms")}>
+                    <div className="osdesk-room-top">
+                      <b>{r.room}</b>
+                      <span className="osdesk-tag">{r.size || "—"}</span>
+                    </div>
+                    <div className="osdesk-room-nums">
+                      <span><strong>{n(r.plants_now)}</strong> now</span>
+                      <span>cap {n(r.cap)}</span>
+                    </div>
+                    <div className="osdesk-meter" aria-hidden="true">
+                      <i className="osdesk-meter-fill" style={{ width: `${pct}%` }} />
+                    </div>
+                    <div className="osdesk-foot">
+                      <span>{r.verdict || "—"}</span>
+                      <span className="osdesk-open">{Math.round(pct)}%</span>
+                    </div>
+                  </button>
+                );
+              }) : (
+                <p className="osdesk-lede">{k ? "No canopy rows yet." : "Reading live canopy…"}</p>
+              )}
+            </div>
+
+            <h2 style={{ marginTop: 22, fontSize: 16 }}>Where work lives</h2>
+            <div className="osdesk-map">
               {FEATURES.map(([name, why, where, st]) => (
-                <div key={name} className="osdesk-card" style={{ cursor: "default" }}>
+                <div key={name} className="osdesk-map-row">
                   <b>{name}</b>
                   <span className="osdesk-screens">{why}</span>
-                  <div className="osdesk-foot">
-                    <span className="osdesk-tag">{where}</span>
-                    <span className={st === "LIVE" ? "osdesk-yes" : st === "NEVER" ? "osdesk-no" : "osdesk-tag"}>{st}</span>
-                  </div>
+                  <span className="osdesk-tag">{where}</span>
+                  <span className={st === "LIVE" ? "osdesk-yes" : st === "NEVER" ? "osdesk-no" : "osdesk-tag"}>{st}</span>
                 </div>
               ))}
             </div>

@@ -532,6 +532,25 @@ button.pulse:hover, button.stat:hover { background: var(--row-hover); }
   background: var(--neon-soft); color: var(--neon);
   cursor: pointer; font-weight: 700; font-size: 13px;
 }
+.nav .railcm {
+  display: flex; align-items: center; gap: 10px; width: 100%;
+  margin: 0 0 8px; padding: 8px 10px;
+  border: 1px solid var(--neon-line); border-radius: 8px;
+  background: var(--surface-2); color: var(--ink);
+  cursor: pointer; font-weight: 700; font-size: 13px;
+}
+.nav .railcm-mark {
+  width: 28px; height: 28px; border-radius: 8px; flex-shrink: 0;
+  display: grid; place-items: center;
+  background: var(--neon-soft); color: var(--neon);
+  font-size: 10px; font-weight: 800; letter-spacing: 0.04em;
+}
+.nav .railcm:hover, .nav .railcm.on {
+  color: var(--neon); background: var(--neon-soft);
+  box-shadow: 0 0 10px var(--neon);
+}
+.nav.closed .railcm { justify-content: center; padding: 6px; gap: 0; }
+.nav.closed .railcm-lbl { display: none; }
 .nav .railbots img {
   width: 28px; height: 28px; border-radius: 50%; object-fit: cover; flex-shrink: 0;
 }

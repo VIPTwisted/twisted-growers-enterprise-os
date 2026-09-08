@@ -508,3 +508,164 @@
   font-weight: 800 !important;
   letter-spacing: 0.02em;
 }
+
+.osdesk-cm { padding: 1.1rem 1.25rem 2rem; }
+.osdesk-hud {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+.osdesk-hud-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.35rem;
+}
+.osdesk-live {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  color: var(--neon);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+}
+.osdesk-pulse {
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 99px;
+  background: var(--neon);
+  display: inline-block;
+  animation: osdesk-pulse 1.7s ease-in-out infinite;
+}
+@keyframes osdesk-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.28; }
+}
+.osdesk-asof { color: var(--muted); font-size: 0.78rem; }
+.osdesk-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.85rem;
+}
+.osdesk-chip {
+  min-height: 1.7rem;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 0.65rem;
+  border: 1px solid var(--line);
+  border-radius: 99px;
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-weight: 750;
+  letter-spacing: 0.08em;
+}
+.osdesk-chip-warn {
+  border-color: var(--neon-line);
+  color: var(--neon);
+  background: var(--neon-soft);
+}
+.osdesk-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin-top: 0.9rem;
+}
+.osdesk-kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr));
+  gap: 0.7rem;
+}
+.osdesk-kpi {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  text-align: left;
+  min-height: 7.2rem;
+  padding: 0.95rem 1rem 0.85rem;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface-2);
+  color: var(--ink);
+  cursor: pointer;
+  font: inherit;
+}
+.osdesk-kpi:hover { border-color: var(--neon-line); }
+.osdesk-kpi b {
+  font-size: 1.85rem;
+  letter-spacing: -0.04em;
+  line-height: 1.05;
+  color: var(--neon);
+}
+.osdesk-rooms {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  gap: 0.75rem;
+  margin-top: 0.85rem;
+}
+.osdesk-room {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  text-align: left;
+  padding: 1rem 1.05rem 0.9rem;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface-2);
+  color: var(--ink);
+  cursor: pointer;
+  font: inherit;
+}
+.osdesk-room:hover { border-color: var(--neon-line); }
+.osdesk-room-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+}
+.osdesk-room-top b { font-size: 0.95rem; }
+.osdesk-room-nums {
+  display: flex;
+  justify-content: space-between;
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+.osdesk-room-nums strong { color: var(--ink); font-size: 1.05rem; }
+.osdesk-meter {
+  height: 0.42rem;
+  border-radius: 99px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  overflow: hidden;
+}
+.osdesk-meter-fill {
+  display: block;
+  height: 100%;
+  background: var(--neon);
+}
+.osdesk-map {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin-top: 0.7rem;
+}
+.osdesk-map-row {
+  display: grid;
+  grid-template-columns: 10rem 1fr auto auto;
+  gap: 0.7rem;
+  align-items: center;
+  padding: 0.65rem 0.8rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-2);
+}
+.osdesk-map-row b { font-size: 0.88rem; }
+@media (max-width: 800px) {
+  .osdesk-map-row { grid-template-columns: 1fr auto; }
+  .osdesk-map-row .osdesk-screens { grid-column: 1 / -1; }
+}
+
