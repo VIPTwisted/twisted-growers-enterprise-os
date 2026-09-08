@@ -25,6 +25,18 @@
   </fieldset>
 
   <label class="stack">
+    <span>Version</span>
+    <select id="model">
+      <option value="">Whatever the tab already has selected</option>
+    </select>
+  </label>
+  <div class="actions">
+    <button id="loadModels" type="button" class="ghost">Load my versions</button>
+  </div>
+  <p class="fine">The list comes from the provider's own menu on your signed-in tab, so it
+    shows exactly the versions your subscription can open — nothing this add-on guessed.</p>
+
+  <label class="stack">
     <span>Grok Bots address (https://grok.com/… only)</span>
     <input id="botsUrl" type="url" placeholder="https://grok.com/" autocomplete="off" spellcheck="false" />
   </label>
