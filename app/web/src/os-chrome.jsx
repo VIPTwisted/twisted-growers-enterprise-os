@@ -6,8 +6,8 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 export const HOME_VIEW = "dept_dash_command";
 
 export function useOsHistory() {
-  const initial = (typeof window !== "undefined" && window.location.hash.slice(1)) || HOME_VIEW;
-  const [view, setViewRaw] = useState(initial);
+  const initial = window.location.hash.slice(1) || HOME_VIEW;
+  const [view, setViewRaw] = useState(() => window.location.hash.slice(1) || HOME_VIEW);
   const [tick, setTick] = useState(0);
   const st = useRef({ stack: [initial], i: 0 });
 
@@ -48,7 +48,7 @@ export function useOsHistory() {
 
   useEffect(() => {
     if (window.location.hash.slice(1) !== view) {
-      window.history.pushState({ os: true, view }, "", "#" + view);
+      window.history.pushState({ os: true, view }, "", `#${view}`);
     }
   }, [view]);
 

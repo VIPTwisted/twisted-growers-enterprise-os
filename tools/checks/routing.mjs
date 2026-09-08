@@ -26,6 +26,8 @@ import { fileURLToPath } from "node:url";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const app = readFileSync(resolve(root, "app/web/src/App.jsx"), "utf8");
+const chrome = readFileSync(resolve(root, "app/web/src/os-chrome.jsx"), "utf8");
+const src = app + "\n" + chrome;
 
 const failures = [];
 const check = (ok, label, why) => {
@@ -34,25 +36,25 @@ const check = (ok, label, why) => {
 };
 
 check(
-  /useState\(\(\)\s*=>\s*window\.location\.hash\.slice\(1\)/.test(app),
+  /useState\(\(\)\s*=>\s*window\.location\.hash\.slice\(1\)/.test(src),
   "the initial view is read from the URL",
   "Without this a deep link or bookmark always lands on the default page."
 );
 
 check(
-  /history\.pushState\([^)]*`#\$\{view\}`\)/.test(app),
+  /history\.pushState\([^)]*`#\$\{view\}`\)/.test(src),
   "navigating updates the address bar",
   "Without this the URL never changes, so nothing can be linked or bookmarked."
 );
 
 check(
-  /addEventListener\("popstate"/.test(app),
+  /addEventListener\("popstate"/.test(src),
   "Back and Forward are handled (popstate)",
   "Without this the browser Back button changes the URL and leaves the screen where it was."
 );
 
 check(
-  /addEventListener\("hashchange"/.test(app),
+  /addEventListener\("hashchange"/.test(src),
   "editing the address bar is handled (hashchange)",
   "popstate does NOT fire for a manually edited hash or a same-page anchor. Without hashchange the URL changes and the screen silently does not follow."
 );
