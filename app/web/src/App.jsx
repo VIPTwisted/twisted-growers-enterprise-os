@@ -2805,7 +2805,7 @@ function ReportScreen({ entry, actions, session }) {
       setProbe(data ?? []);
     });
     return () => { live = false; };
-  }, [table, pullTick]);
+  }, [table, pullTick, entry.view_key]);
 
   const cols = useMemo(() => rpDescribeColumns(probe ?? []), [probe]);
   const dateCols = useMemo(() => cols.filter((c) => c.kind === "date").map((c) => c.name), [cols]);
