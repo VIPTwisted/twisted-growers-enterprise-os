@@ -8,6 +8,7 @@ export const COCKPITS = [
   {
     view_key: "tower",
     label: "Control Tower",
+    short: "Tower",
     children: [
       { view_key: "inventory_alerts", label: "Alerts" },
       { view_key: "dashboard_tasks", label: "Tasks" },
@@ -16,6 +17,7 @@ export const COCKPITS = [
   {
     view_key: "os_staff",
     label: "Top G",
+    short: "Top G",
     children: [
       { view_key: "os_staff", label: "Bots desk" },
     ],
@@ -23,6 +25,7 @@ export const COCKPITS = [
   {
     view_key: "dept_dash_command",
     label: "Command",
+    short: "Command",
     children: [
       { view_key: "open_issues", label: "Decisions waiting" },
       { view_key: "real_loss_v2", label: "Loss" },
@@ -33,6 +36,7 @@ export const COCKPITS = [
   {
     view_key: "dept_dash_cfo",
     label: "Finance",
+    short: "Finance",
     children: [
       { view_key: "invoices", label: "Invoices" },
       { view_key: "customers", label: "Customers" },
@@ -43,6 +47,7 @@ export const COCKPITS = [
   {
     view_key: "dept_dash_cultivation",
     label: "Cultivation",
+    short: "Cult",
     children: [
       { view_key: "dutchie_cult", label: "Twisted C&M" },
       { view_key: "room_board", label: "Rooms & plants" },
@@ -54,6 +59,7 @@ export const COCKPITS = [
   {
     view_key: "dept_dash_mfg",
     label: "Manufacturing",
+    short: "Mfg",
     children: [
       { view_key: "dutchie_mfg", label: "Twisted C&M" },
       { view_key: "flow", label: "Production" },
@@ -64,6 +70,7 @@ export const COCKPITS = [
   {
     view_key: "dept_dash_inventory",
     label: "Inventory",
+    short: "Inv",
     children: [
       { view_key: "inventory_locator", label: "Stock & location" },
       { view_key: "custody_compliance", label: "Custody" },
@@ -74,6 +81,7 @@ export const COCKPITS = [
   {
     view_key: "dept_dash_quality",
     label: "Quality",
+    short: "Quality",
     children: [
       { view_key: "testing", label: "Testing" },
       { view_key: "licenses", label: "Compliance" },
@@ -82,6 +90,7 @@ export const COCKPITS = [
   {
     view_key: "dept_dash_sales",
     label: "Sales & Cash",
+    short: "Sales",
     children: [
       { view_key: "orders", label: "Orders" },
       { view_key: "shipping", label: "Shipping" },
@@ -91,9 +100,11 @@ export const COCKPITS = [
   {
     view_key: "dept_dash_metrc",
     label: "Metrc",
+    short: "Metrc",
     children: [
       { view_key: "report_vault", label: "Report Vault" },
       { view_key: "metrc_mirror", label: "Live mirror" },
+      { view_key: "rpt-plants-flowering", label: "Flowering" },
       { view_key: "metrc_rpt_plants", label: "Plant census" },
       { view_key: "plant_history", label: "Planting history" },
       { view_key: "rpt-plant-waste", label: "Waste" },
@@ -103,6 +114,7 @@ export const COCKPITS = [
   {
     view_key: "dept_dash_hr",
     label: "Human Resources",
+    short: "HR",
     children: [
       { view_key: "people", label: "Employees" },
       { view_key: "employee-work-schedules", label: "Schedule" },
@@ -113,6 +125,7 @@ export const COCKPITS = [
   {
     view_key: "dept_dash_workspace",
     label: "Workspace",
+    short: "Desk",
     children: [
       { view_key: "tasks", label: "Assignments" },
       { view_key: "whiteboards", label: "Whiteboards" },
@@ -121,6 +134,7 @@ export const COCKPITS = [
   {
     view_key: "dept_dash_preroll",
     label: "Pre-Rolls & Flower",
+    short: "Pre-Roll",
     children: [
       { view_key: "preroll_schedule", label: "Production" },
       { view_key: "machines", label: "Equipment" },
@@ -129,6 +143,7 @@ export const COCKPITS = [
   {
     view_key: "dept_dash_settings",
     label: "Settings",
+    short: "Settings",
     children: [
       { view_key: "os_users", label: "Users" },
       { view_key: "permissions", label: "Permissions" },
@@ -204,7 +219,7 @@ export default function CockpitRail({ view, go, collapsed, category, expandAll }
             title={c.label}
             onClick={() => go(c.view_key)}
           >
-            <span className="rclabel">{c.label}</span>
+            <span className="rclabel">{c.short || c.label}</span>
           </button>
         ))}
       </div>

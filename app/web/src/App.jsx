@@ -2124,6 +2124,7 @@ function RpAuditDrill({ row, context, onClose, onTag }) {
   const [open, setOpen] = useState({ 3: true });
   const [dossier, setDossier] = useState(undefined);
   const [rawPkg, setRawPkg] = useState(undefined);
+  const [rawPlant, setRawPlant] = useState(undefined);
   const [became, setBecame] = useState(undefined);
   const [adjust, setAdjust] = useState(undefined);
   const [claims, setClaims] = useState(undefined);
@@ -2131,17 +2132,19 @@ function RpAuditDrill({ row, context, onClose, onTag }) {
 
   useEffect(() => {
     let live = true;
-    if (!tag) { setDossier(null); setRawPkg(null); setBecame(null); setAdjust(null); return; }
+    if (!tag) { setDossier(null); setRawPkg(null); setRawPlant(null); setBecame(null); setAdjust(null); return; }
     (async () => {
-      const [d, p, a] = await Promise.all([
+      const [d, p, a, pl] = await Promise.all([
         supabase.from("v_package_dossier").select("*").eq("package_tag", tag).maybeSingle(),
         supabase.from("metrc_packages").select("tag, license, raw, synced_at").eq("tag", tag),
         supabase.from("metrc_rpt_adjustments").select("*").eq("package_tag", tag).order("adjusted_on", { ascending: false }),
+        supabase.from("metrc_plants").select("tag, license, strain, phase, room, planted_on, source_state, raw, synced_at, report_as_of").eq("tag", tag),
       ]);
       if (!live) return;
-      setDossier(d.error ? { __error: d.error.message } : (d.data ?? null));
-      setRawPkg(p.error ? { __error: p.error.message } : (p.data ?? []));
-      setAdjust(a.error ? { __error: a.error.message } : (a.data ?? []));
+      setDossier(d.error ? { __error: d.error.message } : (d.data || null));
+      setRawPkg(p.error ? { __error: p.error.message } : (p.data || []));
+      setAdjust(a.error ? { __error: a.error.message } : (a.data || []));
+      setRawPlant(pl.error ? { __error: pl.error.message } : (pl.data || []));
       const b = await supabase.from("metrc_packages")
         .select("tag, item_name, quantity, uom, packaged_on, location")
         .filter("raw->>SourcePackageLabels", "ilike", `%${tag}%`).limit(500);
@@ -2215,8 +2218,10 @@ function RpAuditDrill({ row, context, onClose, onTag }) {
           </RpLayer>
 
           <RpLayer n={3} title="The single record" open={open[3]} onToggle={() => toggle(3)}
-            sub={dossier && !dossier.__error ? "v_package_dossier — every field held" : "the row as the report returned it"}>
+            sub={dossier && !dossier.__error ? "v_package_dossier — every field held"
+              : (Array.isArray(rawPlant) && rawPlant.length ? "metrc_plants — this tag is a plant, not a package" : "the row as the report returned it")}>
             <Err o={dossier} what="the package dossier" />
+            <Err o={rawPlant} what="the plant record" />
             {dossier && !dossier.__error && (
               <div className="statchips" style={{ marginBottom: 8 }}>
                 {dossier.weight_basis && <span className="schip info">Weight basis: {dossier.weight_basis}</span>}
@@ -2226,16 +2231,27 @@ function RpAuditDrill({ row, context, onClose, onTag }) {
                 <span className="schl">every layer states its own basis — none of these is dropped on the way down</span>
               </div>
             )}
-            <DetailGrid obj={dossier && !dossier.__error ? dossier : row} />
-            {dossier === null && tag && <div className="note">No dossier row for this tag. The report row itself is shown above.</div>}
+            <DetailGrid obj={dossier && !dossier.__error ? dossier : (Array.isArray(rawPlant) && rawPlant[0] ? rawPlant[0] : row)} />
+            {dossier === null && tag && !(Array.isArray(rawPlant) && rawPlant.length) && <div className="note">No dossier row for this tag. The report row itself is shown above.</div>}
           </RpLayer>
 
           <RpLayer n={4} title="The raw Metrc record — the audit floor" open={open[4]} onToggle={() => toggle(4)}
             sub="untouched state JSON, nothing of ours in between">
             <Err o={rawPkg} what="the raw Metrc package" />
-            {Array.isArray(rawPkg) && rawPkg.length === 0 && (
-              <div className="note">No row in <b>metrc_packages</b> for this tag. Either it is not a package, or it has not synced.</div>
+            <Err o={rawPlant} what="the raw Metrc plant" />
+            {Array.isArray(rawPkg) && rawPkg.length === 0 && Array.isArray(rawPlant) && rawPlant.length === 0 && (
+              <div className="note">No row in <b>metrc_packages</b> or <b>metrc_plants</b> for this tag. It has not synced, or it is not a Metrc tag.</div>
             )}
+            {Array.isArray(rawPlant) && rawPlant.map((p, i) => (
+              <div key={"plant-"+i} style={{ marginBottom: 10 }}>
+                <div className="note">
+                  metrc_plants · licence {p.license} · {p.phase} · {p.room ? `${p.room} — cultivation department` : "no room — cultivation department"} · source_state {p.source_state}
+                  · planted {p.planted_on ? String(p.planted_on).slice(0, 10) : "not recorded"}
+                  · synced {p.synced_at ? String(p.synced_at).slice(0, 19).replace("T", " ") : "not recorded"}
+                </div>
+                <pre className="drawjson">{JSON.stringify(p.raw, null, 2)}</pre>
+              </div>
+            ))}
             {Array.isArray(rawPkg) && rawPkg.map((p, i) => (
               <div key={i} style={{ marginBottom: 10 }}>
                 <div className="note">
@@ -2253,16 +2269,18 @@ function RpAuditDrill({ row, context, onClose, onTag }) {
               <div className="dgrid">
                 <div className="df"><div className="dk">Certificate of Analysis</div><div className="dv">
                   <RpDocumentButton path={dossier.coa_storage_path} label="Open the Certificate of Analysis" />
-                  {!dossier.coa_storage_path && <div className="note">{dossier.certificate_basis ?? "No certificate is filed against this package."}</div>}
+                  {!dossier.coa_storage_path && <div className="note">{dossier.certificate_basis || "No certificate is filed against this package."}</div>}
                   {dossier.laboratory && <div className="note">{dossier.laboratory}{dossier.tested_on ? ` · tested ${String(dossier.tested_on).slice(0, 10)}` : ""}</div>}
-                  {dossier.certificate_expired && <div className="schip bad">Certificate expired {String(dossier.coa_valid_until ?? "").slice(0, 10)} — product cannot be sold on it</div>}
+                  {dossier.certificate_expired && <div className="schip bad">Certificate expired {String(dossier.coa_valid_until || "").slice(0, 10)} — product cannot be sold on it</div>}
                 </div></div>
                 <div className="df"><div className="dk">Manifest</div><div className="dv">
                   <RpDocumentButton path={dossier.manifest_storage_path} label="Open the manifest" />
                   <div className="note">{dossier.manifest_numbers ? `Manifest numbers: ${dossier.manifest_numbers}` : "No manifest — packaged here and never transferred, or not yet synced."}</div>
                 </div></div>
               </div>
-            ) : <div className="note">No dossier for this row, so no document paths to mint links from.</div>}
+            ) : (Array.isArray(rawPlant) && rawPlant.length)
+              ? <div className="note">This tag is a <b>plant</b>. COA, manifest and Apex invoice attach when it is harvested and packaged — they are not invented here. Raw Metrc plant JSON is layer 4.</div>
+              : <div className="note">No dossier for this row, so no document paths to mint links from.</div>}
           </RpLayer>
 
           <RpLayer n={6} title="Lineage, both directions" open={open[6]} onToggle={() => toggle(6)}
@@ -2566,7 +2584,6 @@ function RpReportHeader({ title, reportKey, factView, dateCol, from, to, presetK
   return (
     <div className="rp-reporthead">
       <div className="rp-printident" aria-hidden="true">{printIdent}</div>
-      <div className="rp-rh-title">{title}</div>
       <dl className="rp-rh-facts">
         <div><dt>Company</dt><dd>{companyLine}</dd></div>
         <div><dt>Period</dt><dd>{periodLine}</dd></div>
@@ -3039,11 +3056,11 @@ function ReportScreen({ entry, actions, session }) {
       <div className="modhead">
         <div className="mchip">{iconByName(entry.icon)}</div>
         <div>
-          <div className="mt">{title}</div>
+          <div className="mt">{certifiedPopulation.verified ? "CERTIFIED population" : "Uncertified live pull"}</div>
           <div className="md">
-            Live {reg ? "registered report" : "object"}: {table}
-            {reg ? ` · report_registry key ${reg.report_key}` : " · not in report_registry, so its filters are derived from its own columns"}
-            {" · click any row for the full audit drill"}
+            {table}
+            {reg ? ` · report_registry key ${reg.report_key}` : " · not in report_registry — totals refused"}
+            {" · click any row for the forensic drill"}
           </div>
         </div>
         <div className="mcount">

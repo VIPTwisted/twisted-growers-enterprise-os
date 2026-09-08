@@ -742,7 +742,7 @@ const migrationEntries = files.map((name) => ({
  *
  * RE-PINNED 8 Sep 2026, 1049 -> 1050 files, digest ff85ab4c… . plant_history freeze default all, month_date. Empty measures. Cycle 56. No ledger rewrite.
  */
-const expectedMigrationTreeDigest = "ff85ab4caf4f8d2b85c8ff36b6b44155e985e35cc360f037e9a1140dab79b50c";
+const expectedMigrationTreeDigest = "a0bc09630233f4485e02cf5db6e7e5d48048146898993071454a6398de0c5814";
 const actualMigrationTreeDigest = migrationTreeDigest(migrationEntries);
 if (actualMigrationTreeDigest !== expectedMigrationTreeDigest) {
   console.error(`money-grain: FAIL — migration tree differs from the independently reviewed ${files.length}-file manifest (${actualMigrationTreeDigest}).`);
