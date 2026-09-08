@@ -2245,7 +2245,7 @@ function RpAuditDrill({ row, context, onClose, onTag }) {
             {Array.isArray(rawPlant) && rawPlant.map((p, i) => (
               <div key={"plant-"+i} style={{ marginBottom: 10 }}>
                 <div className="note">
-                  metrc_plants · licence {p.license} · {p.phase} · {p.room || "no room"} · source_state {p.source_state}
+                  metrc_plants · licence {p.license} · {p.phase} · {p.room ? `${p.room} — cultivation department` : "no room — cultivation department"} · source_state {p.source_state}
                   · planted {p.planted_on ? String(p.planted_on).slice(0, 10) : "not recorded"}
                   · synced {p.synced_at ? String(p.synced_at).slice(0, 19).replace("T", " ") : "not recorded"}
                 </div>
