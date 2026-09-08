@@ -147,23 +147,48 @@
     return { ok: true, models, active: activeModel(), host };
   }
 
-  /* Selects a model by its exact menu label. Refuses on a near-miss rather than
-     guessing - silently answering on a different model than the one asked for is
-     exactly the kind of unattributable result this build exists to stop. */
+  /* Selects a model. TWO VOCABULARIES MEET HERE, which is why this is not a
+     plain equality test:
+
+       - the OS sends ai_models.bridge_alias  -> "sonnet", "opus", "haiku"
+       - the site's menu shows its own label  -> "Claude Sonnet 4.5"
+
+     An exact match is tried first. Failing that, an alias that matches exactly
+     ONE menu entry (case-insensitive, as a word or fragment) is accepted. If it
+     matches none, or more than one, we REFUSE and list what is there - guessing
+     between two versions would produce an answer nobody could attribute, which
+     is the thing this build exists to prevent. */
+  const norm = (s) => String(s || "").toLowerCase().replace(/[^a-z0-9.]+/g, " ").trim();
+
   async function selectModel(want) {
     const target = String(want || "").trim();
     if (!target) return { ok: true, model: activeModel() };
     if (activeModel() === target) return { ok: true, model: target };
+
     const opts = await openModelMenu();
-    if (!opts || !opts.length) return { ok: false, error: "No model menu found on this site." };
-    const hit = opts.find((o) => o.label === target);
+    if (opts === null) return { ok: false, error: "No model menu found on this site." };
+    if (!opts.length) return { ok: false, error: "The model menu opened but listed nothing." };
+
+    let hit = opts.find((o) => o.label === target);
+    if (!hit) {
+      const t = norm(target);
+      const near = opts.filter((o) => norm(o.label).includes(t));
+      if (near.length === 1) hit = near[0];
+      else if (near.length > 1) {
+        closeMenu();
+        return { ok: false, error: `"${target}" matches ${near.length} versions here (${near.map((o) => o.label).join(", ")}). Refusing to guess - name one exactly.` };
+      }
+    }
     if (!hit) {
       closeMenu();
       return { ok: false, error: `"${target}" is not offered on this account. Available: ${opts.map((o) => o.label).join(", ")}` };
     }
+
     hit.el.click();
     await sleep(400);
-    return { ok: true, model: activeModel() || target };
+    /* Report what the page now shows, not what we asked for. If the click did
+       not take, the answer must not claim a model it did not use. */
+    return { ok: true, model: activeModel() || hit.label };
   }
 
   function replies() {

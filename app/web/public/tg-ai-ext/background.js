@@ -35,6 +35,9 @@ async function cfg() {
     token: String(s.token || ""),
     provider,
     model: String(models[provider] || ""),
+    /* the whole map, so a per-job provider can resolve ITS own chosen version
+       rather than inheriting the one belonging to the popup's provider */
+    models,
     botsUrl: safeUrl(s.botsUrl, "grok.com") || PROVIDERS.grok.url,
     threads: (s.threads && typeof s.threads === "object") ? s.threads : {},
     on: s.on === true,
@@ -121,22 +124,37 @@ async function tick() {
       await queue(c.token, "heartbeat").catch(() => {});
       return;
     }
-    const spec = PROVIDERS[c.provider] || PROVIDERS.grok;
+    /* The site to open. If the OS names one in context, it wins - otherwise a
+       user who picks a Grok version in the app while this add-on is set to
+       Claude would have that version hunted for in Claude's menu and refused.
+       context is jsonb and passes through `claim` untouched, which is the same
+       route the model already takes, so this needs no edge-function change.
+       Until the OS sends it, the add-on's own setting is used, exactly as now. */
+    const wantedProvider = (job.context && PROVIDERS[job.context.provider]) ? job.context.provider : c.provider;
+    const spec = PROVIDERS[wantedProvider] || PROVIDERS.grok;
     /* Reuse the thread we used last time for this provider. Keeps the whole OS
        conversation in ONE chat in your own Claude/GPT/Grok history - readable on
        desktop or web - instead of littering it with a new chat per question, and
        the model keeps the context of what it already answered. */
-    const remembered = safeUrl((c.threads || {})[c.provider], spec.host);
-    const openUrl = remembered || (c.provider === "grokbots" ? c.botsUrl : spec.url);
+    const remembered = safeUrl((c.threads || {})[wantedProvider], spec.host);
+    const openUrl = remembered || (wantedProvider === "grokbots" ? c.botsUrl : spec.url);
     const tabId = await findOrOpenTab(openUrl, spec.host);
     await waitTab(tabId);
     const started = Date.now();
-    const out = await askTab(tabId, job.question, job.model || c.model);
+    /* THE MODEL RIDES IN context, not in a top-level column. bridge-queue's
+       `claim` deliberately returns only id, question and context - its own header
+       says so and says not to widen that select - so a top-level job.model is
+       written for the audit trail and never arrives here. Reading it would have
+       meant the per-user model choice silently never reached this add-on, and
+       every question would have run on whatever the popup happened to be set to.
+       Falls back to the add-on's own setting when the OS sends nothing. */
+    const wanted = (job.context && job.context.model) || job.model || c.models[wantedProvider] || "";
+    const out = await askTab(tabId, job.question, wanted);
     const seconds = Math.round((Date.now() - started) / 1000);
     const ok = !!(out && out.ok && out.reply);
     /* Remember where that conversation lives, so the next question lands in it. */
     if (ok && out.threadUrl && safeUrl(out.threadUrl, spec.host)) {
-      const threads = { ...c.threads, [c.provider]: out.threadUrl };
+      const threads = { ...c.threads, [wantedProvider]: out.threadUrl };
       await chrome.storage.local.set({ threads });
     }
     /* provider and model travel WITH the answer. An answer you cannot attribute
@@ -146,8 +164,8 @@ async function tick() {
       ok,
       answer: ok ? out.reply : String((out && out.error) || "TG Bots got no reply. Stay signed in on the Grok/Claude/GPT tab."),
       seconds,
-      provider: c.provider,
-      model: (out && out.model) || c.model || "",
+      provider: wantedProvider,
+      model: (out && out.model) || wanted || "",
       completion: (out && out.completion) || "",
       partial: (out && out.partial) || "",
     });
