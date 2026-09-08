@@ -142,6 +142,7 @@ const OsStaff = lazy(() => import("./os-staff.jsx"));
 const OsHelp = lazy(() => import("./os-help.jsx"));
 const OsUsers = lazy(() => import("./os-users.jsx"));
 const OsPermissions = lazy(() => import("./os-permissions.jsx"));
+const GrokJump = lazy(() => import("./grok-jump.jsx"));
 
 // Laws: live numbers (2) · no fake data (3) · nothing hardwired (4) — navigation itself is DB rows.
 
@@ -11918,6 +11919,8 @@ export default function App() {
     report_vault: <ReportVault session={session} />,
     report_center: <ReportCenter go={setView} session={session} />,
     ops_cm: <DutchieCm go={setView} session={session} />,
+    dutchie_cult: <DutchieCm go={setView} session={session} />,
+    dutchie_mfg: <DutchieCm go={setView} session={session} />,
     ops_spine: <OpsSpine go={setView} session={session} />,
     harvest_forensic: <OpsSpine go={setView} session={session} />,
     goals: <GoalsTargetsPage />,
@@ -12385,6 +12388,7 @@ export default function App() {
               page error rather than white-screening the app. */}
           <Boundary resetKey={view}>
             <Suspense fallback={<div className="note" style={{ padding: 16 }}>Loading this page…</div>}>
+              {["dept_dash_command","dept_dash_cultivation","dept_dash_mfg","tower","ceo_dashboard"].includes(view) ? <GrokJump go={setView} /> : null}
               {body}
             </Suspense>
           </Boundary>

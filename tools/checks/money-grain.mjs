@@ -735,8 +735,10 @@ const migrationEntries = files.map((name) => ({
  * get Compliance & Metrc group + harvests roles so they can be opened. Cycle 56.
  *
  * RE-PINNED 8 Sep 2026, 1039 -> 1040 files, digest 0a75e6ed… . os_users Settings -> Users + Grok permissions/help chrome. Cycle 56. No ledger rewrite.
+ *
+ * RE-PINNED 8 Sep 2026, 1040 -> 1041 files, digest ff046104… . Dutchie C&M moved off ghost category Command onto Command Center Overview, Cultivation Dashboard, Manufacturing Dashboard. Aliases dutchie_cult / dutchie_mfg. Top 12 menus untouched. Cycle 56. No ledger rewrite.
  */
-const expectedMigrationTreeDigest = "0a75e6eda5b3a4c41dd070097569a14bb65c65d36ec54fe3ecb206b94a4674cc";
+const expectedMigrationTreeDigest = "ff04610414e161e76367cfb304bef3b76143df2e0428c7278b892e9a02e860d9";
 const actualMigrationTreeDigest = migrationTreeDigest(migrationEntries);
 if (actualMigrationTreeDigest !== expectedMigrationTreeDigest) {
   console.error(`money-grain: FAIL — migration tree differs from the independently reviewed ${files.length}-file manifest (${actualMigrationTreeDigest}).`);
