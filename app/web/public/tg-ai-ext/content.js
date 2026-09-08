@@ -163,6 +163,12 @@
   async function selectModel(want) {
     const target = String(want || "").trim();
     if (!target) return { ok: true, model: activeModel() };
+    /* SENTINEL, not a model name. ai_models carries bridge_alias='current' for the
+       "whatever that tab already has" rows, because f_bridge_model_for() coalesces a
+       NULL alias through to the literal 'sonnet' - which would quietly send "sonnet"
+       to Grok. Without this branch we would hunt for a version literally called
+       "current", find none, and refuse every question. */
+    if (target.toLowerCase() === "current") return { ok: true, model: activeModel() };
     if (activeModel() === target) return { ok: true, model: target };
 
     const opts = await openModelMenu();

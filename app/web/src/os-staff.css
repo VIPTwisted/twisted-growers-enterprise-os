@@ -113,6 +113,48 @@
 .osstaff-rail li b { display: block; font-size: 0.9rem; }
 .osstaff-rail li i { display: block; font-style: normal; font-size: 0.75rem; color: var(--muted); }
 .osstaff-foot { margin-top: auto; padding-top: 0.5rem; }
+
+/* ── push-button setup ────────────────────────────────────────────────────────
+   Provider, version, one button. Every colour is an existing theme token - the
+   theme-lock ratchet forbids a literal, and there is no reason for one here. */
+.osstaff-setup { display: flex; flex-direction: column; gap: 0.5rem; }
+.osstaff-setup label {
+  display: flex; flex-direction: column; gap: 0.25rem;
+  font-size: 0.75rem; color: var(--muted);
+}
+.osstaff-setup select {
+  width: 100%;
+  padding: 0.4rem 0.5rem;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--input-bg);
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.8rem;
+}
+.osstaff-setup select:disabled { opacity: 0.55; cursor: default; }
+/* The two actions sit on one row and wrap rather than clip - a control pushed
+   off the edge of a narrow rail is the same as a control that does not exist. */
+.osstaff-setup-go { display: flex; gap: 0.4rem; flex-wrap: wrap; }
+.osstaff-setup-go button:not(.osstaff-go) {
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--ink-2);
+  border-radius: 999px;
+  padding: 0.4rem 0.8rem;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.8rem;
+}
+.osstaff-setup-go button:disabled { opacity: 0.55; cursor: default; }
+/* Inside the rail the status line is plain text, not the full-width banner the
+   main column uses - it wraps, because a truncated reason reads as decoration. */
+.osstaff-setup .osstaff-note {
+  padding: 0; border: 0; background: none;
+  color: var(--muted); font-size: 0.75rem; line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+.osstaff-setup .osstaff-note a { color: var(--neon); }
 .osstaff-main {
   flex: 1;
   min-width: 0;

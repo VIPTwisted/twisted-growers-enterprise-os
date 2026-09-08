@@ -142,6 +142,63 @@ export async function pushButtonSetup({ provider = "claude", model = "", botsUrl
   };
 }
 
+/* ai_models.provider names the company; the add-on names the site. One mapping,
+   here, so neither side has to know the other's vocabulary. */
+export const COMPANY_TO_SITE = { anthropic: "claude", openai: "gpt", xai: "grok" };
+export const SITE_TO_COMPANY = { claude: "anthropic", gpt: "openai", grok: "xai", grokbots: "xai" };
+
+const slug = (s) => String(s).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 60);
+
+/* Refresh ai_models from what THIS account can actually open.
+ *
+ * The picker is fed from ai_models, and useModels() already records why that list
+ * must not be hardcoded: a baked list "was guaranteed stale, and the day it mattered
+ * was the day nobody had time". So rather than typing Grok and GPT version names in
+ * by hand - which would also offer versions a given subscription cannot open - we read
+ * the provider's own model menu on the signed-in tab and write that back. ai_models
+ * becomes a CACHE of the account, refreshed on demand, and the provider stays the one
+ * source of truth.
+ *
+ * Versions that have stopped being offered are disabled, never deleted: a user whose
+ * preferred_model points at one must keep seeing the name, or their choice silently
+ * becomes something else.
+ */
+export async function syncModelsToOs(site) {
+  const company = SITE_TO_COMPANY[site];
+  if (!company) return { ok: false, error: `Unknown site "${site}".` };
+
+  const live = await tgBotsModels(site);
+  if (!live.installed) return { ok: false, error: "TG Bots add-on is not on this computer." };
+  if (!live.ok) return { ok: false, error: live.error || "Could not read the model menu. Sign in to that site first." };
+
+  const models = live.models || [];
+  if (!models.length) return { ok: false, error: "That tab offered no versions to read." };
+
+  const today = new Date().toISOString().slice(0, 10);
+  const rows = models.map((label, i) => ({
+    id: `${company}-${slug(label)}`,
+    label,
+    provider: company,
+    bridge_alias: label,          /* the exact menu label - the add-on matches on it */
+    why: `Read from your own ${company} account on ${today}.`,
+    speed: "balanced",
+    enabled: true,
+    sort_order: 100 + i,
+  }));
+
+  const { error } = await supabase.from("ai_models").upsert(rows, { onConflict: "id" });
+  if (error) return { ok: false, error: error.message };
+
+  /* Anything previously read for this company that the account no longer offers is
+     switched off, so the picker stops showing a version that would be refused. The
+     'current' sentinel row is never touched - it is not a discovered version. */
+  const keep = rows.map((r) => r.id).concat([`${site}-current`, `${company}-current`, "grok-current", "gpt-current"]);
+  await supabase.from("ai_models").update({ enabled: false })
+    .eq("provider", company).not("id", "in", `(${keep.map((k) => `"${k}"`).join(",")})`);
+
+  return { ok: true, count: rows.length, models, active: live.active || "" };
+}
+
 export async function connectTopG(provider) {
   try { localStorage.setItem(TOPG_KEY, "1"); } catch { /* private mode */ }
   try { window.dispatchEvent(new Event("tg-topg")); } catch { /* no window */ }

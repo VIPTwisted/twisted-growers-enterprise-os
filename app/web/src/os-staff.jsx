@@ -2,7 +2,10 @@
    Live AI — same engine as Budz. Buddy on Grok stays boss. Metrc read-only. */
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { askBudzFull } from "./budz.jsx";
-import { connectTopG, pingTgBots, TG_BOTS_ZIP, topGConnected } from "./lib/topg-connect.js";
+import {
+  pingTgBots, TG_BOTS_ZIP,
+  pushButtonSetup, tgBotsStatus, tgBotsModels, tgBotsSetModel, PROVIDERS,
+} from "./lib/topg-connect.js";
 import "./os-staff.css";
 
 const STAFF = [
@@ -79,6 +82,127 @@ const DEFAULT_ROUTINES = [
   { id: "r-eod", name: "End of Day Brief", botId: "topg", when: "Every day at 6:00 PM", intent: "EOD brief. Quiet if empty.", quiet: true, enabled: true },
 ];
 
+/* ── PUSH-BUTTON SETUP ────────────────────────────────────────────────────────
+   Owner, 8 Sep 2026: "WE WANT PUSH BUTTON SETUP." Setup used to be ten steps -
+   unzip, developer mode, load unpacked, find bridge/token.txt, paste it, pick a
+   provider, toggle on. Everything after installing the add-on is one press here.
+
+   It can be one press because the add-on already trusts this origin and this page
+   already knows the bridge token, so pushButtonSetup() hands over token, provider
+   and version in a single message. Nobody sees a token.
+
+   The version list is read from the provider's OWN model menu on the signed-in
+   tab, so it is exactly what this subscription can open - never a list baked in
+   here, which would go stale the day a provider ships a model and would offer
+   versions the account cannot use.
+
+   STATE IS READ, NOT ASSUMED. tgBotsStatus() says what the add-on actually
+   believes. Rendering a hopeful "connected" when it is not is the same class of
+   lie as a green sync over a frozen mirror. */
+function TgBotsSetup() {
+  const [st, setSt] = useState(null);          /* null = still asking */
+  const [provider, setProvider] = useState("claude");
+  const [models, setModels] = useState([]);
+  const [model, setModel] = useState("");
+  const [msg, setMsg] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    let live = true;
+    tgBotsStatus().then((s) => {
+      if (!live) return;
+      setSt(s);
+      if (s.provider) setProvider(s.provider);
+      if (s.model) setModel(s.model);
+    });
+    return () => { live = false; };
+  }, []);
+
+  const connect = async () => {
+    setBusy(true);
+    setMsg("Connecting…");
+    const r = await pushButtonSetup({ provider, model });
+    setBusy(false);
+    setSt(r);
+    if (!r.installed) { setMsg("The add-on is not on this computer yet."); return; }
+    if (!r.ok) { setMsg(r.error || "The add-on refused the setup."); return; }
+    setModels(r.models || []);
+    /* A version list we could not read is stated, not hidden - it almost always
+       means that provider's tab is not signed in yet, which is fixable in one step. */
+    setMsg(r.models?.length
+      ? `Connected. ${r.models.length} version${r.models.length === 1 ? "" : "s"} available on your account.`
+      : `Connected. ${r.modelsError || "Open and sign in to that site, then press Load versions."}`);
+  };
+
+  const loadVersions = async () => {
+    setBusy(true);
+    setMsg("Reading the versions on your signed-in tab…");
+    const r = await tgBotsModels(provider);
+    setBusy(false);
+    if (!r.installed) { setMsg("The add-on is not on this computer yet."); return; }
+    if (!r.ok) { setMsg(r.error || "No model menu found. Sign in to that site first."); return; }
+    setModels(r.models || []);
+    setMsg(`${r.models.length} version${r.models.length === 1 ? "" : "s"} available${r.active ? ` · now on ${r.active}` : ""}.`);
+  };
+
+  const chooseModel = async (value) => {
+    setModel(value);
+    const r = await tgBotsSetModel(provider, value);
+    setMsg(r.ok
+      ? (value ? `Answers will use ${value}.` : "Answers will use whatever that tab has selected.")
+      : (r.error || "Could not save that version."));
+  };
+
+  if (st && !st.installed) {
+    return (
+      <p className="osstaff-note">
+        TG Bots add-on is not on this computer yet.{" "}
+        <a href={TG_BOTS_ZIP} download="tg-ai-ext.zip">Download TG Bots</a>
+        {" "}then Chrome → extensions → Developer mode → Load unpacked. Come back and press Connect.
+      </p>
+    );
+  }
+
+  return (
+    <div className="osstaff-setup">
+      <label>
+        <span>Answer with</span>
+        <select value={provider} disabled={busy} aria-label="Which AI answers"
+                onChange={(e) => { setProvider(e.target.value); setModels([]); setModel(""); setMsg(""); }}>
+          {PROVIDERS.map((p) => <option key={p.key} value={p.key}>{p.label}</option>)}
+        </select>
+      </label>
+
+      <label>
+        <span>Version</span>
+        <select value={model} disabled={busy} aria-label="Which version answers"
+                onChange={(e) => chooseModel(e.target.value)}>
+          <option value="">Whatever that tab has selected</option>
+          {models.map((m) => <option key={m} value={m}>{m}</option>)}
+          {/* A saved version no longer on offer stays visible and marked, rather
+              than silently reverting and answering on something else. */}
+          {model && !models.includes(model) ? <option value={model}>{model} — not offered right now</option> : null}
+        </select>
+      </label>
+
+      <div className="osstaff-setup-go">
+        <button type="button" className="osstaff-go" onClick={connect} disabled={busy}>
+          {st?.on ? "Reconnect" : "Connect my subscription"}
+        </button>
+        <button type="button" onClick={loadVersions} disabled={busy}>Load versions</button>
+      </div>
+
+      {msg ? <p className="osstaff-note">{msg}</p> : null}
+      {st?.on ? (
+        <p className="osstaff-note">
+          Running on your own subscription. No API bill. Every answer says which model produced
+          it, and the conversation stays in your Claude/GPT/Grok history.
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
 function threadKey(id) { return "tg-os-staff-" + id; }
 function loadThread(id) {
   try {
@@ -112,7 +236,6 @@ export default function OsStaff({ go }) {
   const [text, setText] = useState("");
   const [thread, setThread] = useState(() => loadThread("topg"));
   const [busy, setBusy] = useState(false);
-  const [topg, setTopg] = useState(() => topGConnected());
   const [extOn, setExtOn] = useState(false);
   const [routines, setRoutines] = useState(() => loadRoutines());
   const [newRoutine, setNewRoutine] = useState(false);
@@ -128,11 +251,14 @@ export default function OsStaff({ go }) {
   const pins = STAFF.filter((s) => s.pin);
   const company = listed.filter((s) => !s.pin);
 
+  /* Whether the add-on is on this computer. TgBotsSetup asks the add-on directly
+     for its own state; this only drives the "not installed yet" note below, and
+     re-asks when setup fires the tg-topg event so the note clears on connect. */
   useEffect(() => {
-    pingTgBots().then((r) => setExtOn(!!r.installed));
-    const n = () => setTopg(topGConnected());
-    window.addEventListener("tg-topg", n);
-    return () => window.removeEventListener("tg-topg", n);
+    const ask = () => pingTgBots().then((r) => setExtOn(!!r.installed));
+    ask();
+    window.addEventListener("tg-topg", ask);
+    return () => window.removeEventListener("tg-topg", ask);
   }, []);
   useEffect(() => {
     ready.current = false;
@@ -250,11 +376,7 @@ export default function OsStaff({ go }) {
           ))}
         </ul>
         <div className="osstaff-foot">
-          <button type="button" className="osstaff-go" onClick={async () => {
-            const r = await connectTopG("grok");
-            setTopg(true);
-            setExtOn(!!r.installed);
-          }}>{topg ? "Top G on" : "Connect Top G"}</button>
+          <TgBotsSetup />
         </div>
       </aside>
 
