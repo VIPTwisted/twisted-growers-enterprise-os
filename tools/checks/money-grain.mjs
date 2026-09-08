@@ -658,7 +658,50 @@ const migrationEntries = files.map((name) => ({
  * 20260906023551 forensic-audits default all (period bus, one page).
  * leftover_grok is 0. Counted with listMigrationSqlFiles() after git add.
  */
-const expectedMigrationTreeDigest = "05ef1eeda3865e7d7269265c1af723da8f6c6e2855c365f39ffd9a275b803a41";
+/* RE-PINNED 8 Sep 2026, 1028 -> 1030 files at 88fb2441… . Two things moved the
+ * tree, and neither is new schema work:
+ *
+ *   1. 20260907133718 bridge_tables_manifest_bridge_clone_phase1 — the three
+ *      Manifest Bridge tables (bridge_manifest, bridge_manifest_package,
+ *      bridge_manual_link), RLS on, read for authenticated and write for admin.
+ *      They hold owner-supplied vendor caches as EVIDENCE. Metrc remains the
+ *      legal record for custody and Apex the source of record for sales;
+ *      v_package_manifest is not touched and nothing is promoted into it.
+ *   2. A baseline re-dump — 20260905132543 out, 20260908123242 in — because
+ *      production had gained those 3 tables and 6 policies (462 tables, 540
+ *      views, 28 matviews, 1324 policies, all matching live). A baseline swap
+ *      moves this digest by construction and is not a new migration.
+ *
+ * COMMITTED FIRST, per the paragraph above, then verified two ways that share no
+ * code: `git ls-files supabase/migrations` and `git ls-tree -r HEAD
+ * supabase/migrations` both returned 1030 paths, so the index and the HEAD tree
+ * are the same tree and the digest below is the committed one.
+ *
+ * NOT re-added by this branch: 16 migrations reconstructed from production
+ * earlier in the same session. Grok had already merged all 16 via #142-#151 with
+ * real why-comments, and re-adding Claude's stub-headed copies would have
+ * overwritten that reasoning with blanks. Dropped before this pin was taken.
+ *
+ * MOVED AGAIN, same branch, 1030 -> 1031 at c4ed726e… : 20260908130448
+ * bridge_data_private_bucket. A PRIVATE Storage bucket for the Manifest Bridge
+ * source caches, so the loader can read them over HTTPS instead of from a 44 MB
+ * folder that is not in this repository. It touches the `storage` schema only,
+ * so schema-baseline does not move - that gate counts `public` and nothing else,
+ * checked rather than assumed.
+ *
+ * AND ONCE MORE, 1031 -> 1032 at a45075e8… : 20260908132603
+ * bridge_tables_reader_select_only, plus the baseline re-dump it forces
+ * (20260908123242 out, 20260908133330 in; 1324 -> 1327 policies).
+ *
+ * That migration closes a regression this session created. 457 public tables
+ * carry tg_reader_select_only for tg_desktop_reader; the three bridge tables
+ * added on 7 Sep did not, so the read-only role got permission denied on all
+ * three. A blind reader does not fail loudly - it reports zero, and zero looks
+ * like a fact. It is the same failure already on the record from the day the
+ * reader lost rolbypassrls. SELECT-only policy and grant; the reader still
+ * cannot write, which is why the load had to go through a privileged connection.
+ */
+const expectedMigrationTreeDigest = "a45075e8016587b633bd51f4eac1caf5838ccd9c8c48336f295dcb1702be028b";
 const actualMigrationTreeDigest = migrationTreeDigest(migrationEntries);
 if (actualMigrationTreeDigest !== expectedMigrationTreeDigest) {
   console.error(`money-grain: FAIL — migration tree differs from the independently reviewed ${files.length}-file manifest (${actualMigrationTreeDigest}).`);
