@@ -2163,6 +2163,78 @@ export function DkFrameNote({ basis = "as-of", what, range, why }) {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
+   DkOpenCase — OPEN A DISCREPANCY CASE FROM THE THING THAT DISAGREES.
+   Owner ticket, 29 August 2026.
+
+   WHY IT LIVES HERE AND NOT ON A PAGE. Two surfaces open cases today — the
+   Orders exception groups and the Sales History Apex strip — and more will.
+   The moment the button is written twice, the two copies disagree about what a
+   case carries, and a case that records different things depending on where it
+   was opened cannot be reported on. One definition; each caller supplies the
+   subject and the two figures.
+
+   IT CARRIES BOTH FIGURES AND NAMES BOTH SOURCES. A case that recorded one
+   number would be a note. `ours`/`theirs` each take {figure, unit, source} and
+   the source is the SYSTEM OF RECORD — Apex for the invoice book, Metrc for
+   custody — because a discrepancy is a sentence about two named systems.
+
+   IT WRITES NOTHING TO METRC, APEX OR QBO. It inserts one row into
+   discrepancy_case and stops. clickup_task_id stays NULL: measured 29 Aug 2026,
+   app_secrets holds no ClickUp token and there is no ClickUp edge function, so
+   the button says the task was not created rather than implying one was.
+
+   IT REFUSES RATHER THAN GUESSES. A caller that supplies no subject_key or no
+   headline throws at render, not at click: a case whose subject cannot be
+   reopened later is not a case.
+   ═══════════════════════════════════════════════════════════════════════════ */
+export function DkOpenCase({ subjectKind, subjectKey, headline, ours, theirs, licence, findingKey, onOpened }) {
+  const [state, setState] = useState({ busy: false, caseId: null, err: null });
+  if (!subjectKind || !subjectKey) throw new Error("DkOpenCase needs a subject it can reopen later.");
+  if (!headline) throw new Error("DkOpenCase needs a headline naming what disagrees.");
+
+  const open = async () => {
+    setState({ busy: true, caseId: null, err: null });
+    const { data, error } = await supabase.from("discrepancy_case").insert({
+      subject_kind: subjectKind,
+      subject_key: subjectKey,
+      subject_licence: licence ?? null,
+      headline,
+      our_figure: ours?.figure ?? null, our_unit: ours?.unit ?? null, our_source: ours?.source ?? null,
+      their_figure: theirs?.figure ?? null, their_unit: theirs?.unit ?? null, their_source: theirs?.source ?? null,
+      finding_key: findingKey ?? null,
+      state: "OPEN",
+    }).select("case_id").maybeSingle();
+    if (error) { setState({ busy: false, caseId: null, err: error.message }); return; }
+    setState({ busy: false, caseId: data?.case_id ?? null, err: null });
+    onOpened?.(data?.case_id ?? null);
+  };
+
+  if (state.err) {
+    /* A REFUSED WRITE IS NOT A SILENT ONE. Opening a case is restricted to the
+       roles that own the books, and someone without that role must be told
+       which it is rather than watching a button do nothing. */
+    return (
+      <DkTag tone="crit" title={`The case could not be opened: ${state.err}. Opening a case is limited to owner, executive, CFO and admin accounts.`}>
+        case not opened — {state.err.slice(0, 60)}
+      </DkTag>
+    );
+  }
+  if (state.caseId) {
+    return (
+      <DkTag tone="ok" title="The case is open and carries both figures and both sources. No ClickUp task was created: this platform holds no ClickUp token, so the case's clickup_task_id is null rather than pretending a task exists.">
+        case #{state.caseId} opened · no ClickUp task (no token) ⓘ
+      </DkTag>
+    );
+  }
+  return (
+    <button className="cc-btn" onClick={open} disabled={state.busy}
+      title={`Open a discrepancy case for "${headline}". It records both figures and both systems of record, assigns nothing yet, and writes nothing to Metrc, Apex or QuickBooks.`}>
+      {state.busy ? "opening…" : "open case"}
+    </button>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
    THE HARVEST CONTROL BANNER — docs/HARVEST_CONTROL_LAW.md, owner 28 Aug 2026.
 
    "Ignored variance is a management failure." The law asks for an in-app banner
