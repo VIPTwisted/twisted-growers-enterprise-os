@@ -700,8 +700,34 @@ const migrationEntries = files.map((name) => ({
  * like a fact. It is the same failure already on the record from the day the
  * reader lost rolbypassrls. SELECT-only policy and grant; the reader still
  * cannot write, which is why the load had to go through a privileged connection.
+ *
+ * RE-PINNED 8 Sep 2026, 1031 (main tree) -> 1034 files at b3183c7b… . Three prod stamps already
+ * applied after #152, filed so migration-drift can pass:
+ *   20260908141535 two_size_flower_rooms_f1_f3_1140_f2_f4_1050
+ *   20260908143126 labor_room_plants_is_crew_sizing_not_cap
+ *   20260908143914 ops_spine_canopy_close_ff_bleed
+ * plus the baseline header count pin 462/540/1327 -> 463/541/1330 (live MATCH).
+ * Measured with listMigrationSqlFiles() after commit: 1034 files, digest below.
+ * Tamper seal, not an approval of the SQL. Room cycle stays 56. No ledger rewrite.
+ *
+ * RE-PINNED 8 Sep 2026, 1034 -> 1035 files at 0b4224e2… . Fourth prod stamp already
+ * applied, filed so migration-drift and L6 can pass:
+ *   20260908145015 v_canopy_two_size_as_of
+ * as_of is the last column (42P16 forbids renaming room). date_defect 103 -> 101
+ * (ratchet 102: TIGHTEN, not FAIL). ops_spine / ops_cm MEETS THE STANDARD.
+ * Measured with listMigrationSqlFiles() after 63783e9: 1035 files, digest below.
+ * Tamper seal, not an approval of the SQL. Room cycle stays 56. No ledger rewrite.
+ *
+ * RE-PINNED 8 Sep 2026, still 1035 files, digest 999c86ec… . E6: grant select on
+ * v_canopy_two_size is authenticated only (drop `, anon`) in 14:39 and 14:50 files.
+ * Live grant to anon is not revoked. No new stamp. Cycle 56. No ledger rewrite.
+ *
+ * RE-PINNED 8 Sep 2026, 1035 -> 1036 files, digest 919d807d… . Fifth prod stamp already
+ * applied (Claude, 15:09:19): ai_models_add_grok_and_chatgpt_providers. INSERT two
+ * sentinel rows (grok-current, gpt-current). Catalog unchanged 463/541/1330. Filed
+ * catch-up so migration-drift cannot go red and #154 can rebase. Cycle 56. No ledger rewrite.
  */
-const expectedMigrationTreeDigest = "a45075e8016587b633bd51f4eac1caf5838ccd9c8c48336f295dcb1702be028b";
+const expectedMigrationTreeDigest = "919d807dd3cd8dc08a22b03fec8ebce1fd68e36265eaccc7f42f037af4509cbf";
 const actualMigrationTreeDigest = migrationTreeDigest(migrationEntries);
 if (actualMigrationTreeDigest !== expectedMigrationTreeDigest) {
   console.error(`money-grain: FAIL — migration tree differs from the independently reviewed ${files.length}-file manifest (${actualMigrationTreeDigest}).`);
