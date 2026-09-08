@@ -1,10 +1,22 @@
-/* 14-stop OS rail with locked children. Owner GO 8 Sep 2026:
-   top bar Finance/Tax/HR frozen. Children are daily tools, not All Data.
-   Every child view_key already exists — nothing invented, nothing omitted
-   from the OS; the rest stay inside the cockpit as More tools. */
+/* Owner/CEO Command Center is always first — eye in the sky.
+   Top bar Finance/Tax/HR frozen. Children are daily tools, not All Data.
+   Every child view_key already exists — nothing invented, nothing omitted. */
 import React, { useEffect, useState } from "react";
 
 export const COCKPITS = [
+  {
+    view_key: "dept_dash_command",
+    label: "Command Center",
+    short: "Command",
+    children: [
+      { view_key: "inventory_alerts", label: "Alerts" },
+      { view_key: "open_issues", label: "Decisions" },
+      { view_key: "dashboard_tasks", label: "Tasks" },
+      { view_key: "real_loss_v2", label: "Loss" },
+      { view_key: "stock_summary", label: "Inventory" },
+      { view_key: "tower", label: "Control Tower" },
+    ],
+  },
   {
     view_key: "tower",
     label: "Control Tower",
@@ -35,17 +47,6 @@ export const COCKPITS = [
       { view_key: "grow_rooms", label: "Rooms" },
       { view_key: "rpt-plant-waste", label: "Waste" },
       { view_key: "ops_spine", label: "Harvest spine" },
-    ],
-  },
-  {
-    view_key: "dept_dash_command",
-    label: "Command",
-    short: "Command",
-    children: [
-      { view_key: "open_issues", label: "Decisions waiting" },
-      { view_key: "real_loss_v2", label: "Loss" },
-      { view_key: "stock_summary", label: "Inventory position" },
-      { view_key: "inventory_alerts", label: "Alerts" },
     ],
   },
   {

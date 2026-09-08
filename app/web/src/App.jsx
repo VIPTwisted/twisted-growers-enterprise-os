@@ -11799,7 +11799,7 @@ export default function App() {
         setBlockedViews(new Map(rowsOr(data).map((r) => [r.view_key, true])));
       });
   }, [session, role, viewAsRole]);
-  const [view, setView] = useState(() => window.location.hash.slice(1) || "tower");
+  const [view, setView] = useState(() => window.location.hash.slice(1) || "dept_dash_command");
   useEffect(() => {
     if (window.location.hash.slice(1) !== view) window.history.pushState(null, "", `#${view}`);
   }, [view]);
@@ -11808,7 +11808,7 @@ export default function App() {
      followed — that is hashchange, and without it the URL changed while the
      screen did not. Both are listened for; setView already ignores a no-op. */
   useEffect(() => {
-    const onNav = () => setView(window.location.hash.slice(1) || "tower");
+    const onNav = () => setView(window.location.hash.slice(1) || "dept_dash_command");
     window.addEventListener("popstate", onNav);
     window.addEventListener("hashchange", onNav);
     return () => {
@@ -12120,7 +12120,7 @@ export default function App() {
       {viewAsRole && <div className="note" style={{ marginTop: 8 }}>You are seeing this because the design preview is
         showing you the {viewAsRole} role&rsquo;s view. Your own access is unchanged.</div>}
       <div style={{ marginTop: 14 }}>
-        <button className="btn primary" onClick={() => setView("tower")}>Go to the Control Tower</button>
+        <button className="btn primary" onClick={() => setView("dept_dash_command")}>Go to Command Center</button>
         {viewAsRole && <button className="btn" onClick={() => switchViewAs(null)}>Exit the preview</button>}
       </div>
     </div>
@@ -12135,7 +12135,7 @@ export default function App() {
           This address does not match any page you can see. Either the link is out of date,
           the page was renamed, or your role does not have access to it.
           <div style={{ marginTop: 14 }}>
-            <button className="btn primary" onClick={() => setView("tower")}>Go to the Control Tower</button>
+            <button className="btn primary" onClick={() => setView("dept_dash_command")}>Go to Command Center</button>
           </div>
         </div>
       )
