@@ -2108,8 +2108,9 @@ export default function CommandCenter({ go, session, reports, deep, role, viewAs
         <CcReports reports={reports} go={go} />
       </CcPanel>
 
-      <CcPanel id="pages" store={store} title="Command pages — search, then drill. Nothing omitted."
-        chips={<CcTag tone="neutral">{rowsOr(deep).filter((d) => d.category === "Command Center").length} pages</CcTag>}>
+      <CcPanel id="pages" store={store} title="More tools — type to find. Daily tools are on the left rail."
+        chips={<CcTag tone="neutral">{rowsOr(deep).filter((d) => d.category === "Command Center").length} pages</CcTag>}
+        defaultOpen={false}>
         <DkCockpitPages deep={deep} dept="Command Center" go={go} />
       </CcPanel>
     </div>
