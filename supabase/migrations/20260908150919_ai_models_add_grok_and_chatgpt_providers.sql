@@ -1,3 +1,7 @@
+-- CLAUDE applied 2026-09-08 15:09:19. Filed catch-up so migration-drift cannot go red.
+-- Verbatim from supabase_migrations.schema_migrations.statements. Already in production.
+-- Do not re-apply. No ledger rewrite. No Metrc write. Cycle 56. CERTIFIED 0 until dual MATCH.
+--
 -- Grok and ChatGPT in the model picker. Owner, 8 Sep 2026: "I WANT TO SELECT WHICH AI
 -- GROK, GPT, CLAUDE... THEN THE VERSIONS AVAILABLE TO ME FROM THOSE COMPANIES AS I HAVE
 -- AVAILABLE TO ME FULLY."

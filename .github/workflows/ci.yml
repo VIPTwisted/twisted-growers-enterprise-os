@@ -86,6 +86,13 @@ jobs:
       - name: Theme lock
         run: node tools/checks/theme-lock.mjs
 
+      # ---- TG Bots download zip must match reviewed source (check:extzip) ------------
+      # Claude added tools/checks/ext-zip-fresh.mjs and chained it in package.json.
+      # all-checks-wired requires BOTH Actions and the Netlify check chain. Missing
+      # here is why #154 went red after rebase onto green main.
+      - name: TG Bots zip matches source
+        run: node tools/checks/ext-zip-fresh.mjs
+
       # ---- A stray token renders as visible text. The bar is zero warnings. ------------
       - name: Parse check (zero warnings)
         run: node tools/checks/parse-check.mjs
