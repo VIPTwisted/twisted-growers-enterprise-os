@@ -551,6 +551,37 @@ button.pulse:hover, button.stat:hover { background: var(--row-hover); }
 }
 .nav.closed .railcm { justify-content: center; padding: 6px; gap: 0; }
 .nav.closed .railcm-lbl { display: none; }
+
+.nav .cockpit-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 8px 10px;
+  flex: 1;
+  overflow: auto;
+}
+.nav .cockpit-item {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-height: 2.55rem;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 650;
+  text-align: left;
+}
+.nav .cockpit-item:hover { color: var(--ink); background: var(--surface-2); }
+.nav .cockpit-item.on {
+  color: var(--neon);
+  background: var(--neon-soft);
+}
+.nav .cockpit-lbl { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .nav .railbots img {
   width: 28px; height: 28px; border-radius: 50%; object-fit: cover; flex-shrink: 0;
 }

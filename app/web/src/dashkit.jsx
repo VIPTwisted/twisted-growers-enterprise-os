@@ -1899,6 +1899,51 @@ export function DkRoomBoard({ rooms, warnDays, renderPlantDrill, renderStockDril
   );
 }
 
+/* ═══════════ cockpit pages — every former side item, searchable, nothing omitted ═══════════ */
+export function DkCockpitPages({ deep, dept, go }) {
+  const [q, setQ] = useState("");
+  const items = rowsOr(deep).filter((d) => d.category === dept);
+  const needle = q.trim().toLowerCase();
+  const shown = needle
+    ? items.filter((d) => (`${d.label} ${d.subcategory || ""} ${d.description || ""}`).toLowerCase().indexOf(needle) >= 0)
+    : items;
+  const groups = Object.entries(
+    shown.reduce((m, d) => {
+      const k = d.subcategory || "Pages";
+      (m[k] = m[k] || []).push(d);
+      return m;
+    }, {})
+  );
+  if (!items.length && !needle) {
+    return <DkEmpty why={`No extra ${dept} pages are registered as deep links yet.`} fills="Side-menu pages move here. Hashes still work." />;
+  }
+  return (
+    <div>
+      <input
+        className="cc-input dk-pagefind"
+        value={q}
+        onChange={(e) => setQ(e.target.value)}
+        placeholder={`Find a ${dept} page…`}
+        aria-label={`Find a ${dept} page`}
+      />
+      <div className="cc-fine">{shown.length} of {items.length} pages in this department. Nothing deleted. Old links still work.</div>
+      <div className="deepwrap dk-pagelist">
+        {groups.map(([sub, list]) => (
+          <div key={sub} className="deepgrp">
+            <label>{sub}</label>
+            <div className="deeplinks">
+              {list.map((it) => (
+                <button key={it.view_key} type="button" className="deeplink" title={it.description || ""}
+                  onClick={() => go(it.view_key)}>{it.label}{it.milestone ? " · SOON" : ""}</button>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 /* ═══════════ reports, by group — a dashboard never lists individual reports ═══════════ */
 export function DkReports({ reports, dept, go }) {
   const list = rowsOr(reports).filter((r) => !dept || r.category === dept || !r.category);

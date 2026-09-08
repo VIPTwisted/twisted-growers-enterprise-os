@@ -41,7 +41,7 @@ import {
   useDefaultRange, DkRangeSearch, rangeSearch, DkFrameNote,
   DkHarvestControlBanner,
   grab, DkTag, DkErr, DkEmpty, DkKpiStrip, DkOrphanTargets, DkWorkQueue, useWorkQueue,
-  DkNarrative, DkReports, DkTasks, DkGapCard, DkHead, DkRoomBoard, useWidgetLayout,
+  DkNarrative, DkReports, DkCockpitPages, DkTasks, DkGapCard, DkHead, DkRoomBoard, useWidgetLayout,
   Widget, WidgetBoard, WidgetBarControls, useSectionStore, DkCaret, DkDrill, DrillRoot,
   DkRowDrill,
 } from "./dashkit.jsx";
@@ -407,7 +407,7 @@ function CvDryTime({ rows, go }) {
 }
 
 /* ═══════════════════ the page ═══════════════════ */
-export default function CultivationDashboard({ go, session, reports, role, viewAs, onViewAs, isAdmin, viewRoles }) {
+export default function CultivationDashboard({ go, session, reports, deep, role, viewAs, onViewAs, isAdmin, viewRoles }) {
   const store = useSectionStore(session?.user?.id, VIEW_KEY);
   const [range, setRange] = useState({ from: "", to: "" });
   /* Opens on the company default (this month) instead of all history —
@@ -449,7 +449,8 @@ export default function CultivationDashboard({ go, session, reports, role, viewA
     { key: "words", title: "In plain words — the period, the platform, and signed notes", span: 2 },
     { key: "targets", title: "Owner-set targets with no published figure", span: 1 },
     { key: "tasks", title: "Tasks raised from this dashboard", span: 1 },
-    { key: "reports", title: "Reports — by group", span: 2 },
+    { key: "reports", title: "Reports — this department", span: 2 },
+    { key: "pages", title: "Cultivation pages — search, then drill. Nothing omitted.", span: 2 },
   ], []);
   const layout = useWidgetLayout(PAGE_KEY, WIDGETS);
   const queue = useWorkQueue(DEPT);
@@ -1051,6 +1052,14 @@ export default function CultivationDashboard({ go, session, reports, role, viewA
             case "reports": return (
               <Widget key={w.key} w={w} layout={layout} store={store} defaultOpen={false}>
                 <DkReports reports={reports} dept={DEPT} go={go} />
+              </Widget>
+            );
+            case "pages": return (
+              <Widget key={w.key} w={w} layout={layout} store={store}>
+                <div className="cc-fine" style={{ marginBottom: 8 }}>
+                  <button type="button" className="cc-btn" onClick={() => go("dutchie_cult")}>Twisted C&M →</button>
+                </div>
+                <DkCockpitPages deep={deep} dept={DEPT} go={go} />
               </Widget>
             );
             default: return null;

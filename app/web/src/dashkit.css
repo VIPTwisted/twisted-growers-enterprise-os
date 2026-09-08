@@ -27,6 +27,9 @@
   .cc-w.span-1, .cc-w.span-2 { grid-column: span 12; }
 }
 
+.dk-pagefind { width: 100%; max-width: 22rem; margin-bottom: 0.7rem; }
+
+
 /* ── arrange mode ─────────────────────────────────────────────────────── */
 .cc-warrange {
   border: 1px dashed var(--ccok); background: var(--cc2); color: var(--cct1);
