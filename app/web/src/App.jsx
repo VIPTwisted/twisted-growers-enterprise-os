@@ -74,6 +74,7 @@ const CommandCenter = lazy(() => import("./commandcenter.jsx"));
    every row, sitewide (owner hard rule, 12 Aug 2026). Same deliberate,
    render-time-only import cycle as the Command Center above. */
 import { TagEvidence, TagEvidenceProvider, DkHarvestControlBanner } from "./dashkit.jsx";
+import CockpitRail, { cockpitViewForCategory } from "./cockpit-rail.jsx";
 const CultivationDashboard = lazy(() => import("./dash-cultivation.jsx"));
 const ReportVault = lazy(() => import("./report-vault.jsx"));
 const ReportCenter = lazy(() => import("./report-center.jsx"));
@@ -11089,7 +11090,7 @@ function DeptDashboard({ viewKey, go, nav, deep, session, reports, role, viewAs,
   const [range, setRange] = useState({ from: "", to: "" });
   const onRange = React.useCallback((r) => setRange(r), []);
 
-  const deepItems = (deep ?? []).filter((d) => d.category === dept);
+  const deepItems = (deep ?? []).filter((d) => d.category === dept || (dept === "Command" && d.category === "Command Center"));
   const deepGroups = Object.entries(
     deepItems.reduce((m, d) => {
       const k = d.subcategory || "Other";
@@ -11391,11 +11392,10 @@ function DeptDashboard({ viewKey, go, nav, deep, session, reports, role, viewAs,
           Each gets a proper screen and comes off this list. Kept at the bottom, collapsed,
           so it never competes with the dashboard itself. */}
       {deepItems.length > 0 && (
-        <Section id="deep" store={store} title={`Still to be built out in ${dept} — temporary list`} count={deepItems.length}>
+        <Section id="deep" store={store} title={`${dept} pages — every tool in this department`} count={deepItems.length}>
           <p className="buildnote">
-            These {deepItems.length} pages still render as plain tables rather than built-out
-            screens. They are listed only so nothing is lost while they are worked through. Each
-            one comes off this list as it is built properly.
+            These {deepItems.length} pages used to sit in the side menu. They live here now.
+            Nothing was deleted. Old links still work.
           </p>
           <div className="deepwrap">
             {deepGroups.map(([sub, items]) => (
@@ -12018,7 +12018,7 @@ export default function App() {
     /* CLEAN-SLATE COMMAND CENTER — owner pivot, 12 Aug 2026. This override sits
        AFTER the spread on purpose: dept_dash_command routes to the new tree and
        the old DeptDashboard rendering for Command is retired from the path. */
-    dept_dash_command: <CommandCenter go={setView} session={session} reports={reports}
+    dept_dash_command: <CommandCenter go={setView} session={session} reports={reports} deep={deep}
       role={role} viewAs={viewAsRole} onViewAs={switchViewAs}
       isAdmin={isAdmin} viewRoles={viewRoles} />,
     /* THE DEPARTMENT DASHBOARDS, built on the same certified template through
@@ -12029,10 +12029,10 @@ export default function App() {
        each override sits AFTER the spread so the generic DeptDashboard is
        retired from that department's path rather than left as a second
        rendering of the same page. */
-    dept_dash_cultivation: <CultivationDashboard go={setView} session={session} reports={reports}
+    dept_dash_cultivation: <CultivationDashboard go={setView} session={session} reports={reports} deep={deep}
       role={role} viewAs={viewAsRole} onViewAs={switchViewAs}
       isAdmin={isAdmin} viewRoles={viewRoles} />,
-    dept_dash_inventory: <InventoryDashboard go={setView} session={session} reports={reports}
+    dept_dash_inventory: <InventoryDashboard go={setView} session={session} reports={reports} deep={deep}
       role={role} viewAs={viewAsRole} onViewAs={switchViewAs}
       isAdmin={isAdmin} viewRoles={viewRoles} />,
     /* SCHEDULE ADHERENCE. Cultivation's page for the one rule that is deliberately
@@ -12188,13 +12188,19 @@ export default function App() {
           </button>
           {repMenu && (
             <div className="repmenu" onMouseLeave={() => setRepMenu(false)}>
-              <div className="rephead">All reports</div>
+              <div className="rephead">Reports by department — index into the cockpit</div>
               <div className="repcols">
-                {[...new Set((reports ?? []).map((r) => r.report_group))].sort().map((g) => (
+                {[...new Set((reports ?? []).map((r) => r.category || "Reports"))].sort().map((g) => (
                   <div className="repcol" key={g}>
                     <div className="repgrp">{g}</div>
+                    {cockpitViewForCategory(g) ? (
+                      <button className="repitem" title={`Open the ${g} cockpit`}
+                        onClick={() => { setView(cockpitViewForCategory(g)); setRepMenu(false); }}>
+                        Open {g} cockpit →
+                      </button>
+                    ) : null}
                     {(reports ?? [])
-                      .filter((r) => r.report_group === g)
+                      .filter((r) => (r.category || "Reports") === g)
                       .sort((a, b) => (a.item_order ?? 0) - (b.item_order ?? 0) || a.label.localeCompare(b.label))
                       .map((r) => (
                         <button key={r.view_key} className="repitem" title={r.description || ""}
@@ -12309,56 +12315,9 @@ export default function App() {
             </div>
           )}
           {prefs.collapsed ? (
-            <div className="railcats">
-              {cats.map((c) => {
-                const col = c.items[0]?.color ?? "";
-                const flat = col && !col.includes("gradient") && !col.startsWith("var") ? col : undefined;
-                const active = c.items.some((e) => e.view_key === view);
-                return (
-                  <button key={c.name} className={`railcat ${active ? "on" : ""}`} title={c.name}
-                    onClick={() => { prefs.setCollapsed(false); setOpenCats({ ...openCats, [c.name]: true }); }}>
-                    <span className="rcicon" style={flat ? { color: flat } : undefined}>{iconByName(c.items[0]?.icon)}</span>
-                    <span className="rclabel">{c.name}</span>
-                  </button>
-                );
-              })}
-            </div>
+            <CockpitRail view={view} go={setView} collapsed />
           ) : (
-            cats.map((c) => (
-              <div className="cat" key={c.name}>
-                <button className="cathead" onClick={() => setOpenCats({ ...openCats, [c.name]: !isOpen(c.name) })}>
-                  <span className="catdot" style={{ background: c.items[0]?.color ?? "var(--neon)" }} />
-                  <span className="ctext">{c.name}</span>
-                  <span className={`caret ${isOpen(c.name) ? "open" : ""}`}>{I.caret}</span>
-                </button>
-                <div className="items" style={{ display: isOpen(c.name) ? "block" : "none" }}>
-                  {[...new Set(c.items.map((e) => e.subcategory || ""))].map((sub) => {
-                    const group = c.items.filter((e) => (e.subcategory || "") === sub);
-                    const subKey = c.name + "::" + sub;
-                    const subOpen = openCats[subKey] !== false;
-                    return (
-                      <div key={subKey} className={sub ? "subcat" : ""}>
-                        {sub && (
-                          <button className="subhead" onClick={() => setOpenCats({ ...openCats, [subKey]: !subOpen })}>
-                            <span className="subtext">{sub}</span>
-                            <span className="subcount">{group.length}</span>
-                            <span className={`caret ${subOpen ? "open" : ""}`}>{I.caret}</span>
-                          </button>
-                        )}
-                        {(!sub || subOpen) &&
-                          group.map((e) => (
-                            <button key={e.view_key} className={`item ${view === e.view_key ? "on" : ""}`}
-                              onClick={() => setView(e.view_key)} title={e.description || e.label}>
-                              {iconByName(e.icon)}<span className="lbl">{e.label}</span>
-                              {e.milestone && <span className="mtag">SOON</span>}
-                            </button>
-                          ))}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            ))
+            <CockpitRail view={view} go={setView} collapsed={false} />
           )}
           <button className="burger navburger" onClick={() => prefs.setCollapsed(!prefs.collapsed)} title="Collapse / expand menu">{I.burger}</button>
           <div className="railfoot">
