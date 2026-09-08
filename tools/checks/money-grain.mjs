@@ -740,9 +740,9 @@ const migrationEntries = files.map((name) => ({
  *
  * RE-PINNED 8 Sep 2026, 1041 -> 1042 files, digest c8707007… . L6: dutchie_cult / dutchie_mfg / os_users date_policy not_applicable (overlays, not dated reports). date_defect 104 → 101. Cycle 56. No ledger rewrite.
  *
- * RE-PINNED 8 Sep 2026, 1047 -> 1048 files, digest dbf5a17c… . dept_dash_cfo I4 report_group + page_permissions. Cycle 56. No ledger rewrite.
+ * RE-PINNED 8 Sep 2026, 1048 -> 1049 files, digest 98f53e17… . dept_dash_cfo nav_role_visibility. nobody_can_open back to 114. Cycle 56.
  */
-const expectedMigrationTreeDigest = "dbf5a17c4052a86017707571d62c686648d3fdb480796bacd2910e769f3cd591";
+const expectedMigrationTreeDigest = "98f53e173dc8464ffcf2762e59dd3f51afd180393332ad6d507316fd803dbbf2";
 const actualMigrationTreeDigest = migrationTreeDigest(migrationEntries);
 if (actualMigrationTreeDigest !== expectedMigrationTreeDigest) {
   console.error(`money-grain: FAIL — migration tree differs from the independently reviewed ${files.length}-file manifest (${actualMigrationTreeDigest}).`);
