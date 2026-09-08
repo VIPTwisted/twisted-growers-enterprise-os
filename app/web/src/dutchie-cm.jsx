@@ -217,6 +217,7 @@ export default function DutchieCm({ go, session }) {
   const [k, setK] = useState(null);
   const [err, setErr] = useState(null);
   const [busy, setBusy] = useState(null);
+  const [note, setNote] = useState(null);
   const [openRoom, setOpenRoom] = useState(null);
 
   const load = useCallback(async () => {
