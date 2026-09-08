@@ -2,6 +2,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { supabase, FUNCTIONS_URL } from "./lib/supabase.js";
 import "./os-desk.css";
+import { DkRoomPlantDrill, TagEvidence, TagEvidenceProvider } from "./dashkit.jsx";
 
 const FEATURES = [
   ["Canopy", "Clones → plants → phases → harvest → package", "METRC", "LIVE"],
@@ -45,11 +46,178 @@ function fillPct(plants, cap) {
   return x;
 }
 
+function lb(v) {
+  if (v == null || v === "") return "not recorded";
+  const x = Number(v);
+  return Number.isFinite(x) ? x.toLocaleString() + " lb" : "not recorded";
+}
+
+function RoomForensic({ roomRow }) {
+  const room = roomRow.room;
+  const [harvests, setHarvests] = useState(null);
+  const [herr, setHerr] = useState(null);
+  const [pick, setPick] = useState(null);
+  const [yieldRow, setYieldRow] = useState(null);
+  const [yerr, setYerr] = useState(null);
+  const [pkgs, setPkgs] = useState(null);
+  const [perr, setPerr] = useState(null);
+
+  useEffect(() => {
+    let live = true;
+    setHarvests(null); setHerr(null); setPick(null); setYieldRow(null); setPkgs(null);
+    supabase.from("metrc_harvests")
+      .select("name, harvest_start, wet_weight, package_count, source_state, license, metrc_id")
+      .eq("flower_room", room)
+      .order("harvest_start", { ascending: false })
+      .limit(80)
+      .then(({ data, error }) => {
+        if (!live) return;
+        if (error) { setHerr(error.message); return; }
+        setHarvests(Array.isArray(data) ? data : []);
+      });
+    return () => { live = false; };
+  }, [room]);
+
+  function openHarvest(h) {
+    setPick(h);
+    setYieldRow(null); setYerr(null); setPkgs(null); setPerr(null);
+    supabase.from("v_harvest_water_and_yield").select("*").eq("harvest", h.name).limit(1)
+      .then(({ data, error }) => {
+        if (error) { setYerr(error.message); return; }
+        setYieldRow(Array.isArray(data) && data[0] ? data[0] : null);
+      });
+    supabase.from("v_stock_proof").select("package_tag, item_name, quantity, uom, pounds, coa_url, apex_invoice_no, manifest_no, source_harvest, lab_state")
+      .eq("source_harvest", h.name)
+      .limit(80)
+      .then(({ data, error }) => {
+        if (error) { setPerr(error.message); return; }
+        setPkgs(Array.isArray(data) ? data : []);
+      });
+  }
+
+  const noSnap = roomRow.verdict === "NO SNAPSHOT" || roomRow.plants_now == null;
+  const pct = noSnap ? 0 : fillPct(roomRow.plants_now, roomRow.cap);
+  const tags = (pkgs || []).map((p) => p.package_tag).filter(Boolean);
+
+  return (
+    <section className="osdesk-forensic" aria-label={`${room} forensic drill`}>
+      <div className="osdesk-head">
+        <div>
+          <h2>{`${room} — cultivation department`}</h2>
+          <p>
+            {roomRow.size || "size not recorded"} · cap {n(roomRow.cap)} · snapshot {roomRow.verdict || "—"} as-of {roomRow.as_of || "not recorded"}.
+            {noSnap
+              ? " Canopy snapshot has no plant count for this room. Standing plants below are live from v_room_plants_drill — they are not the snapshot."
+              : ` Snapshot plants now ${n(roomRow.plants_now)} (${Math.round(pct)}%).`}
+            {" "}1,150 is labor, not cap. Cycle 56 locked.
+          </p>
+        </div>
+      </div>
+
+      <h3 className="osdesk-h3">Standing plants</h3>
+      <DkRoomPlantDrill room={room} metrcRoomName={null} />
+
+      <h3 className="osdesk-h3">Harvests that came from this room</h3>
+      {herr ? <p className="osdesk-note osdesk-err" role="alert">Harvests could not be read: {herr}</p> : null}
+      {harvests === null && !herr ? <p className="osdesk-lede">Reading harvests whose flower_room is {room}…</p> : null}
+      {harvests && harvests.length === 0 ? (
+        <p className="osdesk-note">No harvest in Metrc names {room} as flower_room. That is empty, not a failed read.</p>
+      ) : null}
+      {harvests && harvests.length > 0 ? (
+        <div className="osdesk-tablewrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Harvest</th>
+                <th>Started</th>
+                <th>Wet (Metrc)</th>
+                <th>Packages</th>
+                <th>State</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {harvests.map((h) => (
+                <tr key={h.metrc_id || h.name} className={pick && pick.name === h.name ? "on" : ""}>
+                  <td>{h.name}</td>
+                  <td>{h.harvest_start ? String(h.harvest_start).slice(0, 10) : "not recorded"}</td>
+                  <td>{lb(h.wet_weight)}</td>
+                  <td>{h.package_count == null ? "not recorded" : Number(h.package_count).toLocaleString()}</td>
+                  <td>{h.source_state || "not recorded"}</td>
+                  <td>
+                    <button type="button" className="osdesk-add" onClick={() => openHarvest(h)}>
+                      Allocation + docs
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : null}
+      <p className="osdesk-own">Waste is never totaled on this page. Mixed units. Per-harvest waste is v_harvest_water_and_yield.waste_lb only.</p>
+
+      {pick ? (
+        <div className="osdesk-editor">
+          <b>{pick.name}</b>
+          <p>Wet / waste / water / dry from v_harvest_water_and_yield. Packages from v_stock_proof. COA and manifest via evidence. Apex invoice if the package has one. CERTIFIED 0 unless dual MATCH.</p>
+          {yerr ? <p className="osdesk-note osdesk-err" role="alert">Yield could not be read: {yerr}</p> : null}
+          {yieldRow ? (
+            <div className="osdesk-kpis">
+              <div className="osdesk-kpi"><span className="osdesk-kicker">Plants</span><b>{n(yieldRow.plants)}</b></div>
+              <div className="osdesk-kpi"><span className="osdesk-kicker">Wet in</span><b>{lb(yieldRow.wet_in_lb)}</b></div>
+              <div className="osdesk-kpi"><span className="osdesk-kicker">Waste</span><b>{lb(yieldRow.waste_lb)}</b></div>
+              <div className="osdesk-kpi"><span className="osdesk-kicker">Water lost</span><b>{lb(yieldRow.water_lost_lb)}</b></div>
+              <div className="osdesk-kpi"><span className="osdesk-kicker">Dry yield</span><b>{yieldRow.dry_yield_lb == null ? "not recorded" : lb(yieldRow.dry_yield_lb)}</b></div>
+            </div>
+          ) : (!yerr ? <p className="osdesk-lede">No v_harvest_water_and_yield row for this harvest name. Dry / water / waste not invented.</p> : null)}
+          {yieldRow && yieldRow.in_plain_english ? <p className="osdesk-note">{yieldRow.in_plain_english}</p> : null}
+
+          <h3 className="osdesk-h3">Packages from this harvest — COA, manifest, Apex</h3>
+          {perr ? <p className="osdesk-note osdesk-err" role="alert">Packages could not be read: {perr}</p> : null}
+          {pkgs === null && !perr ? <p className="osdesk-lede">Reading packages…</p> : null}
+          {pkgs && pkgs.length === 0 ? (
+            <p className="osdesk-note">No v_stock_proof row names this harvest as source_harvest. Documents cannot attach to a package that is not in the proof view.</p>
+          ) : null}
+          {pkgs && pkgs.length > 0 ? (
+            <TagEvidenceProvider tags={tags}>
+              <div className="osdesk-tablewrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Tag</th>
+                      <th>Item</th>
+                      <th>Qty</th>
+                      <th>COA + manifest</th>
+                      <th>Apex invoice</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {pkgs.map((p) => (
+                      <tr key={p.package_tag}>
+                        <td style={{ fontFamily: "ui-monospace, monospace", fontSize: 12 }}>{p.package_tag}</td>
+                        <td>{p.item_name || "not recorded"}</td>
+                        <td>{p.quantity == null ? "not recorded" : `${Number(p.quantity).toLocaleString()} ${p.uom || ""}`.trim()}</td>
+                        <td><TagEvidence tag={p.package_tag} compact /></td>
+                        <td>{p.apex_invoice_no ? p.apex_invoice_no : "no Apex invoice on this package"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </TagEvidenceProvider>
+          ) : null}
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
 export default function DutchieCm({ go, session }) {
   const [k, setK] = useState(null);
   const [err, setErr] = useState(null);
   const [busy, setBusy] = useState(null);
-  const [note, setNote] = useState(null);
+  const [openRoom, setOpenRoom] = useState(null);
 
   const load = useCallback(async () => {
     const [flower, veg, batches, harvests, pkgs, canopy] = await Promise.all([
@@ -177,23 +345,30 @@ export default function DutchieCm({ go, session }) {
 
             <div className="osdesk-rooms">
               {rooms.length ? rooms.map((r) => {
-                const pct = fillPct(r.plants_now, r.cap);
+                const noSnap = r.verdict === "NO SNAPSHOT" || r.plants_now == null;
+                const pct = noSnap ? 0 : fillPct(r.plants_now, r.cap);
                 return (
-                  <button key={r.room} type="button" className="osdesk-room" onClick={() => go && go("grow_rooms")}>
+                  <button
+                    key={r.room}
+                    type="button"
+                    className={"osdesk-room" + (openRoom && openRoom.room === r.room ? " on" : "")}
+                    onClick={() => setOpenRoom(r)}
+                    aria-pressed={openRoom && openRoom.room === r.room}
+                  >
                     <div className="osdesk-room-top">
                       <b>{`${r.room} — cultivation department`}</b>
                       <span className="osdesk-tag">{r.size || "—"}</span>
                     </div>
                     <div className="osdesk-room-nums">
-                      <span><strong>{n(r.plants_now)}</strong> now</span>
+                      <span><strong>{noSnap ? "—" : n(r.plants_now)}</strong> {noSnap ? "no snapshot" : "now"}</span>
                       <span>cap {n(r.cap)}</span>
                     </div>
                     <div className="osdesk-meter" aria-hidden="true">
                       <i className="osdesk-meter-fill" style={{ width: `${pct}%` }} />
                     </div>
                     <div className="osdesk-foot">
-                      <span>{r.verdict || "—"}</span>
-                      <span className="osdesk-open">{Math.round(pct)}%</span>
+                      <span>{r.verdict || "—"} · as-of {r.as_of || "not recorded"}</span>
+                      <span className="osdesk-open">{noSnap ? "drill live plants →" : `${Math.round(pct)}% →`}</span>
                     </div>
                   </button>
                 );
@@ -201,6 +376,8 @@ export default function DutchieCm({ go, session }) {
                 <p className="osdesk-lede">{k ? "No canopy rows yet." : "Reading live canopy…"}</p>
               )}
             </div>
+
+            {openRoom ? <RoomForensic roomRow={openRoom} /> : null}
 
             <h2 style={{ marginTop: 22, fontSize: 16 }}>Where work lives</h2>
             <div className="osdesk-map">

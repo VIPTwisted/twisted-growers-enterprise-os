@@ -732,3 +732,20 @@
 }
 .osdesk-tablewrap tr.on td { background: var(--neon-soft); }
 
+.osdesk-h3 {
+  margin: 1.2rem 0 0.45rem;
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+.osdesk-forensic {
+  margin-top: 1.2rem;
+  padding: 1rem;
+  border: 1px solid var(--neon-line);
+  border-radius: 10px;
+  background: var(--surface);
+}
+.osdesk-room.on {
+  border-color: var(--neon);
+  box-shadow: 0 0 0 1px var(--neon-line);
+}
+
