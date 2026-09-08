@@ -658,7 +658,31 @@ const migrationEntries = files.map((name) => ({
  * 20260906023551 forensic-audits default all (period bus, one page).
  * leftover_grok is 0. Counted with listMigrationSqlFiles() after git add.
  */
-const expectedMigrationTreeDigest = "05ef1eeda3865e7d7269265c1af723da8f6c6e2855c365f39ffd9a275b803a41";
+/* RE-PINNED 8 Sep 2026, 1028 -> 1030 files at 88fb2441… . Two things moved the
+ * tree, and neither is new schema work:
+ *
+ *   1. 20260907133718 bridge_tables_manifest_bridge_clone_phase1 — the three
+ *      Manifest Bridge tables (bridge_manifest, bridge_manifest_package,
+ *      bridge_manual_link), RLS on, read for authenticated and write for admin.
+ *      They hold owner-supplied vendor caches as EVIDENCE. Metrc remains the
+ *      legal record for custody and Apex the source of record for sales;
+ *      v_package_manifest is not touched and nothing is promoted into it.
+ *   2. A baseline re-dump — 20260905132543 out, 20260908123242 in — because
+ *      production had gained those 3 tables and 6 policies (462 tables, 540
+ *      views, 28 matviews, 1324 policies, all matching live). A baseline swap
+ *      moves this digest by construction and is not a new migration.
+ *
+ * COMMITTED FIRST, per the paragraph above, then verified two ways that share no
+ * code: `git ls-files supabase/migrations` and `git ls-tree -r HEAD
+ * supabase/migrations` both returned 1030 paths, so the index and the HEAD tree
+ * are the same tree and the digest below is the committed one.
+ *
+ * NOT re-added by this branch: 16 migrations reconstructed from production
+ * earlier in the same session. Grok had already merged all 16 via #142-#151 with
+ * real why-comments, and re-adding Claude's stub-headed copies would have
+ * overwritten that reasoning with blanks. Dropped before this pin was taken.
+ */
+const expectedMigrationTreeDigest = "88fb24416fd824b7cad8acaccb6d00386acb9364e5a061bdf00528c38f5644f0";
 const actualMigrationTreeDigest = migrationTreeDigest(migrationEntries);
 if (actualMigrationTreeDigest !== expectedMigrationTreeDigest) {
   console.error(`money-grain: FAIL — migration tree differs from the independently reviewed ${files.length}-file manifest (${actualMigrationTreeDigest}).`);
