@@ -73,7 +73,8 @@ const CommandCenter = lazy(() => import("./commandcenter.jsx"));
    here so the shared stock-proof drill carries certificate and manifest on
    every row, sitewide (owner hard rule, 12 Aug 2026). Same deliberate,
    render-time-only import cycle as the Command Center above. */
-import { TagEvidence, TagEvidenceProvider, DkHarvestControlBanner } from "./dashkit.jsx";
+import { TagEvidence, TagEvidenceProvider, DkHarvestControlBanner, DkCockpitPages } from "./dashkit.jsx";
+import CockpitRail, { cockpitViewForCategory } from "./cockpit-rail.jsx";
 const CultivationDashboard = lazy(() => import("./dash-cultivation.jsx"));
 const ReportVault = lazy(() => import("./report-vault.jsx"));
 const ReportCenter = lazy(() => import("./report-center.jsx"));
@@ -2123,6 +2124,7 @@ function RpAuditDrill({ row, context, onClose, onTag }) {
   const [open, setOpen] = useState({ 3: true });
   const [dossier, setDossier] = useState(undefined);
   const [rawPkg, setRawPkg] = useState(undefined);
+  const [rawPlant, setRawPlant] = useState(undefined);
   const [became, setBecame] = useState(undefined);
   const [adjust, setAdjust] = useState(undefined);
   const [claims, setClaims] = useState(undefined);
@@ -2130,17 +2132,19 @@ function RpAuditDrill({ row, context, onClose, onTag }) {
 
   useEffect(() => {
     let live = true;
-    if (!tag) { setDossier(null); setRawPkg(null); setBecame(null); setAdjust(null); return; }
+    if (!tag) { setDossier(null); setRawPkg(null); setRawPlant(null); setBecame(null); setAdjust(null); return; }
     (async () => {
-      const [d, p, a] = await Promise.all([
+      const [d, p, a, pl] = await Promise.all([
         supabase.from("v_package_dossier").select("*").eq("package_tag", tag).maybeSingle(),
         supabase.from("metrc_packages").select("tag, license, raw, synced_at").eq("tag", tag),
         supabase.from("metrc_rpt_adjustments").select("*").eq("package_tag", tag).order("adjusted_on", { ascending: false }),
+        supabase.from("metrc_plants").select("tag, license, strain, phase, room, planted_on, source_state, raw, synced_at, report_as_of").eq("tag", tag),
       ]);
       if (!live) return;
-      setDossier(d.error ? { __error: d.error.message } : (d.data ?? null));
-      setRawPkg(p.error ? { __error: p.error.message } : (p.data ?? []));
-      setAdjust(a.error ? { __error: a.error.message } : (a.data ?? []));
+      setDossier(d.error ? { __error: d.error.message } : (d.data || null));
+      setRawPkg(p.error ? { __error: p.error.message } : (p.data || []));
+      setAdjust(a.error ? { __error: a.error.message } : (a.data || []));
+      setRawPlant(pl.error ? { __error: pl.error.message } : (pl.data || []));
       const b = await supabase.from("metrc_packages")
         .select("tag, item_name, quantity, uom, packaged_on, location")
         .filter("raw->>SourcePackageLabels", "ilike", `%${tag}%`).limit(500);
@@ -2214,8 +2218,10 @@ function RpAuditDrill({ row, context, onClose, onTag }) {
           </RpLayer>
 
           <RpLayer n={3} title="The single record" open={open[3]} onToggle={() => toggle(3)}
-            sub={dossier && !dossier.__error ? "v_package_dossier — every field held" : "the row as the report returned it"}>
+            sub={dossier && !dossier.__error ? "v_package_dossier — every field held"
+              : (Array.isArray(rawPlant) && rawPlant.length ? "metrc_plants — this tag is a plant, not a package" : "the row as the report returned it")}>
             <Err o={dossier} what="the package dossier" />
+            <Err o={rawPlant} what="the plant record" />
             {dossier && !dossier.__error && (
               <div className="statchips" style={{ marginBottom: 8 }}>
                 {dossier.weight_basis && <span className="schip info">Weight basis: {dossier.weight_basis}</span>}
@@ -2225,16 +2231,27 @@ function RpAuditDrill({ row, context, onClose, onTag }) {
                 <span className="schl">every layer states its own basis — none of these is dropped on the way down</span>
               </div>
             )}
-            <DetailGrid obj={dossier && !dossier.__error ? dossier : row} />
-            {dossier === null && tag && <div className="note">No dossier row for this tag. The report row itself is shown above.</div>}
+            <DetailGrid obj={dossier && !dossier.__error ? dossier : (Array.isArray(rawPlant) && rawPlant[0] ? rawPlant[0] : row)} />
+            {dossier === null && tag && !(Array.isArray(rawPlant) && rawPlant.length) && <div className="note">No dossier row for this tag. The report row itself is shown above.</div>}
           </RpLayer>
 
           <RpLayer n={4} title="The raw Metrc record — the audit floor" open={open[4]} onToggle={() => toggle(4)}
             sub="untouched state JSON, nothing of ours in between">
             <Err o={rawPkg} what="the raw Metrc package" />
-            {Array.isArray(rawPkg) && rawPkg.length === 0 && (
-              <div className="note">No row in <b>metrc_packages</b> for this tag. Either it is not a package, or it has not synced.</div>
+            <Err o={rawPlant} what="the raw Metrc plant" />
+            {Array.isArray(rawPkg) && rawPkg.length === 0 && Array.isArray(rawPlant) && rawPlant.length === 0 && (
+              <div className="note">No row in <b>metrc_packages</b> or <b>metrc_plants</b> for this tag. It has not synced, or it is not a Metrc tag.</div>
             )}
+            {Array.isArray(rawPlant) && rawPlant.map((p, i) => (
+              <div key={"plant-"+i} style={{ marginBottom: 10 }}>
+                <div className="note">
+                  metrc_plants · licence {p.license} · {p.phase} · {p.room ? `${p.room} — cultivation department` : "no room — cultivation department"} · source_state {p.source_state}
+                  · planted {p.planted_on ? String(p.planted_on).slice(0, 10) : "not recorded"}
+                  · synced {p.synced_at ? String(p.synced_at).slice(0, 19).replace("T", " ") : "not recorded"}
+                </div>
+                <pre className="drawjson">{JSON.stringify(p.raw, null, 2)}</pre>
+              </div>
+            ))}
             {Array.isArray(rawPkg) && rawPkg.map((p, i) => (
               <div key={i} style={{ marginBottom: 10 }}>
                 <div className="note">
@@ -2252,16 +2269,18 @@ function RpAuditDrill({ row, context, onClose, onTag }) {
               <div className="dgrid">
                 <div className="df"><div className="dk">Certificate of Analysis</div><div className="dv">
                   <RpDocumentButton path={dossier.coa_storage_path} label="Open the Certificate of Analysis" />
-                  {!dossier.coa_storage_path && <div className="note">{dossier.certificate_basis ?? "No certificate is filed against this package."}</div>}
+                  {!dossier.coa_storage_path && <div className="note">{dossier.certificate_basis || "No certificate is filed against this package."}</div>}
                   {dossier.laboratory && <div className="note">{dossier.laboratory}{dossier.tested_on ? ` · tested ${String(dossier.tested_on).slice(0, 10)}` : ""}</div>}
-                  {dossier.certificate_expired && <div className="schip bad">Certificate expired {String(dossier.coa_valid_until ?? "").slice(0, 10)} — product cannot be sold on it</div>}
+                  {dossier.certificate_expired && <div className="schip bad">Certificate expired {String(dossier.coa_valid_until || "").slice(0, 10)} — product cannot be sold on it</div>}
                 </div></div>
                 <div className="df"><div className="dk">Manifest</div><div className="dv">
                   <RpDocumentButton path={dossier.manifest_storage_path} label="Open the manifest" />
                   <div className="note">{dossier.manifest_numbers ? `Manifest numbers: ${dossier.manifest_numbers}` : "No manifest — packaged here and never transferred, or not yet synced."}</div>
                 </div></div>
               </div>
-            ) : <div className="note">No dossier for this row, so no document paths to mint links from.</div>}
+            ) : (Array.isArray(rawPlant) && rawPlant.length)
+              ? <div className="note">This tag is a <b>plant</b>. COA, manifest and Apex invoice attach when it is harvested and packaged — they are not invented here. Raw Metrc plant JSON is layer 4.</div>
+              : <div className="note">No dossier for this row, so no document paths to mint links from.</div>}
           </RpLayer>
 
           <RpLayer n={6} title="Lineage, both directions" open={open[6]} onToggle={() => toggle(6)}
@@ -2565,7 +2584,6 @@ function RpReportHeader({ title, reportKey, factView, dateCol, from, to, presetK
   return (
     <div className="rp-reporthead">
       <div className="rp-printident" aria-hidden="true">{printIdent}</div>
-      <div className="rp-rh-title">{title}</div>
       <dl className="rp-rh-facts">
         <div><dt>Company</dt><dd>{companyLine}</dd></div>
         <div><dt>Period</dt><dd>{periodLine}</dd></div>
@@ -3038,11 +3056,11 @@ function ReportScreen({ entry, actions, session }) {
       <div className="modhead">
         <div className="mchip">{iconByName(entry.icon)}</div>
         <div>
-          <div className="mt">{title}</div>
+          <div className="mt">{certifiedPopulation.verified ? "CERTIFIED population" : "Uncertified live pull"}</div>
           <div className="md">
-            Live {reg ? "registered report" : "object"}: {table}
-            {reg ? ` · report_registry key ${reg.report_key}` : " · not in report_registry, so its filters are derived from its own columns"}
-            {" · click any row for the full audit drill"}
+            {table}
+            {reg ? ` · report_registry key ${reg.report_key}` : " · not in report_registry — totals refused"}
+            {" · click any row for the forensic drill"}
           </div>
         </div>
         <div className="mcount">
@@ -11089,14 +11107,7 @@ function DeptDashboard({ viewKey, go, nav, deep, session, reports, role, viewAs,
   const [range, setRange] = useState({ from: "", to: "" });
   const onRange = React.useCallback((r) => setRange(r), []);
 
-  const deepItems = (deep ?? []).filter((d) => d.category === dept);
-  const deepGroups = Object.entries(
-    deepItems.reduce((m, d) => {
-      const k = d.subcategory || "Other";
-      (m[k] = m[k] || []).push(d);
-      return m;
-    }, {})
-  );
+  const deepItems = (deep ?? []).filter((d) => d.category === dept || (dept === "Command" && d.category === "Command Center"));
 
   const load = async () => {
     if (!range.ready) return;
@@ -11155,7 +11166,7 @@ function DeptDashboard({ viewKey, go, nav, deep, session, reports, role, viewAs,
   if (!range.ready || !rows) return <div className="empty"><div className="eicon">◐</div>Building the {dept} dashboard…</div>;
 
   return (
-    <>
+    <div className="ccpage">
       {/* HEADER — owner layout doctrine, 12 Aug 2026, point 4: header plus every
           control spends at most ~120px; the role/scope/view chips and the live
           line share ONE slim row; the first data section is visible without
@@ -11225,6 +11236,46 @@ function DeptDashboard({ viewKey, go, nav, deep, session, reports, role, viewAs,
         </div>
       )}
 
+      <Section id="figures" store={store} title={`${dept} key figures`} count={rows.length}>
+        <div className="ddgrid">
+          {rows.map((r) => {
+            const tr = trend[r.kpi];
+            const tg = targets[r.kpi];
+            const dl = delta(r.kpi);
+            const offTarget = tg && tg.target != null &&
+              (tg.direction === "at_most" ? Number(r.value) > Number(tg.target) : Number(r.value) < Number(tg.target));
+            return (
+              <div key={r.kpi + r.ord} className={`ddtile ${offTarget ? "bad" : r.tone}`}>
+                <button className="ddmain" onClick={() => r.drill && go(r.drill)} title="Open the records behind this">
+                  <span className="ddkpi">{r.kpi}</span>
+                  <span className="ddval">{fmt(r.value, r.unit)}
+                    <em>{r.unit !== "$" && r.unit !== "%" ? " " + r.unit : ""}</em></span>
+                  {tg && tg.target != null && (
+                    <span className={`ddtarget ${offTarget ? "off" : "on"}`}>
+                      Target {tg.direction === "at_most" ? "no more than" : "at least"} {Number(tg.target).toLocaleString()}
+                      {offTarget ? " — OVER" : " — within"}
+                    </span>
+                  )}
+                  {r.context && <span className="ddctx">{r.context}</span>}
+                  <span className="ddctx">
+                    {r.honours_range === false
+                      ? (r.range_note || "This figure does not honour the selected range.")
+                      : (r.range_note || "Computed for the selected range.")}
+                  </span>
+                  <Spark series={tr?.series} direction={tg?.direction} />
+                  {dl && (
+                    <span className={`dddelta ${DELTA_CLASS[movementVerdict(
+                      dl.d === 0 ? null : dl.d > 0, tg?.direction)]}`}>{dl.txt}</span>
+                  )}
+                  {r.drill && <span className="ddgo">Open the records</span>}
+                </button>
+                <AssignTask dept={dept} kpi={r.kpi} value={r.value} unit={r.unit} drill={r.drill} onDone={() => setVer((v) => v + 1)} />
+              </div>
+            );
+          })}
+        </div>
+      </Section>
+
       {/* The Command-only bands (global management, goals+yield pair, room
           rings, reports shelf, diagnostic footer) were RETIRED from this
           component on 12 Aug 2026: the owner ordered the Command Center rebuilt
@@ -11235,7 +11286,7 @@ function DeptDashboard({ viewKey, go, nav, deep, session, reports, role, viewAs,
       {/* NARRATIVE COMMENTARY — owner-approved 11 Aug 2026: the period story
           (rewrites with the date bar), the standing platform story, and signed
           notes. Byline discipline is the whole design. */}
-      <Section id="narrative" store={store} title="In plain words — the period, the platform, and signed notes">
+      <Section id="narrative" store={store} title="In plain words — the period, the platform, and signed notes" defaultOpen={false}>
         <DashNarratives dept={dept} range={range} role={role} session={session} go={go} />
       </Section>
 
@@ -11260,49 +11311,6 @@ function DeptDashboard({ viewKey, go, nav, deep, session, reports, role, viewAs,
           <GoalsEditor />
         </Section>
       )}
-
-      <Section id="figures" store={store} title={`${dept} key figures`} count={rows.length}>
-        <div className="ddgrid">
-          {rows.map((r) => {
-            const tr = trend[r.kpi];
-            const tg = targets[r.kpi];
-            const dl = delta(r.kpi);
-            const offTarget = tg && tg.target != null &&
-              (tg.direction === "at_most" ? Number(r.value) > Number(tg.target) : Number(r.value) < Number(tg.target));
-            return (
-              <div key={r.kpi + r.ord} className={`ddtile ${offTarget ? "bad" : r.tone}`}>
-                <button className="ddmain" onClick={() => r.drill && go(r.drill)} title="Open the records behind this">
-                  <span className="ddkpi">{r.kpi}</span>
-                  <span className="ddval">{fmt(r.value, r.unit)}
-                    <em>{r.unit !== "$" && r.unit !== "%" ? " " + r.unit : ""}</em></span>
-                  {tg && tg.target != null && (
-                    <span className={`ddtarget ${offTarget ? "off" : "on"}`}>
-                      Target {tg.direction === "at_most" ? "no more than" : "at least"} {Number(tg.target).toLocaleString()}
-                      {offTarget ? " — OVER" : " — within"}
-                    </span>
-                  )}
-                  {r.context && <span className="ddctx">{r.context}</span>}
-                  {/* The database returns the basis for this exact row. Never
-                      replace it with one hardcoded all-time sentence. */}
-                  <span className="ddctx">
-                    {r.honours_range === false
-                      ? (r.range_note || "This figure does not honour the selected range.")
-                      : (r.range_note || "Computed for the selected range.")}
-                  </span>
-                  {/* Both read the SAME verdict, so they can never disagree again. */}
-                  <Spark series={tr?.series} direction={tg?.direction} />
-                  {dl && (
-                    <span className={`dddelta ${DELTA_CLASS[movementVerdict(
-                      dl.d === 0 ? null : dl.d > 0, tg?.direction)]}`}>{dl.txt}</span>
-                  )}
-                  {r.drill && <span className="ddgo">🔍 Open the records</span>}
-                </button>
-                <AssignTask dept={dept} kpi={r.kpi} value={r.value} unit={r.unit} drill={r.drill} onDone={() => setVer((v) => v + 1)} />
-              </div>
-            );
-          })}
-        </div>
-      </Section>
 
       {/* STOCK BY STREAM — FROZEN by the owner, 11 Aug 2026: "DO NOT CHANGE THIS."
           The collapse control on the header is his own later amendment (chrome
@@ -11391,29 +11399,16 @@ function DeptDashboard({ viewKey, go, nav, deep, session, reports, role, viewAs,
           Each gets a proper screen and comes off this list. Kept at the bottom, collapsed,
           so it never competes with the dashboard itself. */}
       {deepItems.length > 0 && (
-        <Section id="deep" store={store} title={`Still to be built out in ${dept} — temporary list`} count={deepItems.length}>
+        <Section id="deep" store={store} title={`More tools — type to find. Daily tools are on the left rail.`} count={deepItems.length} defaultOpen={false}>
           <p className="buildnote">
-            These {deepItems.length} pages still render as plain tables rather than built-out
-            screens. They are listed only so nothing is lost while they are worked through. Each
-            one comes off this list as it is built properly.
+            These {deepItems.length} pages used to sit in the side menu. They live here now.
+            Nothing was deleted. Old links still work.
           </p>
-          <div className="deepwrap">
-            {deepGroups.map(([sub, items]) => (
-              <div key={sub} className="deepgrp">
-                <label>{sub}</label>
-                <div className="deeplinks">
-                  {items.map((it) => (
-                    <button key={it.view_key} className="deeplink" title={it.description || ""}
-                      onClick={() => go(it.view_key)}>{it.label}</button>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
+          <DkCockpitPages deep={deep} dept={dept === "Command" ? "Command Center" : dept} go={go} />
         </Section>
       )}
 
-    </>
+    </div>
   );
 }
 
@@ -11804,7 +11799,7 @@ export default function App() {
         setBlockedViews(new Map(rowsOr(data).map((r) => [r.view_key, true])));
       });
   }, [session, role, viewAsRole]);
-  const [view, setView] = useState(() => window.location.hash.slice(1) || "ops_cm");
+  const [view, setView] = useState(() => window.location.hash.slice(1) || "tower");
   useEffect(() => {
     if (window.location.hash.slice(1) !== view) window.history.pushState(null, "", `#${view}`);
   }, [view]);
@@ -11813,7 +11808,7 @@ export default function App() {
      followed — that is hashchange, and without it the URL changed while the
      screen did not. Both are listened for; setView already ignores a no-op. */
   useEffect(() => {
-    const onNav = () => setView(window.location.hash.slice(1) || "ops_cm");
+    const onNav = () => setView(window.location.hash.slice(1) || "tower");
     window.addEventListener("popstate", onNav);
     window.addEventListener("hashchange", onNav);
     return () => {
@@ -11824,6 +11819,7 @@ export default function App() {
   const [openCats, setOpenCats] = useState(() => {
     try { return JSON.parse(localStorage.getItem("tg.nav.open") || "{}"); } catch { return {}; }
   });
+  const [railExpand, setRailExpand] = useState(null);
   useEffect(() => { try { localStorage.setItem("tg.nav.open", JSON.stringify(openCats)); } catch {} }, [openCats]);
   const [dragging, setDragging] = useState(false);
   const [userMenu, setUserMenu] = useState(false);
@@ -12018,7 +12014,7 @@ export default function App() {
     /* CLEAN-SLATE COMMAND CENTER — owner pivot, 12 Aug 2026. This override sits
        AFTER the spread on purpose: dept_dash_command routes to the new tree and
        the old DeptDashboard rendering for Command is retired from the path. */
-    dept_dash_command: <CommandCenter go={setView} session={session} reports={reports}
+    dept_dash_command: <CommandCenter go={setView} session={session} reports={reports} deep={deep}
       role={role} viewAs={viewAsRole} onViewAs={switchViewAs}
       isAdmin={isAdmin} viewRoles={viewRoles} />,
     /* THE DEPARTMENT DASHBOARDS, built on the same certified template through
@@ -12029,10 +12025,10 @@ export default function App() {
        each override sits AFTER the spread so the generic DeptDashboard is
        retired from that department's path rather than left as a second
        rendering of the same page. */
-    dept_dash_cultivation: <CultivationDashboard go={setView} session={session} reports={reports}
+    dept_dash_cultivation: <CultivationDashboard go={setView} session={session} reports={reports} deep={deep}
       role={role} viewAs={viewAsRole} onViewAs={switchViewAs}
       isAdmin={isAdmin} viewRoles={viewRoles} />,
-    dept_dash_inventory: <InventoryDashboard go={setView} session={session} reports={reports}
+    dept_dash_inventory: <InventoryDashboard go={setView} session={session} reports={reports} deep={deep}
       role={role} viewAs={viewAsRole} onViewAs={switchViewAs}
       isAdmin={isAdmin} viewRoles={viewRoles} />,
     /* SCHEDULE ADHERENCE. Cultivation's page for the one rule that is deliberately
@@ -12176,7 +12172,6 @@ export default function App() {
         <button className="tbot" title="Top G" onClick={() => setView("os_staff")}>
           <img src="/bots/topg.gif" alt="Top G" />
         </button>
-        <button className="repbtn" title="Dutchie C&M — cultivation and manufacturing" onClick={() => setView("ops_cm")}>Dutchie C&M</button>
         <button className="tibtn launchbtn" title="Open TG Workspace" onClick={() => setLauncher(true)}>{I.apps}</button>
         <div className="tdivider" />
         <div className="tcrumb">{current ? `${current.category} / ${current.label}` : view === "alerts" ? "Command / Alerts & Reminders" : "Command / Control Tower"}</div>
@@ -12189,13 +12184,19 @@ export default function App() {
           </button>
           {repMenu && (
             <div className="repmenu" onMouseLeave={() => setRepMenu(false)}>
-              <div className="rephead">All reports</div>
+              <div className="rephead">Reports by department — index into the cockpit</div>
               <div className="repcols">
-                {[...new Set((reports ?? []).map((r) => r.report_group))].sort().map((g) => (
+                {[...new Set((reports ?? []).map((r) => r.category || "Reports"))].sort().map((g) => (
                   <div className="repcol" key={g}>
                     <div className="repgrp">{g}</div>
+                    {cockpitViewForCategory(g) ? (
+                      <button className="repitem" title={`Open the ${g} cockpit`}
+                        onClick={() => { setView(cockpitViewForCategory(g)); setRepMenu(false); }}>
+                        Open {g} cockpit →
+                      </button>
+                    ) : null}
                     {(reports ?? [])
-                      .filter((r) => r.report_group === g)
+                      .filter((r) => (r.category || "Reports") === g)
                       .sort((a, b) => (a.item_order ?? 0) - (b.item_order ?? 0) || a.label.localeCompare(b.label))
                       .map((r) => (
                         <button key={r.view_key} className="repitem" title={r.description || ""}
@@ -12296,8 +12297,8 @@ export default function App() {
         <nav className={`nav ${prefs.collapsed ? "closed" : ""} ${dragging ? "dragging" : ""}`}
           style={prefs.collapsed ? undefined : { width: prefs.navWidth }}>
           <div className="navtools">
-            <button onClick={() => setOpenCats(Object.fromEntries(cats.map((c) => [c.name, true])))}>Expand all</button>
-            <button onClick={() => setOpenCats(Object.fromEntries(cats.map((c) => [c.name, false])))}>Collapse all</button>
+            <button onClick={() => setRailExpand({ n: Date.now(), open: true })}>Expand all</button>
+            <button onClick={() => setRailExpand({ n: Date.now(), open: false })}>Collapse all</button>
           </div>
           {/* An empty rail and a rail we could not build look identical, and the
               second one used to arrive dressed as the first: the owner saw a
@@ -12310,71 +12311,22 @@ export default function App() {
             </div>
           )}
           {prefs.collapsed ? (
-            <div className="railcats">
-              {cats.map((c) => {
-                const col = c.items[0]?.color ?? "";
-                const flat = col && !col.includes("gradient") && !col.startsWith("var") ? col : undefined;
-                const active = c.items.some((e) => e.view_key === view);
-                return (
-                  <button key={c.name} className={`railcat ${active ? "on" : ""}`} title={c.name}
-                    onClick={() => {
-                      prefs.setCollapsed(false);
-                      setOpenCats({ ...openCats, [c.name]: true });
-                      if (c.name === "Command Center") setView("ops_cm");
-                      else if (c.name === "Cultivation") setView("dutchie_cult");
-                      else if (c.name === "Manufacturing") setView("dutchie_mfg");
-                    }}>
-                    <span className="rcicon" style={flat ? { color: flat } : undefined}>{iconByName(c.items[0]?.icon)}</span>
-                    <span className="rclabel">{c.name}</span>
-                  </button>
-                );
-              })}
-            </div>
+            <CockpitRail view={view} go={setView} collapsed category={current && current.category} expandAll={railExpand} />
           ) : (
-            cats.map((c) => (
-              <div className="cat" key={c.name}>
-                <button className="cathead" onClick={() => {
-                  const willOpen = !isOpen(c.name);
-                  setOpenCats({ ...openCats, [c.name]: willOpen });
-                  if (willOpen && c.name === "Command Center") setView("ops_cm");
-                  else if (willOpen && c.name === "Cultivation") setView("dutchie_cult");
-                  else if (willOpen && c.name === "Manufacturing") setView("dutchie_mfg");
-                }}>
-                  <span className="catdot" style={{ background: c.items[0]?.color ?? "var(--neon)" }} />
-                  <span className="ctext">{c.name}</span>
-                  <span className={`caret ${isOpen(c.name) ? "open" : ""}`}>{I.caret}</span>
-                </button>
-                <div className="items" style={{ display: isOpen(c.name) ? "block" : "none" }}>
-                  {[...new Set(c.items.map((e) => e.subcategory || ""))].map((sub) => {
-                    const group = c.items.filter((e) => (e.subcategory || "") === sub);
-                    const subKey = c.name + "::" + sub;
-                    const subOpen = openCats[subKey] !== false;
-                    return (
-                      <div key={subKey} className={sub ? "subcat" : ""}>
-                        {sub && (
-                          <button className="subhead" onClick={() => setOpenCats({ ...openCats, [subKey]: !subOpen })}>
-                            <span className="subtext">{sub}</span>
-                            <span className="subcount">{group.length}</span>
-                            <span className={`caret ${subOpen ? "open" : ""}`}>{I.caret}</span>
-                          </button>
-                        )}
-                        {(!sub || subOpen) &&
-                          group.map((e) => (
-                            <button key={e.view_key} className={`item ${view === e.view_key ? "on" : ""}`}
-                              onClick={() => setView(e.view_key)} title={e.description || e.label}>
-                              {iconByName(e.icon)}<span className="lbl">{e.label}</span>
-                              {e.milestone && <span className="mtag">SOON</span>}
-                            </button>
-                          ))}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            ))
+            <CockpitRail view={view} go={setView} collapsed={false} category={current && current.category} expandAll={railExpand} />
           )}
           <button className="burger navburger" onClick={() => prefs.setCollapsed(!prefs.collapsed)} title="Collapse / expand menu">{I.burger}</button>
           <div className="railfoot">
+            <button
+              type="button"
+              className={`railcm ${view === "ops_cm" || view === "dutchie_cult" || view === "dutchie_mfg" ? "on" : ""}`}
+              onClick={() => setView("ops_cm")}
+              title="Twisted C&M"
+              aria-label="Twisted C&M"
+            >
+              <span className="railcm-mark" aria-hidden="true">TG</span>
+              <span className="railcm-lbl">Twisted C&M</span>
+            </button>
             <button
               type="button"
               className={`railbots ${view === "os_staff" ? "on" : ""}`}

@@ -40,7 +40,7 @@ import {
 } from "./App.jsx";
 import {
   useDefaultRange, DkRangeSearch, rangeSearch, DkFrameNote, DkKpiStrip, DkRoomBoard, DkRoomPlantDrill, DkWorkQueue, useWorkQueue, DkCaret, DkDrill, DrillRoot,
-  DkStreamDrill, DkRowDrill, DkEmpty, dkRoomQualified,
+  DkStreamDrill, DkRowDrill, DkEmpty, dkRoomQualified, DkCockpitPages,
 } from "./dashkit.jsx";
 import "./commandcenter.css";
 import { connectTopG, topGConnected } from "./lib/topg-connect.js";
@@ -1436,7 +1436,7 @@ function CcTasks({ tasks, go }) {
 }
 
 /* ═══════════════════ the page ═══════════════════ */
-export default function CommandCenter({ go, session, reports, role, viewAs, onViewAs, isAdmin, viewRoles }) {
+export default function CommandCenter({ go, session, reports, deep, role, viewAs, onViewAs, isAdmin, viewRoles }) {
   const store = useSectionStore(session?.user?.id, "cc_command");
   const queue = useWorkQueue("Command");
   /* ONE ID PER PANEL, AND NOTHING ELSE (F7, Agent X). "goals" was in this list
@@ -1446,7 +1446,7 @@ export default function CommandCenter({ go, session, reports, role, viewAs, onVi
      strip, not a collapsible section, and it is not listed here. Every id below
      is a CcPanel on this page — the count and the panels must match. */
   const SEC_IDS = ["flow", "words", "global", "people", "production", "queue",
-                   "yield", "rooms", "money", "stock", "audit", "tasks", "reports"];
+                   "yield", "rooms", "money", "stock", "audit", "tasks", "reports", "pages"];
   const [range, setRange] = useState({ from: "", to: "" });
   /* Opens on the company default (this month) instead of all history —
      owner ruling 19 Aug 2026. Seeds once, then the user owns the range. */
@@ -2106,6 +2106,12 @@ export default function CommandCenter({ go, session, reports, role, viewAs, onVi
         chips={<CcTag tone="neutral">{rowsOr(reports).length} reports · {new Set(rowsOr(reports).map((r) => r.report_group || "Reports")).size} groups</CcTag>}
         defaultOpen={false}>
         <CcReports reports={reports} go={go} />
+      </CcPanel>
+
+      <CcPanel id="pages" store={store} title="More tools — type to find. Daily tools are on the left rail."
+        chips={<CcTag tone="neutral">{rowsOr(deep).filter((d) => d.category === "Command Center").length} pages</CcTag>}
+        defaultOpen={false}>
+        <DkCockpitPages deep={deep} dept="Command Center" go={go} />
       </CcPanel>
     </div>
     </DrillRoot>

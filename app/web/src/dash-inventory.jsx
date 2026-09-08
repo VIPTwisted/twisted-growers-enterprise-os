@@ -27,7 +27,7 @@ import {
 } from "./App.jsx";
 import {
   useDefaultRange, DkFrameNote, grab, DkTag, DkErr, DkEmpty, DkKpiStrip, DkOrphanTargets, DkWorkQueue, useWorkQueue,
-  DkNarrative, DkReports, DkTasks, DkGapCard, DkHead, DkStreamDrill, useWidgetLayout,
+  DkNarrative, DkReports, DkCockpitPages, DkTasks, DkGapCard, DkHead, DkStreamDrill, useWidgetLayout,
   Widget, WidgetBoard, WidgetBarControls, useSectionStore, DkCaret, DkDrill, DrillRoot,
 } from "./dashkit.jsx";
 /* THE ARRANGEABLE SECTION, mounted not copied. Owner, 15 Aug 2026: "every single
@@ -119,7 +119,7 @@ function InvRooms({ rows }) {
 }
 
 /* ═══════════════════ the page ═══════════════════ */
-export default function InventoryDashboard({ go, session, reports, role, viewAs, onViewAs, isAdmin, viewRoles }) {
+export default function InventoryDashboard({ go, session, reports, deep, role, viewAs, onViewAs, isAdmin, viewRoles }) {
   const store = useSectionStore(session?.user?.id, VIEW_KEY);
   const [range, setRange] = useState({ from: "", to: "" });
   /* Opens on the company default (this month) instead of all history —
@@ -163,7 +163,8 @@ export default function InventoryDashboard({ go, session, reports, role, viewAs,
     { key: "words", title: "In plain words — the period, the platform, and signed notes", span: 2 },
     { key: "targets", title: "Owner-set targets with no published figure", span: 1 },
     { key: "tasks", title: "Tasks raised from this dashboard", span: 1 },
-    { key: "reports", title: "Reports — by group", span: 2 },
+    { key: "reports", title: "Reports — this department", span: 2 },
+    { key: "pages", title: "More tools — type to find. Daily tools are on the left rail.", span: 2 },
     /* APPENDED, deliberately. useWidgetLayout keeps a saved position for every key
        a user has already arranged and appends only the keys they have never seen,
        so adding this moves nothing on anybody's existing board. */
@@ -445,6 +446,11 @@ export default function InventoryDashboard({ go, session, reports, role, viewAs,
             case "reports": return (
               <Widget key={w.key} w={w} layout={layout} store={store} defaultOpen={false}>
                 <DkReports reports={reports} dept={DEPT} go={go} />
+              </Widget>
+            );
+            case "pages": return (
+              <Widget key={w.key} w={w} layout={layout} store={store} defaultOpen={false}>
+                <DkCockpitPages deep={deep} dept={DEPT} go={go} />
               </Widget>
             );
             /* THE SAME COMPONENT My Dashboard runs, pinned to this page's own key.

@@ -27,6 +27,24 @@
   .cc-w.span-1, .cc-w.span-2 { grid-column: span 12; }
 }
 
+.dk-pagefind { width: 100%; max-width: 22rem; margin-bottom: 0.7rem; }
+.dk-pagegrp {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  background: transparent;
+  border: 0;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+  padding: 4px 0;
+}
+.dk-pagegrp label { cursor: pointer; margin: 0; }
+
+
 /* ── arrange mode ─────────────────────────────────────────────────────── */
 .cc-warrange {
   border: 1px dashed var(--ccok); background: var(--cc2); color: var(--cct1);

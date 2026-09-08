@@ -740,9 +740,9 @@ const migrationEntries = files.map((name) => ({
  *
  * RE-PINNED 8 Sep 2026, 1041 -> 1042 files, digest c8707007… . L6: dutchie_cult / dutchie_mfg / os_users date_policy not_applicable (overlays, not dated reports). date_defect 104 → 101. Cycle 56. No ledger rewrite.
  *
- * RE-PINNED 8 Sep 2026, 1044 -> 1045 files, digest f37c7971… . Period bus: Plant Census default all (newest_planting freeze). Live as-of 5 rooms / 4,410 plants. this_month_td hid 4 of 5 rooms. Cycle 56. No ledger rewrite.
+ * RE-PINNED 8 Sep 2026, 1049 -> 1050 files, digest ff85ab4c… . plant_history freeze default all, month_date. Empty measures. Cycle 56. No ledger rewrite.
  */
-const expectedMigrationTreeDigest = "f37c797134a9269269bdbc63c1f776787d219a82136b5e3224e6c922734da88a";
+const expectedMigrationTreeDigest = "a0bc09630233f4485e02cf5db6e7e5d48048146898993071454a6398de0c5814";
 const actualMigrationTreeDigest = migrationTreeDigest(migrationEntries);
 if (actualMigrationTreeDigest !== expectedMigrationTreeDigest) {
   console.error(`money-grain: FAIL — migration tree differs from the independently reviewed ${files.length}-file manifest (${actualMigrationTreeDigest}).`);

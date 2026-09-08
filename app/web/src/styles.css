@@ -532,6 +532,111 @@ button.pulse:hover, button.stat:hover { background: var(--row-hover); }
   background: var(--neon-soft); color: var(--neon);
   cursor: pointer; font-weight: 700; font-size: 13px;
 }
+.nav .railcm {
+  display: flex; align-items: center; gap: 10px; width: 100%;
+  margin: 0 0 8px; padding: 8px 10px;
+  border: 1px solid var(--neon-line); border-radius: 8px;
+  background: var(--surface-2); color: var(--ink);
+  cursor: pointer; font-weight: 700; font-size: 13px;
+}
+.nav .railcm-mark {
+  width: 28px; height: 28px; border-radius: 8px; flex-shrink: 0;
+  display: grid; place-items: center;
+  background: var(--neon-soft); color: var(--neon);
+  font-size: 10px; font-weight: 800; letter-spacing: 0.04em;
+}
+.nav .railcm:hover, .nav .railcm.on {
+  color: var(--neon); background: var(--neon-soft);
+  box-shadow: 0 0 10px var(--neon);
+}
+.nav.closed .railcm { justify-content: center; padding: 6px; gap: 0; }
+.nav.closed .railcm-lbl { display: none; }
+
+.nav .cockpit-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 8px 10px;
+  flex: 1;
+  overflow: auto;
+}
+.nav .cockpit-item {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-height: 2.55rem;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 650;
+  text-align: left;
+}
+.nav .cockpit-item:hover { color: var(--ink); background: var(--surface-2); }
+.nav .cockpit-item.on {
+  color: var(--neon);
+  background: var(--neon-soft);
+}
+.nav:not(.closed) { min-width: 240px; }
+.nav .cockpit-lbl,
+.nav .cockpit-child,
+.nav .railcat .rclabel {
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  overflow-wrap: normal !important;
+  word-break: keep-all !important;
+}
+.nav .cockpit-lbl { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.nav .cockpit-block { display: flex; flex-direction: column; }
+.nav .cockpit-row { display: flex; align-items: center; gap: 2px; }
+.nav .cockpit-row .cockpit-item { flex: 1; min-width: 0; }
+.nav .cockpit-caret {
+  flex: 0 0 1.7rem;
+  width: 1.7rem;
+  height: 1.7rem;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1;
+}
+.nav .cockpit-caret:hover { color: var(--neon); background: var(--neon-soft); }
+.nav .cockpit-kids {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 0 4px 8px 12px;
+}
+.nav .cockpit-child {
+  display: block;
+  width: 100%;
+  min-height: 1.85rem;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 550;
+  text-align: left;
+}
+.nav .cockpit-child:hover { color: var(--ink); background: var(--surface-2); }
+.nav .cockpit-child.on {
+  color: var(--neon);
+  background: var(--neon-soft);
+}
+.nav .railbots img {
 .nav .railbots img {
   width: 28px; height: 28px; border-radius: 50%; object-fit: cover; flex-shrink: 0;
 }

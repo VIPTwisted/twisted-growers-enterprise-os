@@ -1695,7 +1695,7 @@ button.narrblock:hover { outline: 1px solid var(--line); }
  * Layout only. The theme is locked; #000/#fff are print ink, not theme colour —
  * paper has no dark mode, and a dark surface prints as a solid block that eats
  * toner and hides the text under it. */
-.rp-printident{display:none}
+.rp-printident{display:none!important;height:0!important;overflow:hidden!important;position:absolute!important}
 
 @page{
   margin:22mm 12mm 16mm;
