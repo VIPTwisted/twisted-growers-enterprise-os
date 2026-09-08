@@ -39,6 +39,28 @@ uses the correct table, filters, date column, range and order**, with
 
 ---
 
+## Law 11 — Mesh duty (owner 4 Sep 2026)
+
+**Agents → Reviewers → Watchers → Guard → Deploy.** That line was already in
+this file. It was hope. It is now a measured fail.
+
+- No finding is **SIGNED** while `f_mesh_is_closed()` is false.
+- No change ships while any of these are OVERDUE or NEVER RAN:
+  `review:challenger`, `review:reconciliation`, `lane:V` (verifier),
+  `lane:X` (challenger), `lane:W` (watchdog).
+- Brain and second brain must log the run. Empty `v_loop_health` and empty
+  `v_watchdog_current` is the same class of silence.
+- The live list is `v_mesh_duty`. One row per silent reviewer, watcher, or
+  lane. `blocks_ship` is the veto.
+- Silence is a defect, not a green light.
+
+Live as of apply: `f_mesh_is_closed() = false`. Challenger 679h overdue.
+Verifier and recon review 388h overdue. Five watchers overdue. Three lanes
+never ran. Rule ledger still 42 hard rules / 4 enforced — that is the same
+class of failure and is not closed by this clause.
+
+---
+
 ## How Law 1 is read, and why this reading is written down
 
 Law 1 forbids inventing structure. The owner has also, on the same day,
@@ -78,4 +100,5 @@ choose for him.
 **Agents → Reviewers → Watchers → Guard → Deploy.** No exceptions, no silent
 pushes, no monolithic changes. The Guard is final authority: the pre-push hook,
 41 gates inside the Netlify build, the database's own deploy probe, and
-deploy-watch on GitHub outside all of them.
+deploy-watch on GitHub outside all of them. **Law 11:** if the mesh is silent,
+`f_mesh_is_closed()` is false and the deploy is not signed.
