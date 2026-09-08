@@ -207,12 +207,12 @@ export default function OsPermissions({ go, session }) {
 
           <div className="osdesk-editor" style={{ marginTop: 12 }}>
             <label className="osdesk-field">Role
-              <select value={role} onChange={(e) => { setRole(e.target.value); setNotice(null); }}>
+              <select aria-label="Role to edit" value={role} onChange={(e) => { setRole(e.target.value); setNotice(null); }}>
                 {roles.map((r) => <option key={r.role} value={r.role}>{r.label || r.role}</option>)}
               </select>
             </label>
             <label className="osdesk-field">Copy from
-              <select value={copyFrom} onChange={(e) => setCopyFrom(e.target.value)}>
+              <select aria-label="Copy permissions from role" value={copyFrom} onChange={(e) => setCopyFrom(e.target.value)}>
                 {roles.map((r) => <option key={r.role} value={r.role}>{r.label || r.role}</option>)}
               </select>
             </label>

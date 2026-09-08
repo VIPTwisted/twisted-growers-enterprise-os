@@ -126,13 +126,13 @@ export default function OsUsers({ go, session }) {
               <b>Provision an existing login</b>
               <p>Paste the Auth user id. Role is assigned here. Password is never shown or set on this page.</p>
               <label className="osdesk-field">Auth user id
-                <input value={fresh.user_id} onChange={(e) => setFresh({ ...fresh, user_id: e.target.value })} placeholder="uuid" />
+                <input aria-label="Auth user id" value={fresh.user_id} onChange={(e) => setFresh({ ...fresh, user_id: e.target.value })} placeholder="uuid" />
               </label>
               <label className="osdesk-field">Display name
-                <input value={fresh.display_name} onChange={(e) => setFresh({ ...fresh, display_name: e.target.value })} placeholder="Vincent" />
+                <input aria-label="New user display name" value={fresh.display_name} onChange={(e) => setFresh({ ...fresh, display_name: e.target.value })} />
               </label>
               <label className="osdesk-field">Role
-                <select value={fresh.role} onChange={(e) => setFresh({ ...fresh, role: e.target.value })}>
+                <select aria-label="New user role" value={fresh.role} onChange={(e) => setFresh({ ...fresh, role: e.target.value })}>
                   {roles.map((r) => <option key={r.role} value={r.role}>{r.label || r.role}</option>)}
                 </select>
               </label>
@@ -149,16 +149,18 @@ export default function OsUsers({ go, session }) {
                   <th>Must change password</th>
                   <th>Provisioned</th>
                   <th>User id</th>
+                  <th>Edit</th>
                 </tr>
               </thead>
               <tbody>
                 {(rows || []).map((u) => (
-                  <tr key={u.user_id} className={sel === u.user_id ? "on" : ""} onClick={() => open(u)} style={{ cursor: "pointer" }}>
+                  <tr key={u.user_id} className={sel === u.user_id ? "on" : ""}>
                     <td><span className="osdesk-role"><Icon />{u.display_name || "Unnamed"}</span></td>
                     <td>{u.role}</td>
                     <td>{u.must_change_password ? <span className="osdesk-no">Yes</span> : <span className="osdesk-yes">No</span>}</td>
                     <td>{u.created_at ? String(u.created_at).slice(0, 10) : "—"}</td>
                     <td style={{ fontFamily: "ui-monospace, monospace", fontSize: 12 }}>{u.user_id}</td>
+                    <td><button type="button" className="osdesk-add" onClick={() => open(u)}>Edit</button></td>
                   </tr>
                 ))}
                 {rows && rows.length === 0 ? (
@@ -172,15 +174,15 @@ export default function OsUsers({ go, session }) {
             <div className="osdesk-editor">
               <b>Edit user</b>
               <label className="osdesk-field">Display name
-                <input value={draft.display_name} onChange={(e) => setDraft({ ...draft, display_name: e.target.value })} />
+                <input aria-label="Display name" value={draft.display_name} onChange={(e) => setDraft({ ...draft, display_name: e.target.value })} />
               </label>
               <label className="osdesk-field">Role
-                <select value={draft.role} onChange={(e) => setDraft({ ...draft, role: e.target.value })}>
+                <select aria-label="User role" value={draft.role} onChange={(e) => setDraft({ ...draft, role: e.target.value })}>
                   {roles.map((r) => <option key={r.role} value={r.role}>{r.label || r.role}</option>)}
                 </select>
               </label>
               <label className="osdesk-field" style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-                <input type="checkbox" checked={!!draft.must_change_password} onChange={(e) => setDraft({ ...draft, must_change_password: e.target.checked })} />
+                <input type="checkbox" aria-label="Must change password" checked={!!draft.must_change_password} onChange={(e) => setDraft({ ...draft, must_change_password: e.target.checked })} />
                 Must change password on next sign-in
               </label>
               <button type="button" className="osdesk-save" disabled={saving || !session} onClick={saveEdit}>
