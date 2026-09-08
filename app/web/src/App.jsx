@@ -75,6 +75,7 @@ const CommandCenter = lazy(() => import("./commandcenter.jsx"));
    render-time-only import cycle as the Command Center above. */
 import { TagEvidence, TagEvidenceProvider, DkHarvestControlBanner, DkCockpitPages } from "./dashkit.jsx";
 import CockpitRail, { cockpitViewForCategory } from "./cockpit-rail.jsx";
+import { HOME_VIEW, useOsHistory, OsNavBtns, OsFind } from "./os-chrome.jsx";
 const CultivationDashboard = lazy(() => import("./dash-cultivation.jsx"));
 const ReportVault = lazy(() => import("./report-vault.jsx"));
 const ReportCenter = lazy(() => import("./report-center.jsx"));
@@ -11799,23 +11800,27 @@ export default function App() {
         setBlockedViews(new Map(rowsOr(data).map((r) => [r.view_key, true])));
       });
   }, [session, role, viewAsRole]);
-  const [view, setView] = useState(() => window.location.hash.slice(1) || "dept_dash_command");
-  useEffect(() => {
-    if (window.location.hash.slice(1) !== view) window.history.pushState(null, "", `#${view}`);
-  }, [view]);
-  /* popstate covers Back and Forward. It does NOT fire when the hash is edited
-     in the address bar, or when a link to #something on this same page is
-     followed — that is hashchange, and without it the URL changed while the
-     screen did not. Both are listened for; setView already ignores a no-op. */
-  useEffect(() => {
-    const onNav = () => setView(window.location.hash.slice(1) || "dept_dash_command");
-    window.addEventListener("popstate", onNav);
-    window.addEventListener("hashchange", onNav);
-    return () => {
-      window.removeEventListener("popstate", onNav);
-      window.removeEventListener("hashchange", onNav);
-    };
-  }, []);
+  const { view, setView, goBack, goForward, goHome, canBack, canForward } = useOsHistory();
+  const [findOpen, setFindOpen] = useState(false);
+  const findPages = useMemo(() => {
+    const seen = {};
+    const out = [];
+    function add(list) {
+      (Array.isArray(list) ? list : []).forEach((p) => {
+        if (!p || !p.view_key || seen[p.view_key]) return;
+        seen[p.view_key] = true;
+        out.push({ view_key: p.view_key, label: p.label, category: p.category });
+      });
+    }
+    add(nav);
+    add(reports);
+    add(deep);
+    add(apps);
+    add(finance);
+    add(tax);
+    add(hr);
+    return out;
+  }, [nav, reports, deep, apps, finance, tax, hr]);
   const [openCats, setOpenCats] = useState(() => {
     try { return JSON.parse(localStorage.getItem("tg.nav.open") || "{}"); } catch { return {}; }
   });
@@ -12168,13 +12173,26 @@ export default function App() {
       )}
 
       <header className="topnav">
-        <div className="tlogo"><img src="/tg-mark.png" alt="Twisted Growers" style={{ width: 34, height: 34, borderRadius: "50%" }} /><span className="tword">Twisted <b>Growers</b></span></div>
+        <button type="button" className="tlogo" title="Home — Command Center" onClick={goHome}>
+          <img src="/tg-mark.png" alt="" style={{ width: 34, height: 34, borderRadius: "50%" }} />
+          <span className="tword">Twisted <b>Growers</b></span>
+        </button>
+        <OsNavBtns canBack={canBack} canForward={canForward} goBack={goBack} goForward={goForward} goHome={goHome} onFind={() => setFindOpen(true)} />
         <button className="tbot" title="Top G" onClick={() => setView("os_staff")}>
           <img src="/bots/topg.gif" alt="Top G" />
         </button>
         <button className="tibtn launchbtn" title="Open TG Workspace" onClick={() => setLauncher(true)}>{I.apps}</button>
         <div className="tdivider" />
-        <div className="tcrumb">{current ? `${current.category} / ${current.label}` : view === "alerts" ? "Command / Alerts & Reminders" : "Command / Control Tower"}</div>
+        <div className="tcrumb">
+          {current ? (
+            <>
+              <button type="button" className="tcrumb-a" onClick={() => setView(cockpitViewForCategory(current.category) || HOME_VIEW)}>
+                {current.category}
+              </button>
+              <span> / {current.label}</span>
+            </>
+          ) : view === "alerts" ? "Command / Alerts & Reminders" : "Command Center"}
+        </div>
         <TopMenu label="Finance" items={finance} go={setView} />
         <TopMenu label="Tax" items={tax} go={setView} />
         <TopMenu label="Human Resources" items={hr} go={setView} />
@@ -12373,6 +12391,7 @@ export default function App() {
           <BudzPet go={setView} onClose={() => setPetOn(false)} />
         </Boundary>
       )}
+      <OsFind open={findOpen} onClose={() => setFindOpen(false)} go={setView} pages={findPages} />
     </div>
   );
 }
