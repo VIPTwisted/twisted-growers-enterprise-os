@@ -731,11 +731,10 @@ const migrationEntries = files.map((name) => ({
  * drop box (20260908155714). Owner: stop taking Metrc reports in chat. Bucket
  * report-vault, no delete. Parse later. CERTIFIED not implied. Cycle 56. No ledger rewrite.
  *
- * RE-PINNED 8 Sep 2026, 1037 -> 1038 files, digest bc508253… . rpt API clones
- * (flowering / veg / plantings) + baseline header 465/545/1333. Run pulls Metrc.
- * Cycle 56. No ledger rewrite.
+ * RE-PINNED 8 Sep 2026, 1038 -> 1039 files, digest 2cbab9f2… . rpt API clones
+ * get Compliance & Metrc group + harvests roles so they can be opened. Cycle 56.
  */
-const expectedMigrationTreeDigest = "bc508253dba77cef9e5492930b82727deef7f5928a05fabcd95d8c6265584a75";
+const expectedMigrationTreeDigest = "2cbab9f2a20cb5c28844f232fd3d45bfbd2e6e378a89ba355a9192ef8b80bd83";
 const actualMigrationTreeDigest = migrationTreeDigest(migrationEntries);
 if (actualMigrationTreeDigest !== expectedMigrationTreeDigest) {
   console.error(`money-grain: FAIL — migration tree differs from the independently reviewed ${files.length}-file manifest (${actualMigrationTreeDigest}).`);
