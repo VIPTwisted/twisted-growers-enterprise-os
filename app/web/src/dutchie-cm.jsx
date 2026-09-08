@@ -181,7 +181,7 @@ export default function DutchieCm({ go, session }) {
                 return (
                   <button key={r.room} type="button" className="osdesk-room" onClick={() => go && go("grow_rooms")}>
                     <div className="osdesk-room-top">
-                      <b>{r.room}</b>
+                      <b>{`${r.room} — cultivation department`}</b>
                       <span className="osdesk-tag">{r.size || "—"}</span>
                     </div>
                     <div className="osdesk-room-nums">
