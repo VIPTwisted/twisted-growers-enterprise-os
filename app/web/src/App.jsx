@@ -11917,6 +11917,8 @@ export default function App() {
     report_center: <ReportCenter go={setView} session={session} />,
     ops_cm: <DutchieCm go={setView} session={session} />,
     ops_spine: <OpsSpine go={setView} session={session} />,
+    harvest_forensic: <OpsSpine go={setView} session={session} />,
+    goals: <GoalsTargetsPage />,
     tower: <ControlTower go={setView} session={session} />,
     fg_inventory: <FinishedGoods session={session} />,
     alerts: <AlertsScreen go={setView} />,

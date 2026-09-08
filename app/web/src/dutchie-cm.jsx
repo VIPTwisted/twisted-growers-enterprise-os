@@ -37,10 +37,12 @@ export default function DutchieCm({ go, session }) {
       supabase.from("metrc_packages").select("id", { count: "exact", head: true }),
       supabase.from("v_canopy_two_size").select("room,size_class,plant_count,as_of"),
     ]);
+    const errs = [flower, veg, batches, harvests, pkgs, canopy].map((x) => x.error?.message).filter(Boolean);
     setK({
       flower: flower.count, veg: veg.count, batches: batches.count,
-      harvests: harvests.count, pkgs: pkgs.count, canopy: canopy.data ?? [],
-      err: flower.error?.message || veg.error?.message || harvests.error?.message || pkgs.error?.message || canopy.error?.message,
+      harvests: harvests.count, pkgs: pkgs.count,
+      canopy: Array.isArray(canopy.data) ? canopy.data : [],
+      err: errs.length ? errs.join(" · ") : null,
     });
   }, []);
   useEffect(() => { load(); }, [load]);
@@ -105,7 +107,7 @@ export default function DutchieCm({ go, session }) {
         <table>
           <thead><tr><th>Room</th><th>Size</th><th>Plants</th><th>As-of</th></tr></thead>
           <tbody>
-            {(k?.canopy ?? []).length ? k.canopy.map((r) => (
+            {Array.isArray(k?.canopy) && k.canopy.length ? k.canopy.map((r) => (
               <tr key={r.room}><td>{r.room}</td><td>{r.size_class}</td><td>{n(r.plant_count)}</td><td>{r.as_of || "—"}</td></tr>
             )) : <tr><td colSpan={4}>No canopy rows yet.</td></tr>}
           </tbody>

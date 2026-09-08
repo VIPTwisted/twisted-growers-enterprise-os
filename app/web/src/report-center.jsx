@@ -25,8 +25,10 @@ export default function ReportCenter({ go, session }) {
       supabase.from("nav_registry").select("view_key,label,table_ref,description,category")
         .eq("category", "Metrc").like("view_key", "rpt-%").eq("enabled", true).order("item_order"),
     ]);
-    setBoard(b.data ?? []);
-    setNav(n.data ?? []);
+    if (b.error) setNote(b.error.message);
+    else setBoard(Array.isArray(b.data) ? b.data : []);
+    if (n.error) setNote((x) => (x ? `${x} · ${n.error.message}` : n.error.message));
+    else setNav(Array.isArray(n.data) ? n.data : []);
   }, []);
   useEffect(() => { load(); }, [load]);
 

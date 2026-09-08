@@ -28,8 +28,10 @@ export default function ReportVault({ session }) {
       supabase.from("v_report_vault_board").select("*").order("priority"),
       supabase.from("report_vault").select("*").order("stored_at", { ascending: false }).limit(80),
     ]);
-    setBoard(b.data ?? []);
-    setHeld(h.data ?? []);
+    if (b.error) setMsg([{ ok: false, file: "need list", note: b.error.message }]);
+    else setBoard(Array.isArray(b.data) ? b.data : []);
+    if (h.error) setMsg((m) => [...m, { ok: false, file: "vault", note: h.error.message }]);
+    else setHeld(Array.isArray(h.data) ? h.data : []);
   }, []);
   useEffect(() => { load(); }, [load]);
 
@@ -41,11 +43,13 @@ export default function ReportVault({ session }) {
     for (const f of files) {
       try {
         const hex = await sha256Hex(f);
-        const { data: existing } = await supabase
+        const { data: existing, error: existingErr } = await supabase
           .from("report_vault").select("id,storage_path,stored_at,original_name")
           .eq("sha256", hex).limit(1);
-        const already = existing?.[0];
-        const { data: guess } = await supabase.rpc("f_report_vault_guess", { p_name: f.name });
+        if (existingErr) throw existingErr;
+        const already = existing && existing[0];
+        const { data: guess, error: guessErr } = await supabase.rpc("f_report_vault_guess", { p_name: f.name });
+        if (guessErr) throw guessErr;
         const g = Array.isArray(guess) ? guess[0] : guess;
         if (already) {
           out.push({
