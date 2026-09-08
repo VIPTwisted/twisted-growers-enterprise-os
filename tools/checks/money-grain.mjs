@@ -726,8 +726,12 @@ const migrationEntries = files.map((name) => ({
  * applied (Claude, 15:09:19): ai_models_add_grok_and_chatgpt_providers. INSERT two
  * sentinel rows (grok-current, gpt-current). Catalog unchanged 463/541/1330. Filed
  * catch-up so migration-drift cannot go red and #154 can rebase. Cycle 56. No ledger rewrite.
+ *
+ * RE-PINNED 8 Sep 2026, 1036 -> 1037 files, digest b88c4d10… . report_vault forever
+ * drop box (20260908155714). Owner: stop taking Metrc reports in chat. Bucket
+ * report-vault, no delete. Parse later. CERTIFIED not implied. Cycle 56. No ledger rewrite.
  */
-const expectedMigrationTreeDigest = "919d807dd3cd8dc08a22b03fec8ebce1fd68e36265eaccc7f42f037af4509cbf";
+const expectedMigrationTreeDigest = "b88c4d1025b6472d394acfbbf0612feac2ba72a4fe936374b85f1a75ab58a314";
 const actualMigrationTreeDigest = migrationTreeDigest(migrationEntries);
 if (actualMigrationTreeDigest !== expectedMigrationTreeDigest) {
   console.error(`money-grain: FAIL — migration tree differs from the independently reviewed ${files.length}-file manifest (${actualMigrationTreeDigest}).`);

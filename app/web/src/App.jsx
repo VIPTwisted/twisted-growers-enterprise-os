@@ -75,6 +75,7 @@ const CommandCenter = lazy(() => import("./commandcenter.jsx"));
    render-time-only import cycle as the Command Center above. */
 import { TagEvidence, TagEvidenceProvider, DkHarvestControlBanner } from "./dashkit.jsx";
 const CultivationDashboard = lazy(() => import("./dash-cultivation.jsx"));
+const ReportVault = lazy(() => import("./report-vault.jsx"));
 const InventoryDashboard = lazy(() => import("./dash-inventory.jsx"));
 /* SCHEDULE ADHERENCE — written 13 Aug 2026 and, until now, mounted by nothing.
    Vite tree-shakes what no route imports, so dash-schedule.jsx and its stylesheet
@@ -6953,7 +6954,7 @@ function MetrcReportImport({ session }) {
           <select className="fdate" style={{ minWidth: 280 }} value={rtype} onChange={(e) => setRtype(e.target.value)}>
             {REPORT_TYPES.map(([k, l]) => <option key={k} value={k}>{l}</option>)}
           </select>
-          <input ref={fRef} type="file" accept=".csv,text/csv" onChange={onFile} />
+          <input ref={fRef} type="file" accept=".csv,text/csv,.xls,.xlsx,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" onChange={onFile} />
         </div>
         {parsed && (
           <div style={{ marginTop: 12 }}>
@@ -11869,6 +11870,7 @@ export default function App() {
   const special = {
     v_metrc_scan_settings: <MetrcScanSchedule />,
     metrc_report_imports: <MetrcReportImports session={session} />,
+    report_vault: <ReportVault session={session} />,
     tower: <ControlTower go={setView} session={session} />,
     fg_inventory: <FinishedGoods session={session} />,
     alerts: <AlertsScreen go={setView} />,
