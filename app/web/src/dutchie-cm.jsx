@@ -105,11 +105,17 @@ export default function DutchieCm({ go, session }) {
       <h2 style={{ marginTop: 22, fontSize: 16 }}>Two-size rooms (as-of)</h2>
       <div className="scroll" style={{ marginTop: 8 }}>
         <table>
-          <thead><tr><th>Room</th><th>Size</th><th>Plants</th><th>As-of</th></tr></thead>
+          <thead><tr><th>Room</th><th>Size</th><th>Plants now</th><th>Cap</th><th>As-of</th></tr></thead>
           <tbody>
             {Array.isArray(k?.canopy) && k.canopy.length ? k.canopy.map((r) => (
-              <tr key={r.room}><td>{r.room}</td><td>{r.size_class}</td><td>{n(r.plant_count)}</td><td>{r.as_of || "—"}</td></tr>
-            )) : <tr><td colSpan={4}>No canopy rows yet.</td></tr>}
+              <tr key={r.room}>
+                <td>{`${r.room} — cultivation department`}</td>
+                <td>{r.size}</td>
+                <td>{n(r.plants_now)}</td>
+                <td>{n(r.cap)}</td>
+                <td>{r.as_of || "—"}</td>
+              </tr>
+            )) : <tr><td colSpan={5}>No canopy rows yet.</td></tr>}
           </tbody>
         </table>
       </div>

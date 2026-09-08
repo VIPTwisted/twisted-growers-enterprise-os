@@ -139,7 +139,7 @@ export default function OpsSpine({ go, session, role, viewAs, reports }) {
           <div className="cc-kpi-strip">
             {canopy.map((r) => (
               <button key={r.room} type="button" className="cc-kpi" onClick={() => setOpenRoom(openRoom === r.room ? null : r.room)}>
-                <span className="cc-kpi-lbl">{r.room} · {r.size}</span>
+                <span className="cc-kpi-lbl">{`${r.room} · ${r.size} — cultivation department`}</span>
                 <span className="cc-kpi-line">
                   <b className={`cc-kpi-val ${r.verdict === "FULL" ? "plain" : "crit"}`}>
                     {r.plants_now == null ? "no snapshot" : num(r.plants_now, 0)}
