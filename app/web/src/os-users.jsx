@@ -4,11 +4,6 @@ import React, { useEffect, useState } from "react";
 import { supabase } from "./lib/supabase.js";
 import "./os-desk.css";
 
-const ASSIGNABLE = [
-  "owner", "executive", "cfo", "admin", "hr", "manager",
-  "assistant_manager", "dept_head", "planner", "staff", "employee", "readonly",
-];
-
 function Icon() {
   return (
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" aria-hidden="true">
@@ -20,6 +15,7 @@ function Icon() {
 
 export default function OsUsers({ go, session }) {
   const [rows, setRows] = useState(null);
+  const [roles, setRoles] = useState([]);
   const [err, setErr] = useState(null);
   const [notice, setNotice] = useState(null);
   const [sel, setSel] = useState(null);
@@ -37,6 +33,10 @@ export default function OsUsers({ go, session }) {
         setRows(Array.isArray(data) ? data : []);
         setErr(null);
       });
+    supabase.from("app_roles").select("role, label, rank").order("rank").then(({ data }) => {
+      const list = Array.isArray(data) ? data.filter((r) => String(r.role).indexOf("qb_") !== 0 && r.role !== "guest" && r.role !== "member" && r.role !== "limited") : [];
+      setRoles(list);
+    });
   }
   useEffect(() => { load(); }, []);
 
@@ -133,7 +133,7 @@ export default function OsUsers({ go, session }) {
               </label>
               <label className="osdesk-field">Role
                 <select value={fresh.role} onChange={(e) => setFresh({ ...fresh, role: e.target.value })}>
-                  {ASSIGNABLE.map((r) => <option key={r} value={r}>{r}</option>)}
+                  {roles.map((r) => <option key={r.role} value={r.role}>{r.label || r.role}</option>)}
                 </select>
               </label>
               <button type="button" className="osdesk-save" disabled={saving || !session} onClick={addUser}>Provision</button>
@@ -176,7 +176,7 @@ export default function OsUsers({ go, session }) {
               </label>
               <label className="osdesk-field">Role
                 <select value={draft.role} onChange={(e) => setDraft({ ...draft, role: e.target.value })}>
-                  {ASSIGNABLE.map((r) => <option key={r} value={r}>{r}</option>)}
+                  {roles.map((r) => <option key={r.role} value={r.role}>{r.label || r.role}</option>)}
                 </select>
               </label>
               <label className="osdesk-field" style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>

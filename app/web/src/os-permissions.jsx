@@ -5,17 +5,6 @@ import React, { useEffect, useMemo, useState } from "react";
 import { supabase } from "./lib/supabase.js";
 import "./os-desk.css";
 
-const ASSIGNABLE = [
-  "owner", "executive", "cfo", "admin", "hr", "manager",
-  "assistant_manager", "dept_head", "planner", "staff", "employee", "readonly",
-];
-const ACTIONS = [
-  ["can_view", "View"],
-  ["can_edit", "Edit"],
-  ["can_approve", "Approve"],
-  ["can_export", "Export"],
-  ["can_delete", "Delete"],
-];
 const EMPTY = { can_view: false, can_edit: false, can_approve: false, can_export: false, can_delete: false };
 
 function Ico() {
@@ -47,6 +36,7 @@ function Cell({ on, label, onClick }) {
 
 export default function OsPermissions({ go, session }) {
   const [nav, setNav] = useState([]);
+  const [roles, setRoles] = useState([]);
   const [perm, setPerm] = useState({});
   const [menu, setMenu] = useState({});
   const [role, setRole] = useState("staff");
@@ -63,7 +53,8 @@ export default function OsPermissions({ go, session }) {
       supabase.from("nav_registry").select("view_key, label, category, enabled").eq("enabled", true),
       supabase.from("page_permissions").select("view_key, can_view, can_edit, can_approve, can_export, can_delete").eq("role", forRole),
       supabase.from("nav_role_visibility").select("view_key, visible").eq("role", forRole),
-    ]).then(([n, p, v]) => {
+      supabase.from("app_roles").select("role, label, rank").order("rank"),
+    ]).then(([n, p, v, a]) => {
       const e1 = n.error && n.error.message;
       const e2 = p.error && p.error.message;
       const e3 = v.error && v.error.message;
@@ -78,6 +69,8 @@ export default function OsPermissions({ go, session }) {
       const mv = {};
       (Array.isArray(v.data) ? v.data : []).forEach((row) => { mv[row.view_key] = !!row.visible; });
       setMenu(mv);
+      const list = Array.isArray(a.data) ? a.data.filter((r) => String(r.role).indexOf("qb_") !== 0 && r.role !== "guest" && r.role !== "member" && r.role !== "limited") : [];
+      setRoles(list);
       setErr(null);
       setDirty(false);
     });
@@ -215,12 +208,12 @@ export default function OsPermissions({ go, session }) {
           <div className="osdesk-editor" style={{ marginTop: 12 }}>
             <label className="osdesk-field">Role
               <select value={role} onChange={(e) => { setRole(e.target.value); setNotice(null); }}>
-                {ASSIGNABLE.map((r) => <option key={r} value={r}>{r}</option>)}
+                {roles.map((r) => <option key={r.role} value={r.role}>{r.label || r.role}</option>)}
               </select>
             </label>
             <label className="osdesk-field">Copy from
               <select value={copyFrom} onChange={(e) => setCopyFrom(e.target.value)}>
-                {ASSIGNABLE.map((r) => <option key={r} value={r}>{r}</option>)}
+                {roles.map((r) => <option key={r.role} value={r.role}>{r.label || r.role}</option>)}
               </select>
             </label>
             <button type="button" className="osdesk-add" onClick={copyRole}>Copy onto {role}</button>
@@ -259,9 +252,11 @@ export default function OsPermissions({ go, session }) {
                         <tr>
                           <th>Page</th>
                           <th style={{ textAlign: "center" }}>Menu</th>
-                          {ACTIONS.map(([k, lab]) => (
-                            <th key={k} style={{ textAlign: "center" }}>{lab}</th>
-                          ))}
+                          <th style={{ textAlign: "center" }}>View</th>
+                          <th style={{ textAlign: "center" }}>Edit</th>
+                          <th style={{ textAlign: "center" }}>Approve</th>
+                          <th style={{ textAlign: "center" }}>Export</th>
+                          <th style={{ textAlign: "center" }}>Delete</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -276,11 +271,21 @@ export default function OsPermissions({ go, session }) {
                               <td style={{ textAlign: "center" }}>
                                 <Cell on={s.menu} label={pg.label + " menu"} onClick={() => setRow(pg.view_key, { menu: !s.menu })} />
                               </td>
-                              {ACTIONS.map(([k, lab]) => (
-                                <td key={k} style={{ textAlign: "center" }}>
-                                  <Cell on={s[k]} label={pg.label + " " + lab} onClick={() => setRow(pg.view_key, { [k]: !s[k] })} />
-                                </td>
-                              ))}
+                              <td style={{ textAlign: "center" }}>
+                                <Cell on={s.can_view} label={pg.label + " view"} onClick={() => setRow(pg.view_key, { can_view: !s.can_view })} />
+                              </td>
+                              <td style={{ textAlign: "center" }}>
+                                <Cell on={s.can_edit} label={pg.label + " edit"} onClick={() => setRow(pg.view_key, { can_edit: !s.can_edit })} />
+                              </td>
+                              <td style={{ textAlign: "center" }}>
+                                <Cell on={s.can_approve} label={pg.label + " approve"} onClick={() => setRow(pg.view_key, { can_approve: !s.can_approve })} />
+                              </td>
+                              <td style={{ textAlign: "center" }}>
+                                <Cell on={s.can_export} label={pg.label + " export"} onClick={() => setRow(pg.view_key, { can_export: !s.can_export })} />
+                              </td>
+                              <td style={{ textAlign: "center" }}>
+                                <Cell on={s.can_delete} label={pg.label + " delete"} onClick={() => setRow(pg.view_key, { can_delete: !s.can_delete })} />
+                              </td>
                             </tr>
                           );
                         })}
