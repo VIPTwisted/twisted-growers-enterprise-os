@@ -1,5 +1,6 @@
 -- GROK-WHY: Owner 8 Sep 2026. v_canopy_two_size dropped cult_room_plant_snapshot.taken_on.
 -- L6: source HAS a date. Expose as_of at the END (cannot rename first column). No DROP. Cycle 56.
+-- E6: grant to authenticated only. Do not grant to anon.
 
 create or replace view public.v_canopy_two_size as
 select
@@ -29,4 +30,4 @@ left join (
 ) s on s.room_key = g.code
 where g.code in ('F1','F2','F3','F4');
 
-grant select on public.v_canopy_two_size to authenticated, anon;
+grant select on public.v_canopy_two_size to authenticated;

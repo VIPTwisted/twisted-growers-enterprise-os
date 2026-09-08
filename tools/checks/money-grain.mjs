@@ -717,8 +717,12 @@ const migrationEntries = files.map((name) => ({
  * (ratchet 102: TIGHTEN, not FAIL). ops_spine / ops_cm MEETS THE STANDARD.
  * Measured with listMigrationSqlFiles() after 63783e9: 1035 files, digest below.
  * Tamper seal, not an approval of the SQL. Room cycle stays 56. No ledger rewrite.
+ *
+ * RE-PINNED 8 Sep 2026, still 1035 files, digest 999c86ec… . E6: grant select on
+ * v_canopy_two_size is authenticated only (drop `, anon`) in 14:39 and 14:50 files.
+ * Live grant to anon is not revoked. No new stamp. Cycle 56. No ledger rewrite.
  */
-const expectedMigrationTreeDigest = "0b4224e206c11cdd2758abe02f25625620d7bd4a133f3ddf78ab3f7407c50215";
+const expectedMigrationTreeDigest = "999c86ec4881a5e179f3b92488b4438f582b99898d91ee209b4511bd652aa402";
 const actualMigrationTreeDigest = migrationTreeDigest(migrationEntries);
 if (actualMigrationTreeDigest !== expectedMigrationTreeDigest) {
   console.error(`money-grain: FAIL — migration tree differs from the independently reviewed ${files.length}-file manifest (${actualMigrationTreeDigest}).`);

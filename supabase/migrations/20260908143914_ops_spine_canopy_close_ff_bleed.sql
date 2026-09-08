@@ -68,7 +68,7 @@ left join (
 ) s on s.room_key = g.code
 where g.code in ('F1','F2','F3','F4');
 
-grant select on public.v_canopy_two_size to authenticated, anon;
+grant select on public.v_canopy_two_size to authenticated;
 
 insert into nav_registry (category, category_order, label, item_order, icon, view_key, table_ref, description, enabled, admin_only, sync_enabled, module, archetype, page_kind, surface)
 select 'Command', (select category_order from nav_registry where view_key='tower' limit 1), v.l, v.o, v.i, v.k, v.t, v.d, true, false, false, 'command', 'dashboard', 'custom', 'side'
