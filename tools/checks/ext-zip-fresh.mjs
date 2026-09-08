@@ -25,7 +25,23 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const DIR = join(ROOT, "app/web/public/tg-ai-ext");
 const ZIP = join(ROOT, "app/web/public/tg-ai-ext.zip");
 
-const md5 = (buf) => createHash("md5").update(buf).digest("hex");
+/* LINE ENDINGS, and this cost a red CI run before it was understood.
+ *
+ * git normalises text on checkout: the same file is CRLF in a Windows working tree
+ * and LF on Linux CI. The archive stores whatever bytes it was built from. So a raw
+ * byte compare passes on the machine that built the zip and FAILS everywhere else -
+ * a gate that is green for the author and red for everyone is worse than no gate.
+ *
+ * Text is therefore compared with CRLF normalised to LF. Binary (the icons) is
+ * compared byte for byte, because normalising a PNG would corrupt the comparison
+ * and hide a real difference. */
+const TEXT = new Set([".js", ".json", ".txt", ".html", ".css", ".md"]);
+const isText = (name) => TEXT.has((name.match(/\.[^.]+$/) || [""])[0].toLowerCase());
+
+const md5 = (buf, name) => {
+  const b = isText(name) ? Buffer.from(buf.toString("utf8").replace(/\r\n/g, "\n"), "utf8") : buf;
+  return createHash("md5").update(b).digest("hex");
+};
 
 if (!existsSync(DIR) || !existsSync(ZIP)) {
   console.log("ext-zip-fresh: SKIP - no add-on folder or archive in this tree.");
@@ -43,24 +59,26 @@ function zipEntries() {
     foreach($e in $a.Entries){
       $s=$e.Open(); $ms=New-Object System.IO.MemoryStream; $s.CopyTo($ms);
       $b=$ms.ToArray(); $s.Close(); $ms.Close();
-      $h=[System.BitConverter]::ToString(
-        [System.Security.Cryptography.MD5]::Create().ComputeHash($b)).Replace('-','').ToLower();
-      Write-Output ($e.FullName + '|' + $h)
+      Write-Output ($e.FullName + '|' + [System.Convert]::ToBase64String($b))
     }
     $a.Dispose();`;
   try {
     const out = execFileSync("powershell", ["-NoProfile", "-NonInteractive", "-Command", ps],
       { encoding: "utf8", maxBuffer: 64 * 1024 * 1024 });
+    /* PowerShell hands back raw base64 so the hashing - and the line-ending
+       normalisation above - happens in ONE place for both platforms. Split on the
+       FIRST pipe: base64 never contains one, but a path could. */
     return out.split(/\r?\n/).filter(Boolean).map((l) => {
-      const i = l.lastIndexOf("|");
-      return { name: l.slice(0, i).replace(/\\/g, "/"), hash: l.slice(i + 1) };
+      const i = l.indexOf("|");
+      const name = l.slice(0, i).replace(/\\/g, "/");
+      return { name, hash: md5(Buffer.from(l.slice(i + 1), "base64"), name) };
     });
   } catch {
     /* Not Windows, or PowerShell refused. Try unzip. */
     const list = execFileSync("unzip", ["-Z1", ZIP], { encoding: "utf8" }).split(/\r?\n/).filter(Boolean);
     return list.map((name) => ({
       name: name.replace(/\\/g, "/"),
-      hash: md5(execFileSync("unzip", ["-p", ZIP, name], { maxBuffer: 64 * 1024 * 1024 })),
+      hash: md5(execFileSync("unzip", ["-p", ZIP, name], { maxBuffer: 64 * 1024 * 1024 }), name),
     }));
   }
 }
@@ -86,7 +104,7 @@ for (const { name, hash } of entries) {
     problems.push(`in the archive but not in the folder: ${rel}`);
     continue;
   }
-  if (md5(readFileSync(onDisk)) !== hash) {
+  if (md5(readFileSync(onDisk), rel) !== hash) {
     problems.push(`STALE in the archive: ${rel}`);
   }
 }
