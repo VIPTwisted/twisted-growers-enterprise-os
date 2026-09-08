@@ -12388,7 +12388,7 @@ export default function App() {
               page error rather than white-screening the app. */}
           <Boundary resetKey={view}>
             <Suspense fallback={<div className="note" style={{ padding: 16 }}>Loading this page…</div>}>
-              {["dept_dash_command","dept_dash_cultivation","dept_dash_mfg","tower","ceo_dashboard"].includes(view) ? <GrokJump go={setView} /> : null}
+              {(view === "dept_dash_command" || view === "dept_dash_cultivation" || view === "dept_dash_mfg" || view === "tower" || view === "ceo_dashboard") ? <GrokJump go={setView} /> : null}
               {body}
             </Suspense>
           </Boundary>
