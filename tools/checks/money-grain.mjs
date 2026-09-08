@@ -721,8 +721,13 @@ const migrationEntries = files.map((name) => ({
  * RE-PINNED 8 Sep 2026, still 1035 files, digest 999c86ec… . E6: grant select on
  * v_canopy_two_size is authenticated only (drop `, anon`) in 14:39 and 14:50 files.
  * Live grant to anon is not revoked. No new stamp. Cycle 56. No ledger rewrite.
+ *
+ * RE-PINNED 8 Sep 2026, 1035 -> 1036 files, digest 919d807d… . Fifth prod stamp already
+ * applied (Claude, 15:09:19): ai_models_add_grok_and_chatgpt_providers. INSERT two
+ * sentinel rows (grok-current, gpt-current). Catalog unchanged 463/541/1330. Filed
+ * catch-up so migration-drift cannot go red and #154 can rebase. Cycle 56. No ledger rewrite.
  */
-const expectedMigrationTreeDigest = "999c86ec4881a5e179f3b92488b4438f582b99898d91ee209b4511bd652aa402";
+const expectedMigrationTreeDigest = "919d807dd3cd8dc08a22b03fec8ebce1fd68e36265eaccc7f42f037af4509cbf";
 const actualMigrationTreeDigest = migrationTreeDigest(migrationEntries);
 if (actualMigrationTreeDigest !== expectedMigrationTreeDigest) {
   console.error(`money-grain: FAIL — migration tree differs from the independently reviewed ${files.length}-file manifest (${actualMigrationTreeDigest}).`);
