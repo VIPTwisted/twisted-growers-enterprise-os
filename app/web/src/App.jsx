@@ -78,6 +78,7 @@ import CockpitRail, { cockpitViewForCategory } from "./cockpit-rail.jsx";
 import { HOME_VIEW, useOsHistory, OsNavBtns, OsFind } from "./os-chrome.jsx";
 const CultivationDashboard = lazy(() => import("./dash-cultivation.jsx"));
 const ReportVault = lazy(() => import("./report-vault.jsx"));
+const AlertDrain = lazy(() => import("./alert-drain.jsx"));
 const ReportCenter = lazy(() => import("./report-center.jsx"));
 const DutchieCm = lazy(() => import("./dutchie-cm.jsx"));
 const OpsSpine = lazy(() => import("./ops-spine.jsx"));
@@ -11986,6 +11987,7 @@ export default function App() {
     action_register: <RegisterScreen isExec={isExec} />,
     allocation_requests: <AllocationRequests session={session} isExec={isExec} />,
     ceo_dashboard: <CeoDashboard go={setView} />,
+    inventory_alerts: <AlertDrain go={setView} session={session} />,
     grow_rooms: <GrowRooms session={session} />,
     business_rules: <BusinessRules session={session} />,
     overhead_inputs: <OverheadInputs session={session} />,
