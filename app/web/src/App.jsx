@@ -12176,7 +12176,7 @@ export default function App() {
         <button className="tbot" title="Top G" onClick={() => setView("os_staff")}>
           <img src="/bots/topg.gif" alt="Top G" />
         </button>
-        <button className="repbtn" title="Dutchie C&M — cultivation and manufacturing" onClick={() => setView("ops_cm")}>Dutchie C&M</button>
+        <button className="repbtn" title="Twisted C&M — cultivation and manufacturing" onClick={() => setView("ops_cm")}>Twisted C&M</button>
         <button className="tibtn launchbtn" title="Open TG Workspace" onClick={() => setLauncher(true)}>{I.apps}</button>
         <div className="tdivider" />
         <div className="tcrumb">{current ? `${current.category} / ${current.label}` : view === "alerts" ? "Command / Alerts & Reminders" : "Command / Control Tower"}</div>

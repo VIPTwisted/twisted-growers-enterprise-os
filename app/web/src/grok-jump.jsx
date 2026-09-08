@@ -8,7 +8,7 @@ export default function GrokJump({ go }) {
     <div className="osdesk-jump" role="navigation" aria-label="Grok pages">
       <span className="osdesk-jump-k">GROK</span>
       <button type="button" className="osdesk-jump-primary" onClick={() => go && go("ops_cm")}>
-        Dutchie C&M — open now
+        Twisted C&M — open now
       </button>
       <button type="button" onClick={() => go && go("ops_spine")}>Harvest spine</button>
       <button type="button" onClick={() => go && go("os_staff")}>Bots</button>

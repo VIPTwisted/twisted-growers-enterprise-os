@@ -1,4 +1,4 @@
-/* Dutchie C&M — Grok chrome on the live OS.
+/* Twisted C&M — Grok chrome on the live OS.
    Metrc custody SoR. Apex invoice SoR. Write to Metrc NEVER. Cycle 56 locked. */
 import React, { useCallback, useEffect, useState } from "react";
 import { supabase, FUNCTIONS_URL } from "./lib/supabase.js";
@@ -91,9 +91,9 @@ export default function DutchieCm({ go, session }) {
   return (
     <div className="osdesk">
       <p className="osdesk-kicker">Cultivation & Manufacturing</p>
-      <h1 className="osdesk-title">Dutchie C&M</h1>
+      <h1 className="osdesk-title">Twisted C&M</h1>
       <p className="osdesk-lede">
-        Better than Dutchie for TG because Metrc stays custody of record and Apex stays the invoice.
+        Twisted Growers cultivation and manufacturing. Metrc stays custody of record. Apex stays the invoice.
         Phase 1: see everything, write nothing to Metrc. Click a number — forensic drill.
       </p>
 
@@ -114,7 +114,7 @@ export default function DutchieCm({ go, session }) {
         <div className="osdesk-split">
           <aside className="osdesk-rail">
             <div className="osdesk-rail-h">
-              <b>Dutchie board</b>
+              <b>Twisted board</b>
               <span className="osdesk-online"><i /> Read only</span>
             </div>
             {RAIL.map(([key, label]) => (
@@ -176,7 +176,7 @@ export default function DutchieCm({ go, session }) {
               </table>
             </div>
 
-            <h2 style={{ marginTop: 22, fontSize: 16 }}>Dutchie map — what lives where</h2>
+            <h2 style={{ marginTop: 22, fontSize: 16 }}>Twisted C&M map — what lives where</h2>
             <div className="osdesk-cards">
               {FEATURES.map(([name, why, where, st]) => (
                 <div key={name} className="osdesk-card" style={{ cursor: "default" }}>
