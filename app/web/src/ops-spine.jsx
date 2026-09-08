@@ -185,12 +185,26 @@ export default function OpsSpine({ go, session, role, viewAs, reports }) {
                   ))}
                 </select>
               </label>
-              {["grade_a_lb", "grade_b_lb", "grade_c_lb", "trim_lb", "waste_lb"].map((k) => (
-                <label key={k}>{k.replace("_lb", "").replace("grade_", "Grade ")} lb
-                  <input aria-label={k} inputMode="decimal" value={form[k]}
-                    onChange={(e) => setForm({ ...form, [k]: e.target.value })} />
-                </label>
-              ))}
+              <label>Grade A lb
+                <input aria-label="Grade A pounds" inputMode="decimal" value={form.grade_a_lb}
+                  onChange={(e) => setForm({ ...form, grade_a_lb: e.target.value })} />
+              </label>
+              <label>Grade B lb
+                <input aria-label="Grade B pounds" inputMode="decimal" value={form.grade_b_lb}
+                  onChange={(e) => setForm({ ...form, grade_b_lb: e.target.value })} />
+              </label>
+              <label>Grade C lb
+                <input aria-label="Grade C pounds" inputMode="decimal" value={form.grade_c_lb}
+                  onChange={(e) => setForm({ ...form, grade_c_lb: e.target.value })} />
+              </label>
+              <label>Trim lb
+                <input aria-label="Trim pounds" inputMode="decimal" value={form.trim_lb}
+                  onChange={(e) => setForm({ ...form, trim_lb: e.target.value })} />
+              </label>
+              <label>Waste lb
+                <input aria-label="Waste pounds" inputMode="decimal" value={form.waste_lb}
+                  onChange={(e) => setForm({ ...form, waste_lb: e.target.value })} />
+              </label>
               <label>Recorded by
                 <input aria-label="Recorded by" value={form.recorded_by}
                   onChange={(e) => setForm({ ...form, recorded_by: e.target.value })} />
