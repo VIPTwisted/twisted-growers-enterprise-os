@@ -75,6 +75,10 @@ const CommandCenter = lazy(() => import("./commandcenter.jsx"));
    render-time-only import cycle as the Command Center above. */
 import { TagEvidence, TagEvidenceProvider, DkHarvestControlBanner } from "./dashkit.jsx";
 const CultivationDashboard = lazy(() => import("./dash-cultivation.jsx"));
+const ReportVault = lazy(() => import("./report-vault.jsx"));
+const ReportCenter = lazy(() => import("./report-center.jsx"));
+const DutchieCm = lazy(() => import("./dutchie-cm.jsx"));
+const OpsSpine = lazy(() => import("./ops-spine.jsx"));
 const InventoryDashboard = lazy(() => import("./dash-inventory.jsx"));
 /* SCHEDULE ADHERENCE — written 13 Aug 2026 and, until now, mounted by nothing.
    Vite tree-shakes what no route imports, so dash-schedule.jsx and its stylesheet
@@ -2630,6 +2634,9 @@ function ReportScreen({ entry, actions, session }) {
   const [rowsContractError, setRowsContractError] = useState(null);
   const [loadAll, setLoadAll] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [pullTick, setPullTick] = useState(0);
+  const [pulling, setPulling] = useState(false);
+  const [pullNote, setPullNote] = useState(null);
 
   const [search, setSearch] = useState("");
   const [searchLive, setSearchLive] = useState("");
@@ -2693,7 +2700,7 @@ function ReportScreen({ entry, actions, session }) {
       setProbe(data ?? []);
     });
     return () => { live = false; };
-  }, [table]);
+  }, [table, pullTick]);
 
   const cols = useMemo(() => rpDescribeColumns(probe ?? []), [probe]);
   const dateCols = useMemo(() => cols.filter((c) => c.kind === "date").map((c) => c.name), [cols]);
@@ -2958,8 +2965,45 @@ function ReportScreen({ entry, actions, session }) {
           <div className="sub">{reg?.description ?? entry.description}</div>
         </div>
         {entry.milestone && <span className="pill gold">data loads {entry.milestone}</span>}
+        {session?.access_token && (
+          <button
+            className="btn primary"
+            disabled={pulling}
+            title="Pull this report from Metrc or Apex, then reload the clone."
+            onClick={async () => {
+              const blob = `${entry.category || ""} ${entry.table_ref || ""} ${entry.view_key || ""}`.toLowerCase();
+              const noApi = /metrc_rpt_/.test(blob);
+              if (noApi) {
+                setPullNote("This Metrc grid has no API. Drop the export in Report Vault — Metrc → Report Vault.");
+                return;
+              }
+              const fn = /apex|invoice|finance|order/.test(blob) && !/metrc/.test(blob) ? "apex-sync" : "metrc-sync";
+              setPulling(true); setPullNote(null);
+              try {
+                const r = await fetch(`${FUNCTIONS_URL}/${fn}`, {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+                });
+                const j = await r.json();
+                setPullNote(j.ok ? `Pulled from ${fn === "metrc-sync" ? "Metrc" : "Apex"}. Report reloaded.` : (j.error || "Pull failed"));
+                setPullTick((n) => n + 1);
+              } catch (e) {
+                setPullNote(String(e.message ?? e));
+              }
+              setPulling(false);
+            }}
+          >
+            {pulling ? "Pulling…" : "Run — pull live"}
+          </button>
+        )}
         {actions}
       </div>
+
+      {pullNote && (
+        <div className="statchips" style={{ margin: "0 0 10px" }}>
+          <span className="schip">{pullNote}</span>
+        </div>
+      )}
 
       {/* The owner note is on the face of the report. It is not decoration —
           it is what stops a user publishing a wrong number. */}
@@ -6953,7 +6997,7 @@ function MetrcReportImport({ session }) {
           <select className="fdate" style={{ minWidth: 280 }} value={rtype} onChange={(e) => setRtype(e.target.value)}>
             {REPORT_TYPES.map(([k, l]) => <option key={k} value={k}>{l}</option>)}
           </select>
-          <input ref={fRef} type="file" accept=".csv,text/csv" onChange={onFile} />
+          <input ref={fRef} type="file" accept=".csv,text/csv,.xls,.xlsx,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" onChange={onFile} />
         </div>
         {parsed && (
           <div style={{ marginTop: 12 }}>
@@ -11869,6 +11913,12 @@ export default function App() {
   const special = {
     v_metrc_scan_settings: <MetrcScanSchedule />,
     metrc_report_imports: <MetrcReportImports session={session} />,
+    report_vault: <ReportVault session={session} />,
+    report_center: <ReportCenter go={setView} session={session} />,
+    ops_cm: <DutchieCm go={setView} session={session} />,
+    ops_spine: <OpsSpine go={setView} session={session} />,
+    harvest_forensic: <OpsSpine go={setView} session={session} />,
+    goals: <GoalsTargetsPage />,
     tower: <ControlTower go={setView} session={session} />,
     fg_inventory: <FinishedGoods session={session} />,
     alerts: <AlertsScreen go={setView} />,
