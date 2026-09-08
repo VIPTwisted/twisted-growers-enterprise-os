@@ -709,8 +709,16 @@ const migrationEntries = files.map((name) => ({
  * plus the baseline header count pin 462/540/1327 -> 463/541/1330 (live MATCH).
  * Measured with listMigrationSqlFiles() after commit: 1034 files, digest below.
  * Tamper seal, not an approval of the SQL. Room cycle stays 56. No ledger rewrite.
+ *
+ * RE-PINNED 8 Sep 2026, 1034 -> 1035 files at 0b4224e2… . Fourth prod stamp already
+ * applied, filed so migration-drift and L6 can pass:
+ *   20260908145015 v_canopy_two_size_as_of
+ * as_of is the last column (42P16 forbids renaming room). date_defect 103 -> 101
+ * (ratchet 102: TIGHTEN, not FAIL). ops_spine / ops_cm MEETS THE STANDARD.
+ * Measured with listMigrationSqlFiles() after 63783e9: 1035 files, digest below.
+ * Tamper seal, not an approval of the SQL. Room cycle stays 56. No ledger rewrite.
  */
-const expectedMigrationTreeDigest = "b3183c7b8fd0568ce690ce200ccbe8bc8813dce0c1a950087144ba39fd47394e";
+const expectedMigrationTreeDigest = "0b4224e206c11cdd2758abe02f25625620d7bd4a133f3ddf78ab3f7407c50215";
 const actualMigrationTreeDigest = migrationTreeDigest(migrationEntries);
 if (actualMigrationTreeDigest !== expectedMigrationTreeDigest) {
   console.error(`money-grain: FAIL — migration tree differs from the independently reviewed ${files.length}-file manifest (${actualMigrationTreeDigest}).`);
