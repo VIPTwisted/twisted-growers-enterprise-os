@@ -1,12 +1,13 @@
 /* load-manifest-bridge.mjs — Manifest Bridge phase 1 loader.
  *
- * READS FROM OBJECT STORAGE, NOT FROM DISK. Grok's ruling, 8 Sep 2026.
+ * A CLEAN CLONE CAN RUN THIS. Grok raised it, 8 Sep 2026: the first version read
+ * source/manifest-bridge/data/, a 44 MB folder deliberately kept out of the repository, so
+ * the script in git could not load. It was a museum label - a promise the repo could not keep.
  *
- *   The first version of this script read source/manifest-bridge/data/. That folder is 44 MB
- *   and is deliberately NOT in the repository, so a fresh clone could not run it: the script
- *   in git was a museum label, a promise the repo could not keep. The four files it needs now
- *   live in the PRIVATE Supabase Storage bucket `bridge-data`, and this script fetches them
- *   over HTTPS. No 44 MB blob in git, and no credential in git either.
+ *   Fixed by shipping only the four files this loader actually reads, gzipped: 11.9 MB becomes
+ *   479 KB at 24.7x, small enough for git. No 44 MB blob, no credential, no network needed.
+ *   A private Storage bucket (`bridge-data`) exists as an override for refreshed exports, but
+ *   it is not the default and nothing breaks without it.
  *
  * THE LOAD HAS ALREADY HAPPENED, via the Supabase MCP on 7-8 Sep 2026:
  *   bridge_manifest 196 · bridge_manifest_package 2,138 (2,120 tags) · bridge_manual_link 116
@@ -22,22 +23,37 @@
  * v_package_manifest, and no figure from these tables should be reported without deriving it
  * a second way.
  *
+ * WHERE THE SOURCE COMES FROM — two routes, and the default needs no credential.
+ *
+ *   1. DEFAULT: source/manifest-bridge/data-min/*.json.gz, committed to this repository.
+ *      Only the four files this loader reads, gzipped: 11.9 MB becomes 479 KB, 24.7x. That
+ *      is small enough to live in git, so a fresh clone can run this script with no token,
+ *      no bucket and no network. Each file was verified byte-identical after decompression.
+ *      The full 44 MB import stays out of git; this is the working subset, not a second copy
+ *      of the whole thing.
+ *   2. OVERRIDE: set BRIDGE_DATA_URL and the loader fetches over HTTPS from the private
+ *      Storage bucket `bridge-data` instead. Use this when the data is refreshed from a new
+ *      vendor export and you do not want to re-commit it.
+ *
  * ENVIRONMENT
- *   BRIDGE_DATA_URL    required. Base URL of the four files in the bucket, no trailing slash.
- *                      Either a signed-URL prefix, or the plain storage base
- *                      https://<project>.supabase.co/storage/v1/object/bridge-data
- *                      with BRIDGE_DATA_TOKEN supplying the bearer.
- *   BRIDGE_DATA_TOKEN  optional. Service-role key or a signed token. NEVER commit it.
- *   SUPABASE_DB_URL    a connection that can WRITE. The local PGURL from .mcp.json is a
- *                      read-only role by design and will fail with a permission error - that
- *                      is the role behaving correctly, not a bug in this script.
+ *   BRIDGE_DATA_URL    optional. Base URL of the four files, no trailing slash. Either a
+ *                      signed-URL prefix, or https://<project>.supabase.co/storage/v1/object/
+ *                      bridge-data with BRIDGE_DATA_TOKEN supplying the bearer.
+ *   BRIDGE_DATA_TOKEN  optional. Service-role key or signed token. NEVER commit it.
+ *   SUPABASE_DB_URL    required, and it must be a role that can WRITE. The local PGURL from
+ *                      .mcp.json is read-only by design and will fail with a permission
+ *                      error - that is the role behaving correctly, not a bug in this script.
  *
  * USAGE
- *   node tools/load-manifest-bridge.mjs --dry     # fetch, count, write nothing
+ *   node tools/load-manifest-bridge.mjs --dry     # read, count, write nothing
  *   node tools/load-manifest-bridge.mjs           # load, refusing non-empty tables
  *   node tools/load-manifest-bridge.mjs --force   # load over existing rows, deliberately
  */
 import pg from "pg";
+import { readFileSync, existsSync } from "node:fs";
+import { gunzipSync } from "node:zlib";
+import { join, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
 
 const DRY = process.argv.includes("--dry");
 const FORCE = process.argv.includes("--force");
@@ -45,19 +61,8 @@ const FORCE = process.argv.includes("--force");
 const BASE = (process.env.BRIDGE_DATA_URL || "").replace(/\/+$/, "");
 const TOKEN = process.env.BRIDGE_DATA_TOKEN || "";
 
-if (!BASE) {
-  console.error("load-manifest-bridge: BRIDGE_DATA_URL is not set, so there is nothing to read.");
-  console.error("  The source data is NOT in this repository - it is 44 MB of third-party cache");
-  console.error("  and lives in the private Supabase Storage bucket `bridge-data`.");
-  console.error("");
-  console.error("  Set it to the bucket base, no trailing slash:");
-  console.error("    BRIDGE_DATA_URL=https://<project>.supabase.co/storage/v1/object/bridge-data");
-  console.error("    BRIDGE_DATA_TOKEN=<service-role key or signed token>   # never commit this");
-  console.error("");
-  console.error("  Refusing to guess a local path: a path that exists on one laptop is exactly");
-  console.error("  the failure this rewrite removed.");
-  process.exit(1);
-}
+const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
+const LOCAL = join(ROOT, "source", "manifest-bridge", "data-min");
 
 /* The four files this loader needs. The other 38 in the bucket are reference caches that
  * nothing here reads yet; listing them explicitly keeps the contract visible. */
@@ -68,16 +73,31 @@ const FILES = {
   posted:   "metrc_posted_tags.json",
 };
 
-async function fetchJson(name) {
-  const url = `${BASE}/${name}`;
-  const res = await fetch(url, TOKEN ? { headers: { Authorization: `Bearer ${TOKEN}` } } : undefined);
+/* Reads the committed .gz by default; BRIDGE_DATA_URL switches to the private bucket.
+   Whichever route is used is PRINTED, because a loader that silently reads a different
+   source than you think it does is how a stale cache gets certified as current. */
+let announced = false;
+async function readJson(name) {
+  if (!BASE) {
+    const p = join(LOCAL, `${name}.gz`);
+    if (!existsSync(p)) {
+      console.error(`load-manifest-bridge: ${name}.gz is missing from source/manifest-bridge/data-min/.`);
+      console.error("  That directory is committed and is the default source. Either restore it,");
+      console.error("  or set BRIDGE_DATA_URL to read from the private `bridge-data` bucket instead.");
+      process.exit(1);
+    }
+    if (!announced) { console.log(`source: ${LOCAL} (committed .gz)`); announced = true; }
+    return JSON.parse(gunzipSync(readFileSync(p)).toString("utf8"));
+  }
+  if (!announced) { console.log(`source: ${BASE} (${TOKEN ? "with" : "WITHOUT"} bearer token)`); announced = true; }
+  const res = await fetch(`${BASE}/${name}`, TOKEN ? { headers: { Authorization: `Bearer ${TOKEN}` } } : undefined);
   if (!res.ok) {
     /* A 400/404 on a PRIVATE bucket usually means no token, not a missing file. Say so,
        because "not found" sends people looking for the wrong problem. */
     const hint = (res.status === 400 || res.status === 404) && !TOKEN
-      ? "  The bucket is private. Without BRIDGE_DATA_TOKEN this looks identical to a missing file."
+      ? "\n  The bucket is private. Without BRIDGE_DATA_TOKEN this looks identical to a missing file."
       : "";
-    throw new Error(`GET ${name} -> ${res.status} ${res.statusText}\n${hint}`);
+    throw new Error(`GET ${name} -> ${res.status} ${res.statusText}${hint}`);
   }
   return res.json();
 }
@@ -107,7 +127,7 @@ try {
     process.exit(1);
   }
 
-  const pkg = await fetchJson(FILES.packages);
+  const pkg = await readJson(FILES.packages);
   for (const [manifestId, v] of Object.entries(pkg)) {
     const mn = String(v.manifest_number ?? "").trim();
     if (!mn) continue;                       /* a cache entry with no manifest number is not a manifest */
@@ -177,14 +197,14 @@ try {
     links++;
   };
 
-  const ml = await fetchJson(FILES.links);
+  const ml = await readJson(FILES.links);
   for (const [orderId, v] of Object.entries(ml?.links ?? {})) {
     await putLink("order_manifest", orderId, v.manifest_id, v.mode, v.by, v.at);
   }
-  for (const [k, v] of Object.entries(await fetchJson(FILES.linked))) {
+  for (const [k, v] of Object.entries(await readJson(FILES.linked))) {
     await putLink("order_tag", k, v, "linked", null, null);
   }
-  for (const [k, v] of Object.entries(await fetchJson(FILES.posted))) {
+  for (const [k, v] of Object.entries(await readJson(FILES.posted))) {
     await putLink("posted_tag", k, v, "posted", null, null);
   }
 
