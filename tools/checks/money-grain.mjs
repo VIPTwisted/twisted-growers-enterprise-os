@@ -743,8 +743,10 @@ const migrationEntries = files.map((name) => ({
  * RE-PINNED 8 Sep 2026, 1049 -> 1050 files, digest ff85ab4c… . plant_history freeze default all, month_date. Empty measures. Cycle 56. No ledger rewrite.
  *
  * RE-PINNED 8 Sep 2026, 1052 files, digest 6a278359… . Period bus one page: rpt-plants-vegetative default all. Live veg 30 / inactive 2,259. Empty measures. Cycle 56. No ledger rewrite.
+ *
+ * RE-PINNED 8 Sep 2026, 1053 files, digest 94d3c15d… . Vault guesser treats hyphens/underscores as separators so Metrc filenames classify. Bytes not rewritten. Cycle 56.
  */
-const expectedMigrationTreeDigest = "6a27835930be090602cf64ce83937eb6471a1b4329ed6bc71da1e60f48274659";
+const expectedMigrationTreeDigest = "94d3c15d24696e269f68c29b8efc6e49fad2042bcb461d1b6e3096219065514a";
 const actualMigrationTreeDigest = migrationTreeDigest(migrationEntries);
 if (actualMigrationTreeDigest !== expectedMigrationTreeDigest) {
   console.error(`money-grain: FAIL — migration tree differs from the independently reviewed ${files.length}-file manifest (${actualMigrationTreeDigest}).`);
