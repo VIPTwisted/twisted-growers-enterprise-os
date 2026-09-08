@@ -140,6 +140,8 @@ const CustomerManifestsPage = lazy(() => import("./fin-customer-manifests.jsx"))
 const OrdersPage = lazy(() => import("./fin-orders.jsx"));
 const OsStaff = lazy(() => import("./os-staff.jsx"));
 const OsHelp = lazy(() => import("./os-help.jsx"));
+const OsUsers = lazy(() => import("./os-users.jsx"));
+const OsPermissions = lazy(() => import("./os-permissions.jsx"));
 
 // Laws: live numbers (2) · no fake data (3) · nothing hardwired (4) — navigation itself is DB rows.
 
@@ -11971,7 +11973,7 @@ export default function App() {
        one import and one entry for this build. */
     tg_workspace: <TgWorkspace session={session} go={setView} />,
     settings: <Settings session={session} prefs={prefs} />,
-    help: <Help />,
+    help: <OsHelp go={setView} />,
     metrc_mirror: <MetrcMirror />,
     metrc_mc: <MetrcMirror license="MC281714" />,
     metrc_mp: <MetrcMirror license="MP281909" />,
@@ -11991,6 +11993,9 @@ export default function App() {
     budz: <BudzScreen go={setView} />,
     os_staff: <OsStaff go={setView} />,
     os_help: <OsHelp go={setView} />,
+    os_users: <OsUsers go={setView} session={session} />,
+    permissions: <OsPermissions go={setView} session={session} />,
+    role_menu_matrix: <OsPermissions go={setView} session={session} />,
     /* Owner ruling 11 Aug 2026: the goals editor moved off the Command dashboard
        onto its own page. Routed here plus a nav_registry row — menu structure by
        registry row, which the owner's freeze explicitly permits. */
