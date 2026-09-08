@@ -12178,9 +12178,6 @@ export default function App() {
           <span className="tword">Twisted <b>Growers</b></span>
         </button>
         <OsNavBtns canBack={canBack} canForward={canForward} goBack={goBack} goForward={goForward} goHome={goHome} onFind={() => setFindOpen(true)} />
-        <button className="tbot" title="Top G" onClick={() => setView("os_staff")}>
-          <img src="/bots/topg.gif" alt="Top G" />
-        </button>
         <button className="tibtn launchbtn" title="Open TG Workspace" onClick={() => setLauncher(true)}>{I.apps}</button>
         <div className="tdivider" />
         <div className="tcrumb">
