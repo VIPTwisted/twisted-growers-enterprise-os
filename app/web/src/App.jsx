@@ -11804,7 +11804,7 @@ export default function App() {
         setBlockedViews(new Map(rowsOr(data).map((r) => [r.view_key, true])));
       });
   }, [session, role, viewAsRole]);
-  const [view, setView] = useState(() => window.location.hash.slice(1) || "ops_cm");
+  const [view, setView] = useState(() => window.location.hash.slice(1) || "tower");
   useEffect(() => {
     if (window.location.hash.slice(1) !== view) window.history.pushState(null, "", `#${view}`);
   }, [view]);
@@ -11813,7 +11813,7 @@ export default function App() {
      followed — that is hashchange, and without it the URL changed while the
      screen did not. Both are listened for; setView already ignores a no-op. */
   useEffect(() => {
-    const onNav = () => setView(window.location.hash.slice(1) || "ops_cm");
+    const onNav = () => setView(window.location.hash.slice(1) || "tower");
     window.addEventListener("popstate", onNav);
     window.addEventListener("hashchange", onNav);
     return () => {
@@ -12176,7 +12176,6 @@ export default function App() {
         <button className="tbot" title="Top G" onClick={() => setView("os_staff")}>
           <img src="/bots/topg.gif" alt="Top G" />
         </button>
-        <button className="repbtn" title="Dutchie C&M — cultivation and manufacturing" onClick={() => setView("ops_cm")}>Dutchie C&M</button>
         <button className="tibtn launchbtn" title="Open TG Workspace" onClick={() => setLauncher(true)}>{I.apps}</button>
         <div className="tdivider" />
         <div className="tcrumb">{current ? `${current.category} / ${current.label}` : view === "alerts" ? "Command / Alerts & Reminders" : "Command / Control Tower"}</div>
@@ -12317,13 +12316,7 @@ export default function App() {
                 const active = c.items.some((e) => e.view_key === view);
                 return (
                   <button key={c.name} className={`railcat ${active ? "on" : ""}`} title={c.name}
-                    onClick={() => {
-                      prefs.setCollapsed(false);
-                      setOpenCats({ ...openCats, [c.name]: true });
-                      if (c.name === "Command Center") setView("ops_cm");
-                      else if (c.name === "Cultivation") setView("dutchie_cult");
-                      else if (c.name === "Manufacturing") setView("dutchie_mfg");
-                    }}>
+                    onClick={() => { prefs.setCollapsed(false); setOpenCats({ ...openCats, [c.name]: true }); }}>
                     <span className="rcicon" style={flat ? { color: flat } : undefined}>{iconByName(c.items[0]?.icon)}</span>
                     <span className="rclabel">{c.name}</span>
                   </button>
@@ -12333,13 +12326,7 @@ export default function App() {
           ) : (
             cats.map((c) => (
               <div className="cat" key={c.name}>
-                <button className="cathead" onClick={() => {
-                  const willOpen = !isOpen(c.name);
-                  setOpenCats({ ...openCats, [c.name]: willOpen });
-                  if (willOpen && c.name === "Command Center") setView("ops_cm");
-                  else if (willOpen && c.name === "Cultivation") setView("dutchie_cult");
-                  else if (willOpen && c.name === "Manufacturing") setView("dutchie_mfg");
-                }}>
+                <button className="cathead" onClick={() => setOpenCats({ ...openCats, [c.name]: !isOpen(c.name) })}>
                   <span className="catdot" style={{ background: c.items[0]?.color ?? "var(--neon)" }} />
                   <span className="ctext">{c.name}</span>
                   <span className={`caret ${isOpen(c.name) ? "open" : ""}`}>{I.caret}</span>
@@ -12375,6 +12362,16 @@ export default function App() {
           )}
           <button className="burger navburger" onClick={() => prefs.setCollapsed(!prefs.collapsed)} title="Collapse / expand menu">{I.burger}</button>
           <div className="railfoot">
+            <button
+              type="button"
+              className={`railcm ${view === "ops_cm" || view === "dutchie_cult" || view === "dutchie_mfg" ? "on" : ""}`}
+              onClick={() => setView("ops_cm")}
+              title="Twisted C&M"
+              aria-label="Twisted C&M"
+            >
+              <span className="railcm-mark" aria-hidden="true">TG</span>
+              <span className="railcm-lbl">Twisted C&M</span>
+            </button>
             <button
               type="button"
               className={`railbots ${view === "os_staff" ? "on" : ""}`}
