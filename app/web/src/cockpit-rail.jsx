@@ -23,6 +23,21 @@ export const COCKPITS = [
     ],
   },
   {
+    view_key: "ops_cm",
+    label: "Twisted C&M",
+    short: "C&M",
+    children: [
+      { view_key: "ops_cm", label: "Overview" },
+      { view_key: "rpt-plants-flowering", label: "Flowering" },
+      { view_key: "rpt-plants-vegetative", label: "Vegetative" },
+      { view_key: "rpt-harvests", label: "Harvests" },
+      { view_key: "rpt-packages-inventory", label: "Packages" },
+      { view_key: "grow_rooms", label: "Rooms" },
+      { view_key: "rpt-plant-waste", label: "Waste" },
+      { view_key: "ops_spine", label: "Harvest spine" },
+    ],
+  },
+  {
     view_key: "dept_dash_command",
     label: "Command",
     short: "Command",
@@ -173,6 +188,7 @@ export function cockpitViewForCategory(cat) {
 
 function ownsView(c, view) {
   if (view === c.view_key) return true;
+  if (c.view_key === "ops_cm" && (view === "dutchie_cult" || view === "dutchie_mfg")) return true;
   const kids = c.children || [];
   for (let i = 0; i < kids.length; i += 1) {
     if (kids[i].view_key === view) return true;
