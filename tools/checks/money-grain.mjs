@@ -726,8 +726,21 @@ const migrationEntries = files.map((name) => ({
  * applied (Claude, 15:09:19): ai_models_add_grok_and_chatgpt_providers. INSERT two
  * sentinel rows (grok-current, gpt-current). Catalog unchanged 463/541/1330. Filed
  * catch-up so migration-drift cannot go red and #154 can rebase. Cycle 56. No ledger rewrite.
+ *
+ * RE-PINNED 8 Sep 2026, 1036 -> 1037 files, digest 662ba31f… . One file: the baseline
+ * re-dump, 20260908133330 out and 20260908165830 in.
+ *
+ * The migration FILES for the canopy work were filed, but the baseline dump was not
+ * regenerated with them, so schema-baseline read 463/541/1330 against a live
+ * 465/545/1333 and every Netlify build died at gate 3. Objects existed in production
+ * that existed nowhere else - the exact condition that gate is for. New dump is
+ * 465 tables, 545 views, 28 matviews, 1333 policies, all matching live.
+ *
+ * A baseline swap moves this digest by construction and is not a new migration. Taken
+ * AFTER committing, then checked two ways that share no code: `git ls-files
+ * supabase/migrations` and `git ls-tree -r HEAD supabase/migrations` both returned 1037.
  */
-const expectedMigrationTreeDigest = "919d807dd3cd8dc08a22b03fec8ebce1fd68e36265eaccc7f42f037af4509cbf";
+const expectedMigrationTreeDigest = "662ba31f5f6efcd9e274f7e379ad25c4f1c28ea0198f33e75f50cbbaf57daa91";
 const actualMigrationTreeDigest = migrationTreeDigest(migrationEntries);
 if (actualMigrationTreeDigest !== expectedMigrationTreeDigest) {
   console.error(`money-grain: FAIL — migration tree differs from the independently reviewed ${files.length}-file manifest (${actualMigrationTreeDigest}).`);
