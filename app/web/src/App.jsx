@@ -73,7 +73,7 @@ const CommandCenter = lazy(() => import("./commandcenter.jsx"));
    here so the shared stock-proof drill carries certificate and manifest on
    every row, sitewide (owner hard rule, 12 Aug 2026). Same deliberate,
    render-time-only import cycle as the Command Center above. */
-import { TagEvidence, TagEvidenceProvider, DkHarvestControlBanner } from "./dashkit.jsx";
+import { TagEvidence, TagEvidenceProvider, DkHarvestControlBanner, DkCockpitPages } from "./dashkit.jsx";
 import CockpitRail, { cockpitViewForCategory } from "./cockpit-rail.jsx";
 const CultivationDashboard = lazy(() => import("./dash-cultivation.jsx"));
 const ReportVault = lazy(() => import("./report-vault.jsx"));
@@ -11091,13 +11091,6 @@ function DeptDashboard({ viewKey, go, nav, deep, session, reports, role, viewAs,
   const onRange = React.useCallback((r) => setRange(r), []);
 
   const deepItems = (deep ?? []).filter((d) => d.category === dept || (dept === "Command" && d.category === "Command Center"));
-  const deepGroups = Object.entries(
-    deepItems.reduce((m, d) => {
-      const k = d.subcategory || "Other";
-      (m[k] = m[k] || []).push(d);
-      return m;
-    }, {})
-  );
 
   const load = async () => {
     if (!range.ready) return;
@@ -11397,19 +11390,7 @@ function DeptDashboard({ viewKey, go, nav, deep, session, reports, role, viewAs,
             These {deepItems.length} pages used to sit in the side menu. They live here now.
             Nothing was deleted. Old links still work.
           </p>
-          <div className="deepwrap">
-            {deepGroups.map(([sub, items]) => (
-              <div key={sub} className="deepgrp">
-                <label>{sub}</label>
-                <div className="deeplinks">
-                  {items.map((it) => (
-                    <button key={it.view_key} className="deeplink" title={it.description || ""}
-                      onClick={() => go(it.view_key)}>{it.label}</button>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
+          <DkCockpitPages deep={deep} dept={dept === "Command" ? "Command Center" : dept} go={go} />
         </Section>
       )}
 
