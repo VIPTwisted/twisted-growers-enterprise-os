@@ -1,0 +1,1269 @@
+{
+  "checks": {
+    "1636|3354854": {
+      "state": "mismatch",
+      "batches": 7,
+      "issues": 3,
+      "detail": "3 of 7 batches off",
+      "at": "2026-08-04T23:05:35"
+    },
+    "1644|3354866": {
+      "state": "match",
+      "batches": 5,
+      "issues": 0,
+      "inv_g": 1176.0,
+      "metrc_g": 1176.0,
+      "diff_g": 0.0,
+      "shared_with": [],
+      "detail": "contents agree",
+      "at": "2026-08-04T17:33:28"
+    },
+    "1641|3359409": {
+      "state": "mismatch",
+      "batches": 5,
+      "issues": 1,
+      "detail": "1 of 5 batches off",
+      "at": "2026-08-01T15:00:02"
+    },
+    "1623|3354052": {
+      "state": "match",
+      "batches": 4,
+      "issues": 0,
+      "inv_g": 200.0,
+      "metrc_g": 200.0,
+      "diff_g": 0.0,
+      "shared_with": [],
+      "detail": "contents agree",
+      "at": "2026-08-04T17:56:27"
+    },
+    "1581|3353608": {
+      "state": "mismatch",
+      "batches": 4,
+      "issues": 4,
+      "inv_g": 2800.0,
+      "metrc_g": 2800.0,
+      "diff_g": 0.0,
+      "shared_with": [],
+      "detail": "4 of 4 batches off",
+      "at": "2026-08-04T09:01:26"
+    },
+    "1671|3361805": {
+      "state": "mismatch",
+      "batches": 24,
+      "issues": 5,
+      "detail": "5 of 24 batches off",
+      "at": "2026-08-04T22:56:34"
+    },
+    "1669|3361421": {
+      "state": "mismatch",
+      "batches": 8,
+      "issues": 1,
+      "inv_g": 2420.0,
+      "metrc_g": 2420.0,
+      "diff_g": 0.0,
+      "shared_with": [],
+      "detail": "1 of 8 batches off",
+      "at": "2026-08-04T17:33:47"
+    },
+    "1675|3361875": {
+      "state": "mismatch",
+      "batches": 16,
+      "issues": 8,
+      "detail": "8 of 16 batches off",
+      "at": "2026-08-04T22:27:21"
+    },
+    "1668|3361416": {
+      "state": "match",
+      "batches": 5,
+      "issues": 0,
+      "detail": "contents agree",
+      "at": "2026-08-04T09:08:01"
+    },
+    "1667|3361627": {
+      "state": "mismatch",
+      "batches": 11,
+      "issues": 3,
+      "detail": "3 of 11 batches off",
+      "at": "2026-08-04T17:56:21"
+    },
+    "1665|3361309": {
+      "state": "mismatch",
+      "batches": 14,
+      "issues": 1,
+      "detail": "1 of 14 batches off",
+      "at": "2026-08-04T22:42:29"
+    },
+    "1657|3361717": {
+      "state": "match",
+      "batches": 5,
+      "issues": 0,
+      "detail": "contents agree",
+      "at": "2026-08-04T17:14:34"
+    },
+    "1664|3361735": {
+      "state": "match",
+      "batches": 14,
+      "issues": 0,
+      "inv_g": 1674.0,
+      "metrc_g": 1674.0,
+      "diff_g": 0.0,
+      "shared_with": [],
+      "detail": "contents agree",
+      "at": "2026-08-04T17:51:45"
+    },
+    "1626|3361635": {
+      "state": "mismatch",
+      "batches": 4,
+      "issues": 4,
+      "detail": "4 of 4 batches off",
+      "at": "2026-08-04T17:35:54"
+    },
+    "1624|3361431": {
+      "state": "mismatch",
+      "batches": 13,
+      "issues": 6,
+      "detail": "6 of 13 batches off",
+      "at": "2026-08-04T23:02:01"
+    },
+    "1582|3361245": {
+      "state": "mismatch",
+      "batches": 24,
+      "issues": 4,
+      "detail": "4 of 24 batches off",
+      "at": "2026-08-04T22:11:51"
+    },
+    "1519|3360724": {
+      "state": "match",
+      "batches": 17,
+      "issues": 0,
+      "inv_g": 2912.0,
+      "metrc_g": 2912.0,
+      "diff_g": 0.0,
+      "shared_with": [],
+      "detail": "contents agree",
+      "at": "2026-08-04T15:24:19"
+    },
+    "1576|3361894": {
+      "state": "match",
+      "batches": 6,
+      "issues": 0,
+      "detail": "contents agree",
+      "at": "2026-08-04T15:28:18"
+    },
+    "1610|3362360": {
+      "state": "mismatch",
+      "batches": 15,
+      "issues": 9,
+      "detail": "9 of 15 batches off",
+      "at": "2026-08-04T22:51:29"
+    },
+    "1678|3362429": {
+      "state": "mismatch",
+      "batches": 12,
+      "issues": 3,
+      "detail": "3 of 12 batches off",
+      "at": "2026-08-04T23:00:21"
+    },
+    "1404|3362735": {
+      "state": "mismatch",
+      "batches": 22,
+      "issues": 3,
+      "detail": "3 of 22 batches off",
+      "at": "2026-08-04T22:16:44"
+    },
+    "1622|3346018": {
+      "state": "mismatch",
+      "batches": 8,
+      "issues": 8,
+      "detail": "8 of 8 batches off",
+      "at": "2026-08-06T08:33:42"
+    },
+    "1653|3356595": {
+      "state": "mismatch",
+      "batches": 16,
+      "issues": 16,
+      "inv_g": 600.0,
+      "metrc_g": 904.0,
+      "diff_g": -304.0,
+      "shared_with": [],
+      "detail": "16 of 16 batches off",
+      "at": "2026-08-06T08:33:14"
+    },
+    "1689|3363411": {
+      "state": "match",
+      "batches": 13,
+      "issues": 0,
+      "detail": "contents agree",
+      "at": "2026-08-11T10:42:13"
+    },
+    "1703|3363170": {
+      "state": "match",
+      "batches": 8,
+      "issues": 0,
+      "detail": "contents agree",
+      "at": "2026-08-11T13:43:22"
+    },
+    "1690|3363231": {
+      "state": "match",
+      "batches": 11,
+      "issues": 0,
+      "detail": "contents agree",
+      "at": "2026-08-11T10:31:15"
+    },
+    "1688|3363854": {
+      "state": "match",
+      "batches": 12,
+      "issues": 0,
+      "detail": "contents agree",
+      "at": "2026-08-12T12:43:52"
+    },
+    "1687|3364031": {
+      "state": "mismatch",
+      "batches": 15,
+      "issues": 1,
+      "detail": "1 of 15 batches off",
+      "at": "2026-08-13T09:23:59"
+    },
+    "1686|3363955": {
+      "state": "match",
+      "batches": 17,
+      "issues": 0,
+      "detail": "contents agree",
+      "at": "2026-08-10T07:40:37"
+    },
+    "1679|3363429": {
+      "state": "match",
+      "batches": 3,
+      "issues": 0,
+      "detail": "contents agree",
+      "at": "2026-08-06T16:22:01"
+    },
+    "1672|3363967": {
+      "state": "match",
+      "batches": 24,
+      "issues": 0,
+      "detail": "contents agree",
+      "at": "2026-08-06T16:18:06"
+    },
+    "1656|3364229": {
+      "state": "match",
+      "batches": 3,
+      "issues": 0,
+      "detail": "contents agree",
+      "at": "2026-08-06T12:12:03"
+    },
+    "1654|3363513": {
+      "state": "match",
+      "batches": 8,
+      "issues": 0,
+      "detail": "contents agree",
+      "at": "2026-08-06T16:10:05"
+    },
+    "1653|3363696": {
+      "state": "mismatch",
+      "batches": 6,
+      "issues": 1,
+      "detail": "1 of 6 batches off",
+      "at": "2026-08-06T17:31:11"
+    },
+    "1622|3363846": {
+      "state": "match",
+      "batches": 1,
+      "issues": 0,
+      "detail": "contents agree",
+      "at": "2026-08-06T12:49:54"
+    },
+    "1676|3364720": {
+      "state": "match",
+      "batches": 14,
+      "issues": 0,
+      "detail": "contents agree",
+      "at": "2026-08-11T10:21:54"
+    },
+    "1673|3364835": {
+      "state": "match",
+      "batches": 22,
+      "issues": 0,
+      "detail": "contents agree",
+      "at": "2026-08-11T10:20:21"
+    },
+    "1646|3366496": {
+      "state": "match",
+      "batches": 5,
+      "issues": 0,
+      "detail": "contents agree",
+      "at": "2026-08-11T10:14:02"
+    },
+    "1737|3368750": {
+      "state": "mismatch",
+      "batches": 7,
+      "issues": 1,
+      "detail": "1 of 7 batches off",
+      "at": "2026-08-11T10:06:10"
+    },
+    "1732|3368377": {
+      "state": "mismatch",
+      "batches": 12,
+      "issues": 4,
+      "detail": "4 of 12 batches off",
+      "at": "2026-08-11T15:17:39"
+    },
+    "1718|3367828": {
+      "state": "match",
+      "batches": 5,
+      "issues": 0,
+      "detail": "contents agree",
+      "at": "2026-08-11T15:26:24"
+    },
+    "1715|3367587": {
+      "state": "match",
+      "batches": 5,
+      "issues": 0,
+      "detail": "contents agree",
+      "at": "2026-08-11T12:08:59"
+    },
+    "1691|3367757": {
+      "state": "match",
+      "batches": 7,
+      "issues": 0,
+      "detail": "contents agree",
+      "at": "2026-08-11T15:28:51"
+    },
+    "1684|3368652": {
+      "state": "match",
+      "batches": 9,
+      "issues": 0,
+      "detail": "contents agree",
+      "at": "2026-08-11T12:20:11"
+    },
+    "1682|3368734": {
+      "state": "match",
+      "batches": 9,
+      "issues": 0,
+      "detail": "contents agree",
+      "at": "2026-08-11T13:40:48"
+    },
+    "1681|3369344": {
+      "state": "match",
+      "batches": 1,
+      "issues": 0,
+      "detail": "contents agree",
+      "at": "2026-08-12T09:45:35"
+    },
+    "1670|3367577": {
+      "state": "match",
+      "batches": 3,
+      "issues": 0,
+      "detail": "contents agree",
+      "at": "2026-08-11T15:24:49"
+    },
+    "1645|3368279": {
+      "state": "match",
+      "batches": 8,
+      "issues": 0,
+      "detail": "contents agree",
+      "at": "2026-08-11T12:03:16"
+    },
+    "1640|3368036": {
+      "state": "mismatch",
+      "batches": 14,
+      "issues": 2,
+      "detail": "2 of 14 batches off",
+      "at": "2026-08-11T13:36:23"
+    },
+    "1639|3368031": {
+      "state": "match",
+      "batches": 5,
+      "issues": 0,
+      "detail": "contents agree",
+      "at": "2026-08-11T10:10:41"
+    },
+    "1674|3369503": {
+      "state": "match",
+      "batches": 2,
+      "issues": 0,
+      "detail": "contents agree",
+      "at": "2026-08-12T12:39:21"
+    },
+    "1677|3369439": {
+      "state": "match",
+      "batches": 2,
+      "issues": 0,
+      "detail": "contents agree",
+      "at": "2026-08-12T12:37:03"
+    },
+    "1711|3369571": {
+      "state": "match",
+      "batches": 6,
+      "issues": 0,
+      "detail": "contents agree",
+      "at": "2026-08-12T09:26:06"
+    },
+    "1699|3369577": {
+      "state": "match",
+      "batches": 8,
+      "issues": 0,
+      "detail": "contents agree",
+      "at": "2026-08-11T11:34:18"
+    },
+    "1735|3369644": {
+      "state": "match",
+      "batches": 12,
+      "issues": 0,
+      "detail": "contents agree",
+      "at": "2026-08-11T13:34:04"
+    },
+    "1704|3369805": {
+      "state": "match",
+      "batches": 6,
+      "issues": 0,
+      "detail": "contents agree",
+      "at": "2026-08-11T14:02:42"
+    },
+    "1740|3369805": {
+      "state": "mismatch",
+      "batches": 6,
+      "issues": 5,
+      "detail": "5 of 6 batches off",
+      "at": "2026-08-11T13:45:14"
+    },
+    "1722|3370018": {
+      "state": "match",
+      "batches": 15,
+      "issues": 0,
+      "detail": "contents agree",
+      "at": "2026-08-12T09:38:21"
+    },
+    "1753|3370539": {
+      "state": "mismatch",
+      "batches": 19,
+      "issues": 1,
+      "detail": "1 of 19 batches off",
+      "at": "2026-08-12T11:18:06"
+    },
+    "1686|3368595": {
+      "state": "match",
+      "batches": 17,
+      "issues": 0,
+      "inv_g": 635.0,
+      "metrc_g": 635.0,
+      "diff_g": 0.0,
+      "shared_with": [],
+      "detail": "contents agree",
+      "at": "2026-08-12T12:34:11"
+    },
+    "1681|3371018": {
+      "state": "mismatch",
+      "batches": 1,
+      "issues": 1,
+      "inv_g": 92.4,
+      "metrc_g": 70.0,
+      "diff_g": 22.4,
+      "shared_with": [],
+      "detail": "1 of 1 batches off",
+      "at": "2026-08-12T12:34:00"
+    },
+    "1763|3371331": {
+      "state": "mismatch",
+      "batches": 11,
+      "issues": 2,
+      "detail": "2 of 11 batches off",
+      "at": "2026-08-13T08:41:16"
+    },
+    "1758|3371477": {
+      "state": "match",
+      "batches": 16,
+      "issues": 0,
+      "detail": "contents agree",
+      "at": "2026-08-13T10:12:35"
+    },
+    "1762|3371407": {
+      "state": "mismatch",
+      "batches": 11,
+      "issues": 3,
+      "detail": "3 of 11 batches off",
+      "at": "2026-08-13T09:17:30"
+    },
+    "1745|3371279": {
+      "state": "match",
+      "batches": 8,
+      "issues": 0,
+      "detail": "contents agree",
+      "at": "2026-08-13T09:15:28"
+    },
+    "1719|3371431": {
+      "state": "mismatch",
+      "batches": 17,
+      "issues": 9,
+      "detail": "9 of 17 batches off",
+      "at": "2026-08-13T08:56:27"
+    },
+    "1680|3371470": {
+      "state": "match",
+      "batches": 5,
+      "issues": 0,
+      "detail": "contents agree",
+      "at": "2026-08-13T09:21:36"
+    },
+    "1717|3371257": {
+      "state": "match",
+      "batches": 8,
+      "issues": 0,
+      "detail": "contents agree",
+      "at": "2026-08-13T08:38:02"
+    },
+    "1663|3371407": {
+      "state": "mismatch",
+      "batches": 12,
+      "issues": 4,
+      "inv_g": 2400.0,
+      "metrc_g": 2300.0,
+      "diff_g": 100.0,
+      "shared_with": [
+        "Twiste-1762"
+      ],
+      "detail": "4 of 12 batches off (combined with Twiste-1762)",
+      "at": "2026-08-13T08:40:56"
+    },
+    "1725|3372252": {
+      "state": "match",
+      "batches": 5,
+      "issues": 0,
+      "detail": "contents agree",
+      "at": "2026-08-13T10:26:30"
+    },
+    "1692|3372057": {
+      "state": "match",
+      "batches": 6,
+      "issues": 0,
+      "detail": "contents agree",
+      "at": "2026-08-14T09:18:24"
+    },
+    "1730|3372623": {
+      "state": "match",
+      "batches": 5,
+      "issues": 0,
+      "detail": "contents agree",
+      "at": "2026-08-14T09:34:28"
+    },
+    "1697|3372513": {
+      "state": "match",
+      "batches": 11,
+      "issues": 0,
+      "detail": "contents agree",
+      "at": "2026-08-14T11:35:00"
+    },
+    "1769|3372595": {
+      "state": "match",
+      "batches": 12,
+      "issues": 0,
+      "detail": "contents agree",
+      "at": "2026-08-14T09:38:49"
+    },
+    "1693|3372486": {
+      "state": "mismatch",
+      "batches": 18,
+      "issues": 2,
+      "detail": "2 of 18 batches off",
+      "at": "2026-08-14T09:41:07"
+    },
+    "1651|3372581": {
+      "state": "mismatch",
+      "batches": 10,
+      "issues": 1,
+      "detail": "1 of 10 batches off",
+      "at": "2026-08-14T09:07:58"
+    },
+    "1750|3370560": {
+      "state": "mismatch",
+      "batches": 23,
+      "issues": 1,
+      "detail": "1 of 23 batches off",
+      "at": "2026-08-14T11:09:22"
+    },
+    "1695|3373564": {
+      "state": "mismatch",
+      "batches": 18,
+      "issues": 2,
+      "inv_g": 2140.0,
+      "metrc_g": 1940.0,
+      "diff_g": 200.0,
+      "shared_with": [],
+      "detail": "2 of 18 batches off",
+      "at": "2026-08-19T08:49:38"
+    },
+    "1791|3377803": {
+      "state": "match",
+      "batches": 13,
+      "issues": 0,
+      "detail": "contents agree",
+      "at": "2026-08-19T15:21:33"
+    },
+    "1793|3377199": {
+      "state": "match",
+      "batches": 22,
+      "issues": 0,
+      "detail": "contents agree",
+      "at": "2026-08-20T09:12:55"
+    },
+    "1794|3377250": {
+      "state": "match",
+      "batches": 11,
+      "issues": 0,
+      "detail": "contents agree",
+      "at": "2026-08-19T15:24:19"
+    },
+    "1790|3376744": {
+      "state": "mismatch",
+      "batches": 9,
+      "issues": 4,
+      "inv_g": 831.0,
+      "metrc_g": 588.0,
+      "diff_g": 243.0,
+      "shared_with": [],
+      "detail": "4 of 9 batches off",
+      "at": "2026-08-19T08:50:10"
+    },
+    "1789|3376760": {
+      "state": "mismatch",
+      "batches": 11,
+      "issues": 1,
+      "detail": "1 of 11 batches off",
+      "at": "2026-08-19T12:06:24"
+    },
+    "1786|3376449": {
+      "state": "match",
+      "batches": 16,
+      "issues": 0,
+      "detail": "contents agree",
+      "at": "2026-08-19T11:51:15"
+    },
+    "1784|3374998": {
+      "state": "match",
+      "batches": 8,
+      "issues": 0,
+      "inv_g": 1172.0,
+      "metrc_g": 1172.0,
+      "diff_g": 0.0,
+      "shared_with": [],
+      "detail": "contents agree",
+      "at": "2026-08-19T08:50:22"
+    },
+    "1779|3377806": {
+      "state": "mismatch",
+      "batches": 8,
+      "issues": 2,
+      "detail": "2 of 8 batches off",
+      "at": "2026-08-21T12:28:10"
+    },
+    "1778|3377285": {
+      "state": "match",
+      "batches": 22,
+      "issues": 0,
+      "detail": "contents agree",
+      "at": "2026-08-20T09:14:43"
+    },
+    "1710|3376008": {
+      "state": "mismatch",
+      "batches": 15,
+      "issues": 4,
+      "structure": 0,
+      "detail": "4 of 15 batches off",
+      "at": "2026-08-25T11:37:53"
+    },
+    "1708|3376434": {
+      "state": "match",
+      "batches": 13,
+      "issues": 0,
+      "structure": 2,
+      "detail": "quantities agree \u2757 2 batch(es) structurally incorrect",
+      "at": "2026-08-25T11:41:48"
+    },
+    "1707|3375879": {
+      "state": "mismatch",
+      "batches": 12,
+      "issues": 2,
+      "structure": 0,
+      "detail": "2 of 12 batches off",
+      "at": "2026-08-25T11:43:50"
+    },
+    "1702|3375216": {
+      "state": "match",
+      "batches": 7,
+      "issues": 0,
+      "detail": "contents agree",
+      "at": "2026-08-19T11:42:15"
+    },
+    "1701|3375332": {
+      "state": "match",
+      "batches": 17,
+      "issues": 0,
+      "detail": "contents agree",
+      "at": "2026-08-19T11:50:05"
+    },
+    "1542|3375072": {
+      "state": "match",
+      "batches": 24,
+      "issues": 0,
+      "structure": 1,
+      "detail": "quantities agree \u2757 1 batch(es) structurally incorrect",
+      "at": "2026-08-22T16:54:49"
+    },
+    "1513|3375829": {
+      "state": "match",
+      "batches": 7,
+      "issues": 0,
+      "detail": "contents agree",
+      "at": "2026-08-19T15:02:50"
+    },
+    "1795|3376760": {
+      "state": "mismatch",
+      "batches": 11,
+      "issues": 1,
+      "detail": "1 of 11 batches off",
+      "at": "2026-08-19T12:03:10"
+    },
+    "1792|3377800": {
+      "state": "match",
+      "batches": 28,
+      "issues": 0,
+      "detail": "contents agree",
+      "at": "2026-08-20T08:51:48"
+    },
+    "1783|3378305": {
+      "state": "match",
+      "batches": 14,
+      "issues": 0,
+      "detail": "contents agree",
+      "at": "2026-08-19T15:25:56"
+    },
+    "1768|3378637": {
+      "state": "mismatch",
+      "batches": 12,
+      "issues": 2,
+      "detail": "2 of 12 batches off",
+      "at": "2026-08-20T11:01:55"
+    },
+    "1801|3378748": {
+      "state": "mismatch",
+      "batches": 16,
+      "issues": 1,
+      "detail": "1 of 16 batches off",
+      "at": "2026-08-20T11:00:39"
+    },
+    "1772|3379430": {
+      "state": "match",
+      "batches": 20,
+      "issues": 0,
+      "structure": 0,
+      "detail": "contents agree",
+      "at": "2026-08-25T15:50:43"
+    },
+    "1807|3379982": {
+      "state": "match",
+      "batches": 7,
+      "issues": 0,
+      "detail": "contents agree",
+      "at": "2026-08-21T12:16:39"
+    },
+    "1782|3380163": {
+      "state": "match",
+      "batches": 15,
+      "issues": 0,
+      "inv_g": 1574.0,
+      "metrc_g": 1574.0,
+      "diff_g": 0.0,
+      "shared_with": [],
+      "detail": "contents agree",
+      "at": "2026-08-21T11:59:03"
+    },
+    "1814|3375072": {
+      "state": "mismatch",
+      "batches": 27,
+      "issues": 23,
+      "detail": "23 of 27 batches off",
+      "at": "2026-08-21T10:17:42"
+    },
+    "1780|3380999": {
+      "state": "mismatch",
+      "batches": 14,
+      "issues": 13,
+      "structure": 0,
+      "detail": "13 of 14 batches off",
+      "at": "2026-08-28T17:01:58"
+    },
+    "1806|3379843": {
+      "state": "match",
+      "batches": 20,
+      "issues": 0,
+      "structure": 0,
+      "detail": "contents agree",
+      "at": "2026-08-25T08:19:36"
+    },
+    "1820|3383203": {
+      "state": "match",
+      "batches": 8,
+      "issues": 0,
+      "structure": 0,
+      "detail": "contents agree",
+      "at": "2026-08-24T15:20:19"
+    },
+    "1819|3382645": {
+      "state": "mismatch",
+      "batches": 11,
+      "issues": 10,
+      "structure": 0,
+      "detail": "10 of 11 batches off",
+      "at": "2026-08-24T15:32:29"
+    },
+    "1818|3382645": {
+      "state": "match",
+      "batches": 11,
+      "issues": 0,
+      "structure": 0,
+      "detail": "contents agree",
+      "at": "2026-08-24T15:52:58"
+    },
+    "1808|3382807": {
+      "state": "match",
+      "batches": 19,
+      "issues": 0,
+      "structure": 0,
+      "detail": "contents agree",
+      "at": "2026-08-25T11:16:46"
+    },
+    "1799|3383977": {
+      "state": "match",
+      "batches": 14,
+      "issues": 0,
+      "structure": 0,
+      "detail": "contents agree",
+      "at": "2026-08-26T10:51:18"
+    },
+    "1830|3328304": {
+      "state": "mismatch",
+      "batches": 26,
+      "issues": 26,
+      "structure": 0,
+      "inv_g": 3400.0,
+      "metrc_g": 3200.6,
+      "diff_g": 199.4,
+      "shared_with": [],
+      "detail": "26 of 26 batches off",
+      "at": "2026-08-25T11:38:29"
+    },
+    "1823|3332460": {
+      "state": "mismatch",
+      "batches": 29,
+      "issues": 26,
+      "structure": 0,
+      "detail": "26 of 29 batches off",
+      "at": "2026-08-25T11:44:58"
+    },
+    "1823|3384312": {
+      "state": "match",
+      "batches": 13,
+      "issues": 0,
+      "structure": 0,
+      "detail": "contents agree",
+      "at": "2026-08-25T15:49:42"
+    },
+    "1830|3384552": {
+      "state": "match",
+      "batches": 12,
+      "issues": 0,
+      "structure": 0,
+      "detail": "contents agree",
+      "at": "2026-08-25T15:51:30"
+    },
+    "1796|3384302": {
+      "state": "match",
+      "batches": 7,
+      "issues": 0,
+      "structure": 0,
+      "detail": "contents agree",
+      "at": "2026-08-26T10:52:31"
+    },
+    "1835|3384556": {
+      "state": "match",
+      "batches": 9,
+      "issues": 0,
+      "structure": 0,
+      "detail": "contents agree",
+      "at": "2026-08-25T15:56:43"
+    },
+    "1802|3384838": {
+      "state": "match",
+      "batches": 4,
+      "issues": 0,
+      "structure": 0,
+      "detail": "contents agree",
+      "at": "2026-08-26T13:07:35"
+    },
+    "1829|3384760": {
+      "state": "match",
+      "batches": 8,
+      "issues": 0,
+      "structure": 0,
+      "detail": "contents agree",
+      "at": "2026-08-26T13:07:05"
+    },
+    "1570|3347570": {
+      "state": "match",
+      "batches": 8,
+      "issues": 0,
+      "structure": 0,
+      "detail": "contents agree",
+      "at": "2026-08-26T11:50:12"
+    },
+    "1840|3384636": {
+      "state": "mismatch",
+      "batches": 9,
+      "issues": 9,
+      "structure": 0,
+      "detail": "9 of 9 batches off",
+      "at": "2026-08-26T13:34:56"
+    },
+    "1805|3386441": {
+      "state": "mismatch",
+      "batches": 6,
+      "issues": 6,
+      "structure": 0,
+      "detail": "6 of 6 batches off",
+      "at": "2026-08-27T08:13:19"
+    },
+    "1845|3387065": {
+      "state": "match",
+      "batches": 14,
+      "issues": 0,
+      "structure": 0,
+      "detail": "contents agree",
+      "at": "2026-08-27T13:29:57"
+    },
+    "1844|3386965": {
+      "state": "match",
+      "batches": 10,
+      "issues": 0,
+      "structure": 0,
+      "detail": "contents agree",
+      "at": "2026-08-28T12:48:28"
+    },
+    "1839|3387051": {
+      "state": "match",
+      "batches": 1,
+      "issues": 0,
+      "structure": 0,
+      "detail": "contents agree",
+      "at": "2026-08-27T13:32:33"
+    },
+    "1817|3380999": {
+      "state": "match",
+      "batches": 14,
+      "issues": 0,
+      "structure": 0,
+      "detail": "contents agree",
+      "at": "2026-08-28T17:07:47"
+    },
+    "1804|3387089": {
+      "state": "match",
+      "batches": 3,
+      "issues": 0,
+      "structure": 0,
+      "detail": "contents agree",
+      "at": "2026-08-27T13:30:42"
+    },
+    "1787|3386989": {
+      "state": "match",
+      "batches": 5,
+      "issues": 0,
+      "structure": 0,
+      "detail": "contents agree",
+      "at": "2026-08-27T13:31:55"
+    },
+    "1848|3387754": {
+      "state": "match",
+      "batches": 10,
+      "issues": 0,
+      "structure": 0,
+      "detail": "contents agree",
+      "at": "2026-08-31T12:57:26"
+    },
+    "1847|3387804": {
+      "state": "match",
+      "batches": 8,
+      "issues": 0,
+      "structure": 0,
+      "detail": "contents agree",
+      "at": "2026-08-28T16:59:55"
+    },
+    "1846|3387747": {
+      "state": "match",
+      "batches": 14,
+      "issues": 0,
+      "structure": 0,
+      "detail": "contents agree",
+      "at": "2026-08-28T10:06:42"
+    },
+    "1842|3387494": {
+      "state": "match",
+      "batches": 4,
+      "issues": 0,
+      "structure": 0,
+      "detail": "contents agree",
+      "at": "2026-09-01T11:15:18"
+    },
+    "1841|3387705": {
+      "state": "match",
+      "batches": 4,
+      "issues": 0,
+      "structure": 0,
+      "detail": "contents agree",
+      "at": "2026-09-01T11:15:14"
+    },
+    "1812|3388033": {
+      "state": "mismatch",
+      "batches": 9,
+      "issues": 2,
+      "structure": 0,
+      "detail": "2 of 9 batches off",
+      "at": "2026-08-28T16:55:43"
+    },
+    "1803|3388115": {
+      "state": "mismatch",
+      "batches": 17,
+      "issues": 1,
+      "structure": 1,
+      "detail": "1 of 17 batches off",
+      "at": "2026-08-28T17:01:17"
+    },
+    "1867|3388513": {
+      "state": "match",
+      "batches": 21,
+      "issues": 0,
+      "structure": 0,
+      "detail": "contents agree",
+      "at": "2026-08-31T08:31:29"
+    },
+    "1866|3388429": {
+      "state": "mismatch",
+      "batches": 18,
+      "issues": 18,
+      "structure": 0,
+      "detail": "18 of 18 batches off",
+      "at": "2026-08-31T08:32:31"
+    },
+    "1865|3388335": {
+      "state": "mismatch",
+      "batches": 24,
+      "issues": 24,
+      "structure": 0,
+      "detail": "24 of 24 batches off",
+      "at": "2026-08-31T08:34:06"
+    },
+    "1862|3390636": {
+      "state": "match",
+      "batches": 6,
+      "issues": 0,
+      "structure": 0,
+      "detail": "contents agree",
+      "at": "2026-08-31T12:51:45"
+    },
+    "1864|3390645": {
+      "state": "mismatch",
+      "batches": 19,
+      "issues": 18,
+      "structure": 0,
+      "detail": "18 of 19 batches off",
+      "at": "2026-08-31T13:17:18"
+    },
+    "1868|3390559": {
+      "state": "match",
+      "batches": 6,
+      "issues": 0,
+      "structure": 0,
+      "detail": "contents agree",
+      "at": "2026-08-31T12:01:29"
+    },
+    "1813|3383503": {
+      "state": "match",
+      "batches": 13,
+      "issues": 0,
+      "structure": 0,
+      "detail": "contents agree",
+      "at": "2026-09-01T10:48:22"
+    },
+    "1861|3390677": {
+      "state": "match",
+      "batches": 11,
+      "issues": 0,
+      "structure": 0,
+      "detail": "contents agree",
+      "at": "2026-08-31T12:52:46"
+    },
+    "1860|3390744": {
+      "state": "match",
+      "batches": 11,
+      "issues": 0,
+      "structure": 0,
+      "detail": "contents agree",
+      "at": "2026-08-31T12:58:16"
+    },
+    "1863|3390645": {
+      "state": "match",
+      "batches": 20,
+      "issues": 0,
+      "structure": 1,
+      "detail": "quantities agree \u2757 1 batch(es) structurally incorrect",
+      "at": "2026-08-31T18:34:31"
+    },
+    "1855|3391266": {
+      "state": "match",
+      "batches": 9,
+      "issues": 0,
+      "structure": 0,
+      "detail": "contents agree",
+      "at": "2026-09-01T08:04:09"
+    },
+    "1853|3391271": {
+      "state": "match",
+      "batches": 9,
+      "issues": 0,
+      "structure": 0,
+      "detail": "contents agree",
+      "at": "2026-09-01T08:02:18"
+    },
+    "1851|3391324": {
+      "state": "mismatch",
+      "batches": 10,
+      "issues": 1,
+      "structure": 0,
+      "detail": "1 of 10 batches off",
+      "at": "2026-09-01T08:04:46"
+    },
+    "1870|3392123": {
+      "state": "mismatch",
+      "batches": 6,
+      "issues": 4,
+      "structure": 0,
+      "detail": "4 of 6 batches off",
+      "at": "2026-09-03T09:49:11"
+    },
+    "1869|3392077": {
+      "state": "match",
+      "batches": 11,
+      "issues": 0,
+      "structure": 0,
+      "detail": "contents agree",
+      "at": "2026-09-03T09:51:12"
+    },
+    "1871|3392006": {
+      "state": "mismatch",
+      "batches": 21,
+      "issues": 3,
+      "structure": 0,
+      "detail": "3 of 21 batches off",
+      "at": "2026-09-01T14:49:21"
+    },
+    "1836|3391744": {
+      "state": "match",
+      "batches": 15,
+      "issues": 0,
+      "structure": 0,
+      "detail": "contents agree",
+      "at": "2026-09-01T14:53:37"
+    },
+    "1832|3392069": {
+      "state": "match",
+      "batches": 9,
+      "issues": 0,
+      "structure": 0,
+      "inv_g": 2560.0,
+      "metrc_g": 2560.0,
+      "diff_g": 0.0,
+      "shared_with": [],
+      "detail": "contents agree",
+      "at": "2026-09-02T12:50:01"
+    },
+    "1873|3392846": {
+      "state": "mismatch",
+      "batches": 12,
+      "issues": 7,
+      "structure": 0,
+      "detail": "7 of 12 batches off",
+      "at": "2026-09-03T09:55:00"
+    },
+    "1872|3392846": {
+      "state": "mismatch",
+      "batches": 11,
+      "issues": 8,
+      "structure": 0,
+      "detail": "8 of 11 batches off",
+      "at": "2026-09-03T09:52:34"
+    },
+    "1874|3393016": {
+      "state": "mismatch",
+      "batches": 15,
+      "issues": 2,
+      "structure": 0,
+      "detail": "2 of 15 batches off",
+      "at": "2026-09-03T10:02:53"
+    },
+    "1876|3393120": {
+      "state": "match",
+      "batches": 27,
+      "issues": 0,
+      "structure": 0,
+      "detail": "contents agree",
+      "at": "2026-09-03T11:30:47"
+    },
+    "1781|3392182": {
+      "state": "match",
+      "batches": 5,
+      "issues": 0,
+      "structure": 0,
+      "detail": "contents agree",
+      "at": "2026-09-03T09:59:27"
+    },
+    "1880|3394732": {
+      "state": "mismatch",
+      "batches": 14,
+      "issues": 2,
+      "structure": 0,
+      "detail": "2 of 14 batches off",
+      "at": "2026-09-04T10:23:27"
+    },
+    "1881|3394714": {
+      "state": "match",
+      "batches": 7,
+      "issues": 0,
+      "structure": 0,
+      "detail": "contents agree",
+      "at": "2026-09-04T10:22:27"
+    },
+    "1886|3396308": {
+      "state": "match",
+      "batches": 4,
+      "issues": 0,
+      "structure": 0,
+      "inv_g": 336.0,
+      "metrc_g": 336.0,
+      "diff_g": 0.0,
+      "shared_with": [],
+      "detail": "contents agree",
+      "at": "2026-09-04T11:57:39"
+    },
+    "1885|3396304": {
+      "state": "match",
+      "batches": 4,
+      "issues": 0,
+      "structure": 0,
+      "inv_g": 336.0,
+      "metrc_g": 336.0,
+      "diff_g": 0.0,
+      "shared_with": [],
+      "detail": "contents agree",
+      "at": "2026-09-04T11:57:41"
+    }
+  },
+  "saved_at": "2026-09-04T10:23:27"
+}

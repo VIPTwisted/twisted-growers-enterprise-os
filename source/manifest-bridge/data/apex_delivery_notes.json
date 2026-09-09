@@ -1,0 +1,102 @@
+{
+  "1832": {
+    "pickup": "MMM - Later morning",
+    "layover": "No",
+    "shipper": "MMM"
+  },
+  "1836": {
+    "pickup": "2-3pm today",
+    "layover": "yes",
+    "shipper": "Blossom"
+  },
+  "1850": {
+    "pickup": "9:30am pick-up [same day] - NEXT WEEK",
+    "layover": "No",
+    "shipper": "YPG"
+  },
+  "1851": {
+    "pickup": "9:30am pick-up [same day]",
+    "layover": "No",
+    "shipper": "YPG"
+  },
+  "1852": {
+    "pickup": "PREORDER - Vapes",
+    "layover": "PREORDER",
+    "shipper": "YPG"
+  },
+  "1853": {
+    "pickup": "9:30am pick-up [same day]",
+    "layover": "No",
+    "shipper": "YPG"
+  },
+  "1854": {
+    "pickup": "PRE ORDER - vapes",
+    "layover": "No",
+    "shipper": "YPG"
+  },
+  "1855": {
+    "pickup": "9:30am pick-up [same day]",
+    "layover": "No",
+    "shipper": "YPG"
+  },
+  "1856": {
+    "pickup": "PRE ORDER - vapes",
+    "layover": "No",
+    "shipper": "YPG"
+  },
+  "1860": {
+    "pickup": "9:30am pick-up [same day]",
+    "layover": "No",
+    "shipper": "YPG"
+  },
+  "1861": {
+    "pickup": "9:30am pick-up [same day]",
+    "layover": "No",
+    "shipper": "YPG"
+  },
+  "1862": {
+    "pickup": "9:30am pick-up [same day]",
+    "layover": "No",
+    "shipper": "YPG"
+  },
+  "1863": {
+    "pickup": "9:30am pick-up [same day]",
+    "layover": "No",
+    "shipper": "YPG"
+  },
+  "1864": {
+    "pickup": "9:30am pick-up [same day]",
+    "layover": "No",
+    "shipper": "YPG"
+  },
+  "1868": {
+    "pickup": "9:30am pick-up [same day]",
+    "layover": "No",
+    "shipper": "YPG"
+  },
+  "1869": {
+    "pickup": "9/2 - (2-3pm) pick-up",
+    "layover": "Yes",
+    "shipper": "Blossom"
+  },
+  "1870": {
+    "pickup": "9/2 - (2-3pm) pick-up",
+    "layover": "Yes",
+    "shipper": "Blossom"
+  },
+  "1871": {
+    "pickup": "2-3pm today",
+    "layover": "Yes",
+    "shipper": "blossom"
+  },
+  "1872": {
+    "pickup": "Tomorrow afternoon",
+    "layover": "",
+    "shipper": ""
+  },
+  "1873": {
+    "pickup": "tomorrow afternoon",
+    "layover": "",
+    "shipper": ""
+  }
+}
