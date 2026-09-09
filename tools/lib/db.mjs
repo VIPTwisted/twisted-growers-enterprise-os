@@ -118,7 +118,19 @@ export function refuse(gate, why) {
 
 /* Resolve, import the driver, connect — refusing at whichever step fails. Callers get a live
    client or never get control back, so there is no path on which a gate proceeds believing it
-   has a database when it does not. */
+   has a database when it does not.
+ *
+ * TRANSIENT POOLER FAILURES ARE RETRIED, NOT RELAXED. On 9 Sep 2026 three Netlify "Trigger
+ * deploy" rebuilds of an already-published SHA (5c2172a, live and matching origin/main)
+ * failed with generic exit 2. Schema counts, duplicate audit and GitHub Gates were green;
+ * the GitHub-hook publish from the same SHA at 12:47 UTC had succeeded in 59s. Three
+ * concurrent rebuilds all open pg.Client against the same pooler at once. A single refused
+ * connect is not "the database is gone" — it is a queue. Missing PGURL still refuses on
+ * attempt one. After ATTEMPTS the refusal is the same product as before, with the attempt
+ * count in the reason so a real outage is still readable at the bottom of the Netlify log. */
+const CONNECT_ATTEMPTS = 3;
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
 export async function openClient(gate, ROOT, { statement_timeout = 30000 } = {}) {
   const { conn, why, source } = resolveConnection(ROOT);
   if (!conn) refuse(gate, why);
@@ -130,18 +142,26 @@ export async function openClient(gate, ROOT, { statement_timeout = 30000 } = {})
     refuse(gate, "the pg driver is not installed here — run `npm install` at the repository root.");
   }
 
-  const client = new pg.Client({
-    connectionString: conn, ssl: { rejectUnauthorized: false }, statement_timeout,
-  });
-  try {
-    await client.connect();
-  } catch (e) {
-    await client.end().catch(() => {});
-    refuse(gate,
-      `the connection from ${source} failed: ${e.message.trim()}\n`
-      + `      it was pointed at ${describeTarget(conn)} (credential removed)\n`
-      + "      if that host is not the one you expect, the value is malformed — a secret\n"
-      + "      truncated inside its own hostname reads exactly like a DNS outage.");
+  let lastErr = null;
+  for (let i = 1; i <= CONNECT_ATTEMPTS; i++) {
+    const client = new pg.Client({
+      connectionString: conn, ssl: { rejectUnauthorized: false }, statement_timeout,
+    });
+    try {
+      await client.connect();
+      return client;
+    } catch (e) {
+      lastErr = e;
+      await client.end().catch(() => {});
+      if (i < CONNECT_ATTEMPTS) {
+        console.error(`${gate}: pooler connect attempt ${i}/${CONNECT_ATTEMPTS} failed (${e.message.trim()}); retrying.`);
+        await sleep(1500 * i);
+      }
+    }
   }
-  return client;
+  refuse(gate,
+    `the connection from ${source} failed after ${CONNECT_ATTEMPTS} attempts: ${lastErr.message.trim()}\n`
+    + `      it was pointed at ${describeTarget(conn)} (credential removed)\n`
+    + "      if that host is not the one you expect, the value is malformed — a secret\n"
+    + "      truncated inside its own hostname reads exactly like a DNS outage.");
 }
