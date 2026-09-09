@@ -284,7 +284,7 @@ export default function ReportVault({ session }) {
           ))}
           <button type="button" className={`chip ${lic === "APEX" ? "on" : ""}`} onClick={() => setLic("APEX")}>Apex</button>
           <button type="button" className={`chip ${lic === "NONE" ? "on" : ""}`} onClick={() => setLic("NONE")}>No licence</button>
-          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Filter file / class / licence" />
+          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Filter file / class / licence" aria-label="Filter vault files by name, class or licence" title="Filter vault files" />
         </div>
         <div className="scroll">
           <table>
