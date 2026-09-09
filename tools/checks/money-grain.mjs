@@ -743,8 +743,16 @@ const migrationEntries = files.map((name) => ({
  * RE-PINNED 8 Sep 2026, 1049 -> 1050 files, digest ff85ab4c… . plant_history freeze default all, month_date. Empty measures. Cycle 56. No ledger rewrite.
  *
  * RE-PINNED 8 Sep 2026, 1052 files, digest 6a278359… . Period bus one page: rpt-plants-vegetative default all. Live veg 30 / inactive 2,259. Empty measures. Cycle 56. No ledger rewrite.
+ *
+ * RE-PINNED 9 Sep 2026, still 1052 files, digest 3229af02… . Swap 20260908133330_baseline_live_schema.sql
+ * (counts 465/545/28/1333, drifted) for 20260909133000_baseline_live_schema.sql
+ * (live public catalog 475/546/28/1343). Covers unfiled apply_migration rows after
+ * 20260908213823 so migration-drift missing stays 0. Duplicate applied name
+ * canopy_two_size_live_flowering_fallback on 20260909062157 renamed in
+ * schema_migrations to *_retry (ratchet still 3). Tamper seal, not an approval
+ * of the dump body. Cycle 56. No ledger rewrite.
  */
-const expectedMigrationTreeDigest = "6a27835930be090602cf64ce83937eb6471a1b4329ed6bc71da1e60f48274659";
+const expectedMigrationTreeDigest = "3229af02f9937eb34d5313caea805cd2c00a00551436292058532fcfb20733ee";
 const actualMigrationTreeDigest = migrationTreeDigest(migrationEntries);
 if (actualMigrationTreeDigest !== expectedMigrationTreeDigest) {
   console.error(`money-grain: FAIL — migration tree differs from the independently reviewed ${files.length}-file manifest (${actualMigrationTreeDigest}).`);
