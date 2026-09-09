@@ -128,7 +128,7 @@ export default function ReportVault({ session }) {
           contentType: f.type || "application/octet-stream",
         });
         if (up.error) throw up.error;
-        const licence = g?.licence ?? (String(g?.need_key || "").startsWith("apex_") ? "MP281909" : null);
+        const licence = g?.licence ?? null;
         const ins = await supabase.from("report_vault").insert({
           original_name: f.name,
           storage_path: path,
@@ -160,17 +160,15 @@ export default function ReportVault({ session }) {
 
   const missing = board.filter((r) => (r.vault_status || "").startsWith("MISSING")).length;
   const classified = held.filter((r) => r.need_key).length;
-  const mc = held.filter((r) => r.licence === "MC281714").length;
-  const mp = held.filter((r) => r.licence === "MP281909").length;
+  const licenceList = [...new Set(held.map((r) => r.licence).filter(Boolean))].sort();
   const lastDrop = held[0]?.stored_at;
 
   const rows = useMemo(() => {
     const qq = q.trim().toLowerCase();
     return held.filter((r) => {
-      if (lic === "MC" && r.licence !== "MC281714") return false;
-      if (lic === "MP" && r.licence !== "MP281909") return false;
       if (lic === "APEX" && !(r.need_key || "").startsWith("apex_")) return false;
       if (lic === "NONE" && r.licence) return false;
+      if (lic !== "ALL" && lic !== "APEX" && lic !== "NONE" && r.licence !== lic) return false;
       if (!qq) return true;
       const blob = `${r.original_name} ${r.need_key || ""} ${r.report_key || ""} ${r.licence || ""} ${guessedAs(r)}`.toLowerCase();
       return blob.includes(qq);
@@ -203,8 +201,10 @@ export default function ReportVault({ session }) {
         </div>
         <div className="stat cut">
           <p className="k">By licence</p>
-          <p className="v" style={{ fontSize: 22 }}>MC {mc} · MP {mp}</p>
-          <p className="n">{held.length - mc - mp} Apex / other</p>
+          <p className="v" style={{ fontSize: 16, lineHeight: "1.5rem" }}>
+            {licenceList.length ? licenceList.map((L) => `${L} ${held.filter((r) => r.licence === L).length}`).join(" · ") : "—"}
+          </p>
+          <p className="n">{held.filter((r) => !r.licence).length} without a licence in the filename</p>
         </div>
         <div className="stat cut">
           <p className="k">Live</p>
@@ -278,11 +278,12 @@ export default function ReportVault({ session }) {
         <h2>Vault — everything ever dropped</h2>
         <p className="lede">{held.length} files · live, refreshes every 8 seconds · landing is not certification</p>
         <div className="filters">
-          {["ALL", "MC", "MP", "APEX", "NONE"].map((k) => (
-            <button key={k} type="button" className={`chip ${lic === k ? "on" : ""}`} onClick={() => setLic(k)}>
-              {k === "ALL" ? "All licences" : k === "MC" ? "MC281714" : k === "MP" ? "MP281909" : k === "APEX" ? "Apex" : "No licence"}
-            </button>
+          <button type="button" className={`chip ${lic === "ALL" ? "on" : ""}`} onClick={() => setLic("ALL")}>All licences</button>
+          {licenceList.map((L) => (
+            <button key={L} type="button" className={`chip ${lic === L ? "on" : ""}`} onClick={() => setLic(L)}>{L}</button>
           ))}
+          <button type="button" className={`chip ${lic === "APEX" ? "on" : ""}`} onClick={() => setLic("APEX")}>Apex</button>
+          <button type="button" className={`chip ${lic === "NONE" ? "on" : ""}`} onClick={() => setLic("NONE")}>No licence</button>
           <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Filter file / class / licence" />
         </div>
         <div className="scroll">
