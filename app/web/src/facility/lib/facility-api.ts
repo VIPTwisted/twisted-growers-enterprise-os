@@ -1,5 +1,6 @@
 import { FAC_ROOMS, FACILITY } from "@/data/facility";
 import { PACK_SEED, type PackItem } from "@/data/pack-inventory";
+import { hydrateS2S } from "@/data/s2s-rooms";
 
 export type AssignRow = {
   who: string;
@@ -63,6 +64,7 @@ function write(key: string, value: unknown) {
 }
 
 export async function loadFacility() {
+  await hydrateS2S();
   return {
     rooms: FAC_ROOMS,
     site: {

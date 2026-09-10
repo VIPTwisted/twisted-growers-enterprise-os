@@ -1,9 +1,16 @@
-/** Forensic seed-to-sale occupancy. Tagged canopy CERTIFIED 9 Sep. Batches and packages are OS-stated until dual MATCH. */
+/** Forensic seed-to-sale occupancy.
+ * Seed below is the 9 Sep 2026 book — the fail-closed fallback.
+ * After login, hydrateS2S overlays live v_facility_s2s_rooms onto this array in
+ * place so every existing consumer picks up Metrc occupancy without a rewrite.
+ * If the view does not answer, the book stays labelled 9 Sep 2026. Never dressed as today.
+ */
 import { LIC_MC, LIC_MP } from "@/data/licences";
+import { supabase } from "../../lib/supabase.js";
 
-export const S2S_AS_OF = "9 Sep 2026";
+export let S2S_AS_OF = "9 Sep 2026";
+export let S2S_TICK = 0;
 export const S2S_LAW =
-  "Metrc is SoR. Tagged flowering/veg rooms MATCH the 9 Sep grids. Clone and Vegetation hold untagged batches, not tagged plants. Package rooms overstate until the sync retires 73 orphans (369.7 lb). Empty rooms are listed on purpose.";
+  "Metrc is SoR. Tagged flowering/veg and active unfinished packages hydrate from v_facility_s2s_rooms. Clone and Vegetation untagged batches stay the 9 Sep book until plant batches are wired. Open harvests are not placed on the map: flower_room is origin, not current location, and the 9 Sep harvest book is not dressed as today. Empty rooms are listed on purpose. Fail closed: if the live view does not answer, this book stays labelled 9 Sep 2026.";
 
 export type S2SRoom = {
   licence: typeof LIC_MC | typeof LIC_MP;
@@ -24,7 +31,104 @@ export type S2SRoom = {
   note: string;
 };
 
+type LiveRow = {
+  licence: string;
+  room: string;
+  tagged_flowering: number;
+  tagged_veg: number;
+  pkg_n: number;
+  pkg_qty_g: number;
+  pkg_stale_n: number;
+  harvests_open: number;
+  harvest_wet_lb: number;
+  packages_as_of: string | null;
+  plants_as_of: string | null;
+  status: S2SRoom["status"];
+};
+
+function fmtAsOf(iso: string | null | undefined): string | null {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return null;
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "America/New_York",
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).formatToParts(d);
+  const get = (t: string) => parts.find((p) => p.type === t)?.value ?? "";
+  const day = get("day");
+  const month = get("month");
+  const year = get("year");
+  const hour = get("hour");
+  const minute = get("minute");
+  if (!day || !month || !year) return null;
+  return `${day} ${month} ${year} ${hour}:${minute} ET`;
+}
+
+function overlayLive(live: LiveRow[]) {
+  const byKey = new Map(live.map((r) => [`${r.licence}|${r.room}`, r]));
+  for (const row of S2S_ROOMS) {
+    const key = `${row.licence}|${row.room}`;
+    const hit = byKey.get(key);
+    if (!hit) {
+      row.tagged_flowering = 0;
+      row.tagged_veg = 0;
+      row.pkg_n = 0;
+      row.pkg_qty_g = 0;
+      row.pkg_stale_n = 0;
+      row.harvests_open = 0;
+      row.harvest_wet_lb = 0;
+      row.harvest_plants = 0;
+      if (row.batch_n || row.batch_plants) {
+        row.status = "PARTIAL";
+      } else {
+        row.status = "EMPTY";
+      }
+      continue;
+    }
+    row.tagged_flowering = Number(hit.tagged_flowering) || 0;
+    row.tagged_veg = Number(hit.tagged_veg) || 0;
+    row.pkg_n = Number(hit.pkg_n) || 0;
+    row.pkg_qty_g = Number(hit.pkg_qty_g) || 0;
+    row.pkg_stale_n = Number(hit.pkg_stale_n) || 0;
+    // Harvests: flower_room is origin, not where the material sits. Do not
+    // paint them onto canopy, and do not keep the 9 Sep dry-room book under
+    // today's as-of. Fail closed to zero until harvests have a current room.
+    row.harvests_open = 0;
+    row.harvest_wet_lb = 0;
+    row.harvest_plants = 0;
+    row.status = hit.status;
+  }
+}
+
+export async function hydrateS2S(): Promise<{ ok: boolean; asOf: string }> {
+  try {
+    const { data, error } = await supabase
+      .from("v_facility_s2s_rooms")
+      .select(
+        "licence,room,tagged_flowering,tagged_veg,pkg_n,pkg_qty_g,pkg_stale_n,harvests_open,harvest_wet_lb,packages_as_of,plants_as_of,status",
+      );
+    if (error || !data) return { ok: false, asOf: S2S_AS_OF };
+    overlayLive(data as LiveRow[]);
+    const stamps = (data as LiveRow[])
+      .map((r) => r.packages_as_of || r.plants_as_of)
+      .filter((x): x is string => !!x)
+      .sort();
+    const asOf = fmtAsOf(stamps[stamps.length - 1]);
+    if (asOf) S2S_AS_OF = asOf;
+    S2S_TICK += 1;
+    return { ok: true, asOf: S2S_AS_OF };
+  } catch {
+    return { ok: false, asOf: S2S_AS_OF };
+  }
+}
+
 export const S2S_ROOMS: S2SRoom[] = [
+
   { licence: LIC_MC, room: "Flower Room #1", role: "Flowering", stage: "CANOPY", tagged_flowering: 1140, tagged_veg: 0, batch_n: 0, batch_plants: 0, harvests_open: 0, harvest_plants: 0, harvest_wet_lb: 0, pkg_n: 0, pkg_qty_g: 0, pkg_stale_n: 0, status: "CERTIFIED", note: "6 strains × 190. Dual MATCH tag|strain|room|planted." },
   { licence: LIC_MC, room: "Flower Room #2", role: "Flowering", stage: "CANOPY", tagged_flowering: 1050, tagged_veg: 0, batch_n: 0, batch_plants: 0, harvests_open: 0, harvest_plants: 0, harvest_wet_lb: 0, pkg_n: 0, pkg_qty_g: 0, pkg_stale_n: 0, status: "CERTIFIED", note: "SMALL cap 1,050. Dual MATCH." },
   { licence: LIC_MC, room: "Flower Room #3", role: "Flowering", stage: "CANOPY", tagged_flowering: 1140, tagged_veg: 0, batch_n: 0, batch_plants: 0, harvests_open: 0, harvest_plants: 0, harvest_wet_lb: 0, pkg_n: 0, pkg_qty_g: 0, pkg_stale_n: 0, status: "CERTIFIED", note: "LARGE cap 1,140. Dual MATCH." },
