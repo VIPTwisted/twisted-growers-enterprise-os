@@ -11821,6 +11821,7 @@ export default function App() {
     add(finance);
     add(tax);
     add(hr);
+    add([{ view_key: "facility_twin", label: "Facility Map", category: "Facility Map" }]);
     return out;
   }, [nav, reports, deep, apps, finance, tax, hr]);
   const [openCats, setOpenCats] = useState(() => {
@@ -12178,7 +12179,7 @@ export default function App() {
       )}
 
       {!isFacility && <header className="topnav">
-        <button type="button" className="tlogo" title="Home — Command Center" onClick={goHome}>
+        <button type="button" className="tlogo" title="Home — Facility Map" onClick={goHome}>
           <img src="/tg-mark.png" alt="" style={{ width: 34, height: 34, borderRadius: "50%" }} />
           <span className="tword">Twisted <b>Growers</b></span>
         </button>
