@@ -488,6 +488,9 @@ export const FAC_ROOMS: FacRoom[] = [
   },
 ];
 
+/* Floor SoR for unpaid-break waves. Wave 2 is 13:30-14:00.
+   Owner 10 Sep 2026 17:49 ET: this file is the clock. The card loader
+   (facility-api.ts) had drifted to 13:00-13:30; it now matches this. */
 export const BREAK_WAVES = [
   { id: "w1", label: "Wave 1", start: "12:00", end: "12:30", note: "Unpaid break. Wave 2 remains on the floor." },
   {

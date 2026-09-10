@@ -765,8 +765,13 @@ const migrationEntries = files.map((name) => ({
  * Covers unfiled apply_migration rows after 20260910140000 (deployment tracker,
  * metrc dispatch assertion, certificate matview). Files the dispatch-vs-run
  * assertion at applied version 20260910193933. Cycle 56. No ledger rewrite.
+ *
+ * RE-PINNED 10 Sep 2026, 1053 -> 1055 files, digest f85291b3… . Swap
+ * 20260910204500_baseline_live_schema.sql for 20260910220000 (counts still
+ * 479/550/29/1355). Files owner rulings 20260910215502 and signed-check
+ * recorder 20260910215527. Cycle 56. No ledger rewrite.
  */
-const expectedMigrationTreeDigest = "445440e05033a443595210a22bde17124a938f4dd5d7fc5164ecfaf77ca59cda";
+const expectedMigrationTreeDigest = "f85291b306e8c21ccb1300cb28a9ab9e21c096d1f1594aadf65d237524af15f7";
 const actualMigrationTreeDigest = migrationTreeDigest(migrationEntries);
 if (actualMigrationTreeDigest !== expectedMigrationTreeDigest) {
   console.error(`money-grain: FAIL — migration tree differs from the independently reviewed ${files.length}-file manifest (${actualMigrationTreeDigest}).`);
