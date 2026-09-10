@@ -751,8 +751,15 @@ const migrationEntries = files.map((name) => ({
  * canopy_two_size_live_flowering_fallback on 20260909062157 renamed in
  * schema_migrations to *_retry (ratchet still 3). Tamper seal, not an approval
  * of the dump body. Cycle 56. No ledger rewrite.
+ *
+ * RE-PINNED 10 Sep 2026, still 1052 files, digest 7b92cf79… . Swap
+ * 20260909133000_baseline_live_schema.sql (counts 475/546/28/1343, drifted) for
+ * 20260910140000_baseline_live_schema.sql (live public catalog 477/549/28/1349).
+ * Covers unfiled apply_migration rows after 20260909204220 so migration-drift
+ * missing stays 0. Duplicates still 3. Tamper seal, not an approval of the dump
+ * body. Cycle 56. No ledger rewrite.
  */
-const expectedMigrationTreeDigest = "3229af02f9937eb34d5313caea805cd2c00a00551436292058532fcfb20733ee";
+const expectedMigrationTreeDigest = "7b92cf79f4bf37c5a614f9b69982f15e0ad90b2e66478a8fe83c185ad4a29f92";
 const actualMigrationTreeDigest = migrationTreeDigest(migrationEntries);
 if (actualMigrationTreeDigest !== expectedMigrationTreeDigest) {
   console.error(`money-grain: FAIL — migration tree differs from the independently reviewed ${files.length}-file manifest (${actualMigrationTreeDigest}).`);
