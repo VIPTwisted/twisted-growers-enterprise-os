@@ -1,9 +1,15 @@
-/* Owner/CEO Command Center is always first — eye in the sky.
+/* Facility Map is first. Command Center is the OS — open it from the map's Home.
    Top bar Finance/Tax/HR frozen. Children are daily tools, not All Data.
    Every child view_key already exists — nothing invented, nothing omitted. */
 import React, { useEffect, useState } from "react";
 
 export const COCKPITS = [
+  {
+    view_key: "facility_twin",
+    label: "Facility Map",
+    short: "Map",
+    children: [],
+  },
   {
     view_key: "dept_dash_command",
     label: "Command Center",
@@ -171,6 +177,7 @@ export const COCKPITS = [
 ];
 
 export function cockpitViewForCategory(cat) {
+  if (cat === "Facility Map") return "facility_twin";
   if (cat === "Command Center") return "dept_dash_command";
   if (cat === "Cultivation") return "dept_dash_cultivation";
   if (cat === "Manufacturing") return "dept_dash_mfg";

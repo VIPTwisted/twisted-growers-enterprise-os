@@ -1,9 +1,10 @@
 /* OS chrome: Back / Forward / Home + Spotlight.
    History is in-app so Back never dumps you out of the OS.
-   Home is Command Center. Spotlight reads live nav_registry — no frozen page list. */
+   Home is the facility map. Command Center is the map's own Home.
+   Spotlight reads live nav_registry — no frozen page list. */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-export const HOME_VIEW = "dept_dash_command";
+export const HOME_VIEW = "facility_twin";
 export const LANDING_VIEW = "facility_twin";
 
 export function useOsHistory() {
@@ -144,7 +145,7 @@ export function OsNavBtns({ canBack, canForward, goBack, goForward, goHome, onFi
     <div className="osnav" role="toolbar" aria-label="OS navigation">
       <button type="button" className="tibtn" disabled={!canBack} aria-label="Back" title="Back (Alt+Left)" onClick={goBack}><IcoBack /></button>
       <button type="button" className="tibtn" disabled={!canForward} aria-label="Forward" title="Forward (Alt+Right)" onClick={goForward}><IcoFwd /></button>
-      <button type="button" className="tibtn" aria-label="Home — Command Center" title="Home — Command Center (Alt+Home)" onClick={goHome}><IcoHome /></button>
+      <button type="button" className="tibtn" aria-label="Home — Facility Map" title="Home — Facility Map (Alt+Home)" onClick={goHome}><IcoHome /></button>
       <button type="button" className="tibtn" aria-label="Find a page" title="Find (Ctrl/Cmd+K)" onClick={() => onFind && onFind()}><IcoFind /></button>
     </div>
   );
