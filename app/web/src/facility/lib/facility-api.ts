@@ -28,8 +28,22 @@ export type SiteRow = {
 
 const WAVES: WaveRow[] = [
   { id: "w1", label: "Wave 1", start: "12:00", end: "12:30", note: "Unpaid break. Wave 2 remains on the floor.", sort_rank: 1 },
-  { id: "w2", label: "Wave 2", start: "13:00", end: "13:30", note: "Unpaid break. Wave 1 remains on the floor.", sort_rank: 2 },
+  /* Floor file (facility.ts BREAK_WAVES) is 13:30-14:00. This loader had drifted
+     to 13:00-13:30. Owner 10 Sep 2026 17:49 ET: the floor file is the clock.
+     localStorage that still holds the drifted pair is rewritten on read. */
+  { id: "w2", label: "Wave 2", start: "13:30", end: "14:00", note: "Unpaid break. Wave 1 remains on the floor.", sort_rank: 2 },
 ];
+
+function wavesFromStore(): WaveRow[] {
+  const rows = read<WaveRow[]>("waves", WAVES);
+  const next = rows.map((r) =>
+    r.id === "w2" && (r.start !== "13:30" || r.end !== "14:00")
+      ? { ...r, start: "13:30", end: "14:00", note: "Unpaid break. Wave 1 remains on the floor." }
+      : r,
+  );
+  if (JSON.stringify(next) !== JSON.stringify(rows)) write("waves", next);
+  return next;
+}
 
 function read<T>(key: string, fallback: T): T {
   try {
@@ -59,7 +73,7 @@ export async function loadFacility() {
       plan: FACILITY.plan,
       aspect: FACILITY.aspect,
     } satisfies SiteRow,
-    waves: read<WaveRow[]>("waves", WAVES),
+    waves: wavesFromStore(),
     assigns: read<AssignRow[]>("assigns", []),
     pack: read<PackItem[]>("pack", PACK_SEED),
   };
@@ -104,7 +118,7 @@ export async function removeOp({ data }: { data: { id: string } }) {
 }
 
 export async function saveWave({ data }: { data: WaveRow }) {
-  const rows = read<WaveRow[]>("waves", WAVES);
+  const rows = wavesFromStore();
   write("waves", rows.map((r) => (r.id === data.id ? { ...r, ...data } : r)));
   return { ok: true as const };
 }
