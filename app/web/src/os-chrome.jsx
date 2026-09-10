@@ -4,10 +4,11 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 export const HOME_VIEW = "dept_dash_command";
+export const LANDING_VIEW = "facility_twin";
 
 export function useOsHistory() {
-  const initial = window.location.hash.slice(1) || HOME_VIEW;
-  const [view, setViewRaw] = useState(() => window.location.hash.slice(1) || HOME_VIEW);
+  const initial = window.location.hash.slice(1) || LANDING_VIEW;
+  const [view, setViewRaw] = useState(() => window.location.hash.slice(1) || LANDING_VIEW);
   const [tick, setTick] = useState(0);
   const st = useRef({ stack: [initial], i: 0 });
 
@@ -54,7 +55,7 @@ export function useOsHistory() {
 
   useEffect(() => {
     const onNav = () => {
-      const h = window.location.hash.slice(1) || HOME_VIEW;
+      const h = window.location.hash.slice(1) || LANDING_VIEW;
       const s = st.current;
       if (h === s.stack[s.i]) return;
       if (s.i > 0 && h === s.stack[s.i - 1]) {

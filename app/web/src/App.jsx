@@ -146,6 +146,7 @@ const OsHelp = lazy(() => import("./os-help.jsx"));
 const OsUsers = lazy(() => import("./os-users.jsx"));
 const OsPermissions = lazy(() => import("./os-permissions.jsx"));
 const GrokJump = lazy(() => import("./grok-jump.jsx"));
+const FacilityTwin = lazy(() => import("./facility/components/facility-twin.tsx"));
 
 // Laws: live numbers (2) · no fake data (3) · nothing hardwired (4) — navigation itself is DB rows.
 
@@ -12094,6 +12095,7 @@ export default function App() {
     moisture_loss_register: <MoistureRegister go={setView} session={session} role={role} viewAs={viewAsRole} reports={reports} />,
     grading: <Grading go={setView} session={session} role={role} viewAs={viewAsRole} reports={reports} />,
     xq_metrc_exceptions: <MetrcExceptions go={setView} session={session} role={role} viewAs={viewAsRole} reports={reports} />,
+    facility_twin: <FacilityTwin />,
     menu_manager: isExec
       ? <MenuManager onChanged={() => setNavVersion((v) => v + 1)} />
       : <div className="empty"><div className="eicon">{I.shield}</div><b>Admin area</b>Menu Manager is restricted to executives. Ask an owner if a menu change is needed.</div>,
@@ -12148,15 +12150,16 @@ export default function App() {
       )
       : <ControlTower go={setView} />);
 
+  const isFacility = view === "facility_twin";
   return (
-    <div className="frame">
+    <div className={isFacility ? "frame is-facility" : "frame"} style={isFacility ? { height: "100vh", minHeight: "100vh" } : undefined}>
       {/* The impossible-to-miss preview banner. It stays on every page for as
           long as the lens is active, and one click ends it. Honest limit stated:
           row-level security still runs as the signed-in admin, so DATA does not
           change in preview — only which surfaces render. A true data-level
           preview is a server-side project for the database chief operating
           officer, not a front-end toggle. */}
-      {viewAsRole && (
+      {!isFacility && viewAsRole && (
         <div className="viewasbanner" role="status">
           <b>VIEWING AS {viewAsRole}</b> — presentation preview only: menus and pages render with
           that role&rsquo;s visibility; your own permissions and your own data access still apply, and
@@ -12164,8 +12167,8 @@ export default function App() {
           <button className="btn small" onClick={() => switchViewAs(null)}>Exit preview</button>
         </div>
       )}
-      {viewAsMsg && <div className="viewasbanner"><b>Preview problem:</b> {viewAsMsg}</div>}
-      {launcher && <Launcher onGo={setView} onClose={() => setLauncher(false)} apps={apps} />}
+      {!isFacility && viewAsMsg && <div className="viewasbanner"><b>Preview problem:</b> {viewAsMsg}</div>}
+      {!isFacility && launcher && <Launcher onGo={setView} onClose={() => setLauncher(false)} apps={apps} />}
       {preferenceError && (
         <div className="boundary" role="alert" style={{ position: "fixed", right: 16, bottom: 16, zIndex: 10000, maxWidth: 460 }}>
           <b>{preferenceError.area} was not saved to your account.</b>
@@ -12174,7 +12177,7 @@ export default function App() {
         </div>
       )}
 
-      <header className="topnav">
+      {!isFacility && <header className="topnav">
         <button type="button" className="tlogo" title="Home — Command Center" onClick={goHome}>
           <img src="/tg-mark.png" alt="" style={{ width: 34, height: 34, borderRadius: "50%" }} />
           <span className="tword">Twisted <b>Growers</b></span>
@@ -12309,9 +12312,9 @@ export default function App() {
             )}
           </div>
         </div>
-      </header>
-      <div className="below">
-        <nav className={`nav ${prefs.collapsed ? "closed" : ""} ${dragging ? "dragging" : ""}`}
+      </header>}
+      <div className="below" style={isFacility ? { height: "100%" } : undefined}>
+        {!isFacility && <nav className={`nav ${prefs.collapsed ? "closed" : ""} ${dragging ? "dragging" : ""}`}
           style={prefs.collapsed ? undefined : { width: prefs.navWidth }}>
           <div className="navtools">
             <button onClick={() => setRailExpand({ n: Date.now(), open: true })}>Expand all</button>
@@ -12360,8 +12363,8 @@ export default function App() {
           {!prefs.collapsed && (
             <div className="dragbar" onMouseDown={(e) => { e.preventDefault(); setDragging(true); }} title="Drag to resize" />
           )}
-        </nav>
-        <main className="main">
+        </nav>}
+        <main className="main" style={isFacility ? { padding: 0, overflow: "hidden", display: "flex", flexDirection: "column", height: "100%", minHeight: 0 } : undefined}>
           {/* Suspense wraps the PAGE only, never the shell. A lazily loaded
               route arrives as a separate chunk, and while it is in flight this
               says so in one honest line — the side menu and the top menu are
@@ -12370,7 +12373,7 @@ export default function App() {
               page error rather than white-screening the app. */}
           <Boundary resetKey={view}>
             <Suspense fallback={<div className="note" style={{ padding: 16 }}>Loading this page…</div>}>
-              {(view === "dept_dash_command" || view === "dept_dash_cultivation" || view === "dept_dash_mfg" || view === "tower" || view === "ceo_dashboard") ? <GrokJump go={setView} /> : null}
+              {(!isFacility && (view === "dept_dash_command" || view === "dept_dash_cultivation" || view === "dept_dash_mfg" || view === "tower" || view === "ceo_dashboard")) ? <GrokJump go={setView} /> : null}
               {body}
             </Suspense>
           </Boundary>
@@ -12385,12 +12388,12 @@ export default function App() {
           assistant at all. While that setting is still loading aiRoles is null
           and the pet does not render, so a role without AI access never sees him
           flash up before the check completes. */}
-      {petOn && aiRoles && role && aiRoles.includes(role) && (
+      {!isFacility && petOn && aiRoles && role && aiRoles.includes(role) && (
         <Boundary resetKey="budz-pet">
           <BudzPet go={setView} onClose={() => setPetOn(false)} />
         </Boundary>
       )}
-      <OsFind open={findOpen} onClose={() => setFindOpen(false)} go={setView} pages={findPages} />
+      {!isFacility && <OsFind open={findOpen} onClose={() => setFindOpen(false)} go={setView} pages={findPages} />}
     </div>
   );
 }
