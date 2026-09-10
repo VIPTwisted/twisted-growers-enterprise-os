@@ -120,6 +120,7 @@ export function FacilityTwin() {
   const [cardW, setCardW] = useState(loadCardW);
   const [half, setHalf] = useState(cardMax);
   const [lic] = useState<"ALL" | typeof LIC_MC | typeof LIC_MP>("ALL");
+  const [s2sTick, setS2sTick] = useState(0);
 
   useEffect(() => {
     const onResize = () => {
@@ -169,6 +170,7 @@ export function FacilityTwin() {
         })),
       );
       setPack(Array.isArray(data.pack) && data.pack.length ? data.pack : PACK_SEED);
+      setS2sTick((n) => n + 1);
     } catch {
       setRooms(FAC_ROOMS);
     }
@@ -182,7 +184,7 @@ export function FacilityTwin() {
   const shown =
     wing === "facility" ? floor.filter((r) => !isRestroom(r)) : floor.filter((r) => inWing(r, wing));
   const room = sel ? floor.find((r) => r.id === sel) : undefined;
-  const canopy = useMemo(() => taggedFlowering(), []);
+  const canopy = useMemo(() => taggedFlowering(), [s2sTick]);
   const packLow = packLowCount(pack) > 0;
   const cardOpen = !!(drill || room);
   const setWidth = (n: number) => setCardW(clampCardW(n, half));
