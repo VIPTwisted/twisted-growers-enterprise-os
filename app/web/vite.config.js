@@ -1,6 +1,10 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import { execFileSync } from "node:child_process";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+const here = path.dirname(fileURLToPath(import.meta.url));
 
 /* THE BUILD STAMP — the missing half of tools/checks/deploy-current.mjs.
  *
@@ -29,6 +33,12 @@ function buildStamp() {
 const stamp = buildStamp();
 
 export default defineConfig({
+  resolve: {
+    alias: {
+      "@": path.join(here, "src/facility"),
+      "@tanstack/react-router": path.join(here, "src/facility/shims/react-router.jsx"),
+    },
+  },
   plugins: [
     react(),
     {
