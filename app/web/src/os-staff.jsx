@@ -2,7 +2,8 @@
    Live AI — same engine as Budz. Buddy on Grok stays boss. Metrc read-only. */
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { askBudzFull } from "./budz.jsx";
-import { connectTopG, pingTgBots, TG_BOTS_ZIP, topGConnected } from "./lib/topg-connect.js";
+import TgBotsPanel from "./lib/tg-bots-panel.jsx";
+import { topGConnected } from "./lib/topg-connect.js";
 import "./os-staff.css";
 
 const STAFF = [
@@ -113,7 +114,6 @@ export default function OsStaff({ go }) {
   const [thread, setThread] = useState(() => loadThread("topg"));
   const [busy, setBusy] = useState(false);
   const [topg, setTopg] = useState(() => topGConnected());
-  const [extOn, setExtOn] = useState(false);
   const [routines, setRoutines] = useState(() => loadRoutines());
   const [newRoutine, setNewRoutine] = useState(false);
   const [form, setForm] = useState({ botId: "topg", name: "", when: WHEN_PRESETS[0], intent: "Check X. Quiet if empty." });
@@ -129,7 +129,6 @@ export default function OsStaff({ go }) {
   const company = listed.filter((s) => !s.pin);
 
   useEffect(() => {
-    pingTgBots().then((r) => setExtOn(!!r.installed));
     const n = () => setTopg(topGConnected());
     window.addEventListener("tg-topg", n);
     return () => window.removeEventListener("tg-topg", n);
@@ -250,11 +249,7 @@ export default function OsStaff({ go }) {
           ))}
         </ul>
         <div className="osstaff-foot">
-          <button type="button" className="osstaff-go" onClick={async () => {
-            const r = await connectTopG("grok");
-            setTopg(true);
-            setExtOn(!!r.installed);
-          }}>{topg ? "Top G on" : "Connect Top G"}</button>
+          <p className="osstaff-k">{topg ? "Bots live on this computer" : "Tap Grok, Claude, or ChatGPT above the chat"}</p>
         </div>
       </aside>
 
@@ -269,13 +264,7 @@ export default function OsStaff({ go }) {
             <button type="button" className="osstaff-go" onClick={() => go(bot.open)}>Open desk</button>
           ) : null}
         </header>
-        {!extOn && (
-          <p className="osstaff-note">
-            TG Bots add-on is not on this computer yet.{" "}
-            <a href={TG_BOTS_ZIP} download="tg-ai-ext.zip">Download TG Bots</a>
-            {" "}then Chrome → extensions → Developer mode → Load unpacked.
-          </p>
-        )}
+        <TgBotsPanel compact onReady={() => setTopg(true)} />
         <div className="osstaff-thread">
           {thread.length === 0 ? (
             <div className="osstaff-empty">

@@ -21,15 +21,70 @@ import { supabase } from "./supabase.js";
 export const TG_BOTS_ID = "egdhinbnbmibdccbmncgpbmnioepoecj";
 export const TOPG_KEY = "tg-topg-connected";
 export const TG_BOTS_ZIP = "/tg-ai-ext.zip";
+export const TG_BOTS_PROVIDER_KEY = "tg-bots-provider";
 
 /* The four the add-on can drive. `grokbots` is a named Grok bot, so it also
    needs a botsUrl. Labels are what a person should see. */
 export const PROVIDERS = [
+  { key: "grok", label: "Grok", site: "grok.com" },
   { key: "claude", label: "Claude", site: "claude.ai" },
   { key: "gpt", label: "ChatGPT", site: "chatgpt.com" },
-  { key: "grok", label: "Grok", site: "grok.com" },
   { key: "grokbots", label: "Grok Bots", site: "grok.com", needsUrl: true },
 ];
+
+/* OS ai_models.provider is anthropic/xai/openai. The add-on speaks grok/claude/gpt. */
+const MODEL_FOR = {
+  grok: { id: "grok-current", provider: "xai" },
+  grokbots: { id: "grok-current", provider: "xai" },
+  claude: { id: "claude-opus-5", provider: "anthropic" },
+  gpt: { id: "gpt-current", provider: "openai" },
+};
+
+export function providerLabel(key) {
+  return (PROVIDERS.find((p) => p.key === key) || PROVIDERS[0]).label;
+}
+
+export function extProviderNow() {
+  try {
+    const p = localStorage.getItem(TG_BOTS_PROVIDER_KEY);
+    if (p && PROVIDERS.some((x) => x.key === p)) return p;
+  } catch { /* private mode */ }
+  return "grok";
+}
+
+export function extProviderFromOs(osProvider) {
+  /* This computer's last tap wins. The add-on types into a tab on THIS machine,
+     so a Grok tap here must not be overridden by a company-default Claude row. */
+  try {
+    const tapped = localStorage.getItem(TG_BOTS_PROVIDER_KEY);
+    if (tapped && PROVIDERS.some((x) => x.key === tapped)) return tapped;
+  } catch { /* private mode */ }
+  if (osProvider === "openai") return "gpt";
+  if (osProvider === "anthropic") return "claude";
+  if (osProvider === "xai") return "grok";
+  return "grok";
+}
+
+export function viaLine(extProvider, model) {
+  const who = providerLabel(extProvider);
+  const ver = model && model !== "current" ? ` · ${model}` : "";
+  return `${who} (your subscription${ver})`;
+}
+
+/* Remember the tap on THIS account. Does not grant access - admin already did. */
+export async function savePreferred(extProvider) {
+  const m = MODEL_FOR[extProvider] || MODEL_FOR.grok;
+  try { localStorage.setItem(TG_BOTS_PROVIDER_KEY, extProvider); } catch { /* private mode */ }
+  const { data: u } = await supabase.auth.getUser();
+  const id = u?.user?.id;
+  if (!id) return;
+  await supabase.from("ai_user_access").upsert({
+    user_id: id,
+    preferred_model: m.id,
+    preferred_provider: m.provider,
+    updated_at: new Date().toISOString(),
+  }, { onConflict: "user_id" });
+}
 
 export function topGConnected() {
   try { return localStorage.getItem(TOPG_KEY) === "1"; } catch { return false; }
@@ -92,7 +147,7 @@ export function wakeTgBots() {
    Returns { installed, ok, provider, model, models, error }. When `installed` is
    false the caller should show the download link and stop - there is nothing to
    configure yet. */
-export async function pushButtonSetup({ provider = "claude", model = "", botsUrl = "" } = {}) {
+export async function pushButtonSetup({ provider = "grok", model = "", botsUrl = "" } = {}) {
   const alive = await pingTgBots();
   if (!alive.installed) {
     return { installed: false, ok: false, error: "TG Bots add-on is not on this computer yet." };
@@ -118,6 +173,7 @@ export async function pushButtonSetup({ provider = "claude", model = "", botsUrl
   }
 
   try { localStorage.setItem(TOPG_KEY, "1"); } catch { /* private mode */ }
+  try { localStorage.setItem(TG_BOTS_PROVIDER_KEY, provider); } catch { /* private mode */ }
   try { window.dispatchEvent(new Event("tg-topg")); } catch { /* no window */ }
 
   /* Best-effort: read the version list so the picker can be populated straight
@@ -142,10 +198,10 @@ export async function pushButtonSetup({ provider = "claude", model = "", botsUrl
   };
 }
 
+/* Old name. Used to mark "connected" even when the add-on was missing. That is
+   a green light over a dead wire. One-tap setup is the only path now. */
 export async function connectTopG(provider) {
-  try { localStorage.setItem(TOPG_KEY, "1"); } catch { /* private mode */ }
-  try { window.dispatchEvent(new Event("tg-topg")); } catch { /* no window */ }
-  return sendExt({ type: "TG_BOTS_CONNECT", provider: provider || "grok" });
+  return pushButtonSetup({ provider: provider || "grok" });
 }
 
 export async function disconnectTopG() {
