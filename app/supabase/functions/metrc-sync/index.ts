@@ -1,4 +1,4 @@
-// TG Enterprise OS — exact backfill claims added to the deployed worker logic.
+// TG Enterprise OS — complete source staging, record verification and atomic promotion.
 // v27: successful feed completion and its cursor commit atomically; concurrent feeds cannot rewind one another.
 //
 // v22, 28 August 2026: one change and nothing else. Rows are upserted in BATCHES
@@ -91,7 +91,8 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
 import { backfillClaim, claimBackfill } from "./backfill.ts";
-import { readMetrcCursors, finishMetrcCursor, deltaCursorWindow } from "./cursor.ts";
+import { readMetrcCursors, deltaCursorWindow } from "./cursor.ts";
+import { verifiedMetrcPull } from "./verified-pull.ts";
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -424,6 +425,15 @@ async function runSpec(base: string, license: string, auth: string, spec: Spec,
   if (createError || !run) throw new Error(createError?.message ?? "Sync run could not be created");
   OPEN_RUN = { id: run!.id as number, records: 0 };
   try {
+    if (spec.delta) {
+      if (!window) throw new Error("Source verification requires an explicit Metrc window");
+      const result = await verifiedMetrcPull({ db: supa, get: (url) => politeFetch(url, auth), outOfTime, sleep }, {
+        base, runId: run.id, license, spec, window, advanceCursor: !!cursorWindow,
+        pageSize, maxPages: MAX_PAGES, pauseMs: PAGE_PAUSE_MS,
+      });
+      OPEN_RUN = null;
+      return result;
+    }
     let n = 0; let anyTrunc = false; let ranOut = false; const subErrors: string[] = [];
     for (const p of spec.paths) {
       if (outOfTime()) { ranOut = true; break; }
@@ -444,12 +454,7 @@ async function runSpec(base: string, license: string, auth: string, spec: Spec,
     const failedEverything = subErrors.length >= spec.paths.length;
     const complete = subErrors.length === 0 && !anyTrunc && !ranOut;
     const status = failedEverything ? "error" : (complete ? "ok" : "partial");
-    if (complete && cursorWindow) {
-      await finishMetrcCursor(supa, {
-        p_run_id: run.id, p_endpoint: spec.key, p_license: license,
-        p_window_start: cursorWindow.start, p_window_end: cursorWindow.end, p_records: n,
-      });
-    } else {
+    {
       const { error: closeError } = await supa.from("metrc_sync_runs").update({
         status, records: n,
         error: subErrors.length ? subErrors.join(" · ").slice(0, 480) : null,
