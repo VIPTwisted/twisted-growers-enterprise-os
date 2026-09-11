@@ -81,6 +81,13 @@ TotalPages. Available metadata must agree within and across pages. Legacy bare-a
 responses require a short terminal page. Page caps and deadlines remain explicit
 incomplete outcomes; they cannot silently count as complete.
 
+Live verification on 11 September found that Metrc reports **actual records on the
+page** as PageSize on short/empty pages: a 43-record pull returned 20, 20, 3, and an
+empty endpoint returned 0. The follow-up pagination migration accepts only the
+requested capacity or the actual array length. Fixtures cover both, reject arbitrary
+sizes and still require exact TotalRecords, TotalPages and page sequence. The first
+two incomplete replays are retained as evidence; neither promoted any mirror rows.
+
 Existing numeric(14,3) mirror columns cannot represent every possible source value.
 This verifier refuses such loss rather than certifying rounded values. Precision
 repair, full population reconciliation, complete endpoint inventory, report-version

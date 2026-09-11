@@ -788,7 +788,8 @@ const migrationEntries = files.map((name) => ({
 // Apex source verification is additive; the refreshed catalogue also preserves concurrent applied schema work.
 // Re-pinned 11 Sep 2026 so a bot-only fix can ship. Production gained one
 // table (487). Dump replaces the prior baseline only. No ledger rewrite.
-const expectedMigrationTreeDigest = "97bb54a6f8cbe0f28113b11ead528b5fd68246c696a8167ae5887010857cc400";
+// Metrc delivered-record verification and complete live schema capture; no money-contract change.
+const expectedMigrationTreeDigest = "4559c0ed81b3b51ede842b26699dd381689f70d2225031b72d8717b573a6c9aa";
 const actualMigrationTreeDigest = migrationTreeDigest(migrationEntries);
 if (actualMigrationTreeDigest !== expectedMigrationTreeDigest) {
   console.error(`money-grain: FAIL — migration tree differs from the independently reviewed ${files.length}-file manifest (${actualMigrationTreeDigest}).`);

@@ -28,7 +28,7 @@ test('Metrc source records: admission, evidence, concurrency and recovery',async
    grant usage on schema public to service_role,anon,authenticated;
    grant select,insert,update on all tables in schema public to service_role;
    grant usage,select on all sequences in schema public to service_role;`);
-  await client.query(read('../repairs/gpt-metrc-atomic-cursor.sql'));await client.query(sql);
+  await client.query(read('../repairs/gpt-metrc-atomic-cursor.sql'));await client.query(sql);await client.query(read('../repairs/gpt-metrc-pagination-size.sql'));
   const q=(s,p)=>client.query(s,p).then(r=>r.rows);
   const reset=async()=>client.query(`reset role;truncate metrc_record_verification,metrc_sync_page_receipt,metrc_sync_verification,metrc_sync_runs,metrc_packages,metrc_plants,metrc_harvests,metrc_plant_batches,metrc_transfers,configurations restart identity;
    insert into configurations(key,value) values('metrc_sync_cursors','{"A:packages":"2026-01-01T00:00:00Z","A:plants":"2026-01-01T00:00:00Z","A:harvests":"2026-01-01T00:00:00Z","A:plantbatches":"2026-01-01T00:00:00Z","A:transfers":"2026-01-01T00:00:00Z","other":"keep"}');`);
@@ -76,11 +76,12 @@ test('Metrc source records: admission, evidence, concurrency and recovery',async
    await reset();const id=await newRun();await begin(id);
    await assert.rejects(()=>stage(id,'active',{Data:[],Total:1,TotalRecords:1,Page:1,CurrentPage:1,PageSize:20,RecordsOnPage:0,TotalPages:1}),/total does not reconcile/);
    await assert.rejects(()=>stage(id,'active',{Data:[],Page:2}),/metadata mismatch/);
+   await assert.rejects(()=>stage(id,'active',{Data:[],PageSize:7}),/metadata mismatch/);
    const raw=Array.from({length:20},(_,i)=>({Id:i+1,Label:'T'+i}));
    assert.equal((await stage(id,'active',{Data:raw,Total:21,TotalPages:2,Page:1,PageSize:20})).terminal,false);
    await assert.rejects(()=>stage(id,'active',{Data:[{Id:21,Label:'T21'}],Total:22,TotalPages:2,Page:2},2),/changed during pull/);
-   await stage(id,'active',{Data:[{Id:21,Label:'T21'}],Total:21,TotalPages:2,Page:2},2);
-   for(const s of states.packages.slice(1))await stage(id,s);assert.equal((await finish(id)).records,21);
+   await stage(id,'active',{Data:[{Id:21,Label:'T21'}],Total:21,TotalPages:2,Page:2,PageSize:1},2);
+   for(const s of states.packages.slice(1))await stage(id,s,{Data:[],Total:0,TotalRecords:0,TotalPages:0,Page:1,CurrentPage:1,PageSize:0,RecordsOnPage:0});assert.equal((await finish(id)).records,21);
   });
   await t.test('identical page retry is idempotent and altered replay is rejected',async()=>{
    await reset();const id=await newRun();await begin(id);const body=[{Id:1,Label:'T'}];const a=await stage(id,'active',body);
