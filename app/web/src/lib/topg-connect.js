@@ -46,6 +46,16 @@ export function providerLabel(key) {
   return (PROVIDERS.find((p) => p.key === key) || PROVIDERS[0]).label;
 }
 
+/* Aliases like grok-current mean "whatever the signed-in tab already has".
+   Sending them makes TG Bots open grok.com's model menu, which often lists
+   nothing, and HI dies before a word is typed. Empty = skip the menu. */
+export function usableExtModel(raw) {
+  const s = String(raw || "").trim();
+  if (!s) return "";
+  if (/^(current|grok-current|gpt-current|claude-current|default|whatever)$/i.test(s)) return "";
+  return s;
+}
+
 export function extTooOld(version) {
   const n = (v) => String(v || "0").split(".").map((x) => parseInt(x, 10) || 0);
   const a = n(version);

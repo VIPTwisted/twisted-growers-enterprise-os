@@ -1,0 +1,3 @@
+-- Production applied this version as claude_mirror_intransit_vs_metrc_stale_state_check.
+-- The SQL belongs to that agent. This file exists so the ledger is not missing a
+-- version that already ran. Bot/AI work does not change Metrc from this file.
