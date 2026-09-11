@@ -1,5 +1,5 @@
 TG Bots — Chrome / Edge add-on for Twisted Growers OS
-Version 1.2.0
+Version 1.3.0
 
 Answers come from the Grok, Claude, GPT or Grok Bots subscription you already pay
 for, on this computer. No API key. No extra bill. Every staff desk uses the same
@@ -14,9 +14,10 @@ Install (once per computer)
 6. Stay signed in on that site in a tab.
 
 If Chrome says it cannot access the page
-chrome://extensions -> TG Bots -> Details -> Site access -> On all specified sites.
-Then Reload the add-on. The add-on has to read grok.com / claude.ai / chatgpt.com
-(and the x.ai sign-in hosts Grok uses). Chrome will not let a page grant that for you.
+Tap Grok in the OS. A TG Bots tab opens. Press Allow. That is the whole grant.
+(chrome://extensions → TG Bots → Details → Site access → On all specified sites
+still works, if you prefer that path.)
+
 
 Choosing a version
 The version list is read from the provider's OWN model menu on your signed-in

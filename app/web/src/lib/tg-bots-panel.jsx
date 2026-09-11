@@ -4,7 +4,7 @@
    Paid API stays off. Metrc stays read-only. */
 import React, { useEffect, useState } from "react";
 import {
-  PROVIDERS, TG_BOTS_ZIP, extProviderNow, pingTgBots, providerLabel,
+  PROVIDERS, TG_BOTS_NEED, TG_BOTS_ZIP, extProviderNow, extTooOld, pingTgBots, providerLabel,
   pushButtonSetup, savePreferred, tgBotsModels, tgBotsNewThread, tgBotsSetModel,
   tgBotsStatus,
 } from "./topg-connect.js";
@@ -21,7 +21,7 @@ export default function TgBotsPanel({ compact = false, onReady }) {
   async function refresh() {
     const [ping, status] = await Promise.all([pingTgBots(), tgBotsStatus()]);
     const installed = !!(ping.installed || status.installed);
-    const next = { installed, ...(status.installed ? status : {}) };
+    const next = { installed, version: ping.version || status.version, ...(status.installed ? status : {}) };
     setSt(next);
     if (next.provider) setProvider(next.provider);
     if (typeof next.model === "string") setModel(next.model);
@@ -52,12 +52,12 @@ export default function TgBotsPanel({ compact = false, onReady }) {
     await savePreferred(key);
     setProvider(key);
     setModels(Array.isArray(r.models) ? r.models : []);
-    setSt({ installed: true, ok: true, on: true, provider: r.provider, model: r.model, hasToken: true });
+    setSt({ installed: true, ok: true, on: true, provider: r.provider, model: r.model, hasToken: true, version: r.version || st?.version });
     setMsg(r.modelsError
-      ? (/permission|host|cannot access/i.test(r.modelsError)
-        ? `On. Chrome is still blocking the ${providerLabel(key)} tab. chrome://extensions → TG Bots → Details → Site access → On all specified sites, then Reload. Stay signed in and ask anything.`
+      ? (/permission|host|cannot access|Allow/i.test(r.modelsError)
+        ? `On. Press Allow on the TG Bots tab that just opened, then ask HI.`
         : `On. Stay signed in on ${providerLabel(key)} so I can load the versions your plan actually opens.`)
-      : `On. ${providerLabel(key)} answers every desk on this computer. Weather, the books, harvest — anything. No extra bill.`);
+      : `On. ${providerLabel(key)} answers every desk. A TG Bots tab may open — press Allow, then ask anything. No extra bill.`);
     onReady?.(r);
     setBusy(false);
   }
@@ -72,8 +72,8 @@ export default function TgBotsPanel({ compact = false, onReady }) {
         : "Signed in, but that tab is not showing a version menu yet. Open grok.com / claude.ai / chatgpt.com and try again.");
     } else {
       const err = (r && r.error) || "";
-      setMsg(/permission|host|cannot access/i.test(err)
-        ? "Chrome is blocking the add-on from that site. chrome://extensions → TG Bots → Details → Site access → On all specified sites. Reload the add-on, stay signed in, tap Grok again."
+      setMsg(/permission|host|cannot access|Allow/i.test(err)
+        ? "Press Allow on the TG Bots tab that just opened, then load versions again."
         : (err || "Open a signed-in tab for that provider, then load versions."));
     }
     setBusy(false);
@@ -87,19 +87,27 @@ export default function TgBotsPanel({ compact = false, onReady }) {
 
   const on = !!(st && st.installed && st.on);
   const installed = !!(st && st.installed);
+  const old = installed && extTooOld(st.version);
 
   return (
     <div className={`tgbots${compact ? " compact" : ""}`}>
       <div className="tgbots-head">
         <strong>Talk with the plan you already pay for</strong>
         <span className={`tgbots-pill ${on ? "on" : installed ? "off" : "miss"}`}>
-          {st == null ? "checking…" : on ? `${providerLabel(st.provider || provider)} on` : installed ? "add-on idle" : "not installed"}
+          {st == null ? "checking…" : old ? "old add-on" : on ? `${providerLabel(st.provider || provider)} on` : installed ? "add-on idle" : "not installed"}
         </span>
       </div>
       <p className="tgbots-why">
         Grok, Claude, or ChatGPT on this computer. No API key. No extra bill.
         Every staff desk uses the same tap. Metrc stays read-only.
       </p>
+      {old && (
+        <ol className="tgbots-steps">
+          <li>This computer still has the old add-on{st.version ? ` (${st.version})` : ""}. You need {TG_BOTS_NEED}.</li>
+          <li><a href={TG_BOTS_ZIP} download="tg-ai-ext.zip">Download TG Bots</a> and unzip it over the same folder.</li>
+          <li>chrome://extensions → TG Bots → Reload. Then tap Grok. Press Allow on the tab that opens.</li>
+        </ol>
+      )}
       {!installed && (
         <ol className="tgbots-steps">
           <li><a href={TG_BOTS_ZIP} download="tg-ai-ext.zip">Download TG Bots</a> and unzip it.</li>
