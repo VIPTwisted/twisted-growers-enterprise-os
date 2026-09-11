@@ -775,8 +775,13 @@ const migrationEntries = files.map((name) => ({
  * 20260910220000_baseline_live_schema.sql for 20260910223300 (live public
  * catalog 481/552/29/1359). Files owner GO retire 20260910222603 and tracker
  * started_at + email-queue 20260910223133. Cycle 56. No ledger rewrite.
+ *
+ * RE-PINNED 10 Sep 2026, 1057 -> 1059 files, digest b3f76ff9… . Adds
+ * 20260911000524 (live s2s batches + harvest DryingLocationName + harvest_wet_lb
+ * f_to_pounds on that one posted column) and 20260911000636 (tracker calls
+ * f_deployment_checks_s2s). Cycle 56. No ledger rewrite.
  */
-const expectedMigrationTreeDigest = "43cbb3a7657ffc685067c78e8464b4897fc36c0e90160990ac078cc688f48f92";
+const expectedMigrationTreeDigest = "b3f76ff988b781a7526f1a3e336190b544ca4a5b5004d815befe346b1dea5f6d";
 const actualMigrationTreeDigest = migrationTreeDigest(migrationEntries);
 if (actualMigrationTreeDigest !== expectedMigrationTreeDigest) {
   console.error(`money-grain: FAIL — migration tree differs from the independently reviewed ${files.length}-file manifest (${actualMigrationTreeDigest}).`);

@@ -10,7 +10,7 @@ import { supabase } from "../../lib/supabase.js";
 export let S2S_AS_OF = "9 Sep 2026";
 export let S2S_TICK = 0;
 export const S2S_LAW =
-  "Metrc is SoR. Tagged flowering/veg and active unfinished packages hydrate from v_facility_s2s_rooms. Clone and Vegetation untagged batches stay the 9 Sep book until plant batches are wired. Open harvests are not placed on the map: flower_room is origin, not current location, and the 9 Sep harvest book is not dressed as today. Empty rooms are listed on purpose. Fail closed: if the live view does not answer, this book stays labelled 9 Sep 2026.";
+  "Metrc is SoR. Tagged flowering/veg, untagged plant batches, active unfinished packages, and open harvests hydrate from v_facility_s2s_rooms. Batches are LocationName (Clone Room, Vegetation Room). Harvests sit on DryingLocationName (current room), never flower_room (origin). harvest_wet_lb is f_to_pounds of Metrc Grams — the one column posted 10 Sep as raw grams aliased lb, not a blanket convert. Empty rooms are listed on purpose. Fail closed: if the live view does not answer, this book stays labelled 9 Sep 2026.";
 
 export type S2SRoom = {
   licence: typeof LIC_MC | typeof LIC_MP;
@@ -41,8 +41,13 @@ type LiveRow = {
   pkg_stale_n: number;
   harvests_open: number;
   harvest_wet_lb: number;
+  harvest_plants: number;
+  batch_n: number;
+  batch_plants: number;
   packages_as_of: string | null;
   plants_as_of: string | null;
+  batches_as_of: string | null;
+  harvests_as_of: string | null;
   status: S2SRoom["status"];
 };
 
@@ -83,11 +88,9 @@ function overlayLive(live: LiveRow[]) {
       row.harvests_open = 0;
       row.harvest_wet_lb = 0;
       row.harvest_plants = 0;
-      if (row.batch_n || row.batch_plants) {
-        row.status = "PARTIAL";
-      } else {
-        row.status = "EMPTY";
-      }
+      row.batch_n = 0;
+      row.batch_plants = 0;
+      row.status = "EMPTY";
       continue;
     }
     row.tagged_flowering = Number(hit.tagged_flowering) || 0;
@@ -95,12 +98,11 @@ function overlayLive(live: LiveRow[]) {
     row.pkg_n = Number(hit.pkg_n) || 0;
     row.pkg_qty_g = Number(hit.pkg_qty_g) || 0;
     row.pkg_stale_n = Number(hit.pkg_stale_n) || 0;
-    // Harvests: flower_room is origin, not where the material sits. Do not
-    // paint them onto canopy, and do not keep the 9 Sep dry-room book under
-    // today's as-of. Fail closed to zero until harvests have a current room.
-    row.harvests_open = 0;
-    row.harvest_wet_lb = 0;
-    row.harvest_plants = 0;
+    row.harvests_open = Number(hit.harvests_open) || 0;
+    row.harvest_wet_lb = Number(hit.harvest_wet_lb) || 0;
+    row.harvest_plants = Number(hit.harvest_plants) || 0;
+    row.batch_n = Number(hit.batch_n) || 0;
+    row.batch_plants = Number(hit.batch_plants) || 0;
     row.status = hit.status;
   }
 }
@@ -110,12 +112,12 @@ export async function hydrateS2S(): Promise<{ ok: boolean; asOf: string }> {
     const { data, error } = await supabase
       .from("v_facility_s2s_rooms")
       .select(
-        "licence,room,tagged_flowering,tagged_veg,pkg_n,pkg_qty_g,pkg_stale_n,harvests_open,harvest_wet_lb,packages_as_of,plants_as_of,status",
+        "licence,room,tagged_flowering,tagged_veg,pkg_n,pkg_qty_g,pkg_stale_n,harvests_open,harvest_wet_lb,harvest_plants,batch_n,batch_plants,packages_as_of,plants_as_of,batches_as_of,harvests_as_of,status",
       );
     if (error || !data) return { ok: false, asOf: S2S_AS_OF };
     overlayLive(data as LiveRow[]);
     const stamps = (data as LiveRow[])
-      .map((r) => r.packages_as_of || r.plants_as_of)
+      .flatMap((r) => [r.packages_as_of, r.plants_as_of, r.batches_as_of, r.harvests_as_of])
       .filter((x): x is string => !!x)
       .sort();
     const asOf = fmtAsOf(stamps[stamps.length - 1]);
