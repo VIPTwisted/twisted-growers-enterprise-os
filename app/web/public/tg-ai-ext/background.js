@@ -2,9 +2,26 @@
    Claims jobs the same way the desktop bridge does. Token lives only in
    chrome.storage.local (this computer). Never sync. Never logged. Never
    sent except as x-tg-token to the one OS queue URL. Question text is
-   typed into a tab you already signed into — never executed. */
+   typed into a tab you already signed into — never executed.
+
+   11 Sep 2026: Chrome was refusing the signed-in Grok tab with
+   "Extension manifest must request permission to access the respective host."
+   Two real causes, both now handled:
+   1. grok.com signs in / redirects through x.ai, grok.x.ai, x.com. Those
+      hosts were not in the manifest, so executeScript died before a single
+      keystroke. Manifest 1.2.0 names them.
+   2. waitTab fired on about:blank / a login bounce, then injected into a
+      URL Chrome will not let an add-on read. We now wait until the tab is
+      HTTPS on an allowed host, and if inject still fails we say Site access
+      in English instead of leaking Chrome's own sentence. */
 const QUEUE = "https://fxetuqjryttnypgepsru.supabase.co/functions/v1/bridge-queue";
-const ALLOWED_HOSTS = new Set(["grok.com", "claude.ai", "chatgpt.com"]);
+const VERSION = "1.2.0";
+const ALLOWED_HOSTS = new Set([
+  "grok.com", "grok.x.ai", "x.ai", "accounts.x.ai", "x.com",
+  "claude.ai",
+  "chatgpt.com", "chat.openai.com",
+]);
+const GROK_FAMILY = new Set(["grok.com", "grok.x.ai", "x.ai", "accounts.x.ai", "x.com"]);
 const PROVIDERS = {
   grok: { host: "grok.com", url: "https://grok.com/" },
   grokbots: { host: "grok.com", url: "https://grok.com/" },
@@ -12,17 +29,57 @@ const PROVIDERS = {
   gpt: { host: "chatgpt.com", url: "https://chatgpt.com/" },
 };
 
+function bareHost(hostname) {
+  return String(hostname || "").replace(/^www\./, "");
+}
+
+function hostOf(url) {
+  try { return bareHost(new URL(url).hostname); } catch { return ""; }
+}
+
+function isAllowedUrl(url) {
+  try {
+    const u = new URL(String(url || ""));
+    return u.protocol === "https:" && ALLOWED_HOSTS.has(bareHost(u.hostname));
+  } catch {
+    return false;
+  }
+}
+
+function isLoginUrl(url) {
+  const h = hostOf(url);
+  const path = (() => { try { return new URL(url).pathname.toLowerCase(); } catch { return ""; } })();
+  if (h === "accounts.x.ai") return true;
+  if (/\/(login|sign-?in|auth)\b/.test(path)) return true;
+  return false;
+}
+
+function sameFamily(host, fallbackHost) {
+  const a = bareHost(host);
+  const b = bareHost(fallbackHost);
+  if (a === b) return true;
+  if (GROK_FAMILY.has(a) && GROK_FAMILY.has(b)) return true;
+  if ((a === "chatgpt.com" || a === "chat.openai.com") &&
+      (b === "chatgpt.com" || b === "chat.openai.com")) return true;
+  return false;
+}
+
 function safeUrl(raw, fallbackHost) {
   try {
     const u = new URL(String(raw || ""));
     if (u.protocol !== "https:") return null;
-    const host = u.hostname.replace(/^www\./, "");
+    const host = bareHost(u.hostname);
     if (!ALLOWED_HOSTS.has(host)) return null;
-    if (fallbackHost && host !== fallbackHost) return null;
+    if (fallbackHost && !sameFamily(host, fallbackHost)) return null;
     return u.toString();
   } catch {
     return null;
   }
+}
+
+function siteAccessError(url) {
+  const host = hostOf(url) || "that site";
+  return `Chrome is blocking this add-on from ${host}. chrome://extensions → TG Bots → Details → Site access → On all specified sites. Then Reload the add-on, stay signed in on ${host}, and ask again.`;
 }
 
 async function cfg() {
@@ -51,35 +108,90 @@ async function queue(token, action, extra = {}) {
       "content-type": "application/json",
       "x-tg-token": token,
     },
-    body: JSON.stringify({ action, machine: "tg-bots-ext", version: "1.1.0", ...extra }),
+    body: JSON.stringify({ action, machine: "tg-bots-ext", version: VERSION, ...extra }),
   });
   const out = await r.json().catch(() => ({}));
   if (!r.ok) throw new Error(String(out.error || r.status));
   return out;
 }
 
-async function findOrOpenTab(url, host) {
-  const tabs = await chrome.tabs.query({ url: `https://${host}/*` });
-  const live = tabs.find((t) => t.id && !t.discarded);
+function queryPatterns(host) {
+  const h = bareHost(host);
+  const out = [`https://${h}/*`, `https://www.${h}/*`];
+  if (GROK_FAMILY.has(h)) {
+    out.push(
+      "https://grok.com/*", "https://www.grok.com/*",
+      "https://grok.x.ai/*",
+      "https://x.ai/*",
+      "https://x.com/*", "https://www.x.com/*",
+    );
+  }
+  return [...new Set(out)];
+}
+
+async function findOrOpenTab(url, host, { focus = false } = {}) {
+  const seen = new Set();
+  const tabs = [];
+  for (const pattern of queryPatterns(host)) {
+    const found = await chrome.tabs.query({ url: pattern });
+    for (const t of found) {
+      if (!t.id || t.discarded || seen.has(t.id)) continue;
+      seen.add(t.id);
+      tabs.push(t);
+    }
+  }
+  /* Prefer a signed-in chat tab over a login bounce. */
+  const live = tabs.find((t) => isAllowedUrl(t.url) && !isLoginUrl(t.url))
+            || tabs.find((t) => isAllowedUrl(t.url));
   if (live) {
-    await chrome.tabs.update(live.id, { active: false }).catch(() => {});
+    if (focus) await chrome.tabs.update(live.id, { active: true }).catch(() => {});
     return live.id;
   }
-  const created = await chrome.tabs.create({ url, active: false });
+  /* New tabs must be active. A background grok.com tab is what produced
+     "cannot access contents of the page": Chrome never finished the load,
+     waitTab timed out, and executeScript ran against about:blank. */
+  const created = await chrome.tabs.create({ url, active: true });
   return created.id;
 }
 
-function waitTab(id) {
+async function waitAllowed(tabId, ms = 20000) {
+  const deadline = Date.now() + ms;
+  const snap = async () => {
+    const t = await chrome.tabs.get(tabId).catch(() => null);
+    if (!t) return null;
+    if (t.status === "complete" && isAllowedUrl(t.url)) return t;
+    return false;
+  };
+  const first = await snap();
+  if (first) return first;
   return new Promise((resolve) => {
-    const t = setTimeout(() => resolve(), 12000);
-    const on = (tabId, info) => {
-      if (tabId === id && info.status === "complete") {
+    const finish = async () => {
+      chrome.tabs.onUpdated.removeListener(on);
+      clearTimeout(timer);
+      const last = await snap();
+      resolve(last || null);
+    };
+    const timer = setTimeout(finish, Math.max(0, deadline - Date.now()));
+    const on = (id, info, tab) => {
+      if (id !== tabId) return;
+      if ((info.status === "complete" || info.url) && tab && isAllowedUrl(tab.url) && tab.status === "complete") {
         chrome.tabs.onUpdated.removeListener(on);
-        clearTimeout(t);
-        resolve();
+        clearTimeout(timer);
+        resolve(tab);
       }
     };
     chrome.tabs.onUpdated.addListener(on);
+  });
+}
+
+async function inject(tabId) {
+  /* Top frame only. allFrames:true fails the WHOLE inject if any iframe
+     (analytics, captcha, payment) is a host we did not name. That was a
+     second way to get Chrome's host-permission sentence on a grok.com tab. */
+  await chrome.scripting.executeScript({
+    target: { tabId },
+    files: ["content.js"],
+    injectImmediately: true,
   });
 }
 
@@ -87,10 +199,35 @@ async function send(tabId, payload) {
   try {
     return await chrome.tabs.sendMessage(tabId, payload);
   } catch {
-    /* The tab was open before the extension loaded, or was discarded. Inject and retry. */
-    await chrome.scripting.executeScript({ target: { tabId }, files: ["content.js"] });
-    return await chrome.tabs.sendMessage(tabId, payload);
+    /* Tab was open before the add-on loaded, or content.js has not run yet. */
   }
+  const tab = await waitAllowed(tabId, 8000);
+  if (!tab) {
+    const now = await chrome.tabs.get(tabId).catch(() => null);
+    if (now && isLoginUrl(now.url)) {
+      throw new Error("That tab is on a sign-in page. Sign in to Grok / Claude / ChatGPT, leave the chat open, then ask again.");
+    }
+    throw new Error(siteAccessError(now && now.url));
+  }
+  try {
+    await inject(tabId);
+  } catch (e) {
+    const msg = String(e && e.message ? e.message : e);
+    if (/permission|host|cannot access/i.test(msg)) {
+      await chrome.tabs.update(tabId, { active: true }).catch(() => {});
+      await chrome.tabs.reload(tabId).catch(() => {});
+      const after = await waitAllowed(tabId, 15000);
+      if (!after) throw new Error(siteAccessError(tab.url));
+      try {
+        await inject(tabId);
+      } catch {
+        throw new Error(siteAccessError(after.url));
+      }
+    } else {
+      throw new Error(msg.slice(0, 300));
+    }
+  }
+  return await chrome.tabs.sendMessage(tabId, payload);
 }
 
 async function askTab(tabId, question, model) {
@@ -108,8 +245,8 @@ async function modelsFor(provider) {
   const spec = PROVIDERS[provider] || PROVIDERS.grok;
   const c = await cfg();
   const openUrl = provider === "grokbots" ? c.botsUrl : spec.url;
-  const tabId = await findOrOpenTab(openUrl, spec.host);
-  await waitTab(tabId);
+  const tabId = await findOrOpenTab(openUrl, spec.host, { focus: true });
+  await waitAllowed(tabId);
   return send(tabId, { type: "TG_BOTS_MODELS" });
 }
 
@@ -139,7 +276,7 @@ async function tick() {
     const remembered = safeUrl((c.threads || {})[wantedProvider], spec.host);
     const openUrl = remembered || (wantedProvider === "grokbots" ? c.botsUrl : spec.url);
     const tabId = await findOrOpenTab(openUrl, spec.host);
-    await waitTab(tabId);
+    await waitAllowed(tabId);
     const started = Date.now();
     /* THE MODEL RIDES IN context, not in a top-level column. bridge-queue's
        `claim` deliberately returns only id, question and context - its own header
@@ -215,7 +352,7 @@ chrome.runtime.onMessageExternal.addListener((msg, sender, sendResponse) => {
     return;
   }
   if (msg && msg.type === "TG_BOTS_PING") {
-    sendResponse({ ok: true });
+    sendResponse({ ok: true, version: VERSION });
     return;
   }
   if (msg && msg.type === "TG_BOTS_CONNECT") {
@@ -246,9 +383,15 @@ chrome.runtime.onMessageExternal.addListener((msg, sender, sendResponse) => {
         patch.models = models;
       }
       return chrome.storage.local.set(patch);
-    }).then(() => cfg()).then((c) => {
-      /* Report back what is now true, so the OS can show it rather than assume it. */
-      sendResponse({ ok: true, provider: c.provider, model: c.model, on: c.on, hasToken: !!c.token });
+    }).then(() => cfg()).then(async (c) => {
+      /* Open the signed-in tab NOW, in front of the user. A hidden grok.com
+         tab is how Chrome ended up injecting into about:blank. */
+      try {
+        const spec = PROVIDERS[c.provider] || PROVIDERS.grok;
+        const openUrl = c.provider === "grokbots" ? c.botsUrl : spec.url;
+        await findOrOpenTab(openUrl, spec.host, { focus: true });
+      } catch { /* setup still succeeded; the next ask will open the tab */ }
+      sendResponse({ ok: true, provider: c.provider, model: c.model, on: c.on, hasToken: !!c.token, version: VERSION });
     }).catch((e) => sendResponse({ ok: false, error: String(e && e.message ? e.message : e).slice(0, 200) }));
     return true;
   }
@@ -256,7 +399,7 @@ chrome.runtime.onMessageExternal.addListener((msg, sender, sendResponse) => {
      of a hopeful default. The token is never returned - only whether one is set. */
   if (msg && msg.type === "TG_BOTS_STATUS") {
     cfg().then((c) => sendResponse({
-      ok: true, provider: c.provider, model: c.model, on: c.on, hasToken: !!c.token, version: "1.1.0",
+      ok: true, provider: c.provider, model: c.model, on: c.on, hasToken: !!c.token, version: VERSION,
     }));
     return true;
   }
@@ -304,3 +447,4 @@ chrome.runtime.onMessageExternal.addListener((msg, sender, sendResponse) => {
   }
   sendResponse({ ok: false });
 });
+
