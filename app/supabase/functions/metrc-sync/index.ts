@@ -91,7 +91,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
 import { backfillClaim, claimBackfill } from "./backfill.ts";
-import { readMetrcCursors, finishMetrcCursor } from "./cursor.ts";
+import { readMetrcCursors, finishMetrcCursor, deltaCursorWindow } from "./cursor.ts";
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -575,16 +575,15 @@ Deno.serve(async (req: Request) => {
 
       let window: { start: string; end: string } | undefined = undefined;
       let runLabel: string | undefined = undefined;
-      if (explicitWindow && spec.delta) {
-        window = explicitWindow;
-      } else if (full && spec.delta) {
-        window = { start: HISTORY_START, end: runStart };
-        runLabel = `${spec.key} (full sweep)`;
-      } else {
-        const since = spec.delta ? cursors[ck] : undefined;
-        window = spec.delta ? { start: since ?? HISTORY_START, end: runStart } : undefined;
-      }
       try {
+        if (explicitWindow && spec.delta) {
+          window = explicitWindow;
+        } else if (full && spec.delta) {
+          window = { start: HISTORY_START, end: runStart };
+          runLabel = `${spec.key} (full sweep)`;
+        } else {
+          window = spec.delta ? deltaCursorWindow(cursors, ck, runStart) : undefined;
+        }
         if (reservedRunId) reservedRunStarted = true;
         const r = await runSpec(BASE, license, resolved.auth, spec, window, runLabel, outOfTime, PAGE_SIZE, reservedRunId, spec.delta && !explicitWindow ? window : undefined);
         if (!r.complete) incompleteResult = true;

@@ -11,8 +11,15 @@ later. A requested window that starts after saved coverage is rejected.
 
 Only complete, uncapped normal delta/full-sweep runs call this API. Partial/error
 runs hold progress. Explicit historical backfill requests retain the proven
-claim/completion path and do not advance the operational cursor. Missing initial
-coverage uses the configured history start, rather than an implicit vendor default.
+claim/completion path and do not advance the operational cursor. A missing initial
+cursor explicitly blocks that operational feed. It cannot silently become a
+multi-year sweep that restarts from page one on every scheduled call.
+
+New-feed onboarding must first complete and verify historical coverage through
+the existing bounded backfill mechanism, then establish its starting operational
+cursor from that evidence. This batch does not invent that boundary or implement
+automatic onboarding. Existing feeds with saved coverage continue normally;
+explicit historical requests and deliberate full sweeps retain their existing path.
 
 The function is SECURITY INVOKER with an empty search path and explicit service-role
 execute permission. Browser roles cannot invoke it. Existing table permissions and

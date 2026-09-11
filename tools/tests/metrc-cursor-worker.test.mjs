@@ -3,10 +3,15 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import { transform } from '../../app/web/node_modules/esbuild/lib/main.js';
 const {code}=await transform(readFileSync(new URL('../../app/supabase/functions/metrc-sync/cursor.ts',import.meta.url),'utf8'),{loader:'ts',format:'esm'});
-const {readMetrcCursors,finishMetrcCursor}=await import(`data:text/javascript;base64,${Buffer.from(code).toString('base64')}`);
+const {readMetrcCursors,finishMetrcCursor,deltaCursorWindow}=await import(`data:text/javascript;base64,${Buffer.from(code).toString('base64')}`);
 const args={p_run_id:1,p_endpoint:'packages',p_license:'A',p_window_start:'2026-01-01T00:00:00Z',p_window_end:'2026-01-02T00:00:00Z',p_records:3};
 const receipt={kind:'metrc_cursor_commit_v1',run_id:1,cursor_key:'A:packages',window_start:args.p_window_start,window_end:args.p_window_end,cursor_after:args.p_window_end,records:3,committed_at:'2026-01-03T00:00:00Z',outcome:'advanced'};
 const db=(value,rpc=async()=>({data:receipt,error:null}))=>({rpc,from:()=>({select:()=>({eq:()=>({maybeSingle:async()=>value})})})});
+test('missing operational coverage fails before starting an unresumable history sweep',()=>{
+ assert.throws(()=>deltaCursorWindow({},'A:packages',args.p_window_end),/verified historical bootstrap is required/);
+ for(const start of ['bad','2027-01-01T00:00:00Z'])assert.throws(()=>deltaCursorWindow({'A:packages':start},'A:packages',args.p_window_end),/Invalid/);
+ assert.deepEqual(deltaCursorWindow({'A:packages':args.p_window_start},'A:packages',args.p_window_end),{start:args.p_window_start,end:args.p_window_end});
+});
 test('cursor reads refuse database errors and malformed coverage',async()=>{
  await assert.rejects(()=>readMetrcCursors(db({error:{message:'unavailable'}})),/Cannot read/);
  for(const value of [null,[],{'A:packages':'bad'},{'A:packages':null}])await assert.rejects(()=>readMetrcCursors(db({data:{value}})),/invalid/);

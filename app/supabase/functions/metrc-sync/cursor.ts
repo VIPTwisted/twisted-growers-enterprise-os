@@ -16,6 +16,15 @@ export async function readMetrcCursors(db: Database): Promise<Record<string, str
   return value;
 }
 
+export function deltaCursorWindow(cursors: Record<string, string>, key: string, end: string): { start: string; end: string } {
+  const start = cursors[key];
+  if (!start) throw new Error(`Missing cursor for ${key}; verified historical bootstrap is required before operational deltas can run`);
+  if (!Number.isFinite(Date.parse(start)) || !Number.isFinite(Date.parse(end)) || Date.parse(start) > Date.parse(end)) {
+    throw new Error(`Invalid operational cursor window for ${key}`);
+  }
+  return { start, end };
+}
+
 function validReceipt(value: any, args: CursorCommit): boolean {
   return !!value && value.kind === "metrc_cursor_commit_v1"
     && value.run_id === args.p_run_id && value.cursor_key === `${args.p_license}:${args.p_endpoint}`
