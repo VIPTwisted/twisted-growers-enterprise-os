@@ -1695,7 +1695,7 @@ button.narrblock:hover { outline: 1px solid var(--line); }
  * Layout only. The theme is locked; #000/#fff are print ink, not theme colour —
  * paper has no dark mode, and a dark surface prints as a solid block that eats
  * toner and hides the text under it. */
-.rp-printident{display:none!important;height:0!important;overflow:hidden!important;position:absolute!important}
+.rp-printident{display:none}
 
 @page{
   margin:22mm 12mm 16mm;
@@ -1768,4 +1768,35 @@ button.narrblock:hover { outline: 1px solid var(--line); }
   margin:0 0 10px;
   color:var(--ink-2);
   font-size:.78rem;
+}
+
+/* Report pages: KPIs first. Certification is a chip, never the hero title. */
+.rp-stand { margin: 0 0 12px; display: grid; gap: 10px; }
+.rp-stand-kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.rp-stand-kpi {
+  text-align: left; background: var(--surface); border: 1px solid var(--line);
+  border-radius: 10px; padding: 12px 14px; color: inherit; cursor: pointer;
+}
+button.rp-stand-kpi.on { border-color: var(--neon); box-shadow: 0 0 0 1px var(--neon); }
+.rp-stand-kpi .k { display: block; font-size: 10px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+.rp-stand-kpi .n { display: block; margin-top: 4px; font-family: Figtree, sans-serif; font-size: 28px; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--neon); }
+.rp-stand-kpi .n.dim { color: var(--fg); }
+.rp-stand-kpi .s { display: block; margin-top: 2px; font-size: 11px; color: var(--muted); }
+.rp-stand-rooms { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 8px; }
+.rp-stand-room {
+  text-align: left; background: var(--surface); border: 1px solid var(--line);
+  border-radius: 10px; padding: 10px 12px; color: inherit; cursor: pointer;
+}
+.rp-stand-room .row { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; }
+.rp-stand-room .bar { height: 6px; margin: 8px 0 6px; border-radius: 99px; background: color-mix(in oklab, var(--neon) 18%, var(--line)); overflow: hidden; }
+.rp-stand-room .bar i { display: block; height: 100%; background: var(--neon); }
+.rp-stand-room .meta { font-size: 11px; color: var(--muted); }
+.rp-cert-chip {
+  flex-shrink: 0; border: 1px solid var(--line); background: var(--surface); color: var(--muted);
+  border-radius: 999px; padding: 6px 10px; font-size: 10px; font-weight: 800; letter-spacing: .08em;
+  text-transform: uppercase; cursor: pointer;
+}
+.rp-cert-chip.ok { color: var(--neon); border-color: var(--neon); }
+@media (max-width: 980px) {
+  .rp-stand-kpis { grid-template-columns: 1fr 1fr; }
 }

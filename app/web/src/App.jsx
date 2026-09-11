@@ -2634,6 +2634,84 @@ function RpSavedViews({ viewKey, state, apply, session }) {
   );
 }
 
+
+function liveStandingFor(viewKey) {
+  if (viewKey === "rpt-plants-flowering") {
+    return { liveValue: "flowering", noun: "flowering", phase: "Flowering", table: "v_rpt_plants_flowering" };
+  }
+  if (viewKey === "rpt-plants-vegetative") {
+    return { liveValue: "vegetative", noun: "vegetative", phase: "Vegetative", table: "v_rpt_plants_vegetative" };
+  }
+  return null;
+}
+
+function roomCap(room) {
+  if (room === "Flower Room #1" || room === "Flower Room #3") return 1140;
+  if (room === "Flower Room #2" || room === "Flower Room #4") return 1050;
+  return null;
+}
+
+function PlantStandingKpis({ phase, liveValue, table, mode, onLive, onHistory, onAll, onRoom }) {
+  const [liveN, setLiveN] = useState(null);
+  const [histN, setHistN] = useState(null);
+  const [rooms, setRooms] = useState([]);
+  useEffect(() => {
+    let on = true;
+    supabase.from(table).select("tag", { count: "exact", head: true }).eq("source_state", liveValue)
+      .then(({ count }) => { if (on) setLiveN(count ?? 0); });
+    supabase.from(table).select("tag", { count: "exact", head: true }).eq("source_state", "inactive")
+      .then(({ count }) => { if (on) setHistN(count ?? 0); });
+    supabase.from("v_room_plant_counts")
+      .select("room,growth_phase,plants,strains,strain_list,earliest_planted,latest_planted")
+      .eq("growth_phase", phase)
+      .then(({ data }) => { if (on) setRooms(Array.isArray(data) ? data : []); });
+    return () => { on = false; };
+  }, [table, liveValue, phase]);
+  const fmt = (n) => (n == null ? "\u2026" : Number(n).toLocaleString());
+  return (
+    <div className="rp-stand">
+      <div className="rp-stand-kpis">
+        <button type="button" className={"rp-stand-kpi" + (mode === "live" ? " on" : "")} onClick={onLive}>
+          <span className="k">In rooms now</span>
+          <span className="n">{fmt(liveN)}</span>
+          <span className="s">source_state = {liveValue}</span>
+        </button>
+        <button type="button" className={"rp-stand-kpi" + (mode === "history" ? " on" : "")} onClick={onHistory}>
+          <span className="k">History</span>
+          <span className="n dim">{fmt(histN)}</span>
+          <span className="s">left this phase \u00b7 not canopy</span>
+        </button>
+        <button type="button" className={"rp-stand-kpi" + (mode === "all" ? " on" : "")} onClick={onAll}>
+          <span className="k">Every tag</span>
+          <span className="n dim">{liveN != null && histN != null ? (liveN + histN).toLocaleString() : "\u2026"}</span>
+          <span className="s">forensic \u00b7 do not total as canopy</span>
+        </button>
+        <div className="rp-stand-kpi">
+          <span className="k">Rooms</span>
+          <span className="n">{rooms.length || "\u2026"}</span>
+          <span className="s">{phase}</span>
+        </div>
+      </div>
+      <div className="rp-stand-rooms">
+        {rooms.map((r) => {
+          const cap = roomCap(r.room);
+          const pct = cap ? Math.min(100, Math.round((100 * Number(r.plants)) / cap)) : 100;
+          return (
+            <button type="button" key={r.room} className="rp-stand-room" onClick={() => onRoom && onRoom(r.room)}>
+              <div className="row">
+                <b>{r.room}</b>
+                <span>{Number(r.plants).toLocaleString()}{cap ? ` / ${cap.toLocaleString()}` : ""}</span>
+              </div>
+              <div className="bar" aria-hidden="true"><i style={{ width: pct + "%" }} /></div>
+              <div className="meta">{r.strains} strain{Number(r.strains) === 1 ? "" : "s"} \u00b7 planted {r.earliest_planted} \u2192 {r.latest_planted}</div>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 /* ---------- THE REPORT SCREEN. Every one of the 518 report pages is this. ---------- */
 function ReportScreen({ entry, actions, session }) {
   const table = entry.table_ref;
@@ -2664,7 +2742,11 @@ function ReportScreen({ entry, actions, session }) {
 
   const [search, setSearch] = useState("");
   const [searchLive, setSearchLive] = useState("");
-  const [filters, setFilters] = useState([]);
+  const standing = liveStandingFor(entry.view_key);
+  const standingFilter = standing
+    ? [{ col: "source_state", op: "equals", value: standing.liveValue }]
+    : [];
+  const [filters, setFilters] = useState(() => standingFilter);
   const [dateCol, setDateCol] = useState(null);
   const [dFrom, setDFrom] = useState("");
   const [dTo, setDTo] = useState("");
@@ -2709,7 +2791,7 @@ function ReportScreen({ entry, actions, session }) {
      nulls. Errors are held and shown - never turned into an empty grid. */
   useEffect(() => {
     setProbe(null); setProbeError(null); setRows(null); setTotal(null); setError(null);
-    setSearch(""); setSearchLive(""); setFilters([]); setDFrom(""); setDTo("");
+    setSearch(""); setSearchLive(""); setFilters(liveStandingFor(entry.view_key) ? [{ col: "source_state", op: "equals", value: liveStandingFor(entry.view_key).liveValue }] : []); setDFrom(""); setDTo("");
     setSort(null); setGroupBy(""); setLoadAll(false); setTruncated(false); setMsg(null);
     setRowsContractDigest(null); setRowsContractError(null);
     /* Column choice and date column belong to the report, not to the session.
@@ -2724,7 +2806,7 @@ function ReportScreen({ entry, actions, session }) {
       setProbe(data ?? []);
     });
     return () => { live = false; };
-  }, [table, pullTick]);
+  }, [table, pullTick, entry.view_key]);
 
   const cols = useMemo(() => rpDescribeColumns(probe ?? []), [probe]);
   const dateCols = useMemo(() => cols.filter((c) => c.kind === "date").map((c) => c.name), [cols]);
@@ -3056,26 +3138,60 @@ function ReportScreen({ entry, actions, session }) {
         readAt={readAt}
         total={total} />
 
+      {standing ? (
+        <PlantStandingKpis
+          phase={standing.phase}
+          liveValue={standing.liveValue}
+          table={standing.table}
+          mode={filters.length === 1 && filters[0].col === "source_state" && filters[0].value === standing.liveValue ? "live"
+            : filters.length === 1 && filters[0].col === "source_state" && filters[0].value === "inactive" ? "history"
+            : filters.length === 0 ? "all" : "custom"}
+          onLive={() => setFilters([{ col: "source_state", op: "equals", value: standing.liveValue }])}
+          onHistory={() => setFilters([{ col: "source_state", op: "equals", value: "inactive" }])}
+          onAll={() => setFilters([])}
+          onRoom={(room) => setFilters([
+            { col: "source_state", op: "equals", value: standing.liveValue },
+            { col: "room", op: "equals", value: room },
+          ])}
+        />
+      ) : null}
+
       <div className="modhead">
         <div className="mchip">{iconByName(entry.icon)}</div>
         <div>
-          <div className="mt">{certifiedPopulation.verified ? "CERTIFIED population" : "Uncertified live pull"}</div>
+          <div className="mt">{standing && filters.length === 1 && filters[0].value === standing.liveValue
+            ? `Live ${standing.noun} — in rooms now`
+            : standing && filters.length === 1 && filters[0].value === "inactive"
+              ? `${standing.noun} history — not canopy`
+              : title}</div>
           <div className="md">
-            {table}
-            {reg ? ` · report_registry key ${reg.report_key}` : " · not in report_registry — totals refused"}
-            {" · click any row for the forensic drill"}
+            {standing
+              ? "Click a KPI or a room to filter. Click any row for the forensic drill."
+              : `${table}${reg ? ` · ${reg.report_key}` : ""} · click any row for the forensic drill`}
           </div>
         </div>
+        <button
+          type="button"
+          className={"rp-cert-chip" + (certifiedPopulation.verified ? " ok" : "")}
+          title={certifiedPopulation.verified
+            ? "This page's population has a dual-MATCH receipt."
+            : (certifiedPopulation.reason || "Awaiting dual MATCH of an independent export. Not a claim that the rows are wrong.")}
+          onClick={() => { window.location.hash = "certification_board"; }}
+        >
+          {certifiedPopulation.verified ? "CERTIFIED" : "Awaiting dual MATCH"}
+        </button>
         <div className="mcount">
           <div className="n">{total === null ? (busy ? "…" : "—") : total.toLocaleString()}</div>
-          <div className="l">{dirty ? "records match" : "records"}</div>
+          <div className="l">{standing && filters.length === 1 && filters[0].value === standing.liveValue
+            ? "in rooms now"
+            : dirty ? "records match" : "records"}</div>
         </div>
       </div>
 
       <RpSavedViews viewKey={entry.view_key} session={session}
         state={{ shown, filters: { search, dateCol, dFrom, dTo, columnFilters: filters }, groupBy }}
         apply={(v) => {
-          if (!v) { setSearch(""); setSearchLive(""); setFilters([]); setDFrom(""); setDTo(""); setGroupBy(""); return; }
+          if (!v) { setSearch(""); setSearchLive(""); setFilters(standingFilter); setDFrom(""); setDTo(""); setGroupBy(""); return; }
           const f = v.filters ?? {};
           setSearch(f.search ?? ""); setSearchLive(f.search ?? "");
           setDateCol(f.dateCol ?? dateCol); setDFrom(f.dFrom ?? ""); setDTo(f.dTo ?? "");
@@ -3150,7 +3266,7 @@ function ReportScreen({ entry, actions, session }) {
         </button>
         {(dirty || sort || groupBy) && (
           <button className="btn small ghost" onClick={() => {
-            setSearch(""); setSearchLive(""); setFilters([]); setDFrom(""); setDTo(""); setSort(null); setGroupBy("");
+            setSearch(""); setSearchLive(""); setFilters(standingFilter); setDFrom(""); setDTo(""); setSort(null); setGroupBy("");
           }}>Clear</button>
         )}
         <span style={{ flex: 1 }} />
