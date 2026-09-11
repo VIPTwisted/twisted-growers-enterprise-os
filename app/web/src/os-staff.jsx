@@ -289,7 +289,7 @@ export default function OsStaff({ go }) {
               </div>
             ))
           )}
-          {busy ? <div className="osstaff-bubble"><p>{bot.name} is reading live records…</p></div> : null}
+          {busy ? <div className="osstaff-bubble"><p>Asking Grok…</p></div> : null}
           <div ref={end} />
         </div>
         <form
