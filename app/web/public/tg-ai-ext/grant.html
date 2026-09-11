@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Allow TG Bots</title>
+  <link rel="stylesheet" href="popup.css" />
+  <style>
+    main { padding: 28px 22px; max-width: 420px; }
+    h1 { margin: 0 0 8px; font-size: 22px; }
+    p { margin: 0 0 14px; line-height: 1.45; }
+    button#allow {
+      display: block; width: 100%; margin: 18px 0 10px; padding: 14px 16px;
+      font-size: 16px; font-weight: 700; cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>One click. Then Grok can answer.</h1>
+    <p>TG Bots types your OS questions into the Grok (or Claude / ChatGPT) tab you already pay for. Chrome will not let that happen until you press Allow.</p>
+    <p>No extra bill. Metrc stays read-only.</p>
+    <button id="allow" type="button">Allow Grok, Claude, ChatGPT</button>
+    <p id="msg" class="msg" hidden></p>
+  </main>
+  <script src="grant.js"></script>
+</body>
+</html>

@@ -117,9 +117,23 @@ Deno.serve(async (req) => {
         .select('id, question, context')
         .eq('status', 'pending')
         .order('created_at', { ascending: true })
-        .limit(1);
+        .limit(20);
       if (readErr) return j({ ok: false, error: readErr.message }, 500);
       if (!pending?.length) return j({ ok: true, job: null });
+
+      /* TG Bots (machine tg-bots-ext) types into the signed-in Grok/Claude/GPT
+         tab. The old Windows Claude CLI (any other machine name) used to grab
+         those jobs first and die with "The system cannot find the path specified."
+         Owner saw that as "AI is broken". Split the queue: tab providers stay
+         with the add-on. Everything else still belongs to the desktop. */
+      const TAB = new Set(['grok', 'claude', 'gpt', 'grokbots']);
+      const chromeTab = machine === 'tg-bots-ext';
+      const row = pending.find((job) => {
+        const p = job?.context && typeof job.context === 'object' ? job.context.provider : '';
+        const forTab = TAB.has(p);
+        return chromeTab ? forTab || !p : !forTab;
+      });
+      if (!row) return j({ ok: true, job: null });
 
       /* Claim by moving pending -> running and requiring it to STILL be pending.
          Two bridges racing: one update matches, the other returns no rows and
@@ -127,7 +141,7 @@ Deno.serve(async (req) => {
       const { data: claimed, error: claimErr } = await sb
         .from('ai_bridge_jobs')
         .update({ status: 'running', claimed_at: new Date().toISOString() })
-        .eq('id', pending[0].id)
+        .eq('id', row.id)
         .eq('status', 'pending')
         .select('id, question, context');
       if (claimErr) return j({ ok: false, error: claimErr.message }, 500);

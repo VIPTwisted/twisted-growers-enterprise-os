@@ -15,7 +15,7 @@
       HTTPS on an allowed host, and if inject still fails we say Site access
       in English instead of leaking Chrome's own sentence. */
 const QUEUE = "https://fxetuqjryttnypgepsru.supabase.co/functions/v1/bridge-queue";
-const VERSION = "1.2.0";
+const VERSION = "1.3.0";
 const ALLOWED_HOSTS = new Set([
   "grok.com", "grok.x.ai", "x.ai", "accounts.x.ai", "x.com",
   "claude.ai",
@@ -79,8 +79,25 @@ function safeUrl(raw, fallbackHost) {
 
 function siteAccessError(url) {
   const host = hostOf(url) || "that site";
-  return `Chrome is blocking this add-on from ${host}. chrome://extensions → TG Bots → Details → Site access → On all specified sites. Then Reload the add-on, stay signed in on ${host}, and ask again.`;
+  return `Chrome is blocking this add-on from ${host}. A TG Bots tab just opened — press Allow. Then ask again.`;
 }
+
+async function openGrant() {
+  const url = chrome.runtime.getURL("grant.html");
+  const existing = await chrome.tabs.query({ url }).catch(() => []);
+  if (existing && existing[0] && existing[0].id) {
+    await chrome.tabs.update(existing[0].id, { active: true }).catch(() => {});
+    return;
+  }
+  await chrome.tabs.create({ url, active: true }).catch(() => {});
+}
+
+function humanize(err, url) {
+  const msg = String(err && err.message ? err.message : err);
+  if (/permission|host|cannot access|respective host/i.test(msg)) return siteAccessError(url);
+  return msg.slice(0, 300);
+}
+
 
 async function cfg() {
   const s = await chrome.storage.local.get(["token", "provider", "botsUrl", "on", "models", "threads"]);
@@ -207,6 +224,7 @@ async function send(tabId, payload) {
     if (now && isLoginUrl(now.url)) {
       throw new Error("That tab is on a sign-in page. Sign in to Grok / Claude / ChatGPT, leave the chat open, then ask again.");
     }
+    await openGrant();
     throw new Error(siteAccessError(now && now.url));
   }
   try {
@@ -214,20 +232,16 @@ async function send(tabId, payload) {
   } catch (e) {
     const msg = String(e && e.message ? e.message : e);
     if (/permission|host|cannot access/i.test(msg)) {
-      await chrome.tabs.update(tabId, { active: true }).catch(() => {});
-      await chrome.tabs.reload(tabId).catch(() => {});
-      const after = await waitAllowed(tabId, 15000);
-      if (!after) throw new Error(siteAccessError(tab.url));
-      try {
-        await inject(tabId);
-      } catch {
-        throw new Error(siteAccessError(after.url));
-      }
-    } else {
-      throw new Error(msg.slice(0, 300));
+      await openGrant();
+      throw new Error(siteAccessError(tab.url));
     }
+    throw new Error(msg.slice(0, 300));
   }
-  return await chrome.tabs.sendMessage(tabId, payload);
+  try {
+    return await chrome.tabs.sendMessage(tabId, payload);
+  } catch (e) {
+    throw new Error(humanize(e, tab.url));
+  }
 }
 
 async function askTab(tabId, question, model) {
@@ -312,7 +326,7 @@ async function tick() {
         await queue(c.token, "answer", {
           id: job.id,
           ok: false,
-          answer: "TG Bots failed: " + String(e && e.message ? e.message : e).slice(0, 300),
+          answer: "TG Bots failed: " + humanize(e),
         });
       } catch { /* already reported */ }
     }
@@ -329,6 +343,11 @@ chrome.storage.onChanged.addListener(() => tick());
 
 /* From the popup (same extension). Lists the versions this account can open. */
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
+  if (msg && msg.type === "TG_BOTS_GRANTED") {
+    tick();
+    sendResponse({ ok: true });
+    return;
+  }
   if (!msg || msg.type !== "TG_BOTS_LIST_MODELS") return;
   const provider = PROVIDERS[msg.provider] ? msg.provider : "grok";
   modelsFor(provider)
@@ -390,6 +409,7 @@ chrome.runtime.onMessageExternal.addListener((msg, sender, sendResponse) => {
         const spec = PROVIDERS[c.provider] || PROVIDERS.grok;
         const openUrl = c.provider === "grokbots" ? c.botsUrl : spec.url;
         await findOrOpenTab(openUrl, spec.host, { focus: true });
+        await openGrant();
       } catch { /* setup still succeeded; the next ask will open the tab */ }
       sendResponse({ ok: true, provider: c.provider, model: c.model, on: c.on, hasToken: !!c.token, version: VERSION });
     }).catch((e) => sendResponse({ ok: false, error: String(e && e.message ? e.message : e).slice(0, 200) }));

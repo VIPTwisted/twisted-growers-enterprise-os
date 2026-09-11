@@ -21,6 +21,8 @@ import { supabase } from "./supabase.js";
 export const TG_BOTS_ID = "egdhinbnbmibdccbmncgpbmnioepoecj";
 export const TOPG_KEY = "tg-topg-connected";
 export const TG_BOTS_ZIP = "/tg-ai-ext.zip";
+export const TG_BOTS_NEED = "1.3.0";
+
 export const TG_BOTS_PROVIDER_KEY = "tg-bots-provider";
 
 /* The four the add-on can drive. `grokbots` is a named Grok bot, so it also
@@ -43,6 +45,18 @@ const MODEL_FOR = {
 export function providerLabel(key) {
   return (PROVIDERS.find((p) => p.key === key) || PROVIDERS[0]).label;
 }
+
+export function extTooOld(version) {
+  const n = (v) => String(v || "0").split(".").map((x) => parseInt(x, 10) || 0);
+  const a = n(version);
+  const b = n(TG_BOTS_NEED);
+  for (let i = 0; i < 3; i += 1) {
+    if ((a[i] || 0) < (b[i] || 0)) return true;
+    if ((a[i] || 0) > (b[i] || 0)) return false;
+  }
+  return false;
+}
+
 
 export function extProviderNow() {
   try {
@@ -193,6 +207,7 @@ export async function pushButtonSetup({ provider = "grok", model = "", botsUrl =
     provider: set.provider || provider,
     model: set.model || model,
     on: set.on !== false,
+    version: set.version,
     models,
     modelsError,
   };
