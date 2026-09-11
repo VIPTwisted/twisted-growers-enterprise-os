@@ -70,6 +70,16 @@ on prompts.
 
 ## The map
 
+### Metrc backfill completion repair
+
+| File | What it holds |
+| --- | --- |
+| [Repair and recovery](../docs/METRC_BACKFILL_REPAIR.md) | Exact claim contract, release sequence and preservation requirements |
+| [Candidate SQL](../tools/repairs/metrc-backfill-completion.sql) | SQL tested before generating the deployment migration |
+| [Prior controller](../tools/repairs/metrc-backfill-before.sql) | Previously committed definition for controlled recovery with backfill paused |
+| [Integration tests](../tools/tests/metrc-backfill.integration.mjs) | Isolated Postgres completion, concurrency, permissions and recovery tests |
+| [Worker claim helper](../app/supabase/functions/metrc-sync/backfill.ts) | Explicit request validation and atomic claim receipt |
+
 ### The brain (this folder)
 | File | What it holds |
 |---|---|
