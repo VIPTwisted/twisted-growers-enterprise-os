@@ -1952,6 +1952,37 @@ button.teamcard:hover { border-color: var(--neon-line); }
 .tgbots.compact .tgbots-why{display:none}
 .tgbots.compact .tgbots-steps{font-size:12px}
 
+/* OS-wide Ask. Same tokens as TG Bots. Lives in chrome, every page. */
+.osask{border-bottom:1px solid var(--line);background:var(--surface)}
+.osask-bar{display:flex;align-items:center;gap:8px;padding:8px 12px}
+.osask-desk{font-size:11px;letter-spacing:.04em;text-transform:uppercase;color:var(--neon);font-weight:700;white-space:nowrap}
+.osask-bar input{
+  flex:1;min-width:8rem;border:1px solid var(--line);background:var(--input-bg);
+  color:var(--ink);border-radius:8px;padding:7px 10px;font-size:13px}
+.osask-bar button[type="submit"]{
+  border:1px solid var(--neon-line);background:var(--neon-soft);color:var(--neon);
+  border-radius:8px;padding:7px 12px;cursor:pointer;font-size:13px;font-weight:700}
+.osask-bar button[type="submit"]:disabled{opacity:.5;cursor:wait}
+.osask-pill{font-size:10px;letter-spacing:.04em;text-transform:uppercase;padding:2px 8px;
+  border-radius:999px;border:1px solid var(--line);color:var(--muted);white-space:nowrap}
+.osask-pill.on{color:var(--neon);border-color:var(--neon-line)}
+.osask-toggle{border:1px solid var(--line);background:transparent;color:var(--ink);
+  border-radius:8px;padding:6px 10px;cursor:pointer;font-size:12px}
+.osask-thread{padding:0 12px 10px;max-height:240px;overflow:auto}
+.osask-bubble{margin:6px 0;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--surface-2)}
+.osask-bubble.me{border-color:var(--neon-line);background:var(--neon-soft)}
+.osask-bubble p{margin:0 0 4px;font-size:13px;white-space:pre-wrap}
+.osask-via{font-size:11px;color:var(--muted)}
+.osask-actions{display:flex;gap:8px;margin-top:6px}
+.osask-actions button{border:1px solid var(--line);background:transparent;color:var(--ink);
+  border-radius:999px;padding:5px 10px;cursor:pointer;font-size:12px}
+.osask-actions button:hover{border-color:var(--neon);color:var(--neon)}
+.frame.is-facility{position:relative}
+.frame.is-facility .osask{position:absolute;left:0;right:0;bottom:0;z-index:40;
+  border-bottom:0;border-top:1px solid var(--line)}
+.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+
+
 
 
 /* ─ FILES HANDED TO BUDZ IN CHAT ──────────────────────────────────────────
