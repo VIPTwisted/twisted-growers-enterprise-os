@@ -76,6 +76,7 @@ const CommandCenter = lazy(() => import("./commandcenter.jsx"));
 import { TagEvidence, TagEvidenceProvider, DkHarvestControlBanner, DkCockpitPages } from "./dashkit.jsx";
 import CockpitRail, { cockpitViewForCategory } from "./cockpit-rail.jsx";
 import { HOME_VIEW, useOsHistory, OsNavBtns, OsFind } from "./os-chrome.jsx";
+import OsAsk from "./os-ask.jsx";
 const CultivationDashboard = lazy(() => import("./dash-cultivation.jsx"));
 const ReportVault = lazy(() => import("./report-vault.jsx"));
 const AlertDrain = lazy(() => import("./alert-drain.jsx"));
@@ -11503,8 +11504,12 @@ function BridgeChip() {
         <div className={`bpop ${st.state === "up" ? "" : "warn"}`} onMouseLeave={() => setOpen(false)}>
           {st.state === "up" ? (
             <>
-              <b>Answering on {st.machine}</b>
-              <p>Questions you type are researched by Claude on that computer, reading the live records. It costs nothing beyond the subscription you already pay for.</p>
+              <b>Answering on {st.machine === "tg-bots-ext" ? "TG Bots (this Chrome)" : st.machine}</b>
+              <p>
+                {st.machine === "tg-bots-ext"
+                  ? "Questions go to the Grok, Claude or ChatGPT tab you already pay for on this computer. No extra bill. Metrc stays read-only."
+                  : "Questions you type are researched by the desktop bridge on that computer, reading the live records. It costs nothing beyond the subscription you already pay for."}
+              </p>
               {st.busy > 0 && <p>Working on {st.busy} question{st.busy === 1 ? "" : "s"} right now.</p>}
               {st.waiting > 0 && <p>{st.waiting} waiting to be picked up.</p>}
               <button className="btn" onClick={check}>Re-check</button>
@@ -11844,7 +11849,10 @@ export default function App() {
     try {
       const r = new SR();
       r.lang = "en-US"; r.interimResults = false;
-      r.onresult = (ev) => { setDictation(ev.results[0][0].transcript); setView("brain"); };
+      r.onresult = (ev) => {
+        const said = ev.results[0][0].transcript;
+        window.dispatchEvent(new CustomEvent("tg-os-ask", { detail: { text: said } }));
+      };
       r.onend = () => setListening(false);
       r.onerror = () => setListening(false);
       setListening(true); r.start();
@@ -12239,7 +12247,7 @@ export default function App() {
           <button className="tibtn" title="Tasks" onClick={() => setView("tasks")}>{I.check}</button>
           <button className="tibtn" title="Dashboards" onClick={() => setView("dashboards")}>{I.grid}</button>
           <button className="tibtn" title="Whiteboards" onClick={() => setView("whiteboards")}>{I.board}</button>
-          <button className={`tibtn ${listening ? "listening" : ""}`} title="Talk to type — dictates into Brain" onClick={startMic}>{I.mic}</button>
+          <button className={`tibtn ${listening ? "listening" : ""}`} title="Talk to this page — asks the desk that owns it" onClick={startMic}>{I.mic}</button>
           <TimeTools session={session} />
           <button className="tibtn" title="Alerts & Reminders" onClick={() => setView("alerts")}>
             {I.bell}{alertN > 0 && <span className="tbadge">{alertN}</span>}
@@ -12366,6 +12374,7 @@ export default function App() {
           )}
         </nav>}
         <main className="main" style={isFacility ? { padding: 0, overflow: "hidden", display: "flex", flexDirection: "column", height: "100%", minHeight: 0 } : undefined}>
+          {!isFacility ? <OsAsk view={view} go={setView} /> : null}
           {/* Suspense wraps the PAGE only, never the shell. A lazily loaded
               route arrives as a separate chunk, and while it is in flight this
               says so in one honest line — the side menu and the top menu are
@@ -12391,10 +12400,11 @@ export default function App() {
           flash up before the check completes. */}
       {!isFacility && petOn && aiRoles && role && aiRoles.includes(role) && (
         <Boundary resetKey="budz-pet">
-          <BudzPet go={setView} onClose={() => setPetOn(false)} />
+          <BudzPet go={setView} view={view} onClose={() => setPetOn(false)} />
         </Boundary>
       )}
       {!isFacility && <OsFind open={findOpen} onClose={() => setFindOpen(false)} go={setView} pages={findPages} />}
+      {isFacility ? <OsAsk view={view} go={setView} /> : null}
     </div>
   );
 }
