@@ -1,0 +1,11 @@
+# These files are a VERBATIM third-party import and were certified byte-for-byte
+# against the owner's original tg (2).zip on 9 Sep 2026.
+#
+# -text switches OFF git's end-of-line normalisation for this directory. Without it
+# git stores LF and hands a Windows checkout CRLF, so the working copy stops being
+# byte-identical to the archive it was certified against - and the next person to
+# re-run that certification sees 11 files "differ" and has to work out, as I did,
+# that nothing is actually wrong.
+#
+# Certification is only worth something if it stays true after a checkout.
+* -text
