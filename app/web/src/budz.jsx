@@ -1678,7 +1678,9 @@ export async function askBudzFull(question, history = [], { onFacts, surface = "
                          /* Corrections first in the object: a reader that truncates
                             keeps the thing an owner deliberately approved. */
                          memory },
-              model: bridgeModel,
+              /* Must match context.model. 1.2.0 reads job.model when context.model
+                 is empty, and grok-current opened a dead menu instead of typing HI. */
+              model: pickModel,
               provider: extProv,
               status: "pending",
             })
@@ -1742,7 +1744,10 @@ export async function askBudzFull(question, history = [], { onFacts, surface = "
             composed = done.answer;
             via = viaLine(done.provider || extProv, done.model || bridgeModel);
           } else if (done?.status === "error") {
-            askErr = String(done.error ?? "The desktop answered with an error.").slice(0, 250);
+            const raw = String(done.error ?? "The desktop answered with an error.");
+            askErr = /path specified/i.test(raw)
+              ? "The old Windows bot stole that question. Task Manager → end node.exe, stay signed in on grok.com, ask again."
+              : raw.slice(0, 250);
           } else {
             askErr = "TG Bots did not pick this up. Stay signed in on grok.com in another tab and ask again. If the answer says path specified, Task Manager → end node.exe."
           }
