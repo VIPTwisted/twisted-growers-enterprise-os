@@ -5,6 +5,9 @@
 // CALLS - ALWAYS SETUP FOR FEWEST CALLS SO WE CAN HANDLE THE CHEAPEST WAY
 // POSSIBLE", "ALL API MUST BE SECURE ON OUR SITE".
 //
+// v7, 11 Sep 2026: page evidence and atomic source-to-storage verification;
+// see verified-pull.ts and tools/repairs/gpt-apex-sync-verification.sql.
+//
 // v6, 29 Aug 2026: one change and nothing else. callerIsExecutive now also accepts a
 // valid x-admin-key, the pattern metrc-sync has had since v20, so tg_apex_sync_now can
 // drive this from the database instead of every server-side call being a 403. The key
@@ -42,6 +45,7 @@
 // re-pulling costs money.
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
+import { pullVerifiedEntity } from "./verified-pull.ts";
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -148,250 +152,18 @@ async function apexGet(base: string, key: string, path: string, params: Record<s
 const APEX_EPOCH = "2020-01-01T00:00:00Z";
 
 async function firstRunCursor(): Promise<string> {
-  const { data } = await supa.from("apex_raw").select("payload")
+  const { data, error } = await supa.from("apex_raw").select("payload")
     .eq("entity", "company").order("fetched_at", { ascending: false }).limit(1).maybeSingle();
+  if (error) throw new Error(`Cannot read Apex history start: ${error.message}`);
   const joined = (data?.payload as Record<string, unknown> | undefined)?.created_at;
   return typeof joined === "string" && joined ? joined : APEX_EPOCH;
 }
 
-/* Has this entity EVER returned a row, on any run in its history? A zero-row answer
-   from an entity that has never once produced data is not evidence the entity is
-   empty -- it is equally consistent with asking the wrong question, which is exactly
-   what happened to receiving-orders and deal-docs. RECOVERED FROM PRODUCTION v4. */
-async function entityHasEverReturnedRows(entity: string): Promise<boolean> {
-  const { count } = await supa.from("apex_raw")
-    .select("id", { count: "exact", head: true }).eq("entity", entity);
-  return (count ?? 0) > 0;
-}
-
 async function pullEntity(base: string, key: string, e: Entity, runId: string, seed: string): Promise<string> {
-  const started = new Date().toISOString();
-  const { data: wmRow } = await supa.from("apex_watermark").select("*").eq("entity", e.entity).maybeSingle();
-  const watermarkBefore: string | null = wmRow?.updated_at_from ?? null;
-
-  const logRun = async (patch: Record<string, unknown>) => {
-    await supa.from("apex_sync_run").insert({
-      run_id: runId, entity: e.entity, started_at: started, finished_at: new Date().toISOString(),
-      watermark_before: watermarkBefore, ...patch,
-    });
-  };
-
-  const path = `/${e.api_version}${e.endpoint}`;
-  const rows: Record<string, unknown>[] = [];
-  let page = 1;
-  let httpStatus = 0;
-  let rateRetries = 0;
-  let truncated = false;
-  /* Apex returns its own pagination metadata. Completeness is read from THAT rather than
-     inferred from a short last page - see the shortfall test below. */
-  let meta: { total?: number; last_page?: number; current_page?: number } | null = null;
-
-  try {
-    for (;;) {
-      const params: Record<string, string> = { ...(e.nesting ?? {}) };
-      if (e.supports_paging) { params.per_page = String(PER_PAGE); params.page = String(page); }
-      /* ALWAYS SEND IT ON A DELTA ENTITY. Apex REQUIRES updated_at_from here - it is
-         not an optimisation. Omitting it returns 422, not a full pull. On a first run
-         the cursor is the date the company joined Apex, per their own guidance. */
-      if (e.supports_delta) params.updated_at_from = watermarkBefore ?? seed;
-
-      const r = await apexGet(base, key, path, params);
-      httpStatus = r.status;
-
-      /* 429 MEANS TWO COMPLETELY DIFFERENT THINGS AND THEY NEED OPPOSITE RESPONSES.
-         Apex's own documentation: 15 requests/second per token returns 429 with a
-         Retry-After, and SEPARATELY "if your spending cap is $0, requests that would
-         exceed your free allowance are rejected with a 429 response".
-
-         The first clears in one second. The second does not clear until the month rolls
-         over or somebody raises the cap. Reporting both as "throttled, stopped
-         deliberately" tells an operator to wait when they need to go and change a
-         setting - a wrong label, which costs more than no label because the next person
-         waits too. Distinguish them by the body, and honour Retry-After when it is
-         genuinely a rate limit. */
-      if (r.status === 429) {
-        const body = (await r.text()).slice(0, 300);
-        const isRateLimit = /rate limit/i.test(body) || r.headers.has("retry-after");
-        const retryAfter = Number(r.headers.get("retry-after") ?? 0);
-
-        if (isRateLimit && rateRetries < MAX_RATE_RETRIES) {
-          rateRetries++;
-          /* Their header is in seconds and they say to respect it. A fixed guess here
-             would be the same mistake as guessing the limit in the first place. */
-          await sleep(Math.max(retryAfter * 1000, PAUSE_MS * 4));
-          continue;                       // same page, after the wait they asked for
-        }
-        const spendingCap = !isRateLimit;
-        await logRun({ status: "throttled", http_status: 429, rows_seen: rows.length, rows_written: 0,
-          error: spendingCap
-            ? `HTTP 429 with no rate-limit signal: this is the CREDIT ALLOWANCE or SPENDING CAP, `
-              + `not request rate. Waiting will not clear it. Raise the spending cap in Apex `
-              + `account settings or wait for the monthly allowance to reset. Body: ${body}`
-            : `HTTP 429 rate limit, still refused after ${rateRetries} retries honouring `
-              + `Retry-After. Body: ${body}` });
-        return spendingCap
-          ? `STOPPED — Apex credit allowance or spending cap reached. This does NOT clear by waiting.`
-          : `THROTTLED after ${rows.length} row(s) — rate limited past ${rateRetries} retries`;
-      }
-      if (!r.ok) {
-        const body = (await r.text()).slice(0, 300);
-        await logRun({ status: "error", http_status: r.status, rows_seen: rows.length, rows_written: 0,
-          error: `HTTP ${r.status}: ${body}` });
-        /* 403 means the SCOPE is missing, not that the data is absent. Absence and
-           no-access are not the same thing, and conflating them invented a blind
-           spot on this platform once already. */
-        return r.status === 403
-          ? `ERROR 403 — the key lacks the scope for this entity. That is NOT the same as "no data".`
-          : `ERROR ${r.status}: ${body.slice(0, 120)}`;
-      }
-
-      const body = await r.json();
-      const rk = e.root_key ?? "data";
-      const chunk = body?.[rk];
-      if (chunk === undefined) {
-        await logRun({ status: "error", http_status: r.status, rows_seen: rows.length, rows_written: 0,
-          error: `Root key "${rk}" absent. Keys present: ${Object.keys(body ?? {}).join(", ")}` });
-        return `ERROR — expected root key "${rk}", got [${Object.keys(body ?? {}).join(", ")}]. The registry is wrong, not the data.`;
-      }
-      const list = Array.isArray(chunk) ? chunk : [chunk];
-      rows.push(...(list as Record<string, unknown>[]));
-      meta = (body?.meta ?? null) as typeof meta;
-
-      if (!e.supports_paging || list.length < PER_PAGE) break;
-
-      /* A SILENT CAP READS EXACTLY LIKE A SMALL DATASET. The loop used to stop at
-         MAX_PAGES and report "ok" with whatever it had - 12,000 rows presented as the
-         whole entity, with nothing anywhere saying otherwise. Apex tells us how many
-         records exist; refuse rather than truncate, and say what was left behind. */
-      if (page >= MAX_PAGES) { truncated = true; break; }
-      page++;
-      await sleep(PAUSE_MS);
-    }
-
-    /* COMPLETENESS PROVED BY APEX'S OWN COUNT, not inferred from a short final page.
-       "The last page was short" is an assumption; meta.total is the server's answer to
-       "how many are there".
-
-       WHEN THEY DISAGREE, STORE THE ROWS AND HOLD THE WATERMARK. My first version threw the
-       rows away, which is wrong twice over: the fetch is already paid for in credits, and
-       apex_raw dedupes on (entity, apex_id, payload_hash) so keeping them costs nothing and
-       loses nothing. What must NOT happen is the cursor moving past records we never saw.
-       Holding the watermark makes the next run re-fetch the identical window - the pull
-       retries itself, and the run row says plainly that it was short. */
-    const shortfall = (meta?.total != null && rows.length !== meta.total)
-      ? `Apex's own meta.total says ${meta.total}, we hold ${rows.length}`
-      : truncated ? `hit the ${MAX_PAGES}-page ceiling at ${rows.length} rows` : null;
-
-    /* DEDUPE BY CONTENT, computed by POSTGRES. A delta pull returns a row because
-       its updated_at moved, which is not the same as its content changing.
-       payload_hash is md5(payload::text) generated in the table, and Postgres
-       renders jsonb with its own key ordering, so a hash computed here would never
-       match. The unique index on (entity, apex_id, payload_hash) does the comparison
-       instead: an unchanged payload is dropped, a genuinely changed one lands as a
-       new row, and apex_raw keeps full history without duplicating noise.
-
-       Blocks of 500 because a single 12,000-row insert is one failure away from
-       losing the entity; a block loses one block and says which. */
-    let written = 0;
-    const BLOCK = 500;
-    for (let i = 0; i < rows.length; i += BLOCK) {
-      const slice = rows.slice(i, i + BLOCK).map((o) => ({
-        entity: e.entity, apex_id: o?.id != null ? String(o.id) : null, payload: o, run_id: runId,
-      }));
-      const { data: ins, error } = await supa.from("apex_raw")
-        .upsert(slice, { onConflict: "entity,apex_id,payload_hash", ignoreDuplicates: true })
-        .select("id");
-      if (error) {
-        await logRun({ status: "error", http_status: httpStatus, rows_seen: rows.length, rows_written: written,
-          error: `Insert failed at row ${i}: ${error.message}` });
-        return `ERROR — fetched ${rows.length} but only stored ${written}: ${error.message.slice(0, 120)}`;
-      }
-      written += (ins ?? []).length;
-    }
-
-    /* THE WATERMARK ADVANCES ONLY HERE, ON SUCCESS. Advancing it on a failed pull
-       leaves a hole no later run will ever revisit and nothing downstream can see.
-
-       AND IT ADVANCES TO WHEN THE PULL STARTED, NOT WHEN IT FINISHED. This was a real
-       hole in the success path, the mirror of the one guarded above. Apex evaluates the
-       query at the moment the first page is requested; shipping-orders then took 69.3
-       seconds to page through. Setting the cursor to the FINISH time means any record
-       whose updated_at fell inside that window - after Apex snapshotted, before we
-       finished - is never asked for again. Not late. Gone.
-
-       Overlapping instead is free: apex_raw dedupes on (entity, apex_id, payload_hash),
-       so a row re-fetched unchanged is dropped by the unique index rather than stored
-       twice. The only cost of overlap is a few credits. The cost of a gap is a missing
-       order nobody can find, and nothing downstream can detect it. */
-    const now = new Date().toISOString();
-
-    /* A SHORT PULL KEEPS ITS ROWS AND LOSES ITS CURSOR. The rows are already stored above.
-       Leaving updated_at_from untouched means the next run asks for the same window again,
-       so the gap closes itself instead of becoming permanent. last_attempt_at still moves,
-       because the attempt did happen and the sentinel needs to see it. */
-    if (shortfall) {
-      await supa.from("apex_watermark").upsert({
-        entity: e.entity, last_attempt_at: now,
-        consecutive_errors: (wmRow?.consecutive_errors ?? 0) + 1,
-      });
-      await logRun({ status: "error", http_status: httpStatus, rows_seen: rows.length,
-        rows_written: written,
-        error: `INCOMPLETE PULL — ${shortfall}. The ${written} row(s) fetched WERE stored `
-             + `(apex_raw dedupes, so keeping them is free), but the watermark was deliberately `
-             + `NOT advanced, so the next run re-fetches this exact window rather than skipping `
-             + `past records nobody has seen.` });
-      return `INCOMPLETE — ${shortfall}; ${written} stored, watermark held for retry.`;
-    }
-
-    /* A ZERO-ROW FIRST PULL IS NOT PROOF OF AN EMPTY ENTITY and must not move the
-       cursor past a window it never read. receiving-orders and deal-docs returned 0
-       rows in ~200ms, were logged ok, and had their cursor advanced to that moment --
-       making the whole history permanently unreachable behind a green status.
-       Holding on a genuinely empty entity costs one cheap repeated call; advancing
-       past an unread window costs the history.
-
-       RECOVERED FROM PRODUCTION 11 Aug 2026. This guard was deployed as apex-sync v4
-       and existed ONLY in the deployment -- the repo copy still advanced the cursor
-       unconditionally. Deploying the repo source would have deleted it and silently
-       reintroduced the bug it fixes. */
-    const provenNonEmpty = rows.length > 0 || await entityHasEverReturnedRows(e.entity);
-    const holdCursor = e.supports_delta && !provenNonEmpty;
-    const nextCursor = e.supports_delta ? (holdCursor ? (watermarkBefore ?? seed) : started) : null;
-
-    await supa.from("apex_watermark").upsert({
-      entity: e.entity,
-      updated_at_from: nextCursor,
-      last_success_at: now, last_attempt_at: now, consecutive_errors: 0,
-    });
-    await logRun({ status: "ok", http_status: httpStatus, rows_seen: rows.length,
-      rows_written: written, watermark_after: nextCursor,
-      error: holdCursor
-        ? `ZERO ROWS AND THIS ENTITY HAS NEVER RETURNED ONE. Cursor deliberately HELD at `
-        + `${watermarkBefore ?? seed} rather than advanced, so the next run re-asks the same `
-        + `full window.`
-        : null });
-
-    if (rows.length === 0) {
-      if (holdCursor) {
-        return `0 rows — and this entity has NEVER returned one. Cursor HELD at ${watermarkBefore ?? seed}. `
-             + `Verify with apex-probe before believing it is empty.`;
-      }
-      return watermarkBefore
-        ? "0 new (delta — nothing changed since the last successful pull)"
-        : "0 rows — and this was a FULL pull, so the entity is genuinely empty at Apex";
-    }
-    return written === rows.length
-      ? `${written} row(s) over ${page} page(s)`
-      : `${written} new of ${rows.length} returned (${rows.length - written} unchanged since last pull)`;
-  } catch (err) {
-    await supa.from("apex_watermark").upsert({
-      entity: e.entity, last_attempt_at: new Date().toISOString(),
-      consecutive_errors: (wmRow?.consecutive_errors ?? 0) + 1,
-    });
-    await logRun({ status: "error", http_status: httpStatus, rows_seen: rows.length, rows_written: 0,
-      error: String(err).slice(0, 400) });
-    return `ERROR ${String(err).slice(0, 140)}`;
-  }
+  return await pullVerifiedEntity({
+    db: supa, get: (path, params) => apexGet(base, key, path, params), sleep,
+    pageSize: PER_PAGE, maxPages: MAX_PAGES, pauseMs: PAUSE_MS, maxRateRetries: MAX_RATE_RETRIES,
+  }, e.entity, runId, seed);
 }
 
 Deno.serve(async (req: Request) => {
@@ -534,16 +306,20 @@ Deno.serve(async (req: Request) => {
   let q = supa.from("apex_entity").select("*").order("kind").order("entity");
   if (only) q = q.eq("entity", only);
   else q = q.eq("required", true);
-  const { data: entities } = await q;
+  const { data: entities, error: entityError } = await q;
+  if (entityError || !entities?.length) return json({ ok: false, error: entityError?.message ?? "No Apex entities selected" }, 500);
 
   const runId = crypto.randomUUID();
-  const seed = await firstRunCursor();     // one read, reused by every entity
+  let seed: string;
+  try { seed = await firstRunCursor(); }
+  catch (error) { return json({ ok: false, error: String(error) }, 500); }
   let total = 0;
   let skipped = 0;
 
   /* One query for every watermark rather than one per entity inside the loop. Not an
      Apex cost, but the same bad habit, and it is what made the desktop bridge slow. */
-  const { data: wms } = await supa.from("apex_watermark").select("entity, last_success_at");
+  const { data: wms, error: watermarkError } = await supa.from("apex_watermark").select("entity, last_success_at");
+  if (watermarkError) return json({ ok: false, error: `Cannot read Apex sync intervals: ${watermarkError.message}` }, 500);
   const lastSuccess = new Map((wms ?? []).map((x) => [x.entity, x.last_success_at]));
 
   for (const e of (entities ?? []) as Entity[]) {
