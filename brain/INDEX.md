@@ -70,6 +70,14 @@ on prompts.
 
 ## The map
 
+### Preview build safety
+
+| File | What it holds |
+| --- | --- |
+| [Preview safety](../docs/PREVIEW_SAFETY.md) | Build isolation prerequisite, validation limits and recovery scope |
+| [Preview guard](../app/web/build/preview-safety.mjs) | Refuses unsafe preview builds pending complete isolation |
+| [Preview tests](../tools/tests/preview-safety.test.mjs) | Production compatibility and negative preview cases |
+
 ### The brain (this folder)
 | File | What it holds |
 |---|---|

@@ -65,9 +65,16 @@ test("an open-ended range is unbounded at that end, not today", () => {
 });
 
 test("a timestamp late on the To-day is inside the range, not outside it", () => {
-  const rows = [{ name: "late", at: "2026-08-23T23:45:00Z" }];
+  // The documented timestamp contract uses the reader's local calendar day.
+  // A fixed UTC instant can be the following day on a developer's machine.
+  const rows = [
+    { name: "late", at: new Date(2026, 7, 23, 23, 45).toISOString() },
+    { name: "next day", at: new Date(2026, 7, 24, 0, 15).toISOString() },
+  ];
   const r = rangeSearch(rows, { from: "2026-08-17", to: "2026-08-23", dateField: "at", fields: ["name"] });
   assert.equal(r.kept, 1, "compared on the calendar day, not the instant");
+  assert.equal(r.rows[0].name, "late");
+  assert.equal(r.outOfRange, 1, "the following local day stays outside");
 });
 
 test("a bad or empty date is treated as undated, never as 1970", () => {

@@ -3,6 +3,7 @@ import react from "@vitejs/plugin-react";
 import { execFileSync } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { previewSafety } from "./build/preview-safety.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 
@@ -40,6 +41,7 @@ export default defineConfig({
     },
   },
   plugins: [
+    previewSafety({ clientPath: path.join(here, "src/lib/supabase.js") }),
     react(),
     {
       name: "tg-build-stamp",
