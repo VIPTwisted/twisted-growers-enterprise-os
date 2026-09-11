@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { supabase, FUNCTIONS_URL, ANON_KEY } from "./lib/supabase.js";
-import { extProviderFromOs, viaLine, wakeTgBots } from "./lib/topg-connect.js";
+import { extProviderFromOs, viaLine, wakeTgBots, askTgBotsNow } from "./lib/topg-connect.js";
+
 import TgBotsPanel from "./lib/tg-bots-panel.jsx";
 import { deskForView } from "./lib/os-desk.js";
 
@@ -1635,6 +1636,20 @@ export async function askBudzFull(question, history = [], { onFacts, surface = "
           ]);
           const extProv = extProviderFromOs(pick?.provider);
 
+          /* Direct to the add-on in THIS browser. The queue is how the old
+             Windows Claude CLI stole HI and died with "path specified". If TG
+             Bots is on, never put a Grok question where that program can grab it. */
+          const live = await askTgBotsNow(asked, { provider: extProv, model: bridgeModel });
+          if (live.installed) {
+            if (live.ok && live.reply) {
+              composed = live.reply;
+              via = viaLine(live.provider || extProv, live.model || bridgeModel);
+            } else {
+              askErr = String(live.error || "TG Bots is on this computer but did not answer. Press Allow on the TG Bots tab, stay signed in on Grok, ask again.").slice(0, 300);
+            }
+          }
+
+          if (!composed && !live?.installed) {
           const { data: created, error: insErr } = await supabase
             .from("ai_bridge_jobs")
             .insert({
@@ -1729,6 +1744,7 @@ export async function askBudzFull(question, history = [], { onFacts, surface = "
             askErr = "TG Bots did not pick this up. Install the add-on once (Assistant → TG Bots), "
               + "stay signed in on Grok, Claude, or ChatGPT, then tap that name. "
               + "The question is saved and will be answered when it starts.";
+          }
           }
         } catch (e) {
           askErr = "Could not reach the desktop: " + String(e?.message ?? e).slice(0, 180);

@@ -114,8 +114,13 @@ function sendExt(msg) {
       }
       ext.runtime.sendMessage(TG_BOTS_ID, msg, (res) => {
         const err = ext.runtime.lastError;
-        if (err) resolve({ installed: false });
-        else resolve({ installed: true, ...(res || {}) });
+        if (err) {
+          const m = String(err.message || err);
+          const missing = /Could not establish|Receiving end does not exist/i.test(m);
+          resolve({ installed: !missing, ok: false, error: m });
+          return;
+        }
+        resolve({ installed: true, ...(res || {}) });
       });
     } catch {
       resolve({ installed: false });
@@ -152,6 +157,13 @@ export const tgBotsNewThread = (provider) =>
 export function wakeTgBots() {
   sendExt({ type: "TG_BOTS_WAKE" }).catch(() => {});
 }
+
+/* Direct path. The OS talks to the add-on in this browser. No queue, so the
+   old Windows Claude CLI cannot steal the question. Used when the add-on is on. */
+export function askTgBotsNow(question, extra = {}) {
+  return sendExt({ type: "TG_BOTS_ASK_NOW", question, ...extra });
+}
+
 
 /* ── THE BUTTON ───────────────────────────────────────────────────────────────
    One call does the lot: check the add-on is there, read the bridge token, push

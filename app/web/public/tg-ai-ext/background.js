@@ -453,6 +453,39 @@ chrome.runtime.onMessageExternal.addListener((msg, sender, sendResponse) => {
     sendResponse({ ok: true });
     return;
   }
+  if (msg && msg.type === "TG_BOTS_ASK_NOW") {
+    (async () => {
+      try {
+        const c = await cfg();
+        if (!c.on) {
+          sendResponse({ ok: false, error: "Tap Grok on Bots desk first." });
+          return;
+        }
+        const wantedProvider = (PROVIDERS[msg.provider] ? msg.provider : c.provider) || "grok";
+        const spec = PROVIDERS[wantedProvider] || PROVIDERS.grok;
+        const remembered = safeUrl((c.threads || {})[wantedProvider], spec.host);
+        const openUrl = remembered || (wantedProvider === "grokbots" ? c.botsUrl : spec.url);
+        const tabId = await findOrOpenTab(openUrl, spec.host, { focus: true });
+        await waitAllowed(tabId);
+        const wanted = String(msg.model || c.models[wantedProvider] || "");
+        const out = await askTab(tabId, String(msg.question || "").slice(0, 20000), wanted);
+        const ok = !!(out && out.ok && out.reply);
+        if (ok && out.threadUrl && safeUrl(out.threadUrl, spec.host)) {
+          await chrome.storage.local.set({ threads: { ...c.threads, [wantedProvider]: out.threadUrl } });
+        }
+        sendResponse({
+          ok,
+          reply: ok ? out.reply : "",
+          error: ok ? "" : String((out && out.error) || "No reply. Stay signed in on Grok."),
+          provider: wantedProvider,
+          model: (out && out.model) || wanted || "",
+        });
+      } catch (e) {
+        sendResponse({ ok: false, error: humanize(e) });
+      }
+    })();
+    return true;
+  }
   if (msg && msg.type === "TG_BOTS_NEW_THREAD") {
     chrome.storage.local.get(["threads"]).then((s2) => {
       const threads = (s2.threads && typeof s2.threads === "object") ? s2.threads : {};
