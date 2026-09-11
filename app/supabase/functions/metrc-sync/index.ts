@@ -1,5 +1,5 @@
 // TG Enterprise OS — exact backfill claims added to the deployed worker logic.
-// Existing paging, upserts and delta cursor rules are retained.
+// v27: successful feed completion and its cursor commit atomically; concurrent feeds cannot rewind one another.
 //
 // v22, 28 August 2026: one change and nothing else. Rows are upserted in BATCHES
 // of 500 instead of one awaited round trip per row, and the soft deadline is
@@ -91,6 +91,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
 import { backfillClaim, claimBackfill } from "./backfill.ts";
+import { readMetrcCursors, finishMetrcCursor, deltaCursorWindow } from "./cursor.ts";
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -129,7 +130,7 @@ addEventListener("beforeunload", () => {
     status: "partial", records: OPEN_RUN.records, finished_at: new Date().toISOString(),
     error: "Stopped by the platform before finishing. Rows already written were kept. "
          + "Run again to continue - this is not a data fault.",
-  }).eq("id", OPEN_RUN.id).then(() => {});
+  }).eq("id", OPEN_RUN.id).eq("status", "running").then(() => {});
 });
 
 async function loadCfg(): Promise<Record<string, string>> {
@@ -200,14 +201,6 @@ async function callerIsExecutive(req: Request): Promise<boolean> {
   if (!uid) return false;
   const { data: row } = await supa.from("app_users").select("role").eq("user_id", uid).single();
   return row?.role === "owner" || row?.role === "executive";
-}
-
-async function getCursors(): Promise<Record<string, string>> {
-  const { data } = await supa.from("configurations").select("value").eq("key", "metrc_sync_cursors").maybeSingle();
-  return (data?.value as Record<string, string>) ?? {};
-}
-async function saveCursors(c: Record<string, string>): Promise<void> {
-  await supa.from("configurations").upsert({ key: "metrc_sync_cursors", value: c, updated_at: now() });
 }
 
 async function resolveAuth(base: string, cfg: Record<string, string>):
@@ -423,7 +416,7 @@ async function writeRows(spec: Spec, rows: Row[], license: string, state: string
 
 async function runSpec(base: string, license: string, auth: string, spec: Spec,
   window: { start: string; end: string } | undefined, label: string | undefined,
-  outOfTime: () => boolean, pageSize: number, reservedRunId?: number): Promise<{ summary: string; ranOut: boolean; complete: boolean }> {
+  outOfTime: () => boolean, pageSize: number, reservedRunId?: number, cursorWindow?: { start: string; end: string }): Promise<{ summary: string; ranOut: boolean; complete: boolean }> {
   const runLabel = label ?? (window ? `${spec.key} (delta)` : spec.key);
   const { data: run, error: createError } = reservedRunId
     ? { data: { id: reservedRunId }, error: null }
@@ -451,27 +444,34 @@ async function runSpec(base: string, license: string, auth: string, spec: Spec,
     const failedEverything = subErrors.length >= spec.paths.length;
     const complete = subErrors.length === 0 && !anyTrunc && !ranOut;
     const status = failedEverything ? "error" : (complete ? "ok" : "partial");
-    const { error: closeError } = await supa.from("metrc_sync_runs").update({
-      status, records: n,
-      error: subErrors.length ? subErrors.join(" · ").slice(0, 480) : null,
-      note: complete ? null
-        : ranOut
-          ? `Stopped at the soft deadline with ${n} rows written. Not a fault. Cursor NOT advanced; the next run re-asks for this window.`
-          : anyTrunc
-            ? `CAPPED at ${MAX_PAGES} pages of ${pageSize}. Cursor NOT advanced; the next run re-asks for this window.`
-            : `${subErrors.length} of ${spec.paths.length} sub-states failed. Cursor NOT advanced; the next run re-asks for this window.`,
-      finished_at: now(),
-    }).eq("id", run!.id);
-    if (closeError) throw new Error(`Could not persist sync completion: ${closeError.message}`);
+    if (complete && cursorWindow) {
+      await finishMetrcCursor(supa, {
+        p_run_id: run.id, p_endpoint: spec.key, p_license: license,
+        p_window_start: cursorWindow.start, p_window_end: cursorWindow.end, p_records: n,
+      });
+    } else {
+      const { error: closeError } = await supa.from("metrc_sync_runs").update({
+        status, records: n,
+        error: subErrors.length ? subErrors.join(" · ").slice(0, 480) : null,
+        note: complete ? null
+          : ranOut
+            ? `Stopped at the soft deadline with ${n} rows written. Not a fault. Cursor NOT advanced; the next run re-asks for this window.`
+            : anyTrunc
+              ? `CAPPED at ${MAX_PAGES} pages of ${pageSize}. Cursor NOT advanced; the next run re-asks for this window.`
+              : `${subErrors.length} of ${spec.paths.length} sub-states failed. Cursor NOT advanced; the next run re-asks for this window.`,
+        finished_at: now(),
+      }).eq("id", run!.id);
+      if (closeError) throw new Error(`Could not persist sync completion: ${closeError.message}`);
+    }
     OPEN_RUN = null;
     return {
-      summary: `${n} new${anyTrunc ? " ⚠️ capped" : ""}`
+      summary: `${n} processed${anyTrunc ? " ⚠️ capped" : ""}`
         + `${ranOut ? " ⏱ stopped at deadline, run again to continue" : ""}`
         + `${subErrors.length ? ` (${subErrors.length} sub-state errors)` : ""}`,
       ranOut, complete,
     };
   } catch (e) {
-    await supa.from("metrc_sync_runs").update({ status: "error", error: String(e).slice(0, 480), finished_at: now() }).eq("id", run!.id);
+    await supa.from("metrc_sync_runs").update({ status: "error", error: String(e).slice(0, 480), finished_at: now() }).eq("id", run!.id).eq("status", "running");
     OPEN_RUN = null;
     throw e;
   }
@@ -540,7 +540,7 @@ Deno.serve(async (req: Request) => {
   const winStart = params.get("winStart");
   const winEnd = params.get("winEnd");
   const explicitWindow = winStart && winEnd ? { start: winStart, end: winEnd } : null;
-  const cursors = await getCursors();
+  const cursors = await readMetrcCursors(supa);
   const runStart = now();
   let skippedByCapability = 0;
   let stoppedEarly = false;
@@ -575,36 +575,35 @@ Deno.serve(async (req: Request) => {
 
       let window: { start: string; end: string } | undefined = undefined;
       let runLabel: string | undefined = undefined;
-      if (explicitWindow && spec.delta) {
-        window = explicitWindow;
-      } else if (full && spec.delta) {
-        window = { start: HISTORY_START, end: runStart };
-        runLabel = `${spec.key} (full sweep)`;
-      } else {
-        const since = spec.delta ? cursors[ck] : undefined;
-        window = since ? { start: since, end: runStart } : undefined;
-      }
       try {
+        if (explicitWindow && spec.delta) {
+          window = explicitWindow;
+        } else if (full && spec.delta) {
+          window = { start: HISTORY_START, end: runStart };
+          runLabel = `${spec.key} (full sweep)`;
+        } else {
+          window = spec.delta ? deltaCursorWindow(cursors, ck, runStart) : undefined;
+        }
         if (reservedRunId) reservedRunStarted = true;
-        const r = await runSpec(BASE, license, resolved.auth, spec, window, runLabel, outOfTime, PAGE_SIZE, reservedRunId);
+        const r = await runSpec(BASE, license, resolved.auth, spec, window, runLabel, outOfTime, PAGE_SIZE, reservedRunId, spec.delta && !explicitWindow ? window : undefined);
         if (!r.complete) incompleteResult = true;
         if (r.ranOut) stoppedEarly = true;
         const { count } = await supa.from(spec.table).select("*", { count: "exact", head: true }).eq("license", license);
         results[ck] = `${r.summary}${window ? " (windowed)" : ""} · ${count ?? 0} total in OS${r.complete ? "" : " · CURSOR HELD"}`;
-        /* v20: only a COMPLETE run moves the watermark. See runSpec. */
+        /* v27: runSpec committed complete runs and their own cursor together. */
         if (spec.delta && !explicitWindow) {
-          if (r.complete) { cursors[ck] = runStart; await saveCursors(cursors); }
-          else heldCursors++;
+          if (!r.complete) heldCursors++;
         }
       } catch (e) {
         incompleteResult = true;
+        if (spec.delta && !explicitWindow) heldCursors++;
         results[ck] = `ERROR: ${String(e).slice(0, 160)}`;
       }
       await sleep(PAGE_PAUSE_MS);
     }
   }
   results._calls_not_made = `${skippedByCapability} licence/endpoint pairs skipped because that licence cannot answer them`;
-  results._cursors_held = `${heldCursors} delta cursors NOT advanced because the run was not complete`;
+  results._cursors_held = `${heldCursors} delta cursor completions were not confirmed`;
   results._elapsed_ms = Date.now() - startedAt;
   if (stoppedEarly) {
     results._incomplete = "This run stopped at its soft deadline. Rows written were kept and every "

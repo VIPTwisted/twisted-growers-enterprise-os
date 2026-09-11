@@ -19,7 +19,7 @@
       "deployed_version": 1,
       "sha256": "9bc3f2b54164dd4729162b8802806a0004b43bfc0dc777c1199cef8f4b1428e5",
       "redacted": false,
-      "note": "Real source, read-only GET probe, admin-key gated. Deployed v1 on 10 Aug 2026 and recovered into the repo in 4222e85 because the source existed only in the deployment. Reads TG_ADMIN_KEY from integration_secrets at run time \u2014 no literal in the file, so this is the real source and not a redacted recovery copy. verify_jwt true."
+      "note": "Real source, read-only GET probe, admin-key gated. Deployed v1 on 10 Aug 2026 and recovered into the repo in 4222e85 because the source existed only in the deployment. Reads TG_ADMIN_KEY from integration_secrets at run time — no literal in the file, so this is the real source and not a redacted recovery copy. verify_jwt true."
     },
     "apex-sync": {
       "deployed_version": 7,
@@ -118,7 +118,7 @@
       "deployed_version": 4,
       "sha256": "391edd8813c76660acc31baed678b52e2cef949ab11eafaf684d1f62bd3f9050",
       "redacted": false,
-      "note": "REAL SOURCE \u2014 no key in the file. Reads TG_ADMIN_KEY from integration_secrets at run time. First of the sixteen moved off the shared literal, 10 Aug 2026. Deployed v4 and verified: correct key 200, wrong key 403, no key 403."
+      "note": "REAL SOURCE — no key in the file. Reads TG_ADMIN_KEY from integration_secrets at run time. First of the sixteen moved off the shared literal, 10 Aug 2026. Deployed v4 and verified: correct key 200, wrong key 403, no key 403."
     },
     "metrc-reference-sync": {
       "deployed_version": 2,
@@ -133,13 +133,14 @@
       "note": "Recovered from production with the shared admin key redacted. Production is the source of record; deploying this copy would break the function."
     },
     "metrc-sync": {
-      "deployed_version": 26,
-      "sha256": "d2606efa676b75db652aa3ce78ec8d6eab161204b761c02b7c847fc18ff8fd8d",
+      "deployed_version": 28,
+      "sha256": "dc659008bb37612dc36ecde348d132cddb55d1673d51d51829fdab301ef5fc91",
       "redacted": false,
       "file_sha256": {
-        "backfill.ts": "99cf266ab3f9169c8fc60aec5a036c2095c695f5056eff5826883c6a663cd810"
+        "backfill.ts": "99cf266ab3f9169c8fc60aec5a036c2095c695f5056eff5826883c6a663cd810",
+        "cursor.ts": "862e96f721534ca596aab882f12f9039b08307360fc7829550e316d82c474648"
       },
-      "note": "Deployed version 26 with verify_jwt=true. Both returned deployment files matched the tested source byte for byte. Adds exact backfill attempt claims and checked completion persistence; retains normal delta and upsert paths. Additional-file digest records the verified deployment dependency."
+      "note": "Version 28 deployed with verify_jwt=true. All three files re-read and matched byte for byte. Complete operational runs save only their own cursor and their run receipt in one transaction; explicit backfills retain the separate completion path. This proves cursor persistence, not independent source-population certification. Missing initial coverage blocks operational deltas until verified historical bootstrap."
     },
     "parse-documents": {
       "deployed_version": 7,
@@ -175,7 +176,7 @@
       "deployed_version": 4,
       "sha256": "3d4fd851ef2a4e380d0e384062ef93b245f4a8736f909e8fbfdee2fa99ceed16",
       "redacted": false,
-      "note": "Real source. Deployed v4 on 19 Aug 2026: added the MACHINE AUTH PATH. It accepted only a signed-in executive's token, so a cron job could never authenticate and the spreadsheet import was never scheduled at all \u2014 13 imports in thirty days, every one manual, and the sheets sitting 6.7 days stale when the owner asked. It now also accepts TG_ADMIN_KEY as x-admin-key, the same machine credential tg_call_function already sends and apex-probe already trusts; a human executive's token works exactly as before. verify_jwt unchanged."
+      "note": "Real source. Deployed v4 on 19 Aug 2026: added the MACHINE AUTH PATH. It accepted only a signed-in executive's token, so a cron job could never authenticate and the spreadsheet import was never scheduled at all — 13 imports in thirty days, every one manual, and the sheets sitting 6.7 days stale when the owner asked. It now also accepts TG_ADMIN_KEY as x-admin-key, the same machine credential tg_call_function already sends and apex-probe already trusts; a human executive's token works exactly as before. verify_jwt unchanged."
     },
     "coa-inspect": {
       "deployed_version": 1,
