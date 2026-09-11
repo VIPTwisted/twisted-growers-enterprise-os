@@ -15,7 +15,7 @@
       HTTPS on an allowed host, and if inject still fails we say Site access
       in English instead of leaking Chrome's own sentence. */
 const QUEUE = "https://fxetuqjryttnypgepsru.supabase.co/functions/v1/bridge-queue";
-const VERSION = "1.3.0";
+const VERSION = "1.3.1";
 const ALLOWED_HOSTS = new Set([
   "grok.com", "grok.x.ai", "x.ai", "accounts.x.ai", "x.com",
   "claude.ai",
@@ -146,6 +146,12 @@ function queryPatterns(host) {
   return [...new Set(out)];
 }
 
+async function stayOnOs() {
+  const os = await chrome.tabs.query({ url: "https://twisted-growers-enterprise-os.netlify.app/*" }).catch(() => []);
+  const tab = (os || []).find((t) => t && t.id);
+  if (tab && tab.id) await chrome.tabs.update(tab.id, { active: true }).catch(() => {});
+}
+
 async function findOrOpenTab(url, host, { focus = false } = {}) {
   const seen = new Set();
   const tabs = [];
@@ -164,10 +170,11 @@ async function findOrOpenTab(url, host, { focus = false } = {}) {
     if (focus) await chrome.tabs.update(live.id, { active: true }).catch(() => {});
     return live.id;
   }
-  /* New tabs must be active. A background grok.com tab is what produced
-     "cannot access contents of the page": Chrome never finished the load,
-     waitTab timed out, and executeScript ran against about:blank. */
+  /* Create the provider tab so it can finish loading, then put the OS back in
+     front. Tapping Grok used to yank the owner onto grok.com. */
   const created = await chrome.tabs.create({ url, active: true });
+  await waitAllowed(created.id, 15000);
+  await stayOnOs();
   return created.id;
 }
 
@@ -259,8 +266,9 @@ async function modelsFor(provider) {
   const spec = PROVIDERS[provider] || PROVIDERS.grok;
   const c = await cfg();
   const openUrl = provider === "grokbots" ? c.botsUrl : spec.url;
-  const tabId = await findOrOpenTab(openUrl, spec.host, { focus: true });
+  const tabId = await findOrOpenTab(openUrl, spec.host, { focus: false });
   await waitAllowed(tabId);
+  await stayOnOs();
   return send(tabId, { type: "TG_BOTS_MODELS" });
 }
 
@@ -403,13 +411,12 @@ chrome.runtime.onMessageExternal.addListener((msg, sender, sendResponse) => {
       }
       return chrome.storage.local.set(patch);
     }).then(() => cfg()).then(async (c) => {
-      /* Open the signed-in tab NOW, in front of the user. A hidden grok.com
-         tab is how Chrome ended up injecting into about:blank. */
+      /* Do not jump the owner onto grok.com. Stay on the live OS. */
       try {
         const spec = PROVIDERS[c.provider] || PROVIDERS.grok;
         const openUrl = c.provider === "grokbots" ? c.botsUrl : spec.url;
-        await findOrOpenTab(openUrl, spec.host, { focus: true });
-        await openGrant();
+        await findOrOpenTab(openUrl, spec.host, { focus: false });
+        await stayOnOs();
       } catch { /* setup still succeeded; the next ask will open the tab */ }
       sendResponse({ ok: true, provider: c.provider, model: c.model, on: c.on, hasToken: !!c.token, version: VERSION });
     }).catch((e) => sendResponse({ ok: false, error: String(e && e.message ? e.message : e).slice(0, 200) }));
@@ -465,8 +472,9 @@ chrome.runtime.onMessageExternal.addListener((msg, sender, sendResponse) => {
         const spec = PROVIDERS[wantedProvider] || PROVIDERS.grok;
         const remembered = safeUrl((c.threads || {})[wantedProvider], spec.host);
         const openUrl = remembered || (wantedProvider === "grokbots" ? c.botsUrl : spec.url);
-        const tabId = await findOrOpenTab(openUrl, spec.host, { focus: true });
+        const tabId = await findOrOpenTab(openUrl, spec.host, { focus: false });
         await waitAllowed(tabId);
+        await stayOnOs();
         const wanted = String(msg.model || c.models[wantedProvider] || "");
         const out = await askTab(tabId, String(msg.question || "").slice(0, 20000), wanted);
         const ok = !!(out && out.ok && out.reply);

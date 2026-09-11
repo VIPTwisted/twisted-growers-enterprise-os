@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { supabase, FUNCTIONS_URL, ANON_KEY } from "./lib/supabase.js";
-import { extProviderFromOs, viaLine, wakeTgBots, askTgBotsNow } from "./lib/topg-connect.js";
+import { extProviderFromOs, viaLine, wakeTgBots, askTgBotsNow, pingTgBots, extTooOld } from "./lib/topg-connect.js";
 
 import TgBotsPanel from "./lib/tg-bots-panel.jsx";
 import { deskForView } from "./lib/os-desk.js";
@@ -1636,20 +1636,21 @@ export async function askBudzFull(question, history = [], { onFacts, surface = "
           ]);
           const extProv = extProviderFromOs(pick?.provider);
 
-          /* Direct to the add-on in THIS browser. The queue is how the old
-             Windows Claude CLI stole HI and died with "path specified". If TG
-             Bots is on, never put a Grok question where that program can grab it. */
-          const live = await askTgBotsNow(asked, { provider: extProv, model: bridgeModel });
-          if (live.installed) {
-            if (live.ok && live.reply) {
-              composed = live.reply;
-              via = viaLine(live.provider || extProv, live.model || bridgeModel);
-            } else {
-              askErr = String(live.error || "TG Bots is on this computer but did not answer. Press Allow on the TG Bots tab, stay signed in on Grok, ask again.").slice(0, 300);
-            }
+          /* 1.3+ talks straight to the add-on. 1.2.0 does not know ASK_NOW, so
+             that call returns empty and we used to stop with "Press Allow" —
+             a tab 1.2.0 never opens. Fall back to the queue and WAKE so 1.2.0
+             can still type into the signed-in Grok tab. */
+          const ping = await pingTgBots();
+          let live = { installed: !!ping.installed, ok: false };
+          if (ping.installed && !extTooOld(ping.version)) {
+            live = await askTgBotsNow(asked, { provider: extProv, model: bridgeModel });
+          }
+          if (live.installed && live.ok && live.reply) {
+            composed = live.reply;
+            via = viaLine(live.provider || extProv, live.model || bridgeModel);
           }
 
-          if (!composed && !live?.installed) {
+          if (!composed) {
           const { data: created, error: insErr } = await supabase
             .from("ai_bridge_jobs")
             .insert({
@@ -1741,9 +1742,7 @@ export async function askBudzFull(question, history = [], { onFacts, surface = "
           } else if (done?.status === "error") {
             askErr = String(done.error ?? "The desktop answered with an error.").slice(0, 250);
           } else {
-            askErr = "TG Bots did not pick this up. Install the add-on once (Assistant → TG Bots), "
-              + "stay signed in on Grok, Claude, or ChatGPT, then tap that name. "
-              + "The question is saved and will be answered when it starts.";
+            askErr = "TG Bots did not pick this up. Stay signed in on grok.com in another tab and ask again. If the answer says path specified, Task Manager → end node.exe."
           }
           }
         } catch (e) {
