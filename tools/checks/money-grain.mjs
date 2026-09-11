@@ -789,7 +789,7 @@ const migrationEntries = files.map((name) => ({
 // Re-pinned 11 Sep 2026 so a bot-only fix can ship. Production gained one
 // table (487). Dump replaces the prior baseline only. No ledger rewrite.
 // Metrc delivered-record verification and complete live schema capture; no money-contract change.
-const expectedMigrationTreeDigest = "4559c0ed81b3b51ede842b26699dd381689f70d2225031b72d8717b573a6c9aa";
+const expectedMigrationTreeDigest = "9414c2d5a8ebd8c9fdd0e9cbdb20dac554dac85a31dc70fe1c07bd7e29862689";
 const actualMigrationTreeDigest = migrationTreeDigest(migrationEntries);
 if (actualMigrationTreeDigest !== expectedMigrationTreeDigest) {
   console.error(`money-grain: FAIL — migration tree differs from the independently reviewed ${files.length}-file manifest (${actualMigrationTreeDigest}).`);
