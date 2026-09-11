@@ -162,12 +162,18 @@
 
   async function selectModel(want) {
     const target = String(want || "").trim();
-    if (!target) return { ok: true, model: activeModel() };
+    if (!target || /^(current|grok-current|gpt-current|claude-current|default|whatever)$/i.test(target)) {
+      return { ok: true, model: activeModel(), skipped: true };
+    }
     if (activeModel() === target) return { ok: true, model: target };
 
     const opts = await openModelMenu();
-    if (opts === null) return { ok: false, error: "No model menu found on this site." };
-    if (!opts.length) return { ok: false, error: "The model menu opened but listed nothing." };
+    if (opts === null || !opts.length) {
+      /* grok.com's first aria-haspopup button is often not the model picker.
+         Do not fail the question — type it on whatever version is already on. */
+      closeMenu();
+      return { ok: true, model: activeModel(), skipped: true };
+    }
 
     let hit = opts.find((o) => o.label === target);
     if (!hit) {

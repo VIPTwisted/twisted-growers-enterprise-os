@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { supabase, FUNCTIONS_URL, ANON_KEY } from "./lib/supabase.js";
-import { extProviderFromOs, viaLine, wakeTgBots, askTgBotsNow, pingTgBots, extTooOld } from "./lib/topg-connect.js";
+import { extProviderFromOs, viaLine, wakeTgBots, askTgBotsNow, pingTgBots, extTooOld, usableExtModel } from "./lib/topg-connect.js";
 
 import TgBotsPanel from "./lib/tg-bots-panel.jsx";
 import { deskForView } from "./lib/os-desk.js";
@@ -1586,12 +1586,13 @@ export async function askBudzFull(question, history = [], { onFacts, surface = "
   const askedAt = Date.now();
   const asked = desk?.name
     ? [
-        `You are ${desk.name}, ${desk.role} on the Twisted Growers Enterprise OS staff.`,
-        desk.job ? `Your desk: ${desk.job}` : "",
-        "Buddy on the Grok Bots platform is the ultimate boss. Top G is OS Chief of Staff.",
-        "You never outrank Buddy. METRC IS READ ONLY. Apex invoice is money source of record.",
-        "Do not invent a certified number. Hard gate: anything external is draft until the owner says yes on that exact item.",
-        desk.open ? `When they need to act, send them to the live OS page for this desk.` : "",
+        `You are Grok — a full AI assistant — working inside the Twisted Growers Enterprise OS as ${desk.name}, ${desk.role}.`,
+        desk.job ? `This desk: ${desk.job}` : "",
+        "Answer ANY topic they ask: this company, cultivation, money, weather, code, strategy, IT, writing, planning, anything.",
+        "When the question is about this business, use the live records and this desk. Metrc is read-only. Apex invoice is money source of record. Do not invent a certified number.",
+        "When it is not about this business, answer as Grok normally. Collaborate. Do the work.",
+        "Buddy on Grok Bots is the ultimate boss. Top G is OS Chief of Staff. You never outrank Buddy.",
+        desk.open ? `When they need a page in this OS, send them to the live OS page for this desk.` : "",
         "",
         "QUESTION: " + question,
       ].filter(Boolean).join("\n")
@@ -1635,6 +1636,7 @@ export async function askBudzFull(question, history = [], { onFacts, surface = "
             supabase.rpc("f_ai_model_for", { p_user: uid }),
           ]);
           const extProv = extProviderFromOs(pick?.provider);
+          const pickModel = usableExtModel(bridgeModel);
 
           /* 1.3+ talks straight to the add-on. 1.2.0 does not know ASK_NOW, so
              that call returns empty and we used to stop with "Press Allow" —
@@ -1643,7 +1645,7 @@ export async function askBudzFull(question, history = [], { onFacts, surface = "
           const ping = await pingTgBots();
           let live = { installed: !!ping.installed, ok: false };
           if (ping.installed && !extTooOld(ping.version)) {
-            live = await askTgBotsNow(asked, { provider: extProv, model: bridgeModel });
+            live = await askTgBotsNow(asked, { provider: extProv, model: pickModel });
           }
           if (live.installed && live.ok && live.reply) {
             composed = live.reply;
@@ -1670,7 +1672,7 @@ export async function askBudzFull(question, history = [], { onFacts, surface = "
                  claude.ai / chatgpt.com from context.provider. Sending only the
                  alias ("current", "opus") while the add-on is sitting on a
                  different site hunts that version in the wrong menu. */
-              context: { summary: a.headline, records: facts.slice(0, 40), model: bridgeModel,
+              context: { summary: a.headline, records: facts.slice(0, 40), model: pickModel,
                          provider: extProv,
                          desk: desk ? { name: desk.name, role: desk.role } : null,
                          /* Corrections first in the object: a reader that truncates
