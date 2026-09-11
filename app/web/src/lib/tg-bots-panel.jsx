@@ -30,6 +30,10 @@ export default function TgBotsPanel({ compact = false, onReady }) {
   useEffect(() => { refresh(); }, []);
 
   async function tapProvider(key) {
+    if (on && provider === key) {
+      setMsg(`${providerLabel(key)} is already on. Leave it green. Type your question in the chat below.`);
+      return;
+    }
     setBusy(true);
     setMsg("");
     const r = await pushButtonSetup({
@@ -53,11 +57,7 @@ export default function TgBotsPanel({ compact = false, onReady }) {
     setProvider(key);
     setModels(Array.isArray(r.models) ? r.models : []);
     setSt({ installed: true, ok: true, on: true, provider: r.provider, model: r.model, hasToken: true, version: r.version || st?.version });
-    setMsg(r.modelsError
-      ? (/permission|host|cannot access|Allow/i.test(r.modelsError)
-        ? `On. Press Allow on the TG Bots tab that just opened, then ask HI.`
-        : `On. Stay signed in on ${providerLabel(key)} so I can load the versions your plan actually opens.`)
-      : `On. ${providerLabel(key)} answers every desk. A TG Bots tab may open — press Allow, then ask anything. No extra bill.`);
+    setMsg(`On. ${providerLabel(key)} answers in this OS chat. Leave this button green. Type below. Do not click it again.`);
     onReady?.(r);
     setBusy(false);
   }
@@ -121,6 +121,7 @@ export default function TgBotsPanel({ compact = false, onReady }) {
             type="button"
             className={provider === p.key && on ? "on" : ""}
             disabled={busy}
+            aria-pressed={provider === p.key && on}
             onClick={() => tapProvider(p.key)}
           >
             {p.label}
