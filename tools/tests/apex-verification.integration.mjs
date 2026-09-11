@@ -160,6 +160,9 @@ test("Apex source evidence and cursor transaction in isolated PostgreSQL", async
       for (const table of ["apex_sync_verification", "apex_sync_page_receipt", "apex_record_verification"]) {
         await assert.rejects(() => query(`delete from ${table}`), /immutable/);
         await assert.rejects(() => query(`update ${table} set entity=entity`), /immutable/);
+        await query("set role service_role");
+        try { await assert.rejects(() => query(`truncate ${table} cascade`), /permission denied/); }
+        finally { await query("reset role"); }
         for (const role of ["anon", "authenticated"]) {
           await query(`set role ${role}`);
           try { await assert.rejects(() => query(`select * from ${table}`), /permission denied/); await assert.rejects(() => begin(), /permission denied/); }

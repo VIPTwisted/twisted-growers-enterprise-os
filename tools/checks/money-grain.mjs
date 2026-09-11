@@ -785,7 +785,8 @@ const migrationEntries = files.map((name) => ({
 // Regenerated the complete live catalogue with the existing dump generator; schema capture only.
 // Full catalogue captured 11 Sep 12:38 UTC: 483 tables, 553 views, 29 matviews, 1362 policies.
 // Replaces only the prior baseline; applied migration statements retained with the private recovery record.
-const expectedMigrationTreeDigest = "d70b7b1e09b47fa5d34f51aa98e4b887d37a94a29c36c4c88b786250cbe73912";
+// Apex source verification is additive; the refreshed catalogue also preserves concurrent applied schema work.
+const expectedMigrationTreeDigest = "f115c662c190c0636ef04ebbb6ca0b7f4d1757b58e624d3424734d1d2cd88a78";
 const actualMigrationTreeDigest = migrationTreeDigest(migrationEntries);
 if (actualMigrationTreeDigest !== expectedMigrationTreeDigest) {
   console.error(`money-grain: FAIL — migration tree differs from the independently reviewed ${files.length}-file manifest (${actualMigrationTreeDigest}).`);

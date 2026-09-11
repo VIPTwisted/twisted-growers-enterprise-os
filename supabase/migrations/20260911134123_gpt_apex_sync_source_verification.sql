@@ -245,3 +245,4 @@ revoke all on function public.tg_apex_verification_finish(uuid,text,boolean,text
 grant execute on function public.tg_apex_verification_begin(uuid,text,timestamptz,integer) to service_role;
 grant execute on function public.tg_apex_verification_page(uuid,text,integer,jsonb,text,text) to service_role;
 grant execute on function public.tg_apex_verification_finish(uuid,text,boolean,text,integer) to service_role;
+

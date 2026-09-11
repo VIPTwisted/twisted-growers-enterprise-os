@@ -86,7 +86,7 @@ jobs:
       - name: Apex verification, failure recovery and concurrency (isolated Postgres)
         env:
           APEX_TEST_PGURL: ${{ env.MONEY_TEST_PGURL }}
-        run: node --test tools/tests/apex-verification.integration.mjs
+        run: node --test tools/tests/apex-verification.integration.mjs tools/tests/apex-verified-pull.test.mjs
 
       # ---- FIRST, because everything below it assumes the files still exist ----------
       # budz.jsx went to zero bytes on 8 Aug 2026 and every other gate read green:
