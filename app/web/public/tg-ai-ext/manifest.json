@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "TG Bots",
-  "version": "1.3.0",
+  "version": "1.3.1",
   "description": "Twisted Growers OS — answer Staff and Budz from the Grok, Claude, GPT or Grok Bots tab you already pay for. Pick the provider and the version your subscription offers. No extra API bill.",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAtKx4Qqr/zYa8sVpKTZkIYYvsrKNzTkKzZQtg15aJM/ZZ6uy1I2QCkVmNmLZJ/B+DvtsVlOAzP6k0rkxslML9Emob4+qz3/TGYPsx5Mn5zovlmh9cy++DGQYMVJMP5JtThf/vccqtUM908xFgH+qIxR2+vt/b15st2sJiXTpDJtzfTkE6KR9GeEj1BGm9xm0i8EO0t2wvaIqdh8kWaLfsKVr025clX4ETQv61h+/oEcGUDI5VaI7fJiPKdbX7awXVghGkkg0w6A2esXOx1V+Rw9Ak6j2KA50ZYGM8Fx8YqXzpxxTcSBgmNc5YeBAsvhQALCcR/Vw9pr86dm02CsIE+wIDAQAB",
   "action": {

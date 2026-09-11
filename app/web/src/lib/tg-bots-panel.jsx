@@ -103,9 +103,8 @@ export default function TgBotsPanel({ compact = false, onReady }) {
       </p>
       {old && (
         <ol className="tgbots-steps">
-          <li>This computer still has the old add-on{st.version ? ` (${st.version})` : ""}. You need {TG_BOTS_NEED}.</li>
-          <li><a href={TG_BOTS_ZIP} download="tg-ai-ext.zip">Download TG Bots</a> and unzip it over the same folder.</li>
-          <li>chrome://extensions → TG Bots → Reload. Then tap Grok. Press Allow on the tab that opens.</li>
+          <li>This computer has add-on {st.version || "1.2.0"}. Type HI in the chat below. Do not tap Grok — that opens grok.com and leaves the OS.</li>
+          <li>Stay signed in on grok.com in another tab. If an answer says “path specified”, Task Manager → end node.exe, then ask again.</li>
         </ol>
       )}
       {!installed && (
