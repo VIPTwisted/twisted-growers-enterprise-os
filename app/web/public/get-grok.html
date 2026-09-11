@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Get Grok on this computer</title>
+  <style>
+    :root { --bg:#070807; --ink:#f4f7f4; --muted:#9aa89a; --neon:#39ff14; --line:#1c241c; --card:#101410; }
+    * { box-sizing: border-box; }
+    html, body { margin:0; background:var(--bg); color:var(--ink); font: 18px/1.45 system-ui, Segoe UI, sans-serif; }
+    main { max-width: 720px; margin: 0 auto; padding: 32px 20px 80px; }
+    h1 { font-size: 28px; margin: 0 0 8px; }
+    .sub { color: var(--muted); margin: 0 0 28px; }
+    .step { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 18px 20px; margin: 0 0 14px; }
+    .n { display:inline-flex; width:32px; height:32px; align-items:center; justify-content:center; border-radius:999px; background:var(--neon); color:#061006; font-weight:800; margin-right:10px; }
+    h2 { font-size: 20px; margin: 0 0 8px; display:flex; align-items:center; }
+    p { margin: 8px 0 0; color: var(--muted); }
+    a.btn, button.btn {
+      display:inline-block; margin-top:12px; background:var(--neon); color:#061006; font-weight:800;
+      text-decoration:none; border:0; border-radius:999px; padding:12px 22px; cursor:pointer; font-size:16px;
+    }
+    code { color: var(--neon); }
+    .warn { color: #ffb347; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Get Grok on this computer</h1>
+    <p class="sub">Five clicks, once. Chrome will not let the OS do this for you. After this, every desk can ask Grok.</p>
+
+    <section class="step">
+      <h2><span class="n">1</span> Download</h2>
+      <p>Save the file. Do not open it yet.</p>
+      <a class="btn" href="/tg-ai-ext.zip" download="tg-ai-ext.zip">Download TG Bots</a>
+    </section>
+
+    <section class="step">
+      <h2><span class="n">2</span> Extract all</h2>
+      <p>Open <strong>Downloads</strong>. Click the zip once. At the top of the window click <strong>Extract all</strong>, then <strong>Extract</strong>.</p>
+      <p>A new folder opens. You must see a file named <strong>manifest</strong>. If you see a folder named <strong>tg-ai-ext</strong>, open that one.</p>
+    </section>
+
+    <section class="step">
+      <h2><span class="n">3</span> Remove the old add-on</h2>
+      <p>In Chrome’s address bar type <code>chrome://extensions</code> and press Enter.</p>
+      <p>If you see a card named <strong>TG Bots</strong>, click <strong>Remove</strong> on that card. Confirm. We will load the new one next. Do not leave 1.2.0 on this computer.</p>
+    </section>
+
+    <section class="step">
+      <h2><span class="n">4</span> Load the new folder</h2>
+      <p>Turn <strong>Developer mode</strong> on (top right).</p>
+      <p>Click <strong>Load unpacked</strong>. Pick the folder from step 2 — the one that contains <strong>manifest</strong>.</p>
+      <p class="warn">Do not pick <strong>TG AI Extention</strong>. That folder is empty. Do not pick the zip. Pick the extracted folder.</p>
+      <p>The card must say <strong>TG Bots 1.3.0</strong>.</p>
+    </section>
+
+    <section class="step">
+      <h2><span class="n">5</span> Press Allow, then ask HI</h2>
+      <p>Come back to the OS → Bots → tap <strong>Grok</strong>.</p>
+      <p>Chrome opens a new tab that says Allow. That is the only Allow. Press it.</p>
+      <p>Stay signed in on grok.com. Ask <strong>HI</strong> on any desk.</p>
+      <a class="btn" href="/">Open the OS</a>
+    </section>
+  </main>
+</body>
+</html>

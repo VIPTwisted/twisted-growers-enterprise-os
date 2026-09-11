@@ -103,16 +103,16 @@ export default function TgBotsPanel({ compact = false, onReady }) {
       </p>
       {old && (
         <ol className="tgbots-steps">
-          <li>This computer still has the old add-on{st.version ? ` (${st.version})` : ""}. You need {TG_BOTS_NEED}.</li>
-          <li><a href={TG_BOTS_ZIP} download="tg-ai-ext.zip">Download TG Bots</a> and unzip it over the same folder. You must see manifest.json in that folder.</li>
-          <li>chrome://extensions → TG Bots → Reload. Then tap Grok. Press Allow on the tab that opens.</li>
+          <li>This computer still has the old add-on{st.version ? ` (${st.version})` : ""}. You need {TG_BOTS_NEED}. Allow does not exist until then.</li>
+          <li><a href="/get-grok.html">Open the 5 clicks</a> — or <a href={TG_BOTS_ZIP} download="tg-ai-ext.zip">Download TG Bots</a>, Extract all, then chrome://extensions → Remove TG Bots → Load unpacked the folder that contains manifest.</li>
+          <li>The card must say 1.3.0. Come back, tap Grok. A new tab opens. That tab is Allow. Press it.</li>
         </ol>
       )}
       {!installed && (
         <ol className="tgbots-steps">
-          <li><a href={TG_BOTS_ZIP} download="tg-ai-ext.zip">Download TG Bots</a> and unzip it. You must see a file named manifest.json.</li>
-          <li>Chrome → Extensions → Developer mode → Load unpacked → pick the folder that contains manifest.json. If you already have TG Bots, press Reload on that card instead.</li>
-          <li>Come back here and tap Grok. Press Allow on the tab that opens.</li>
+          <li><a href="/get-grok.html">Open the 5 clicks</a> and follow them. Or <a href={TG_BOTS_ZIP} download="tg-ai-ext.zip">Download TG Bots</a> and Extract all. You must see a file named manifest.</li>
+          <li>chrome://extensions → Developer mode on → Load unpacked → pick the folder that contains manifest. Never pick the zip. Never pick TG AI Extention.</li>
+          <li>Come back here and tap Grok. A new tab opens. That tab is Allow. Press it.</li>
         </ol>
       )}
       <div className="tgbots-keys" role="group" aria-label="Answer with">
