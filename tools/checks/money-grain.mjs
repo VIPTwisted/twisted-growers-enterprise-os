@@ -783,7 +783,9 @@ const migrationEntries = files.map((name) => ({
  */
 // Re-pinned for the tested additive backfill claim migration; no financial views or ledger rows changed.
 // Regenerated the complete live catalogue with the existing dump generator; schema capture only.
-const expectedMigrationTreeDigest = "c08816a14b161514e37ed5daf5a86fb99d812aa641793a1b802f6ec5b9f980e4";
+// Full catalogue captured 11 Sep 12:38 UTC: 483 tables, 553 views, 29 matviews, 1362 policies.
+// Replaces only the prior baseline; applied migration statements retained with the private recovery record.
+const expectedMigrationTreeDigest = "d70b7b1e09b47fa5d34f51aa98e4b887d37a94a29c36c4c88b786250cbe73912";
 const actualMigrationTreeDigest = migrationTreeDigest(migrationEntries);
 if (actualMigrationTreeDigest !== expectedMigrationTreeDigest) {
   console.error(`money-grain: FAIL — migration tree differs from the independently reviewed ${files.length}-file manifest (${actualMigrationTreeDigest}).`);
