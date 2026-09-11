@@ -131,10 +131,13 @@
       "note": "Recovered from production with the shared admin key redacted. Production is the source of record; deploying this copy would break the function."
     },
     "metrc-sync": {
-      "deployed_version": 22,
-      "sha256": "60983ad2c679309d7e50babfaef8ebee48b7bd8595afc71c7b6bc2e694a86520",
+      "deployed_version": 26,
+      "sha256": "d2606efa676b75db652aa3ce78ec8d6eab161204b761c02b7c847fc18ff8fd8d",
       "redacted": false,
-      "note": "Real, deployable source. v20 removed the hardcoded admin key; the function now reads integration_secrets.TG_ADMIN_KEY at call time, so there is no secret in this file to redact. v21 clamped PAGE_SIZE_MAX to 20, Metrc's measured ceiling. v22 batches the row upserts and checks the soft deadline between batches, so the plants delta can finish and stop holding its cursor. Re-pinned 28 Aug 2026 against deployed version 22, and the repo copy was aligned to the deployed bytes character for character."
+      "file_sha256": {
+        "backfill.ts": "99cf266ab3f9169c8fc60aec5a036c2095c695f5056eff5826883c6a663cd810"
+      },
+      "note": "Deployed version 26 with verify_jwt=true. Both returned deployment files matched the tested source byte for byte. Adds exact backfill attempt claims and checked completion persistence; retains normal delta and upsert paths. Additional-file digest records the verified deployment dependency."
     },
     "parse-documents": {
       "deployed_version": 7,

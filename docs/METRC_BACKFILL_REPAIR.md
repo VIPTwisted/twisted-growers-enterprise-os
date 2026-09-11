@@ -4,6 +4,12 @@ This batch repairs completion accounting and bounded retry for existing backfill
 It does not change pages, styling, report layouts, vendor polling cadence or data ownership.
 The normal delta/full-sweep entry points remain compatible. No Metrc write endpoint is added.
 
+Applied release: database migration `20260911035237_metrc_backfill_exact_claim_completion`
+and worker version 26. Both deployed worker files were verified against the tested source.
+All eleven isolated tests passed. A controlled live attempt completed with the matching
+claim and terminal run receipt; the captured backfill schedule was then restored.
+The detailed operational evidence is retained in the owner's private recovery package.
+
 ## Behavior
 
 The database reserves a sync-run ID and a unique attempt before dispatching a window.

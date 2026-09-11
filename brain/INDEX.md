@@ -76,9 +76,11 @@ on prompts.
 | --- | --- |
 | [Repair and recovery](../docs/METRC_BACKFILL_REPAIR.md) | Exact claim contract, release sequence and preservation requirements |
 | [Candidate SQL](../tools/repairs/metrc-backfill-completion.sql) | SQL tested before generating the deployment migration |
+| [Applied migration](../supabase/migrations/20260911035237_metrc_backfill_exact_claim_completion.sql) | Stamped deployment of the tested claim and completion contract |
 | [Prior controller](../tools/repairs/metrc-backfill-before.sql) | Previously committed definition for controlled recovery with backfill paused |
 | [Integration tests](../tools/tests/metrc-backfill.integration.mjs) | Isolated Postgres completion, concurrency, permissions and recovery tests |
 | [Worker claim helper](../app/supabase/functions/metrc-sync/backfill.ts) | Explicit request validation and atomic claim receipt |
+| [Dependency guard tests](../tools/tests/edge-function-dependency.test.mjs) | Missing or changed worker helpers fail the deployed-source gate |
 
 ### The brain (this folder)
 | File | What it holds |
