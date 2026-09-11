@@ -373,7 +373,8 @@ create table if not exists public.apex_entity (
   "pull_mode" text default 'loop'::text not null,
   "label" text,
   "delta_required" boolean default false not null,
-  "verification_max_run_seconds" integer default 900 not null
+  "verification_max_run_seconds" integer default 900 not null,
+  "verification_overlap_seconds" integer default 60 not null
 );
 create table if not exists public.apex_field_map (
   "id" bigint not null,
@@ -6608,7 +6609,6 @@ alter table public.alert_outbox add constraint alert_outbox_pkey PRIMARY KEY (id
 alter table public.alert_recipient add constraint alert_recipient_pkey PRIMARY KEY (id);
 alter table public.allocation_requests add constraint allocation_requests_pkey PRIMARY KEY (id);
 alter table public.allocations add constraint allocations_pkey PRIMARY KEY (id);
-alter table public.apex_entity add constraint apex_entity_pkey PRIMARY KEY (entity);
 alter table public.apex_field_map add constraint apex_field_map_pkey PRIMARY KEY (id);
 alter table public.apex_raw add constraint apex_raw_pkey PRIMARY KEY (id);
 alter table public.apex_record_verification add constraint apex_record_verification_pkey PRIMARY KEY (run_id, entity, source_id);
@@ -7529,9 +7529,6 @@ alter table public.allocation_requests add constraint allocation_requests_source
 alter table public.allocation_requests add constraint allocation_requests_status_check CHECK ((status = ANY (ARRAY['pending'::text, 'approved'::text, 'denied'::text, 'fulfilled'::text, 'cancelled'::text])));
 alter table public.allocations add constraint allocations_approved_qty_check CHECK ((approved_qty >= (0)::numeric));
 alter table public.allocations add constraint allocations_requested_qty_check CHECK ((requested_qty > (0)::numeric));
-alter table public.apex_entity add constraint apex_entity_kind_check CHECK ((kind = ANY (ARRAY['core'::text, 'reference'::text, 'money'::text, 'crm'::text, 'document'::text])));
-alter table public.apex_entity add constraint apex_entity_pull_mode_check CHECK ((pull_mode = ANY (ARRAY['loop'::text, 'direct'::text])));
-alter table public.apex_entity add constraint apex_entity_verification_max_run_seconds_check CHECK (((verification_max_run_seconds >= 60) AND (verification_max_run_seconds <= 3600)));
 alter table public.apex_field_map add constraint apex_field_map_disposition_check CHECK ((disposition = ANY (ARRAY['mapped'::text, 'deliberately_unmapped'::text])));
 alter table public.apex_field_map add constraint map_reason_is_a_reason CHECK ((length(btrim(why)) >= 20));
 alter table public.apex_field_map add constraint map_target_matches_disposition CHECK (((disposition = 'mapped'::text) = ((target_table IS NOT NULL) AND (target_column IS NOT NULL))));
@@ -7974,6 +7971,11 @@ alter table public.zone_staffing_requirements add constraint zone_staffing_requi
 alter table public.zone_staffing_requirements add constraint zone_staffing_requirements_headcount_required_check CHECK ((headcount_required >= 0));
 alter table public.zone_staffing_requirements add constraint zone_staffing_requirements_weekday_check CHECK (((weekday >= 0) AND (weekday <= 6)));
 alter table public.zone_staffing_requirements add constraint zsr_target_ck CHECK (((zone_id IS NOT NULL) OR (department_id IS NOT NULL)));
+alter table public.apex_entity add constraint apex_entity_pkey PRIMARY KEY (entity);
+alter table public.apex_entity add constraint apex_entity_kind_check CHECK ((kind = ANY (ARRAY['core'::text, 'reference'::text, 'money'::text, 'crm'::text, 'document'::text])));
+alter table public.apex_entity add constraint apex_entity_pull_mode_check CHECK ((pull_mode = ANY (ARRAY['loop'::text, 'direct'::text])));
+alter table public.apex_entity add constraint apex_entity_verification_max_run_seconds_check CHECK (((verification_max_run_seconds >= 60) AND (verification_max_run_seconds <= 3600)));
+alter table public.apex_entity add constraint apex_entity_verification_overlap_seconds_check CHECK (((verification_overlap_seconds >= 1) AND (verification_overlap_seconds <= 3600)));
 
 -- ==========================================================================
 -- INDEXES
@@ -15338,7 +15340,7 @@ begin
   select updated_at_from into c from public.apex_watermark where entity=p_entity;
   insert into public.apex_sync_verification(run_id,entity,lease_until,policy,cursor_before,request_from,page_size)
     values(p_run,p_entity,clock_timestamp()+make_interval(secs=>e.verification_max_run_seconds),to_jsonb(e),c,
-      case when e.supports_delta then coalesce(c,p_seed) end,p_page_size) returning * into v;
+      case when e.supports_delta then case when c is null then p_seed else c-make_interval(secs=>e.verification_overlap_seconds) end end,p_page_size) returning * into v;
   if e.supports_delta and v.request_from is null then raise exception 'Delta source requires a recorded starting cursor'; end if;
   return to_jsonb(v);
 end
@@ -15396,7 +15398,7 @@ CREATE OR REPLACE FUNCTION public.tg_apex_verification_page(p_run uuid, p_entity
 AS $function$
 declare v public.apex_sync_verification%rowtype; prior_page public.apex_sync_page_receipt%rowtype;
   body jsonb; chunk jsonb; rows_json jsonb; rec record; raw_row public.apex_raw%rowtype;
-  total_n integer; last_page_n integer; current_page_n integer; row_n integer; written_n integer:=0;
+  total_n integer; last_page_n integer; prior_last_page_n integer; current_page_n integer; row_n integer; written_n integer:=0;
   next_link boolean; terminal boolean; parsed_value text; expected_params jsonb; raw_key bigint;
 begin
   select * into strict v from public.apex_sync_verification where run_id=p_run and entity=p_entity for update;
@@ -15436,6 +15438,11 @@ begin
   total_n:=(body#>>'{meta,total}')::integer;
   last_page_n:=(body#>>'{meta,last_page}')::integer;
   current_page_n:=(body#>>'{meta,current_page}')::integer;
+  select (response_body::jsonb#>>'{meta,last_page}')::integer into prior_last_page_n
+    from public.apex_sync_page_receipt
+    where run_id=p_run and entity=p_entity and response_body::jsonb#>>'{meta,last_page}' is not null
+    order by page_no limit 1;
+  if prior_last_page_n is not null and last_page_n is distinct from prior_last_page_n then raise exception 'Source last page changed while paging'; end if;
   if current_page_n is not null and current_page_n<>p_page then raise exception 'Source returned the wrong page'; end if;
   if last_page_n is not null and (last_page_n<1 or last_page_n<p_page) then raise exception 'Invalid source last page'; end if;
   if v.source_total is not null and total_n is distinct from v.source_total then raise exception 'Source population changed while paging'; end if;

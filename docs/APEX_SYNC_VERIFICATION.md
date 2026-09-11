@@ -1,6 +1,7 @@
 # Apex sync verification
 
-Applied migration: `20260911134123_gpt_apex_sync_source_verification.sql`.
+Applied migrations: `20260911134123_gpt_apex_sync_source_verification.sql` and
+`20260911140502_gpt_apex_verification_paging_overlap.sql`.
 Worker: `apex-sync` version 7, with JWT verification enabled. The entrypoint and
 `verified-pull.ts` were retrieved after deployment and matched the tested files.
 
@@ -18,6 +19,14 @@ correctness of dashboard calculations. Missing pagination metadata is handled
 using the endpoint's short-page convention; it is not a vendor population count.
 An empty delta does not certify all previously stored records. Independent
 population reconciliation and screen/version binding remain required.
+
+Delta requests overlap the previous cursor by the entity's configured
+`verification_overlap_seconds` (initially 60). This protects against timestamp
+precision differences and allows a bounded amount of late source visibility;
+longer vendor delays still require reconciliation. The first-history seed is
+unchanged. Repeated payloads are deduplicated; returned overlap rows can still
+consume vendor credits. Once the source declares `last_page`, subsequent pages
+must retain that declaration even if `total` is absent.
 
 Interrupted or contradictory pages hold the cursor and retain earlier completed
 pages. Duplicate identities across pages, changed policies, altered stored rows,

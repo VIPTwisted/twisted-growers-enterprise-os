@@ -6,6 +6,8 @@ set local statement_timeout = '60s';
 
 alter table public.apex_entity add column if not exists verification_max_run_seconds integer not null default 900
   check (verification_max_run_seconds between 60 and 3600);
+alter table public.apex_entity add column if not exists verification_overlap_seconds integer not null default 60
+  check (verification_overlap_seconds between 1 and 3600);
 
 create table if not exists public.apex_sync_verification (
   run_id uuid not null,
@@ -111,7 +113,7 @@ begin
   select updated_at_from into c from public.apex_watermark where entity=p_entity;
   insert into public.apex_sync_verification(run_id,entity,lease_until,policy,cursor_before,request_from,page_size)
     values(p_run,p_entity,clock_timestamp()+make_interval(secs=>e.verification_max_run_seconds),to_jsonb(e),c,
-      case when e.supports_delta then coalesce(c,p_seed) end,p_page_size) returning * into v;
+      case when e.supports_delta then case when c is null then p_seed else c-make_interval(secs=>e.verification_overlap_seconds) end end,p_page_size) returning * into v;
   if e.supports_delta and v.request_from is null then raise exception 'Delta source requires a recorded starting cursor'; end if;
   return to_jsonb(v);
 end
@@ -121,7 +123,7 @@ create or replace function public.tg_apex_verification_page(p_run uuid,p_entity 
 returns jsonb language plpgsql security invoker set search_path='' as $fn$
 declare v public.apex_sync_verification%rowtype; prior_page public.apex_sync_page_receipt%rowtype;
   body jsonb; chunk jsonb; rows_json jsonb; rec record; raw_row public.apex_raw%rowtype;
-  total_n integer; last_page_n integer; current_page_n integer; row_n integer; written_n integer:=0;
+  total_n integer; last_page_n integer; prior_last_page_n integer; current_page_n integer; row_n integer; written_n integer:=0;
   next_link boolean; terminal boolean; parsed_value text; expected_params jsonb; raw_key bigint;
 begin
   select * into strict v from public.apex_sync_verification where run_id=p_run and entity=p_entity for update;
@@ -161,6 +163,11 @@ begin
   total_n:=(body#>>'{meta,total}')::integer;
   last_page_n:=(body#>>'{meta,last_page}')::integer;
   current_page_n:=(body#>>'{meta,current_page}')::integer;
+  select (response_body::jsonb#>>'{meta,last_page}')::integer into prior_last_page_n
+    from public.apex_sync_page_receipt
+    where run_id=p_run and entity=p_entity and response_body::jsonb#>>'{meta,last_page}' is not null
+    order by page_no limit 1;
+  if prior_last_page_n is not null and last_page_n is distinct from prior_last_page_n then raise exception 'Source last page changed while paging'; end if;
   if current_page_n is not null and current_page_n<>p_page then raise exception 'Source returned the wrong page'; end if;
   if last_page_n is not null and (last_page_n<1 or last_page_n<p_page) then raise exception 'Invalid source last page'; end if;
   if v.source_total is not null and total_n is distinct from v.source_total then raise exception 'Source population changed while paging'; end if;

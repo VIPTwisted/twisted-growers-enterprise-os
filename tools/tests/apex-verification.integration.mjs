@@ -6,6 +6,8 @@ import test from "node:test";
 import pg from "pg";
 
 const migration = readFileSync(new URL("../repairs/gpt-apex-sync-verification.sql", import.meta.url), "utf8");
+const firstMigration = readFileSync(new URL("../../supabase/migrations/20260911134123_gpt_apex_sync_source_verification.sql", import.meta.url), "utf8");
+const upgrade = readFileSync(new URL("../repairs/gpt-apex-verification-paging-overlap.sql", import.meta.url), "utf8");
 const seed = "2023-01-01T00:00:00Z";
 const fixture = `
 create table apex_entity(entity text primary key,endpoint text,api_version text default 'v1',root_key text default 'data',supports_delta boolean default true,supports_paging boolean default true,nesting jsonb default '{}');
@@ -43,7 +45,8 @@ test("Apex source evidence and cursor transaction in isolated PostgreSQL", async
     }
     await client.query("alter role service_role bypassrls");
     await client.query(fixture);
-    await client.query(`begin; ${migration} commit;`);
+    await client.query(`begin; ${firstMigration} commit;`);
+    await client.query(`begin; ${upgrade} commit;`);
     const query = (s, p) => client.query(s, p);
     const result = async (s, p) => (await query(s, p)).rows[0].result;
     const reset = async () => {
@@ -121,6 +124,27 @@ test("Apex source evidence and cursor transaction in isolated PostgreSQL", async
         assert.equal((await finish(run.run_id, ...args)).state, "incomplete");
         assert.equal((await wm()).updated_at_from, null);
       }
+    });
+    await t.test("the source cannot shrink, grow or omit its declared last page when total is absent", async () => {
+      for (const last of [2, 4, null]) {
+        await reset(); const run = await begin();
+        await page(run.run_id, 1, { data: [{ id: 1 }], meta: { current_page: 1, last_page: 3 } });
+        const meta = { current_page: 2 }; if (last !== null) meta.last_page = last;
+        await assert.rejects(() => page(run.run_id, 2, { data: [{ id: 2 }], meta }), /last page changed/);
+        assert.equal((await finish(run.run_id)).state, "incomplete");
+        assert.equal((await wm()).updated_at_from, null);
+      }
+    });
+    await t.test("delta overlap is policy-driven and does not move the first-history seed", async () => {
+      await reset(); let run = await begin(); assert.equal(Date.parse(run.request_from), Date.parse(seed));
+      await finish(run.run_id, false, "fixture stopped");
+      await query("update apex_watermark set updated_at_from='2026-09-11T12:00:00.123456Z'; update apex_entity set verification_overlap_seconds=90");
+      run = await begin();
+      assert.equal(Date.parse(run.request_from), Date.parse(run.cursor_before)-90_000);
+      await result("select tg_apex_verification_page($1,'fixture',1,$2,$3,$4) result", [run.run_id,
+        { page: "1", per_page: "2", updated_at_from: run.request_from }, '{"data":[{"id":1}]}', createHash("sha256").update('{"data":[{"id":1}]}').digest("hex")]);
+      const done = await finish(run.run_id); assert.equal(done.state, "api_verified");
+      assert.equal(Date.parse(done.cursor_after), Date.parse(run.started_at));
     });
     await t.test("empty first delta holds cursor, while an explicit full empty population can be verified", async () => {
       await reset(); let run = await begin(); await page(run.run_id, 1, { data: [] });
