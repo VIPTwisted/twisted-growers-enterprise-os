@@ -122,6 +122,7 @@ export default function TgBotsPanel({ compact = false, onReady }) {
             type="url"
             value={botsUrl}
             placeholder="https://grok.com/…"
+            aria-label="Grok Bots address"
             onChange={(e) => setBotsUrl(e.target.value)}
             autoComplete="off"
             spellCheck={false}
