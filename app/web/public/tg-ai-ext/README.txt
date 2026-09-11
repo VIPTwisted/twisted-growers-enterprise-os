@@ -1,20 +1,22 @@
 TG Bots — Chrome / Edge add-on for Twisted Growers OS
-Version 1.1.0
+Version 1.2.0
 
 Answers come from the Grok, Claude, GPT or Grok Bots subscription you already pay
-for, on this computer. No API key. No extra bill.
+for, on this computer. No API key. No extra bill. Every staff desk uses the same
+tap. Weather, the books, harvest — anything the signed-in tab can answer.
 
 Install (once per computer)
 1. Unzip this folder.
 2. Chrome or Edge -> chrome://extensions (or edge://extensions)
 3. Turn on Developer mode
 4. Load unpacked -> pick this folder
-5. Open the TG Bots icon
-6. Paste the same bridge token the desktop already uses (bridge/token.txt)
-7. Pick Grok / Grok Bots / Claude / GPT
-8. Press "Load my versions", then choose the one you want
-9. Turn Running on
-10. Stay signed in on that site in a tab
+5. Open the live OS and tap Grok (or Claude / ChatGPT). That is the whole setup.
+6. Stay signed in on that site in a tab.
+
+If Chrome says it cannot access the page
+chrome://extensions -> TG Bots -> Details -> Site access -> On all specified sites.
+Then Reload the add-on. The add-on has to read grok.com / claude.ai / chatgpt.com
+(and the x.ai sign-in hosts Grok uses). Chrome will not let a page grant that for you.
 
 Choosing a version
 The version list is read from the provider's OWN model menu on your signed-in
@@ -40,7 +42,7 @@ What it does NOT do
 Security
 - Token is stored only on this computer (chrome.storage.local). It does not sync.
 - Token is never logged. It is sent only to the OS queue as a header.
-- Pages touched: grok.com, claude.ai, chatgpt.com, and the OS queue.
+- Pages touched: grok.com, x.ai, x.com, claude.ai, chatgpt.com, and the OS queue.
 
 Worth knowing
 Driving a signed-in chat session with a script is not something Grok, OpenAI or

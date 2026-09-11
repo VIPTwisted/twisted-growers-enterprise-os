@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { supabase, FUNCTIONS_URL, ANON_KEY } from "./lib/supabase.js";
 import { extProviderFromOs, viaLine, wakeTgBots } from "./lib/topg-connect.js";
 import TgBotsPanel from "./lib/tg-bots-panel.jsx";
+import { deskForView } from "./lib/os-desk.js";
 
 /* ---------- BUDZ: the pet agent. Animated, transparent background, chats from live data. ---------- */
 export function BudzAvatar({ mood = "idle", size = 150, src = null }) {
@@ -2202,7 +2203,7 @@ export function useBudzPet() {
   return [on, setPet];
 }
 
-export function BudzPet({ go, onClose }) {
+export function BudzPet({ go, onClose, view }) {
   const prof = useAssistantProfile();
   const saved = petLoad();
   const [pos, setPos] = useState(saved.pos ?? { x: Math.max(16, window.innerWidth - 340), y: Math.max(16, window.innerHeight - 420) });
@@ -2319,6 +2320,8 @@ export function BudzPet({ go, onClose }) {
            branch for came back empty here and was answered there. */
         const stamp = Date.now();
         const { composed, via, askErr } = await askBudzFull(question, log, {
+          surface: "pet-" + (view || "os"),
+          desk: deskForView(view),
           onFacts: (a, rows) =>
             setLog((l) => [...l, { who: "budz", text: a.headline, rows, stamp, pending: true }]),
         });
@@ -3114,8 +3117,7 @@ export function BudzScreen({ go }) {
                 question={q || "Give me a full picture of the company right now: what is late, what is costing money, what failed testing, and what needs a decision."} />
             </span>
             <span className="claudehint">
-              Budz answers the questions below instantly from the database. For anything else, this copies your
-              question with a full briefing — paste it into Claude Desktop and it reads the same live records.
+              Budz answers the questions below instantly from the database. For anything else, tap Grok on Bots desk or use the Ask bar on this page. Same subscription. No extra bill. Metrc stays read-only.
             </span>
           </div>
           {(

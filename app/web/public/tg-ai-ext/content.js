@@ -45,10 +45,10 @@
       model:     '[data-testid="model-switcher-dropdown-button"]',
     },
     "grok.com": {
-      composer:  'textarea, [contenteditable="true"]',
+      composer:  'textarea[placeholder*="Ask" i], textarea[placeholder*="Message" i], div.ProseMirror[contenteditable="true"], [contenteditable="true"][role="textbox"], textarea, [contenteditable="true"]',
       send:      'button[type="submit"]:not([disabled]), button[aria-label*="Send" i], button[aria-label*="Submit" i]',
       streaming: 'button[aria-label*="Stop" i]',
-      messages:  '[class*="response"], .message-bubble, article',
+      messages:  '[data-testid="conversation-turn"], [class*="message"], [class*="response"], .message-bubble, article',
       model:     'button[aria-haspopup="menu"]',
     },
   };
@@ -249,7 +249,12 @@
   }
 
   chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
-    if (!msg || (msg.type !== "TG_BOTS_ASK" && msg.type !== "TG_BOTS_MODELS")) return;
+    if (!msg) return;
+    if (msg.type === "TG_BOTS_PING_TAB") {
+      sendResponse({ ok: true, host });
+      return;
+    }
+    if (msg.type !== "TG_BOTS_ASK" && msg.type !== "TG_BOTS_MODELS") return;
     (async () => {
       /* An OS-supplied selector set wins over the built-ins, so a provider
          redesign is fixed centrally instead of on every computer. */
