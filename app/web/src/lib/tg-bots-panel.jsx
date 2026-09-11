@@ -54,8 +54,10 @@ export default function TgBotsPanel({ compact = false, onReady }) {
     setModels(Array.isArray(r.models) ? r.models : []);
     setSt({ installed: true, ok: true, on: true, provider: r.provider, model: r.model, hasToken: true });
     setMsg(r.modelsError
-      ? `On. Stay signed in on ${providerLabel(key)} so I can load the versions your plan actually opens.`
-      : `On. ${providerLabel(key)} answers every desk on this computer. No extra bill.`);
+      ? (/permission|host|cannot access/i.test(r.modelsError)
+        ? `On. Chrome is still blocking the ${providerLabel(key)} tab. chrome://extensions → TG Bots → Details → Site access → On all specified sites, then Reload. Stay signed in and ask anything.`
+        : `On. Stay signed in on ${providerLabel(key)} so I can load the versions your plan actually opens.`)
+      : `On. ${providerLabel(key)} answers every desk on this computer. Weather, the books, harvest — anything. No extra bill.`);
     onReady?.(r);
     setBusy(false);
   }
@@ -69,7 +71,10 @@ export default function TgBotsPanel({ compact = false, onReady }) {
         ? `These are the versions ${providerLabel(provider)} is offering this signed-in tab right now.`
         : "Signed in, but that tab is not showing a version menu yet. Open grok.com / claude.ai / chatgpt.com and try again.");
     } else {
-      setMsg((r && r.error) || "Open a signed-in tab for that provider, then load versions.");
+      const err = (r && r.error) || "";
+      setMsg(/permission|host|cannot access/i.test(err)
+        ? "Chrome is blocking the add-on from that site. chrome://extensions → TG Bots → Details → Site access → On all specified sites. Reload the add-on, stay signed in, tap Grok again."
+        : (err || "Open a signed-in tab for that provider, then load versions."));
     }
     setBusy(false);
   }
