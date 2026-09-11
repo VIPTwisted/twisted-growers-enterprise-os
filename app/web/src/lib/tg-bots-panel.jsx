@@ -79,6 +79,20 @@ export default function TgBotsPanel({ compact = false, onReady }) {
     setBusy(false);
   }
 
+  async function startNew() {
+    const p = provider || "grok";
+    const sites = {
+      grok: "https://grok.com/",
+      grokbots: "https://grok.com/",
+      claude: "https://claude.ai/new",
+      gpt: "https://chatgpt.com/",
+    };
+    setMsg("Opening a new " + providerLabel(p) + " chat…");
+    try { await tgBotsNewThread(p); } catch { /* 1.2.0 still forgets the old thread */ }
+    try { window.open(sites[p] || "https://grok.com/", "_blank", "noopener"); } catch { /* popup blocked */ }
+    setMsg("New " + providerLabel(p) + " chat is open. Stay signed in on that tab. Type your question below — do not tap Grok.");
+  }
+
   async function pickVersion(value) {
     setModel(value);
     if (!st?.installed) return;
@@ -154,7 +168,7 @@ export default function TgBotsPanel({ compact = false, onReady }) {
             </select>
           </label>
           <button type="button" className="ghost" disabled={busy} onClick={loadVersions}>Load my versions</button>
-          <button type="button" className="ghost" disabled={busy} onClick={() => tgBotsNewThread(provider)}>New conversation</button>
+          <button type="button" className="ghost" onClick={startNew}>New conversation</button>
         </div>
       )}
       {msg ? <p className="tgbots-msg">{msg}</p> : null}
