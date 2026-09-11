@@ -25,7 +25,10 @@ slots, including midnight and 23:50, and that recovery restores the captured row
 and cron configuration exactly. Repeat with the dispatcher and feed rows paused;
 both scripts preserve the current paused state. Unexpected intervals, endpoint
 assignments, timezones or dispatcher commands must raise instead of overwriting
-someone else's repair.
+someone else's repair. The transaction uses SERIALIZABLE isolation, because the
+managed cron table permits ALTER through its supported function but does not grant
+direct row-lock privileges. A concurrent cron-row change must abort the transaction;
+inspect and restart from current state after a serialization failure.
 
 Apply the policy once, then observe actual completed sync runs for every supported
 endpoint and licence. Dispatch logs alone cannot establish delivery or correctness.

@@ -1,6 +1,7 @@
 -- GPT: Metrc operational-feed cadence recovery. Configuration DML only.
 -- Retains business data, run evidence, cursors, unrelated policy and paused states.
-begin;
+-- SERIALIZABLE rejects a concurrent cron-row update without requiring direct cron UPDATE rights.
+begin isolation level serializable;
 set local application_name = 'gpt_metrc_cadence_recovery';
 set local lock_timeout = '5s';
 set local statement_timeout = '30s';
