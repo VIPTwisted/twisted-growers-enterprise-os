@@ -20,6 +20,7 @@ export default function OsAsk({ view, go }) {
   const deskRef = useRef(desk);
   const threadRef = useRef(thread);
   const busyRef = useRef(busy);
+  const sendRef = useRef(null);
   deskRef.current = desk;
   threadRef.current = thread;
   busyRef.current = busy;
@@ -68,6 +69,7 @@ export default function OsAsk({ view, go }) {
     busyRef.current = false;
     setBusy(false);
   }
+  sendRef.current = send;
 
   useEffect(() => {
     function onAsk(e) {
@@ -75,11 +77,11 @@ export default function OsAsk({ view, go }) {
       if (!text) return;
       setOpen(true);
       inputRef.current?.focus();
-      send(text);
+      sendRef.current?.(text);
     }
     window.addEventListener("tg-os-ask", onAsk);
     return () => window.removeEventListener("tg-os-ask", onAsk);
-  }, [view]);
+  }, []);
 
   if (CHAT_VIEWS.has(view)) return null;
 
