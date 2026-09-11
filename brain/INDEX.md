@@ -243,3 +243,5 @@ for them.
 *Provenance: assembled 7 Aug 2026 by the CEO agent from CLAUDE.md, HANDOFF.md,
 and a file-by-file sweep of the repo. If a described file moves or dies, fix its
 line here in the same session.*
+
+| `supabase/migrations/20260911040901_baseline_live_schema.sql` | Complete live catalogue snapshot regenerated with the existing dump generator for the backfill release; replaces the previous snapshot. |

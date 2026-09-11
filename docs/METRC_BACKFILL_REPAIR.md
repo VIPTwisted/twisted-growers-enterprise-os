@@ -64,3 +64,12 @@ This rollback restores code while preserving newer valid data and attempt eviden
 fixture demonstrates the database preservation property; a live recovery rehearsal and
 source reconciliation are separate evidence. Stored `done` means worker completion, not
 certification that every historical source record has been reconciled.
+
+## Schema capture
+
+The release includes a complete regenerated schema snapshot. The previous snapshot had
+refreshed count metadata over an older body; it was replaced with catalogue results read
+from production. The existing `dump-schema.mjs` serialization ran against those captured
+results through a temporary read-only adapter, including its view-completeness assertion.
+No schema statements from that snapshot were applied to production. This capture is not
+a substitute for a complete database restore rehearsal.
