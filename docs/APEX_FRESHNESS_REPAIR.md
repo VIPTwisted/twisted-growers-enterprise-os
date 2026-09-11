@@ -21,6 +21,8 @@ entity run IDs. Observe consecutive successful cycles and their actual source re
 and scheduler cadence. It refuses unexpected current values. It never deletes or rewinds
 source payloads, business records, raw history, run evidence or watermarks. Pausing this
 specific cron job is the stop mechanism; account for in-flight requests separately.
+Recovery works whether the job is active or paused and preserves that state. Resuming a
+paused job is a separate operational action after inspection.
 
 This is configuration DML, with no schema migration, function deployment or UI change.
 Both scripts must be exercised in a rolled-back transaction before the live application.

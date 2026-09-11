@@ -20,7 +20,7 @@ begin
      and min_interval_minutes=10;
   if v_count <> 5 then raise exception 'Policy changed; inspect before recovery'; end if;
   select jobid into strict v_job from cron.job
-   where jobname='apex-sync-daily' and active is true
+   where jobname='apex-sync-daily'
      and schedule='* * * * *'
      and command='set statement_timeout = ''20min''; select public.tg_apex_delta_all()'
      and database=current_database();
