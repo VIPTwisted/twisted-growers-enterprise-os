@@ -6,12 +6,15 @@ for, on this computer. No API key. No extra bill. Every staff desk uses the same
 tap. Weather, the books, harvest — anything the signed-in tab can answer.
 
 Install (once per computer)
-1. Unzip this folder.
+1. Unzip this download. You must SEE a file named manifest.json in the folder you pick.
+   If you see another folder named tg-ai-ext, open THAT one. Chrome cannot load a parent folder.
 2. Chrome or Edge -> chrome://extensions (or edge://extensions)
 3. Turn on Developer mode
-4. Load unpacked -> pick this folder
-5. Open the live OS and tap Grok (or Claude / ChatGPT). That is the whole setup.
-6. Stay signed in on that site in a tab.
+4. Load unpacked -> pick the folder that contains manifest.json
+   (If TG Bots is already on this computer, press Reload on that card instead. Do not add a second copy.)
+5. Open the live OS and tap Grok. A tab opens. Press Allow. That is the whole setup.
+6. Stay signed in on grok.com in a tab.
+
 
 If Chrome says it cannot access the page
 Tap Grok in the OS. A TG Bots tab opens. Press Allow. That is the whole grant.

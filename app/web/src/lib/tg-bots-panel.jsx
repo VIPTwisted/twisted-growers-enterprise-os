@@ -104,15 +104,15 @@ export default function TgBotsPanel({ compact = false, onReady }) {
       {old && (
         <ol className="tgbots-steps">
           <li>This computer still has the old add-on{st.version ? ` (${st.version})` : ""}. You need {TG_BOTS_NEED}.</li>
-          <li><a href={TG_BOTS_ZIP} download="tg-ai-ext.zip">Download TG Bots</a> and unzip it over the same folder.</li>
+          <li><a href={TG_BOTS_ZIP} download="tg-ai-ext.zip">Download TG Bots</a> and unzip it over the same folder. You must see manifest.json in that folder.</li>
           <li>chrome://extensions → TG Bots → Reload. Then tap Grok. Press Allow on the tab that opens.</li>
         </ol>
       )}
       {!installed && (
         <ol className="tgbots-steps">
-          <li><a href={TG_BOTS_ZIP} download="tg-ai-ext.zip">Download TG Bots</a> and unzip it.</li>
-          <li>Chrome or Edge → Extensions → turn on Developer mode → Load unpacked → pick that folder.</li>
-          <li>Come back here and tap Grok, Claude, or ChatGPT.</li>
+          <li><a href={TG_BOTS_ZIP} download="tg-ai-ext.zip">Download TG Bots</a> and unzip it. You must see a file named manifest.json.</li>
+          <li>Chrome → Extensions → Developer mode → Load unpacked → pick the folder that contains manifest.json. If you already have TG Bots, press Reload on that card instead.</li>
+          <li>Come back here and tap Grok. Press Allow on the tab that opens.</li>
         </ol>
       )}
       <div className="tgbots-keys" role="group" aria-label="Answer with">
