@@ -113,9 +113,9 @@ const shaOf = (content) =>
     .digest("hex");
 
 /* In committed mode the source of truth is HEAD; in default mode it is the tree. */
-const readSource = (slug) => {
-  if (COMMITTED) return gitShow(`app/supabase/functions/${slug}/index.ts`);
-  const p = join(FN_DIR, slug, "index.ts");
+const readSource = (slug, relative = "index.ts") => {
+  if (COMMITTED) return gitShow(`app/supabase/functions/${slug}/${relative}`);
+  const p = join(FN_DIR, slug, relative);
   return existsSync(p) ? readFileSync(p).toString("utf8") : null;
 };
 
@@ -138,6 +138,21 @@ for (const [slug, rec] of Object.entries(pinned)) {
   } else {
     matched++;
   }
+  let dependencyFailed = false;
+  for (const [relative, expected] of Object.entries(rec.file_sha256 ?? {})) {
+    const dependency = readSource(slug, relative);
+    if (dependency === null) {
+      missing.push(`${slug}/${relative}`);
+      dependencyFailed = true;
+    } else {
+      const actual = shaOf(dependency);
+      if (actual !== expected) {
+        drifted.push({ slug: `${slug}/${relative}`, redacted: !!rec.redacted, was: expected.slice(0,12), now: actual.slice(0,12) });
+        dependencyFailed = true;
+      }
+    }
+  }
+  if (dependencyFailed && (!rec.sha256 || now === rec.sha256)) matched--;
 }
 
 /* A function added to the repo but never pinned is invisible to this check, which

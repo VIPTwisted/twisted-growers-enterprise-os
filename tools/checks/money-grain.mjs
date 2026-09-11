@@ -781,7 +781,9 @@ const migrationEntries = files.map((name) => ({
  * f_to_pounds on that one posted column) and 20260911000636 (tracker calls
  * f_deployment_checks_s2s). Cycle 56. No ledger rewrite.
  */
-const expectedMigrationTreeDigest = "b3f76ff988b781a7526f1a3e336190b544ca4a5b5004d815befe346b1dea5f6d";
+// Re-pinned for the tested additive backfill claim migration; no financial views or ledger rows changed.
+// Regenerated the complete live catalogue with the existing dump generator; schema capture only.
+const expectedMigrationTreeDigest = "c08816a14b161514e37ed5daf5a86fb99d812aa641793a1b802f6ec5b9f980e4";
 const actualMigrationTreeDigest = migrationTreeDigest(migrationEntries);
 if (actualMigrationTreeDigest !== expectedMigrationTreeDigest) {
   console.error(`money-grain: FAIL — migration tree differs from the independently reviewed ${files.length}-file manifest (${actualMigrationTreeDigest}).`);

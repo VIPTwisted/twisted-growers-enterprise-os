@@ -1,4 +1,5 @@
-// TG Enterprise OS — Metrc sync worker v22.
+// TG Enterprise OS — exact backfill claims added to the deployed worker logic.
+// Existing paging, upserts and delta cursor rules are retained.
 //
 // v22, 28 August 2026: one change and nothing else. Rows are upserted in BATCHES
 // of 500 instead of one awaited round trip per row, and the soft deadline is
@@ -89,6 +90,7 @@
 //   metrc_endpoint_capability before a request is made.
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
+import { backfillClaim, claimBackfill } from "./backfill.ts";
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -105,9 +107,7 @@ const FALLBACK_PAGE_SIZE = 20;
 const PAGE_SIZE_MIN = 20;
 /* v21, 14 Aug 2026: MEASURED, not assumed. Metrc v2 answers a request for more than
    20 with HTTP 400 "pageSize must be a positive number between 1 and 20." - observed
-   on all four plant sub-states in run 3148. v20 clamped to 500, which let an operator
-   set a value that instantly broke every plant sync with only a comment warning them
-   off. A warning does not survive contact with a hurried operator; the clamp does. */
+   on all four plant sub-states in run 3148. */
 const PAGE_SIZE_MAX = 20;
 const MAX_PAGES = 750;
 const PAGE_PAUSE_MS = 200;
@@ -156,10 +156,8 @@ async function historyStart(): Promise<string> {
 }
 
 /* v20: read once per request, returned as a value. Accepts either a bare JSON number
-   or an object carrying { size } / { pageSize }, so the row can also hold a "why" the
-   way metrc_history_start and metrc_sync_soft_deadline_ms already do. Anything absent,
-   non-numeric or out of range falls back to the proven default rather than to whatever
-   the previous request happened to use. */
+   or an object carrying { size } / { pageSize }. Deliberately NOT module state: an
+   isolate is reused between invocations. */
 async function resolvePageSize(): Promise<number> {
   const { data } = await supa.from("configurations").select("value").eq("key", "metrc_page_size").maybeSingle();
   const v = data?.value as Record<string, unknown> | number | string | undefined | null;
@@ -187,10 +185,7 @@ async function loadDenialReasons(): Promise<Record<string, string>> {
 }
 
 async function callerIsExecutive(req: Request): Promise<boolean> {
-  /* v20: the admin key is looked up, never baked in. Fails CLOSED - an empty header
-     is rejected before the lookup, and a missing or empty row leaves `real` empty so
-     the comparison can never succeed. A vanished secret locks the door, it does not
-     open it. This is what makes the key rotatable without a redeploy. */
+  /* v20: the admin key is looked up, never baked in. Fails CLOSED. */
   const presented = req.headers.get("x-admin-key");
   if (presented) {
     const { data: k } = await supa.from("integration_secrets")
@@ -365,53 +360,24 @@ const SPECS: Spec[] = [
 ];
 
 /* ── v22: ROWS ARE WRITTEN IN BATCHES, NOT ONE ROUND TRIP EACH ──────────────
-   This is the whole fix, and it is a throughput fix, not a logic fix.
+   MEASURED from metrc_sync_runs rather than assumed: a steady ~16 rows per second
+   on the old per-row loop. The plants delta has to carry 2,156 changed records, so
+   at 16 rows/sec that is ~135 seconds of writing against a 110-second deadline -
+   the run can NEVER finish, the cursor is correctly held, and the next run re-asks
+   for the identical window and dies in the identical place. That is why 1,054 came
+   back twenty-two times running: not a flaky sync, a deterministic loop.
 
-   MEASURED from metrc_sync_runs rather than assumed:
-
-     run 3047   937 rows   60s        run 3149   937 rows   57s
-     run 3391  1054 rows  140s        22 further runs, 1054 rows every time
-
-   A steady ~16 rows per second. At pageSize 20 - Metrc's measured ceiling, see
-   the v21 note - 937 rows is 47 pages, so paging accounts for roughly 9s of that
-   minute. The other ~48s was 937 separately awaited PostgREST round trips, one
-   per row, at about 50ms each. The old loop was:
-
-       for (const r of got.rows) { await supa.from(...).upsert(oneRow); n++; }
-
-   The plants delta has to carry 2,156 changed records - every vegetative and
-   every flowering plant, all modified in Metrc on 17 Aug 2026 between 12:53 and
-   15:06. At 16 rows/sec that is ~135 seconds of writing against a 110-second
-   deadline, so the run can NEVER finish, the cursor is correctly held, and the
-   next run re-asks for the identical window and dies in the identical place.
-   That is why 1,054 came back twenty-two times running: not a flaky sync, a
-   deterministic loop. One batched call carries 500 rows, so those 2,156 records
-   cost 5 round trips instead of 2,156 and the write stops being the constraint.
-
-   NOTHING ABOUT CURSOR DISCIPLINE CHANGES. v20's rule stands exactly as written -
-   the watermark moves only on a genuinely complete run. This does not relax the
-   rule; it lets the run satisfy it.
+   NOTHING ABOUT CURSOR DISCIPLINE CHANGES. The watermark moves only on a genuinely
+   complete run. This does not relax the rule; it lets the run satisfy it.
 
    DEDUPED ON THE CONFLICT KEY FIRST. Postgres refuses ON CONFLICT DO UPDATE when
-   one statement touches the same row twice - "cannot affect row a second time" -
-   and that would fail a whole batch where the per-row loop silently applied the
-   last write. The batch keeps the LAST occurrence, which is what the row-at-a-time
-   loop effectively did, so behaviour is unchanged and only the round trips differ.
+   one statement touches the same row twice - "cannot affect row a second time".
+   The batch keeps the LAST occurrence, which is what the row-at-a-time loop did.
 
-   THE DEADLINE IS NOW CHECKED BETWEEN BATCHES, WHICH IT NEVER WAS BETWEEN ROWS.
-   The old write loop had no time check at all: once fetching finished it wrote
-   until done or until the platform killed it mid-loop, leaving the run row open at
-   "running" forever. That is runs 3042, 3048, 3058, 3150, 3371 and the 21:09 run
-   on 28 Aug - six hangs, every one closed half an hour later by
-   tg_close_stuck_sync_runs instead of by the worker itself. Rows already written
-   are kept and counted; the run closes itself as partial and holds its cursor. */
-/* A batch is capped by BYTES as well as by rows, because these tables carry the
-   whole Metrc record in `raw` and the widest one is not the most numerous.
-   Measured on production, length(raw::text): plants average 1,098 bytes and peak
-   1,173; harvests 879/904; packages 1,888 but peaking at 5,998. A flat 500-row
-   batch is therefore ~0.6 MB of plants and up to ~3 MB of packages, and the row
-   count alone gives no warning of that. Whichever limit is reached first closes
-   the batch, so the request stays about a megabyte whatever the endpoint. */
+   THE DEADLINE IS NOW CHECKED BETWEEN BATCHES, WHICH IT NEVER WAS BETWEEN ROWS. */
+/* A batch is capped by BYTES as well as by rows: plants average 1,098 bytes,
+   packages 1,888 but peaking at 5,998. Whichever limit is reached first closes the
+   batch, so the request stays about a megabyte whatever the endpoint. */
 const WRITE_BATCH_ROWS = 500;
 const WRITE_BATCH_BYTES = 1_000_000;
 
@@ -433,9 +399,7 @@ async function writeRows(spec: Spec, rows: Row[], license: string, state: string
     const { error } = await supa.from(spec.table).upsert(batch, { onConflict: spec.conflict });
     if (error) throw new Error(`upsert ${spec.table} x${batch.length}: ${error.message}`);
     written += batch.length;
-    /* Cumulative across sub-states: the beforeunload backstop reads this to close
-       the run if we are killed, and a per-sub-state count would under-report what
-       actually landed. */
+    /* Cumulative across sub-states: the beforeunload backstop reads this. */
     if (OPEN_RUN) OPEN_RUN.records = alreadyWritten + written;
     batch = [];
     bytes = 0;
@@ -459,9 +423,12 @@ async function writeRows(spec: Spec, rows: Row[], license: string, state: string
 
 async function runSpec(base: string, license: string, auth: string, spec: Spec,
   window: { start: string; end: string } | undefined, label: string | undefined,
-  outOfTime: () => boolean, pageSize: number): Promise<{ summary: string; ranOut: boolean; complete: boolean }> {
+  outOfTime: () => boolean, pageSize: number, reservedRunId?: number): Promise<{ summary: string; ranOut: boolean; complete: boolean }> {
   const runLabel = label ?? (window ? `${spec.key} (delta)` : spec.key);
-  const { data: run } = await supa.from("metrc_sync_runs").insert({ endpoint: runLabel, license }).select("id").single();
+  const { data: run, error: createError } = reservedRunId
+    ? { data: { id: reservedRunId }, error: null }
+    : await supa.from("metrc_sync_runs").insert({ endpoint: runLabel, license }).select("id").single();
+  if (createError || !run) throw new Error(createError?.message ?? "Sync run could not be created");
   OPEN_RUN = { id: run!.id as number, records: 0 };
   try {
     let n = 0; let anyTrunc = false; let ranOut = false; const subErrors: string[] = [];
@@ -480,12 +447,11 @@ async function runSpec(base: string, license: string, auth: string, spec: Spec,
       }
       await sleep(PAGE_PAUSE_MS);
     }
-    /* v20: COMPLETE MEANS EVERY SUB-STATE ANSWERED, NOTHING CAPPED, AND TIME LEFT OVER.
-       Anything less holds the cursor. See the header note 3. */
+    /* v20: COMPLETE MEANS EVERY SUB-STATE ANSWERED, NOTHING CAPPED, AND TIME LEFT OVER. */
     const failedEverything = subErrors.length >= spec.paths.length;
     const complete = subErrors.length === 0 && !anyTrunc && !ranOut;
     const status = failedEverything ? "error" : (complete ? "ok" : "partial");
-    await supa.from("metrc_sync_runs").update({
+    const { error: closeError } = await supa.from("metrc_sync_runs").update({
       status, records: n,
       error: subErrors.length ? subErrors.join(" · ").slice(0, 480) : null,
       note: complete ? null
@@ -496,6 +462,7 @@ async function runSpec(base: string, license: string, auth: string, spec: Spec,
             : `${subErrors.length} of ${spec.paths.length} sub-states failed. Cursor NOT advanced; the next run re-asks for this window.`,
       finished_at: now(),
     }).eq("id", run!.id);
+    if (closeError) throw new Error(`Could not persist sync completion: ${closeError.message}`);
     OPEN_RUN = null;
     return {
       summary: `${n} new${anyTrunc ? " ⚠️ capped" : ""}`
@@ -514,13 +481,28 @@ Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   if (!(await callerIsExecutive(req))) return json({ ok: false, error: "Executive access required." }, 403);
 
+  const params = new URL(req.url).searchParams;
+  let reservedRunId: number | undefined;
+  try {
+    const claim = backfillClaim(params);
+    if (claim) {
+      if (!SPECS.some((s) => s.key === claim.p_endpoint && s.delta)) {
+        return json({ ok: false, error: "Backfill endpoint does not support an explicit delta window." }, 400);
+      }
+      reservedRunId = await claimBackfill(supa, claim);
+    }
+  } catch (e) {
+    return json({ ok: false, error: String(e).slice(0, 240) }, 409);
+  }
+  let reservedRunStarted = false;
+  try {
+
   const startedAt = Date.now();
   const cfg = await loadCfg();
   const env = (cfg.METRC_ENV ?? "production").toLowerCase();
   const state = cfg.METRC_STATE ?? "ma";
   const BASE = env === "sandbox" ? `https://sandbox-api-${state}.metrc.com` : `https://api-${state}.metrc.com`;
 
-  const params = new URL(req.url).searchParams;
   const configured = csv(cfg.METRC_LICENSES);
   if (!configured.length) return json({ ok: false, error: "No licenses configured. Add METRC_LICENSES on the Integrations screen." }, 400);
 
@@ -563,6 +545,7 @@ Deno.serve(async (req: Request) => {
   let skippedByCapability = 0;
   let stoppedEarly = false;
   let heldCursors = 0;
+  let incompleteResult = false;
   const results: Record<string, unknown> = {
     _env: env,
     _auth_arrangement: resolved.label,
@@ -578,7 +561,7 @@ Deno.serve(async (req: Request) => {
     const skipData = facApi.length > 0 && !facApi.includes(license);
     for (const spec of specs) {
       const ck = `${license}:${spec.key}`;
-      if (skipData) { results[ck] = "skipped — license not visible to this user key yet"; continue; }
+      if (skipData) { results[ck] = "skipped — license not visible to this user key yet"; incompleteResult = true; continue; }
       if (capability[ck] === false) {
         results[ck] = `not requested — ${denialReason[ck] ?? "this licence is not licensed for it"}`;
         skippedByCapability++;
@@ -602,7 +585,9 @@ Deno.serve(async (req: Request) => {
         window = since ? { start: since, end: runStart } : undefined;
       }
       try {
-        const r = await runSpec(BASE, license, resolved.auth, spec, window, runLabel, outOfTime, PAGE_SIZE);
+        if (reservedRunId) reservedRunStarted = true;
+        const r = await runSpec(BASE, license, resolved.auth, spec, window, runLabel, outOfTime, PAGE_SIZE, reservedRunId);
+        if (!r.complete) incompleteResult = true;
         if (r.ranOut) stoppedEarly = true;
         const { count } = await supa.from(spec.table).select("*", { count: "exact", head: true }).eq("license", license);
         results[ck] = `${r.summary}${window ? " (windowed)" : ""} · ${count ?? 0} total in OS${r.complete ? "" : " · CURSOR HELD"}`;
@@ -612,6 +597,7 @@ Deno.serve(async (req: Request) => {
           else heldCursors++;
         }
       } catch (e) {
+        incompleteResult = true;
         results[ck] = `ERROR: ${String(e).slice(0, 160)}`;
       }
       await sleep(PAGE_PAUSE_MS);
@@ -623,9 +609,18 @@ Deno.serve(async (req: Request) => {
   if (stoppedEarly) {
     results._incomplete = "This run stopped at its soft deadline. Rows written were kept and every "
       + "run row was closed. NOTE: a partial sweep does NOT resume - the next call "
-      + "re-walks from the beginning and gets further before the deadline. A real "
-      + "resume cursor is a tracked task; v18 attempted it, was not verified, and was "
-      + "rolled back after leaving a run open for 183 seconds."
+      + "re-walks from the beginning and gets further before the deadline.";
   }
-  return json({ ok: true, complete: !stoppedEarly, state, results });
+  return json({ ok: true, complete: !stoppedEarly && !incompleteResult && !(reservedRunId && !reservedRunStarted), state, results });
+  } finally {
+    // Config/auth/capability rejection after a claim cannot leave its reservation
+    // looking like a successful scan. No imported rows are removed.
+    if (reservedRunId && !reservedRunStarted) {
+      const { error } = await supa.from("metrc_sync_runs").update({
+        status: "error", records: 0, finished_at: now(),
+        error: "Claimed backfill did not reach its endpoint; inspect dispatch response and configuration.",
+      }).eq("id", reservedRunId);
+      if (error) throw new Error(`Could not close unstarted backfill: ${error.message}`);
+    }
+  }
 });
