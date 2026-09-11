@@ -158,12 +158,29 @@ export const COCKPITS = [
     ],
   },
   {
+    /* THE AI PAGES LIVE HERE. #163 (8 Sep) replaced the database-driven rail
+       with these cockpits and this one listed only the Bots desk, so Budz,
+       TG Brain and every AI setting fell off the side menu while still being
+       enabled in nav_registry. Owner, 11 Sep 2026: "I do not see my original
+       AI pages where are they … still want and need the other AI pages I have
+       built". Every view_key below is an enabled nav_registry row that already
+       renders; nothing here is new, it is put back. */
     view_key: "os_staff",
-    label: "Top G",
+    label: "Top G · AI",
     short: "Top G",
     ico: "bot",
     children: [
       { view_key: "os_staff", label: "Bots desk", ico: "bot" },
+      { view_key: "budz", label: "Budz Assistant", ico: "leaf" },
+      { view_key: "brain", label: "TG Brain", ico: "branch" },
+      { view_key: "brain-claims", label: "Brain claims", ico: "clipboard" },
+      { view_key: "assistant_settings", label: "Assistant settings", ico: "settings" },
+      { view_key: "ai_settings", label: "AI settings", ico: "cog" },
+      { view_key: "ai_user_access", label: "AI access", ico: "key" },
+      { view_key: "ai_usage", label: "AI usage", ico: "gauge" },
+      { view_key: "ai_spend", label: "AI spend", ico: "dollar" },
+      { view_key: "v-bridge-status", label: "Bridge status", ico: "plug" },
+      { view_key: "ai-bridge-jobs", label: "Bridge jobs", ico: "list" },
     ],
   },
   {

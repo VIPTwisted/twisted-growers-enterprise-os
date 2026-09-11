@@ -1595,6 +1595,18 @@ button.narrblock:hover { outline: 1px solid var(--line); }
 .naverr span { color: var(--muted); }
 .nav.closed .naverr { display: none; }
 
+/* THE ONLY WAY BACK OUT OF THE COLLAPSED RAIL IS THE BURGER, and it sits below
+   fourteen cockpit icons plus the C&M / Bots / Sync foot — past the fold on a
+   laptop, in a rail 66–80px wide where nothing says "scroll". Owner, 11 Sep
+   2026: "I can not unslide the side menu". Sticky to the bottom edge of the
+   rail's own scroll box, so it is on screen at every scroll position. Existing
+   tokens only; the theme is locked. */
+.nav.closed .navburger {
+  position: sticky; bottom: 6px; z-index: 4;
+  background: var(--surface);
+  border: 1px solid var(--rail-border);
+}
+
 .tterr {
   margin: 7px 0 0; padding: 8px 10px; border-radius: 7px;
   border: 1px solid var(--red); background: var(--red-soft);
