@@ -43,7 +43,7 @@ import {
   DkStreamDrill, DkRowDrill, DkEmpty, dkRoomQualified, DkCockpitPages,
 } from "./dashkit.jsx";
 import "./commandcenter.css";
-import { connectTopG, topGConnected } from "./lib/topg-connect.js";
+import { pushButtonSetup, savePreferred, topGConnected } from "./lib/topg-connect.js";
 
 /* ---------- shared primitives of the new tree ---------- */
 
@@ -1741,8 +1741,13 @@ export default function CommandCenter({ go, session, reports, deep, role, viewAs
       {/* ── order 2 · one 32px toolbar: view | dates | actions ── */}
       <div className="cc-tools">
         <div className="cc-tools-l">
-          <button className="cc-btn primary" title="Wake Top G and every staff desk. Uses Grok, Claude, or GPT you already pay for — no extra bill."
-            onClick={async () => { await connectTopG("grok"); setTopgOn(true); go("os_staff"); }}>
+          <button className="cc-btn primary" title="One tap. Uses Grok, Claude, or GPT you already pay for — no extra bill."
+            onClick={async () => {
+              const r = await pushButtonSetup({ provider: "grok" });
+              if (r.installed && r.ok) await savePreferred("grok");
+              setTopgOn(!!(r.installed && r.ok));
+              go("os_staff");
+            }}>
             {topgOn ? "Top G on →" : "Connect Top G"}
           </button>
           <button className="cc-btn" title="Collapse every section — remembered per user on this device" onClick={() => store.setAll(SEC_IDS, false)}>− collapse all</button>

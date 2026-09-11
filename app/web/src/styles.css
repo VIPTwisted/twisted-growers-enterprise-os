@@ -1925,6 +1925,34 @@ button.teamcard:hover { border-color: var(--neon-line); }
 .asetrow .asetlab{font-size:13px;font-weight:600}
 .asetrow .asetwhy{font-size:12px;color:var(--muted);font-weight:400;margin-top:2px}
 
+/* TG Bots one-tap. Same tokens, no new visual language. */
+.tgbots{padding:12px 14px;border-bottom:1px solid var(--line);background:var(--panel)}
+.asetgrp .tgbots{padding:0;border:0;background:transparent}
+.tgbots-head{display:flex;align-items:center;gap:10px;justify-content:space-between}
+.tgbots-head strong{font-size:13px}
+.tgbots-pill{font-size:11px;letter-spacing:.04em;text-transform:uppercase;padding:2px 8px;border-radius:999px;border:1px solid var(--line);color:var(--muted)}
+.tgbots-pill.on{color:var(--accent);border-color:var(--accent)}
+.tgbots-pill.miss{color:var(--red);border-color:var(--red)}
+.tgbots-why,.tgbots-msg{margin:8px 0 0;font-size:12px;color:var(--muted)}
+.tgbots-msg{color:var(--ink)}
+.tgbots-steps{margin:8px 0 0;padding-left:18px;font-size:13px}
+.tgbots-steps a{color:var(--accent)}
+.tgbots-keys{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.tgbots-keys button{
+  border:1px solid var(--line);background:transparent;color:var(--ink);
+  border-radius:999px;padding:6px 12px;cursor:pointer;font-size:13px}
+.tgbots-keys button.on,.tgbots-keys button:hover{border-color:var(--accent);color:var(--accent);background:var(--neon-soft)}
+.tgbots-keys button:disabled{opacity:.5;cursor:wait}
+.tgbots-url{display:flex;flex-direction:column;gap:4px;margin-top:10px;font-size:12px;color:var(--muted)}
+.tgbots-url input{border:1px solid var(--line);background:var(--input-bg,transparent);color:var(--ink);border-radius:8px;padding:6px 8px}
+.tgbots-more{display:flex;flex-wrap:wrap;gap:8px;align-items:end;margin-top:10px}
+.tgbots-more label{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--muted)}
+.tgbots-more select{border:1px solid var(--line);background:var(--input-bg,transparent);color:var(--ink);border-radius:8px;padding:6px 8px;min-width:16rem}
+.tgbots-more .ghost{border:1px solid var(--line);background:transparent;color:var(--ink);border-radius:999px;padding:6px 12px;cursor:pointer;font-size:12px}
+.tgbots.compact .tgbots-why{display:none}
+.tgbots.compact .tgbots-steps{font-size:12px}
+
+
 
 /* ─ FILES HANDED TO BUDZ IN CHAT ──────────────────────────────────────────
    Owner, 8 Aug 2026: uploads "in the chat area like i do here", on the pet and

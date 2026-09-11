@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { supabase, FUNCTIONS_URL, ANON_KEY } from "./lib/supabase.js";
+import { extProviderFromOs, viaLine, wakeTgBots } from "./lib/topg-connect.js";
+import TgBotsPanel from "./lib/tg-bots-panel.jsx";
 
 /* ---------- BUDZ: the pet agent. Animated, transparent background, chats from live data. ---------- */
 export function BudzAvatar({ mood = "idle", size = 150, src = null }) {
@@ -1626,7 +1628,11 @@ export async function askBudzFull(question, history = [], { onFacts, surface = "
           const { data: u } = await supabase.auth.getUser();
           const uid = u?.user?.id;
           if (!uid) throw new Error("not signed in");
-          const { data: bridgeModel } = await supabase.rpc("f_bridge_model_for", { p_user: uid });
+          const [{ data: bridgeModel }, { data: pick }] = await Promise.all([
+            supabase.rpc("f_bridge_model_for", { p_user: uid }),
+            supabase.rpc("f_ai_model_for", { p_user: uid }),
+          ]);
+          const extProv = extProviderFromOs(pick?.provider);
 
           const { data: created, error: insErr } = await supabase
             .from("ai_bridge_jobs")
@@ -1641,18 +1647,28 @@ export async function askBudzFull(question, history = [], { onFacts, surface = "
                  nobody reads, which is worse than having no picker. context is
                  jsonb and already comes through untouched, so the choice reaches
                  the desktop with no edge function redeploy and nothing new to
-                 keep in step. The column is still written for the audit trail. */
+                 keep in step. The column is still written for the audit trail.
+
+                 PROVIDER MUST RIDE HERE TOO. The add-on opens grok.com /
+                 claude.ai / chatgpt.com from context.provider. Sending only the
+                 alias ("current", "opus") while the add-on is sitting on a
+                 different site hunts that version in the wrong menu. */
               context: { summary: a.headline, records: facts.slice(0, 40), model: bridgeModel,
+                         provider: extProv,
                          desk: desk ? { name: desk.name, role: desk.role } : null,
                          /* Corrections first in the object: a reader that truncates
                             keeps the thing an owner deliberately approved. */
                          memory },
               model: bridgeModel,
+              provider: extProv,
               status: "pending",
             })
             .select("id")
             .single();
           if (insErr) throw insErr;
+
+          /* Lightning: do not wait for the 30s alarm. */
+          wakeTgBots();
 
           /* Poll our own row. Deliberately bounded: an unbounded wait is how the
              old version sat for 210 seconds and then failed silently. If the
@@ -1693,7 +1709,7 @@ export async function askBudzFull(question, history = [], { onFacts, surface = "
             }
             const { data: row } = await supabase
               .from("ai_bridge_jobs")
-              .select("status, answer, error, seconds")
+              .select("status, answer, error, seconds, provider, model")
               .eq("id", created.id)
               .maybeSingle();
             if (row && (row.status === "done" || row.status === "error")) { done = row; break; }
@@ -1705,13 +1721,13 @@ export async function askBudzFull(question, history = [], { onFacts, surface = "
 
           if (done?.status === "done" && done.answer) {
             composed = done.answer;
-            via = "Claude on your desktop";
+            via = viaLine(done.provider || extProv, done.model || bridgeModel);
           } else if (done?.status === "error") {
             askErr = String(done.error ?? "The desktop answered with an error.").slice(0, 250);
           } else {
-            askErr = "Your desktop did not pick the question up. The bridge is not running on "
-              + "that computer, or it has stopped. The question is saved and will be answered "
-              + "if it starts.";
+            askErr = "TG Bots did not pick this up. Install the add-on once (Assistant → TG Bots), "
+              + "stay signed in on Grok, Claude, or ChatGPT, then tap that name. "
+              + "The question is saved and will be answered when it starts.";
           }
         } catch (e) {
           askErr = "Could not reach the desktop: " + String(e?.message ?? e).slice(0, 180);
@@ -1950,18 +1966,7 @@ export function AssistantSettings() {
       </div>
       <div className="asetgrp">
         <h3>TG Bots add-on</h3>
-        <span className="note">
-          Install once per computer. Toggle Grok, Claude, GPT, or Grok Bots. Uses the
-          subscriptions you already pay for. The bridge token stays on that computer —
-          it is never synced and never logged. Command Center → Connect Top G wakes every desk.
-        </span>
-        <div className="asetrow">
-          <a className="btn" href="/tg-ai-ext.zip" download="tg-ai-ext.zip">Download TG Bots</a>
-        </div>
-        <span className="note">
-          Chrome or Edge → extensions → Developer mode → Load unpacked → pick the unzipped folder.
-          Paste the same bridge token as the desktop file. Stay signed in on Grok, Claude, or ChatGPT.
-        </span>
+        <TgBotsPanel />
       </div>
       {/* EVERY ASSISTANT SETTING LIVES ON THIS PAGE - owner, 8 Aug 2026: "why is
           this here, it should be on settings page", "we have a page for uploading
