@@ -88,6 +88,11 @@ jobs:
           APEX_TEST_PGURL: ${{ env.MONEY_TEST_PGURL }}
         run: node --test tools/tests/apex-verification.integration.mjs tools/tests/apex-verified-pull.test.mjs
 
+      - name: Metrc atomic cursor completion (isolated Postgres)
+        env:
+          METRC_TEST_PGURL: ${{ env.MONEY_TEST_PGURL }}
+        run: node --test tools/tests/metrc-cursor.integration.mjs tools/tests/metrc-cursor-worker.test.mjs
+
       # ---- FIRST, because everything below it assumes the files still exist ----------
       # budz.jsx went to zero bytes on 8 Aug 2026 and every other gate read green:
       # they all look for something WRONG inside a file, and an empty file contains
