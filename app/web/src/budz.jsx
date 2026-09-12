@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { supabase, FUNCTIONS_URL, ANON_KEY } from "./lib/supabase.js";
 import { viaLine, askTgBotsNow, extModelNow, extProviderNow, pushButtonSetup } from "./lib/topg-connect.js";
+import { upsertConfirmed } from "./lib/save-receipt.js";
 import { CORE_BOTS } from "./lib/os-bots.js";
 
 import TgBotsPanel from "./lib/tg-bots-panel.jsx";
@@ -2559,8 +2560,7 @@ const petPersist = async (patch) => {
     if (userError) throw userError;
     const uid = data?.user?.id;
     if (!uid) throw new Error("No signed-in account was available for the pet preference.");
-    const { error } = await supabase.from("user_settings")
-      .upsert({ user_id: uid, ...patch, updated_at: new Date().toISOString() }, { onConflict: "user_id" });
+    const { error } = await upsertConfirmed(supabase, "user_settings", { user_id: uid, ...patch, updated_at: new Date().toISOString() }, { onConflict: "user_id" });
     if (error) throw error;
     return true;
   } catch (error) {
@@ -2974,7 +2974,7 @@ export function ModelChoice() {
     };
     /* upsert, not update: a user who has never had a row would otherwise
        silently save nothing and see the old choice come back on reload. */
-    const { error } = await supabase.from("ai_user_access").upsert(patch, { onConflict: "user_id" });
+    const { error } = await upsertConfirmed(supabase, "ai_user_access", patch, { onConflict: "user_id" });
     setMsg(error ? error.message : (id ? `Saved. ${m.label} answers your questions from now on.` : "Saved. Back to the company default."));
     if (!error) setRow({ ...(row ?? {}), ...patch });
     setBusy(false);
@@ -3280,8 +3280,7 @@ export function PetControls() {
       announcePetPreferenceFailure("Budz notification preferences", error);
       return;
     }
-    const { error } = await supabase.from("user_settings")
-      .upsert({ user_id: u.user.id, pet_notify: next, updated_at: new Date().toISOString() }, { onConflict: "user_id" });
+    const { error } = await upsertConfirmed(supabase, "user_settings", { user_id: u.user.id, pet_notify: next, updated_at: new Date().toISOString() }, { onConflict: "user_id" });
     if (error) {
       setNotify(previous);
       setPreferenceMsg(`Budz notification preference was not saved: ${error.message}`);

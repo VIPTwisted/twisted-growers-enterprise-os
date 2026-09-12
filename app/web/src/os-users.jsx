@@ -2,6 +2,7 @@
    Owner/admin edits role, display name, password flag. Auth account is not created here. */
 import React, { useEffect, useState } from "react";
 import { supabase } from "./lib/supabase.js";
+import { requireSavedRow } from "./lib/save-receipt.js";
 import "./os-desk.css";
 
 function Icon() {
@@ -25,22 +26,25 @@ export default function OsUsers({ go, session }) {
   const [fresh, setFresh] = useState({ user_id: "", display_name: "", role: "staff" });
 
   function load() {
-    supabase.from("app_users")
+    Promise.all([supabase.from("app_users")
       .select("user_id, display_name, role, must_change_password, created_at, employee_id")
-      .order("created_at")
-      .then(({ data, error }) => {
-        if (error) { setErr(error.message); setRows([]); return; }
-        setRows(Array.isArray(data) ? data : []);
+      .order("created_at"),
+      supabase.from("app_roles").select("role, label, rank").order("rank"),
+    ]).then(([users, roleRows]) => {
+        if (users.error || roleRows.error) throw users.error || roleRows.error;
+        setRows(Array.isArray(users.data) ? users.data : []);
+        const list = Array.isArray(roleRows.data) ? roleRows.data.filter((r) => String(r.role).indexOf("qb_") !== 0 && r.role !== "guest" && r.role !== "member" && r.role !== "limited") : [];
+        setRoles(list);
         setErr(null);
+      }).catch((error) => {
+        setErr(`Users or roles could not be read: ${error.message}`);
+        setRows([]); setRoles([]);
       });
-    supabase.from("app_roles").select("role, label, rank").order("rank").then(({ data }) => {
-      const list = Array.isArray(data) ? data.filter((r) => String(r.role).indexOf("qb_") !== 0 && r.role !== "guest" && r.role !== "member" && r.role !== "limited") : [];
-      setRoles(list);
-    });
   }
   useEffect(() => { load(); }, []);
 
   function open(u) {
+    if (saving) return;
     setSel(u.user_id);
     setDraft({
       display_name: u.display_name || "",
@@ -51,39 +55,53 @@ export default function OsUsers({ go, session }) {
   }
 
   async function saveEdit() {
-    if (!sel || !draft) return;
+    if (!sel || !draft || saving) return;
     setSaving(true);
-    const { error } = await supabase.from("app_users").update({
+    setNotice(null);
+    const expected = {
+      user_id: sel,
       display_name: draft.display_name.trim() || null,
       role: draft.role,
       must_change_password: !!draft.must_change_password,
-    }).eq("user_id", sel);
-    setSaving(false);
-    if (error) { setErr(error.message); setNotice("Save refused: " + error.message); return; }
-    setNotice("User saved. Role change takes effect on their next page load.");
-    setErr(null);
-    load();
+    };
+    try {
+      const { user_id, ...patch } = expected;
+      const result = await supabase.from("app_users").update(patch).eq("user_id", user_id)
+        .select("user_id,display_name,role,must_change_password").single();
+      requireSavedRow(result, expected, "User update");
+      setNotice("User saved. Role change takes effect on their next page load.");
+      setErr(null);
+      load();
+    } catch (error) {
+      setErr(error.message); setNotice("Save not confirmed: " + error.message);
+    } finally { setSaving(false); }
   }
 
   async function addUser() {
-    const id = (fresh.user_id || "").trim();
+    if (saving) return;
+    const id = (fresh.user_id || "").trim().toLowerCase();
     if (!/^[0-9a-f-]{36}$/i.test(id)) {
       setNotice("Paste a real Auth user id (UUID). This pane does not create logins or passwords.");
       return;
     }
     setSaving(true);
-    const { error } = await supabase.from("app_users").insert({
+    const expected = {
       user_id: id,
       display_name: (fresh.display_name || "").trim() || null,
       role: fresh.role,
       must_change_password: true,
-    });
-    setSaving(false);
-    if (error) { setErr(error.message); setNotice("Could not provision: " + error.message); return; }
-    setNotice("Provisioned. They already had a login — we assigned a role. Password never prints here.");
-    setAdding(false);
-    setFresh({ user_id: "", display_name: "", role: "staff" });
-    load();
+    };
+    try {
+      const result = await supabase.from("app_users").insert(expected)
+        .select("user_id,display_name,role,must_change_password").single();
+      requireSavedRow(result, expected, "User provisioning");
+      setNotice("Provisioned. They already had a login — we assigned a role. Password never prints here.");
+      setAdding(false);
+      setFresh({ user_id: "", display_name: "", role: "staff" });
+      load();
+    } catch (error) {
+      setErr(error.message); setNotice("Provisioning not confirmed: " + error.message);
+    } finally { setSaving(false); }
   }
 
   const owners = (rows || []).filter((r) => r.role === "owner").length;
