@@ -4,7 +4,7 @@
    Paid API stays off. Metrc stays read-only. */
 import React, { useEffect, useState } from "react";
 import {
-  PROVIDERS, TG_BOTS_ZIP, MODEL_CATALOG, extProviderNow, extTooOld, pingTgBots, providerLabel,
+  PROVIDERS, TG_BOTS_ZIP, MODEL_CATALOG, extProviderNow, extTooOld, providerLabel,
   pushButtonSetup, savePreferred, saveExtModel, tgBotsModels, tgBotsNewThread, tgBotsSetModel,
   tgBotsStatus, extModelNow,
 } from "./topg-connect.js";
@@ -16,22 +16,30 @@ export default function TgBotsPanel({ compact = false, onReady }) {
   const [provider, setProvider] = useState(() => extProviderNow());
   const [models, setModels] = useState([]);
   const [model, setModel] = useState(() => extModelNow());
+  const [help, setHelp] = useState(false);
   const [botsUrl, setBotsUrl] = useState("");
 
   async function refresh() {
-    const [ping, status] = await Promise.all([pingTgBots(), tgBotsStatus()]);
-    const installed = !!(ping.installed || status.installed);
-    const next = { installed, version: ping.version || status.version, ...(status.installed ? status : {}) };
+    const status = await tgBotsStatus();
+    const installed = !!status.installed;
+    const next = { installed, version: status.version, ...(status.installed ? status : {}) };
     setSt(next);
     if (next.provider) setProvider(next.provider);
     if (typeof next.model === "string" && next.model && !model) setModel(next.model);
   }
 
-  useEffect(() => { refresh(); }, []); // eslint-disable-line react-hooks/exhaustive-deps -- ping once on mount
+  useEffect(() => {
+    refresh();
+    function onNew() {
+      tgBotsNewThread(extProviderNow()).catch(() => {});
+    }
+    window.addEventListener("tg-bots-new-chat", onNew);
+    return () => window.removeEventListener("tg-bots-new-chat", onNew);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps -- ping once on mount
 
   async function tapProvider(key) {
     if (on && provider === key) {
-      setMsg(`${providerLabel(key)} is already on. Leave it green. Type your question in the chat below.`);
+      if (!compact) setMsg(`${providerLabel(key)} is already on. Leave it green. Type your question in the chat below.`);
       return;
     }
     setBusy(true);
@@ -57,7 +65,7 @@ export default function TgBotsPanel({ compact = false, onReady }) {
     setProvider(key);
     setModels(Array.isArray(r.models) ? r.models : []);
     setSt({ installed: true, ok: true, on: true, provider: r.provider, model: r.model, hasToken: true, version: r.version || st?.version });
-    setMsg(`On. ${providerLabel(key)} answers in this OS chat like the desktop app. Leave this button green. Type below. Paste a Grok, Claude, or ChatGPT key under Settings → Keys and Connections for token-speed answers.`);
+    if (!compact) setMsg(`On. ${providerLabel(key)} answers here from your signed-in tab. No key needed. Leave this green and type below.`);
     onReady?.(r);
     setBusy(false);
   }
@@ -67,9 +75,11 @@ export default function TgBotsPanel({ compact = false, onReady }) {
     const r = await tgBotsModels(provider);
     if (r && r.ok) {
       setModels(r.models || []);
-      setMsg((r.models || []).length
-        ? `These are the versions ${providerLabel(provider)} is offering this signed-in tab right now.`
-        : "Signed in, but that tab is not showing a version menu yet. Open grok.com / claude.ai / chatgpt.com and try again.");
+      if (!compact) {
+        setMsg((r.models || []).length
+          ? `These are the versions ${providerLabel(provider)} is offering this signed-in tab right now.`
+          : "Signed in, but that tab is not showing a version menu yet. Open grok.com / claude.ai / chatgpt.com and try again.");
+      }
     } else {
       const err = (r && r.error) || "";
       setMsg(/permission|host|cannot access|Allow/i.test(err)
@@ -80,10 +90,7 @@ export default function TgBotsPanel({ compact = false, onReady }) {
   }
 
   function startNew() {
-    const p = provider || "grok";
-    tgBotsNewThread(p).catch(() => {});
     try { window.dispatchEvent(new Event("tg-bots-new-chat")); } catch { /* no window */ }
-    setMsg("Fresh chat. Stay on this page. Type below. Do not tap Grok.");
   }
 
   async function pickVersion(value) {
@@ -93,7 +100,7 @@ export default function TgBotsPanel({ compact = false, onReady }) {
     const r = await tgBotsSetModel(provider, value);
     if (r && r.ok === false) {
       setMsg("Could not switch the tab to " + value + ". Pick it on grok.com / claude.ai / chatgpt.com. This OS will keep using that tab.");
-    } else {
+    } else if (!compact) {
       setMsg("Using " + (value || "whatever the tab has selected") + ".");
     }
   }
@@ -105,16 +112,57 @@ export default function TgBotsPanel({ compact = false, onReady }) {
 
   return (
     <div className={`tgbots${compact ? " compact" : ""}`}>
-      <div className="tgbots-head">
-        <strong>Talk with the plan you already pay for</strong>
-        <span className={`tgbots-pill ${on ? "on" : installed ? "off" : "miss"}`}>
-          {st == null ? "checking…" : old ? "old add-on" : on ? `${providerLabel(st.provider || provider)} on` : installed ? "add-on idle" : "not installed"}
+      <div className="tgbots-bar">
+        {compact ? null : <strong>Talk with the plan you already pay for</strong>}
+        <div className="tgbots-keys" role="group" aria-label="Answer with">
+          {PROVIDERS.map((p) => (
+            <button
+              key={p.key}
+              type="button"
+              className={provider === p.key && on ? "on" : ""}
+              disabled={busy}
+              aria-pressed={provider === p.key && on}
+              onClick={() => tapProvider(p.key)}
+            >
+              {p.label}
+            </button>
+          ))}
+        </div>
+        <span className="tgbots-head-right">
+          <button
+            type="button"
+            className="tgbots-q"
+            aria-expanded={help}
+            aria-controls="tgbots-howto"
+            title="How to set up Grok, Claude, or ChatGPT"
+            onClick={() => setHelp((v) => !v)}
+          >
+            ?
+          </button>
+          <span className={`tgbots-pill ${on ? "on" : installed ? "off" : "miss"}`}>
+            {st == null ? "checking…" : old ? "old add-on" : on ? `${providerLabel(st.provider || provider)} on` : installed ? "add-on idle" : "not installed"}
+          </span>
         </span>
       </div>
-      <p className="tgbots-why">
-        Grok, Claude, or ChatGPT on this computer. No API key. No extra bill.
-        Every staff desk uses the same tap. Metrc stays read-only.
-      </p>
+      {help ? (
+        <div className="tgbots-howto" id="tgbots-howto">
+          <p className="tgbots-k">How to set up whichever one you want</p>
+          <ol>
+            <li><a href={TG_BOTS_ZIP} download="tg-ai-ext.zip">Download TG Bots</a> and unzip it. Chrome → Extensions → turn on Developer mode → Load unpacked → pick that folder. Reload the card if it is already there so it reads 1.3.3.</li>
+            <li>Stay signed in on the site you already pay for: grok.com, claude.ai, or chatgpt.com. Leave that tab open.</li>
+            <li>Come back to this OS page. Tap <b>Grok</b>, <b>Claude</b>, or <b>ChatGPT</b> once. The pill turns green. Do not tap it again.</li>
+            <li>Type in the chat below the same way you would on that site. Weather, harvests, code, anything. No key. No extra bill.</li>
+            <li>Pick a version with the chips if you want Grok 4, Claude Opus, or a ChatGPT model. Tab default uses whatever that site already has selected.</li>
+            <li>A key under Settings → Connections is optional. You do not need one.</li>
+          </ol>
+        </div>
+      ) : null}
+      {compact ? null : (
+        <p className="tgbots-why">
+          Grok, Claude, or ChatGPT on this computer. No API key. No extra bill.
+          Every staff desk uses the same tap. Metrc stays read-only.
+        </p>
+      )}
       {old && (
         <ol className="tgbots-steps">
           <li>This computer has add-on {st.version || "1.2.0"}. Type HI in the chat below. Do not tap Grok — that opens grok.com and leaves the OS.</li>
@@ -128,20 +176,6 @@ export default function TgBotsPanel({ compact = false, onReady }) {
           <li>Come back here and tap Grok, Claude, or ChatGPT.</li>
         </ol>
       )}
-      <div className="tgbots-keys" role="group" aria-label="Answer with">
-        {PROVIDERS.map((p) => (
-          <button
-            key={p.key}
-            type="button"
-            className={provider === p.key && on ? "on" : ""}
-            disabled={busy}
-            aria-pressed={provider === p.key && on}
-            onClick={() => tapProvider(p.key)}
-          >
-            {p.label}
-          </button>
-        ))}
-      </div>
       {provider === "grokbots" && (
         <label className="tgbots-url">
           Grok Bots address
@@ -158,7 +192,7 @@ export default function TgBotsPanel({ compact = false, onReady }) {
       )}
       {installed && (
         <div className="tgbots-more">
-          <p className="tgbots-k">Model — tap one. All of these are on your paid plan when that site offers them.</p>
+          {compact ? null : <p className="tgbots-k">Model — tap one. All of these are on your paid plan when that site offers them.</p>}
           <div className="tgbots-models" role="group" aria-label="Model">
             <button type="button" className={!model ? "on" : ""} onClick={() => pickVersion("")}>
               Tab default
@@ -169,9 +203,11 @@ export default function TgBotsPanel({ compact = false, onReady }) {
               </button>
             ))}
           </div>
-          <button type="button" className="ghost" disabled={busy} onClick={loadVersions}>Load my versions</button>
-          <button type="button" className="ghost" onClick={startNew}>New conversation</button>
+          <button type="button" className="ghost" disabled={busy} onClick={loadVersions}>Load versions</button>
         </div>
+      )}
+      {compact ? null : (
+        <button type="button" className="tgbots-new" onClick={startNew}>New conversation</button>
       )}
       {msg ? <p className="tgbots-msg">{msg}</p> : null}
     </div>

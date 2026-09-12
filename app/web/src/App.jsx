@@ -56,9 +56,11 @@ const PayRuns = lazy(() => import("./payruns.jsx"));
 const MySchedule = lazy(() => import("./myschedule.jsx"));
 const SyncItems = lazy(() => import("./syncitems.jsx"));
 const KeysConnections = lazy(() => import("./keysconnections.jsx"));
+const SettingsDash = lazy(() => import("./settings-dash.jsx"));
 const WidgetCanvas = lazy(() => import("./wcanvas.jsx").then((m) => ({ default: m.WidgetCanvas })));
 const TgWorkspace = lazy(() => import("./tgworkspace.jsx"));
 import jsQR from "jsqr";
+import BotsPaidKey from "./bots-paid-key.jsx";
 import { supabase, FUNCTIONS_URL } from "./lib/supabase.js";
 import { BudzScreen, CeoDashboard, AssistantSettings, BudzPet, useBudzPet, RedGreen,
          askBudzFull, useChatFiles, ChatFiles, Thinking,
@@ -79,6 +81,7 @@ import { HOME_VIEW, useOsHistory, OsNavBtns, OsFind } from "./os-chrome.jsx";
 import OsAsk from "./os-ask.jsx";
 const CultivationDashboard = lazy(() => import("./dash-cultivation.jsx"));
 const ReportVault = lazy(() => import("./report-vault.jsx"));
+const BrandLocker = lazy(() => import("./brand-locker.jsx"));
 const AlertDrain = lazy(() => import("./alert-drain.jsx"));
 const ReportCenter = lazy(() => import("./report-center.jsx"));
 const DutchieCm = lazy(() => import("./dutchie-cm.jsx"));
@@ -8895,6 +8898,9 @@ function Integrations({ session }) {
           <div className="sub">Credentials are configuration — stored server-side in your own database, write-only from here, rotatable anytime. Values are never shown back.</div>
         </div>
       </div>
+      <div style={{ marginBottom: 16 }}>
+        <BotsPaidKey role={role} />
+      </div>
       <div className="cols2">
         <div>
           <QrDecode onDecoded={(v) => setForm((f) => ({ ...f, METRC_VENDOR_KEYS: v }))} />
@@ -11988,6 +11994,7 @@ export default function App() {
        one import and one entry for this build. */
     tg_workspace: <TgWorkspace session={session} go={setView} />,
     settings: <Settings session={session} prefs={prefs} />,
+    dept_dash_settings: <SettingsDash go={setView} role={role} />,
     help: <OsHelp go={setView} />,
     metrc_mirror: <MetrcMirror />,
     metrc_mc: <MetrcMirror license="MC281714" />,
@@ -12008,6 +12015,7 @@ export default function App() {
     intelligence_briefing: <IntelligenceBriefing go={setView} />,
     budz: <BudzScreen go={setView} />,
     os_staff: <OsStaff go={setView} />,
+    brand_locker: <BrandLocker session={session} />,
     os_help: <OsHelp go={setView} />,
     os_users: <OsUsers go={setView} session={session} />,
     permissions: <OsPermissions go={setView} session={session} />,

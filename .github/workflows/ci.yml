@@ -63,7 +63,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "22"
 
       # Two package.json files by design: the repo-level one holds the gates, app/web holds the
       # application. Keeping them separate means tooling never alters the front-end build —
@@ -74,6 +74,20 @@ jobs:
       - name: Install app dependencies
         working-directory: app/web
         run: npm install --no-audit --no-fund
+
+      - name: Approved permissions are atomic and reject stale edits
+        run: node --test tools/tests/permission-matrix.integration.mjs
+
+      - name: Package precision dependency rebuild and rollback (isolated Postgres 17)
+        env:
+          PRECISION_TEST_PGURL: ${{ env.MONEY_TEST_PGURL }}
+        run: node tools/tests/package-precision.integration.mjs
+
+      - name: Deployment proof rejects stale evidence and missing protections
+        run: node --test tools/tests/deployment-proof.test.mjs
+
+      - name: Anonymous relation access preserves authenticated reads
+        run: node --test tools/tests/anonymous-access.integration.mjs
 
       - name: Metrc backfill completion and recovery (isolated Postgres)
         env:
@@ -93,15 +107,20 @@ jobs:
           METRC_TEST_PGURL: ${{ env.MONEY_TEST_PGURL }}
         run: node --test tools/tests/metrc-cursor.integration.mjs tools/tests/metrc-cursor-worker.test.mjs
 
+      - name: Metrc precision maintenance transaction and receipt (isolated Postgres)
+        env:
+          PRECISION_TEST_PGURL: ${{ env.MONEY_TEST_PGURL }}
+        run: node --test tools/tests/metrc-precision-job.integration.mjs
+
+      - name: Metrc transferred custody consumers (isolated Postgres)
+        env:
+          TRANSFERRED_TEST_PGURL: ${{ env.MONEY_TEST_PGURL }}
+        run: node tools/tests/gpt-transferred-consumers.integration.mjs
+
       - name: Metrc source record verification (isolated Postgres)
         env:
           METRC_TEST_PGURL: ${{ env.MONEY_TEST_PGURL }}
         run: node --test tools/tests/metrc-record-verification.integration.mjs tools/tests/metrc-verified-pull.test.mjs
-
-      - name: Package precision dependency rebuild and rollback (isolated Postgres 17)
-        env:
-          PRECISION_TEST_PGURL: ${{ env.MONEY_TEST_PGURL }}
-        run: node tools/tests/package-precision.integration.mjs
 
       # ---- FIRST, because everything below it assumes the files still exist ----------
       # budz.jsx went to zero bytes on 8 Aug 2026 and every other gate read green:

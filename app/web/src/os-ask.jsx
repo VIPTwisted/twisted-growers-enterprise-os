@@ -34,7 +34,7 @@ export default function OsAsk({ view, go }) {
 
   async function send(raw) {
     const value = String(raw ?? q).trim();
-    if (!value || busyRef.current) return;
+    if (!value) return;
     const deskNow = deskRef.current;
     setQ("");
     setOpen(true);
@@ -65,9 +65,10 @@ export default function OsAsk({ view, go }) {
         role: "agent",
         text: `${deskRef.current.name} could not answer: ${String(e?.message ?? e).slice(0, 180)}`,
       }]);
+    } finally {
+      busyRef.current = false;
+      setBusy(false);
     }
-    busyRef.current = false;
-    setBusy(false);
   }
   sendRef.current = send;
 
@@ -102,9 +103,8 @@ export default function OsAsk({ view, go }) {
           onChange={(e) => setQ(e.target.value)}
           aria-label={`Ask ${desk.name} about this page`}
           placeholder={`Ask ${desk.name} — weather, this page, anything`}
-          disabled={busy}
         />
-        <button type="submit" disabled={busy}>{busy ? "…" : "Ask"}</button>
+        <button type="submit">{busy ? "…" : "Ask"}</button>
         <span className={`osask-pill${on ? " on" : ""}`} title={on ? `${who} answers from the tab you already pay for` : "Tap Grok on Bots desk first"}>
           {on ? `${who} on` : "tap Grok"}
         </span>

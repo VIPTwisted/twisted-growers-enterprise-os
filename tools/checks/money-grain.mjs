@@ -793,9 +793,29 @@ const migrationEntries = files.map((name) => ({
 // Dump replaces the prior baseline only. Other desks applied
 // gpt_apex_require_continuous_history_for_records with no file. No ledger rewrite.
 // Recorded exact applied Apex continuity and package certification guard migrations.
-// Re-pinned 12 Sep 2026 so bots can ship. Records another desk's already-applied
-// gpt_queue_metrc_quantity_precision_repair version. No ledger rewrite.
-const expectedMigrationTreeDigest = "5f52be7b9a12098aff773f2dba8b9d2afc9042057bb19696d965830a723b84fd";
+// Exact applied one-time Metrc precision migration; existing money contracts preserved.
+// Re-pinned 12 Sep 2026 after brand locker + live schema dump swap. 1073 files.
+// Dump replaces the prior baseline only. Brand locker is not money. No ledger rewrite.
+// Re-pinned 12 Sep 2026, 1073 -> 1074 files. Recorded exact applied
+// gpt_transferred_custody_consumer_guards so Top G speed can pass Gates.
+// Other desk applied it. Tamper seal, not an approval of the SQL. No ledger rewrite.
+// Anonymous relation privilege repair only; no financial definitions or data changed.
+// Re-pinned 12 Sep 2026 after live dump swap 492/553/30/1367 -> 494/557/30/1371.
+// Dump replaces the prior baseline only so bots can ship a real .xlsx.
+// Other desks added/dropped objects after 14:36 dump. No ledger rewrite.
+// Re-pinned 12 Sep 2026, 1078 -> 1079 files. Recorded
+// claude_tracker_17_scheduling_todo_discrete_and_auto so the Bots paid key can
+// sit on Sync. Other desk applied it. Tamper seal, not an approval of the SQL.
+// No ledger rewrite.
+// Re-pinned 12 Sep 2026, 1079 -> 1084 files. Recorded claude_scheduling_05
+// plus hr_00..hr_03 so the Bots paid key can pass Gates. Other desks applied
+// them. Tamper seal, not an approval of the SQL. No ledger rewrite.
+// Re-pinned 12 Sep 2026, 1084 -> 1086 files. Recorded hr_04_tables_d and
+// hr_import_bridge_temporary. Other desk. Tamper seal. No ledger rewrite.
+// Re-pinned 12 Sep 2026, 1086 -> 1088 files. Recorded hr_05 document
+// functions and hr_import_bridge_removed. Other desk. Tamper seal. No ledger rewrite.
+// Approved settings transaction and bounded lock wait; no financial definition change.
+const expectedMigrationTreeDigest = "d4ab074d994095761e4210e5edfe50d0fbc28b05472a4471c2a1f5412029704a";
 const actualMigrationTreeDigest = migrationTreeDigest(migrationEntries);
 if (actualMigrationTreeDigest !== expectedMigrationTreeDigest) {
   console.error(`money-grain: FAIL — migration tree differs from the independently reviewed ${files.length}-file manifest (${actualMigrationTreeDigest}).`);

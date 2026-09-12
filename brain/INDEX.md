@@ -8,6 +8,14 @@ keeps it growing. Plain English throughout.
 
 ## The files that outrank this one
 
+Operational repair: [Metrc quantity precision](../docs/METRC_QUANTITY_PRECISION.md)
+maps migration `20260912121116_gpt_queue_metrc_quantity_precision_repair.sql`,
+its one-time execution receipt, dependency preservation and certification limits.
+Migration `20260912123148_gpt_metrc_precision_rebuild_statistics.sql` retains
+the first rollback receipt and adds planner statistics to a separately sealed attempt.
+`tools/tests/metrc-precision-job.integration.mjs` exercises the deployed runner
+in disposable PostgreSQL; full dependency rehearsal evidence remains private.
+
 Operational repair: [Apex empty-history initialization](../docs/APEX_EMPTY_HISTORY.md)
 maps the administrative proof, ordinary-sync continuity, acceptance limits and
 recovery. Its executable repair is `tools/repairs/gpt-apex-empty-history.sql`;
@@ -239,6 +247,7 @@ for them.
 | `supabase/` | `checks/` (including `anon_exposure.sql`, the security tripwire) and `functions/`. |
 | `bridge/` | Local bridge service — `server.mjs`, `sheet-sync.mjs`, start scripts, `SETUP.md`. ⚠ `token.txt` holds a live credential: never share, never commit. |
 | `tools/` | `checks/`, `hooks/`, `pushreports.py`, `report_fixtures.py`, and `gen-handoff.mjs` — regenerates the measured-state block of HANDOFF.md from `tg_handoff_state_md()`, so state stops being retyped. Operator tool: needs a live credential, correctly not a CI gate. |
+| `tools/lib/deployment-proof.mjs`, `tools/tests/deployment-proof.test.mjs` | Deployment watcher verification and failure fixtures. Rejects unavailable current Git evidence and verifies live build identity plus response security headers. Scope and evidence: `docs/releases/2026-09-12-deployment-verification.md`. |
 | `tools/checks/guard-fixtures.mjs` | **Proves the guards still catch what they claim**, and that the PreToolUse hook and `ci.yml` agree on every fixture. Built 8 Aug 2026 after one false positive locked a database function and simultaneously held CI red — two enforcement points, one rule, the same bug, found by accident. |
 | `tools/checks/secret-scan.mjs` | Scans the **working tree** (not just commits) for credential shapes, and shares its patterns with `tools/hooks/guard-secrets.mjs` so writing one is refused. Anon keys are decoded and ignored — they are public by design. Ratchets against `secret-scan.baseline.json`, which carries 4 known exposures with their required actions. |
 | `tools/checks/rule-ledger.mjs` | **How much of CLAUDE.md is real, derived at run time.** Reads all rule families A–L and the rules each guard names, then reports enforced versus hope. The enforced high-water mark may rise, never fall. |

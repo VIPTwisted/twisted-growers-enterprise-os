@@ -91,6 +91,9 @@ export default function OsStaff({ go }) {
     window.addEventListener("tg-topg", n);
     const fresh = () => {
       setThread([]);
+      setBusy(false);
+      busyRef.current = false;
+      setText("");
       try { localStorage.removeItem(threadKey(sel)); } catch { /* private */ }
     };
     window.addEventListener("tg-bots-new-chat", fresh);
@@ -127,7 +130,7 @@ export default function OsStaff({ go }) {
 
   async function send(raw, asDesk) {
     const value = (raw ?? text).trim();
-    if ((!value && !bag.files.length) || busy) return;
+    if (!value && !bag.files.length) return;
     const desk = asDesk || targetBot(value);
     if (desk.id !== bot.id) setSel(desk.id);
     setText("");
@@ -136,6 +139,7 @@ export default function OsStaff({ go }) {
     setBusy(true);
     busyRef.current = true;
     let uploaded = [];
+    try {
     if (attached.length) {
       const up = await bag.upload(value);
       uploaded = up.filter((u) => !u.error);
@@ -145,8 +149,6 @@ export default function OsStaff({ go }) {
       }
     }
     if (!value) {
-      setBusy(false);
-      busyRef.current = false;
       if (uploaded.length) {
         setThread((m) => [...m, { role: "agent", text: "Got " + uploaded.length + " file" + (uploaded.length > 1 ? "s" : "") + ". Saved. Ask what to do with them." }]);
       }
@@ -170,13 +172,15 @@ export default function OsStaff({ go }) {
         || out.headline
         || `${desk.name} could not reach the live assistant. Confirm the TG Bots add-on or the desktop bridge.`;
       const want = wantedFormats(value);
-      const docs = (out.composed || fromLive) ? makeDocuments({
-        title: desk.name + " " + value.slice(0, 48),
-        body,
-        facts: out.facts,
-        formats: want.length ? want : ["pdf", "xls", "docx", "html"],
-        download: want.length > 0,
-      }) : [];
+      if (want.length && (out.composed || fromLive)) {
+        makeDocuments({
+          title: desk.name + " " + value.slice(0, 48),
+          body,
+          facts: out.facts,
+          formats: want,
+          download: true,
+        });
+      }
       setThread((m) => [...m, {
         role: "agent",
         text: body,
@@ -184,7 +188,7 @@ export default function OsStaff({ go }) {
         headline: out.composed && out.headline ? out.headline : null,
         open: desk.open,
         facts: out.facts || [],
-        docs,
+        title: desk.name + " " + value.slice(0, 48),
       }]);
     } catch (e) {
       setThread((m) => [...m, {
@@ -193,8 +197,10 @@ export default function OsStaff({ go }) {
         open: desk.open,
       }]);
     }
-    setBusy(false);
-    busyRef.current = false;
+    } finally {
+      setBusy(false);
+      busyRef.current = false;
+    }
   }
 
   sendRef.current = send;
@@ -342,9 +348,25 @@ export default function OsStaff({ go }) {
             <h1>{bot.name}</h1>
             <p>{bot.role} · {line.map((n) => n.name).join(" → ")}</p>
           </div>
-          {bot.open && go ? (
-            <button type="button" className="osstaff-go" onClick={() => go(bot.open)}>Open desk</button>
-          ) : null}
+          <div className="osstaff-actions">
+            {bot.open && go ? (
+              <button type="button" className="osstaff-go" onClick={() => go(bot.open)}>Open desk</button>
+            ) : null}
+            <button
+              type="button"
+              className="osstaff-go"
+              onClick={() => {
+                setThread([]);
+                setBusy(false);
+                busyRef.current = false;
+                setText("");
+                try { localStorage.removeItem(threadKey(sel)); } catch { /* private */ }
+                try { window.dispatchEvent(new Event("tg-bots-new-chat")); } catch { /* no window */ }
+              }}
+            >
+              New conversation
+            </button>
+          </div>
         </header>
         <TgBotsPanel compact onReady={() => setTopg(true)} />
         {skillsFor(bot.id).length ? (
@@ -375,10 +397,24 @@ export default function OsStaff({ go }) {
                 {m.open && go ? (
                   <button type="button" onClick={() => go(m.open)}>Open in OS</button>
                 ) : null}
-                {m.docs?.length ? (
+                {m.role === "agent" && m.text ? (
                   <div className="osstaff-docs">
-                    {m.docs.map((d) => (
-                      <a key={d.name} href={d.url} download={d.name}>{d.kind === "xls" ? "Spreadsheet" : d.kind === "docx" ? "Word" : d.kind === "pdf" ? "PDF" : "HTML"}</a>
+                    {[["pdf", "PDF"], ["xls", "Spreadsheet"], ["docx", "Word"], ["html", "HTML"]].map(([kind, label]) => (
+                      <button
+                        key={kind}
+                        type="button"
+                        onClick={() => {
+                          makeDocuments({
+                            title: m.title || "Top G",
+                            body: m.text,
+                            facts: m.facts,
+                            formats: [kind],
+                            download: true,
+                          });
+                        }}
+                      >
+                        {label}
+                      </button>
                     ))}
                   </div>
                 ) : null}
@@ -415,9 +451,8 @@ export default function OsStaff({ go }) {
             onChange={(e) => setText(e.target.value)}
             aria-label={`Message ${bot.name}`}
             placeholder={`Message ${bot.name}`}
-            disabled={busy}
           />
-          <button type="submit" disabled={busy}>Send</button>
+          <button type="submit">Send</button>
         </form>
       </section>
 

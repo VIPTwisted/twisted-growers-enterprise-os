@@ -37,6 +37,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { supabase } from "./lib/supabase.js";
 import { DkRangeSearch } from "./dashkit.jsx";
 import { rangeSearch } from "./lib/range-search.js";
+import BotsPaidKey from "./bots-paid-key.jsx";
 
 const CHROME = 11;   /* DDC scale: chrome 9–11px */
 const BODY = 12;     /* 12px floor for prose, and prose never goes below it */
@@ -195,6 +196,10 @@ export default function KeysConnections({ session }) {
             and by whom it was last set.
           </div>
         </div>
+      </div>
+
+      <div style={{ marginBottom: 16 }}>
+        <BotsPaidKey />
       </div>
 
       {/* A read that failed must say so. Silence here would read as "no keys are set". */}

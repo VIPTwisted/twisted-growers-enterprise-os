@@ -1,0 +1,85 @@
+.brandlock {
+  max-width: 56rem;
+  margin: 0 auto;
+  padding: 1.25rem 1rem 3rem;
+  color: var(--ink);
+}
+.brandlock-k {
+  margin: 0;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.brandlock h1 {
+  margin: 0.35rem 0 0.5rem;
+  font-size: 1.4rem;
+}
+.brandlock-head p { color: var(--muted); font-size: 13px; max-width: 40rem; }
+.brandlock-areas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 1rem 0;
+}
+.brandlock-areas button {
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--ink);
+  border-radius: 999px;
+  padding: 0.4rem 0.8rem;
+  cursor: pointer;
+  font-size: 13px;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.brandlock-areas button em {
+  font-style: normal;
+  font-size: 11px;
+  color: var(--muted);
+}
+.brandlock-areas button.on,
+.brandlock-areas button:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--neon-soft);
+}
+.brandlock-drop {
+  border: 1px dashed var(--line);
+  border-radius: 12px;
+  padding: 1.25rem;
+  text-align: center;
+  background: var(--surface);
+}
+.brandlock-drop.hot { border-color: var(--accent); background: var(--neon-soft); }
+.brandlock-drop p { margin: 0 0 0.75rem; color: var(--muted); }
+.brandlock-pick {
+  border: 1px solid var(--accent);
+  background: transparent;
+  color: var(--accent);
+  border-radius: 999px;
+  padding: 0.45rem 1rem;
+  cursor: pointer;
+}
+.brandlock-pick:disabled { opacity: 0.5; cursor: wait; }
+.brandlock-err { color: var(--red); }
+.brandlock-msg { color: var(--ink); font-size: 13px; }
+.brandlock-list { list-style: none; padding: 0; margin: 1rem 0 0; }
+.brandlock-list li { border-bottom: 1px solid var(--line); }
+.brandlock-empty { padding: 1rem 0; color: var(--muted); }
+.brandlock-open {
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  color: var(--ink);
+  padding: 0.7rem 0;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+.brandlock-open:hover .brandlock-name { color: var(--accent); }
+.brandlock-name { font-weight: 600; }
+.brandlock-meta { font-size: 12px; color: var(--muted); }

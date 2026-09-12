@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { supabase, FUNCTIONS_URL, ANON_KEY } from "./lib/supabase.js";
-import { extProviderFromOs, viaLine, wakeTgBots, askTgBotsNow, pingTgBots, extModelNow } from "./lib/topg-connect.js";
+import { viaLine, askTgBotsNow, extModelNow, extProviderNow, pushButtonSetup } from "./lib/topg-connect.js";
 import { CORE_BOTS } from "./lib/os-bots.js";
 
 import TgBotsPanel from "./lib/tg-bots-panel.jsx";
@@ -610,7 +610,12 @@ export async function budzAnswer(question) {
   const num = (n) => Number(n || 0).toLocaleString();
   const has = (...k) => k.some((x) => t.includes(x));
   const sel = async (view, cols) => {
-    const { data, error } = await supabase.from(view).select(cols || "*").limit(400);
+    const q = supabase.from(view).select(cols || "*").limit(400);
+    const out = await Promise.race([
+      q,
+      new Promise((r) => setTimeout(() => r({ data: null, error: { message: "timed out" } }), 4000)),
+    ]);
+    const { data, error } = out || {};
     if (error) return { err: error.message, rows: [] };
     return { rows: data ?? [] };
   };
@@ -634,6 +639,124 @@ export async function budzAnswer(question) {
      Deliberately specific keywords. `has()` is first-match-wins in source
      order, so a loose keyword here would silently steal a question that
      already routes correctly somewhere below. */
+
+  /* ── TAGS THAT CHANGED ───────────────────────────────────────────
+     Package events name the tag and the event. They do not carry who.
+     WHO is on the OS adjustments desk: metrc_rpt_adjustments.adjusted_by
+     (Metrc report User — same column the tag dossier shows). Destroyed
+     plants: metrc_rpt_plants_destroyed.destroyed_by.
+     Do not scan metrc_plants.raw. Do not invent a name. */
+  if (/\btags?\b/.test(t) && /\b(chang|moved|adjust|created|yesterday|who|modif)\b/.test(t)) {
+    const yest = osYesterdayNy();
+    const wantWho = /\b(who|whom|whose|modif|employee|person)\b/.test(t);
+    const timeout = (ms) => new Promise((r) => setTimeout(() => r({ data: null, error: { message: "timed out" } }), ms));
+    const [got, adjGot, deadGot] = await Promise.all([
+      Promise.race([
+        supabase.from("v_package_events").select("package_tag,event_date,event,lb_delta,licence,room,counterparty").eq("event_date", yest).limit(400),
+        timeout(3000),
+      ]),
+      Promise.race([
+        supabase.from("metrc_rpt_adjustments").select("package_tag,adjusted_on,adjusted_by,reason,note,quantity,uom,licence").eq("adjusted_on", yest).limit(400),
+        timeout(3000),
+      ]),
+      Promise.race([
+        supabase.from("metrc_rpt_plants_destroyed").select("plant_tag,destroyed_on,destroyed_by,location,destroyed_note").eq("destroyed_on", yest).limit(400),
+        timeout(3000),
+      ]),
+    ]);
+    const events = got?.data;
+    const evErr = got?.error;
+    if (evErr) {
+      return { headline: "Tag changes could not be read: " + evErr.message, rows: [] };
+    }
+    const ev = Array.isArray(events) ? events : [];
+    const adj = Array.isArray(adjGot?.data) ? adjGot.data : [];
+    const dead = Array.isArray(deadGot?.data) ? deadGot.data : [];
+    const adjErr = adjGot?.error;
+    const deadErr = deadGot?.error;
+    const byWho = {};
+    adj.forEach((r) => {
+      const who = String(r.adjusted_by || "").trim() || "not recorded";
+      (byWho[who] ||= []).push(r);
+    });
+    const byDead = {};
+    dead.forEach((r) => {
+      const who = String(r.destroyed_by || "").trim() || "not recorded";
+      (byDead[who] ||= []).push(r);
+    });
+    const namedAdj = Object.keys(byWho).filter((k) => k !== "not recorded");
+    const namedDead = Object.keys(byDead).filter((k) => k !== "not recorded");
+    const whoLine = namedAdj.length
+      ? namedAdj.sort((a, b) => byWho[b].length - byWho[a].length).map((n) => `${n} (${byWho[n].length})`).join(", ")
+      : "";
+    const deadLine = namedDead.length
+      ? namedDead.sort((a, b) => byDead[b].length - byDead[a].length).map((n) => `${n} (${byDead[n].length})`).join(", ")
+      : "";
+    const unnamedAdj = (byWho["not recorded"] || []).length;
+    const createdN = ev.filter((r) => /created|consumed|shipped|received/i.test(r.event || "")).length;
+    const rows = [];
+    namedAdj.sort((a, b) => byWho[b].length - byWho[a].length).forEach((who) => {
+      const list = byWho[who];
+      rows.push({
+        label: who,
+        detail: `${list.length} package adjustment${list.length === 1 ? "" : "s"} · ${list.slice(0, 3).map((r) => r.package_tag).join(" · ")}`,
+        meta: list[0]?.reason || yest,
+        drill: "rpt-adjustments",
+      });
+    });
+    namedDead.sort((a, b) => byDead[b].length - byDead[a].length).forEach((who) => {
+      const list = byDead[who];
+      rows.push({
+        label: who,
+        detail: `${list.length} plant tag${list.length === 1 ? "" : "s"} destroyed · ${list.slice(0, 3).map((r) => r.plant_tag).join(" · ")}`,
+        meta: list[0]?.location || yest,
+        drill: "metrc_rpt_plants_destroyed",
+      });
+    });
+    if (wantWho) {
+      const bits = [];
+      if (whoLine) bits.push(`Package adjustments named: ${whoLine}.`);
+      else if (adjErr) bits.push("Adjustments desk could not be read: " + adjErr.message);
+      else if (adj.length) bits.push(`${adj.length} package adjustment${adj.length === 1 ? "" : "s"} yesterday. Employee not recorded on those rows.`);
+      else bits.push("No package adjustments yesterday, so no adjusted-by name.");
+      if (unnamedAdj && whoLine) bits.push(`${unnamedAdj} adjustment${unnamedAdj === 1 ? "" : "s"} did not record an employee.`);
+      if (deadLine) bits.push(`Destroyed plants named: ${deadLine}.`);
+      else if (deadErr) bits.push("Destroyed-plants desk could not be read: " + deadErr.message);
+      if (createdN) bits.push(`${createdN} create / consume / ship / receive event${createdN === 1 ? "" : "s"} have no employee field on the OS.`);
+      return {
+        headline: `${yest} (America/New_York). ${bits.join(" ")}`,
+        rows: rows.length ? rows : [{ label: "No employee name on those tag events", detail: "metrc_rpt_adjustments.adjusted_by and metrc_rpt_plants_destroyed.destroyed_by", meta: yest, drill: "rpt-adjustments" }],
+      };
+    }
+    const byEvent = {};
+    ev.forEach((r) => { byEvent[r.event || "event"] = (byEvent[r.event || "event"] || 0) + 1; });
+    Object.entries(byEvent).forEach(([k, n]) => {
+      rows.push({
+        label: `${n} package tag${n === 1 ? "" : "s"} ${k.toLowerCase()}`,
+        detail: "v_package_events · yesterday America/New_York",
+        meta: yest,
+        drill: "metrc_rpt_packages",
+      });
+    });
+    ev.slice(0, 20).forEach((r) => {
+      rows.push({
+        label: r.package_tag,
+        detail: `${r.event}${r.counterparty ? " · " + r.counterparty : ""}${r.room ? " · " + r.room : ""}${r.licence ? " · " + r.licence : ""}`,
+        meta: r.lb_delta != null ? String(r.lb_delta) + " lb" : "",
+        drill: "metrc_rpt_packages",
+      });
+    });
+    if (!rows.length && !ev.length && !adj.length && !dead.length) {
+      return none("No package event, adjustment, or destroyed plant is on the record for " + yest + " (America/New_York).", "plant_history");
+    }
+    const whoBit = whoLine
+      ? ` Who adjusted: ${whoLine}.`
+      : (adj.length ? " Adjustments did not record an employee." : " No adjustments, so no adjusted-by name.");
+    return {
+      headline: `${yest} (America/New_York): ${ev.length} package event${ev.length === 1 ? "" : "s"} on v_package_events.${whoBit}`,
+      rows,
+    };
+  }
 
   if (has("inventory issues", "inventory issue")) {
     const { rows } = await sel("v_inventory_alerts");
@@ -707,24 +830,18 @@ export async function budzAnswer(question) {
     const n = nHarvests;
     const iso = (d) => d.toISOString().slice(0, 10);
     const today = iso(new Date());
-    const { data: downs, error: downErr } = await supabase
-      .from("v_harvest_takedown")
-      .select("takedown_start,flower_room,plants,wet_lb,harvests,harvest_records,takedown_days,is_material")
-      .lte("takedown_start", today)
-      .order("takedown_start", { ascending: false })
-      .limit(n);
-    if (downErr) return { headline: "Last harvests could not be read: " + downErr.message, rows: [] };
-    const takedowns = Array.isArray(downs) ? downs : [];
-    if (!takedowns.length) return none("No takedown has been recorded yet.", "harvest_forensic");
-    const oldest = takedowns[takedowns.length - 1].takedown_start;
-    const newest = takedowns[0].takedown_start;
-    const endCut = iso(new Date(new Date(newest).getTime() + 4 * 864e5));
-    const [{ data: cuts }, { data: pulls }] = await Promise.all([
+    const since = iso(new Date(Date.now() - 220 * 864e5));
+    const [{ data: downs, error: downErr }, { data: cuts }, { data: pulls }] = await Promise.all([
+      supabase
+        .from("v_harvest_takedown")
+        .select("takedown_start,flower_room,plants,wet_lb,harvests,harvest_records,takedown_days,is_material")
+        .lte("takedown_start", today)
+        .order("takedown_start", { ascending: false })
+        .limit(n),
       supabase.from("v_harvest_forensic")
         .select("harvest_name,strain,harvest_started,harvest_closed,drying_room,plants,wet_lb,packaged_lb,waste_lb,still_in_room_lb,conversion_pct,harvest_state")
-        .gte("harvest_started", oldest)
-        .lte("harvest_started", endCut)
-        .order("harvest_started")
+        .gte("harvest_started", since)
+        .order("harvest_started", { ascending: false })
         .limit(200),
       supabase.from("harvest_pulls")
         .select("harvest_date,flower_room,pull_no,cultivars,original_total_plants,proj_harvest_weight_lbs")
@@ -732,6 +849,9 @@ export async function budzAnswer(question) {
         .order("harvest_date", { ascending: false })
         .limit(n),
     ]);
+    if (downErr) return { headline: "Last harvests could not be read: " + downErr.message, rows: [] };
+    const takedowns = Array.isArray(downs) ? downs : [];
+    if (!takedowns.length) return none("No takedown has been recorded yet.", "harvest_forensic");
     const nnum = (x) => {
       const v = Number(x);
       return Number.isFinite(v) ? v : null;
@@ -1077,20 +1197,124 @@ export async function budzAnswer(question) {
     };
   }
 
-  /* ── TODAY ────────────────────────────────────────────────────── */
-  if (has("shipping out today", "shipped today", "shipping today")) {
-    const { rows } = await sel("v_metrc_transfer_ledger");
-    const out = rows.filter((r) => /out/i.test(r.direction || "") && (r.created_on === today || r.departed === today));
-    if (!out.length) return none(`No outbound manifests are dated ${today}. The transfer ledger holds the full shipping history.`, "metrc_rpt_transfers");
-    return {
-      headline: `${out.length} outbound shipments today.`,
-      rows: out.map((r) => ({
-        label: `Manifest ${r.manifest_number} → ${r.recipient}`,
-        detail: `${r.packages} packages${r.transporter ? " · " + r.transporter : ""}${r.driver ? " · " + r.driver : ""}`,
-        meta: `${r.departed ?? r.created_on}${r.arrival_estimate ? " · ETA " + r.arrival_estimate : ""}`,
+  /* ── SHIPPED / ORDERS OUT ───────────────────────────────────────
+     v_shipped_full is THE answer, but it is heavy. Read the two desks
+     the order book and the transfer ledger actually sit on, date-filtered
+     on the server, and never fall through to searchLiveViews — that path
+     scored "shipped last week" onto Material Forensic Dossier (the word
+     "shipped" in its blurb) and Cost Versus Output ("week"/"out"/"last"). */
+  if (has("shipping out today", "shipped today", "shipping today", "what shipped", "shipped out", "order shipped", "what left", "outbound", "went out", "shipment", "shipped", "shipping")) {
+    const win = osDateWindow(question);
+    const wantOrder = /\borders?\b/.test(t);
+    const timeout = (ms) => new Promise((r) => setTimeout(() => r({ data: null, error: { message: "timed out" } }), ms));
+    const until = osYmdAdd(win.to, 1);
+    const [xferGot, apexGot, saleGot] = await Promise.all([
+      Promise.race([
+        supabase.from("v_metrc_transfer_ledger")
+          .select("manifest_number,direction,created_on,received_on,shipper,recipient,packages,transporter,driver,departed,shipment_type,license")
+          .gte("created_on", win.from)
+          .lt("created_on", until)
+          .order("created_on", { ascending: false })
+          .limit(120),
+        timeout(3000),
+      ]),
+      Promise.race([
+        supabase.from("v_apex_order_metrc_link")
+          .select("invoice_number,order_date,delivery_date,total_dollars,cancelled,link_status,metrc_manifests,last_metrc_date,first_metrc_date,package_tags,buyer_state_license,apex_order_id")
+          .eq("link_status", "MATCHED")
+          .gte("last_metrc_date", win.from)
+          .lt("last_metrc_date", until)
+          .order("last_metrc_date", { ascending: false })
+          .limit(80),
+        timeout(3000),
+      ]),
+      Promise.race([
+        supabase.from("metrc_rpt_wholesale")
+          .select("invoice_number,manifest_number,destination_facility,created_on,item,shipped_qty,shipped_uom,amount,voided")
+          .gte("created_on", win.from)
+          .lt("created_on", until)
+          .limit(120),
+        timeout(3000),
+      ]),
+    ]);
+    const xferErr = xferGot?.error;
+    const apexErr = apexGot?.error;
+    const saleErr = saleGot?.error;
+    const xfer = (Array.isArray(xferGot?.data) ? xferGot.data : [])
+      .filter((r) => /out/i.test(r.direction || "") && (osInWindow(r.created_on, win.from, win.to) || osInWindow(r.departed, win.from, win.to)));
+    const apex = (Array.isArray(apexGot?.data) ? apexGot.data : [])
+      .filter((r) => osInWindow(r.last_metrc_date, win.from, win.to) && !r.cancelled);
+    const sale = (Array.isArray(saleGot?.data) ? saleGot.data : [])
+      .filter((r) => !r.voided && osInWindow(r.created_on, win.from, win.to));
+    const byInvoice = {};
+    sale.forEach((r) => {
+      const k = String(r.invoice_number || r.manifest_number || "").trim() || "no invoice";
+      (byInvoice[k] ||= { n: 0, dest: r.destination_facility, amount: 0, manifests: new Set(), items: [] }).n += 1;
+      byInvoice[k].amount += Number(r.amount || 0);
+      if (r.manifest_number) byInvoice[k].manifests.add(r.manifest_number);
+      if (r.item && byInvoice[k].items.length < 3) byInvoice[k].items.push(r.item);
+    });
+    const invoices = Object.keys(byInvoice);
+    const saleByDigits = {};
+    invoices.forEach((inv) => {
+      const d = String(inv).replace(/\D/g, "");
+      if (d) saleByDigits[d] = byInvoice[inv];
+    });
+    const apexSum = apex.reduce((a, r) => a + Number(r.total_dollars || 0), 0);
+    const saleSum = sale.reduce((a, r) => a + Number(r.amount || 0), 0);
+    const bits = [];
+    bits.push(`${win.label} (America/New_York).`);
+    if (apex.length) bits.push(`${apex.length} Apex order${apex.length === 1 ? "" : "s"} MATCHED on Metrc · ${usd(apexSum)} Apex.`);
+    else if (apexErr) bits.push("Apex order book could not be read: " + apexErr.message);
+    else bits.push("No MATCHED Apex orders in that window.");
+    if (xfer.length) bits.push(`${xfer.length} outbound manifest${xfer.length === 1 ? "" : "s"}.`);
+    else if (xferErr) bits.push("Transfer ledger could not be read: " + xferErr.message);
+    else bits.push("No outbound manifests in that window.");
+    if (invoices.length) bits.push(`${invoices.length} invoice${invoices.length === 1 ? "" : "s"} on Metrc wholesale · ${usd(saleSum)} shipper amount.`);
+    else if (saleErr) bits.push("Wholesale report could not be read: " + saleErr.message);
+    if (apex.length && invoices.length) bits.push("Apex dollars and Metrc wholesale dollars are not the same figure and are not added.");
+    const rows = [];
+    const orderFirst = wantOrder || apex.length;
+    if (orderFirst) {
+      apex.slice(0, 20).forEach((r) => {
+        rows.push({
+          label: `Invoice ${r.invoice_number || r.apex_order_id} → ${(saleByDigits[String(r.invoice_number || "").replace(/\D/g, "")] || {}).dest || r.buyer_state_license || "buyer not on the row"}`,
+          detail: `MATCHED · ${r.metrc_manifests || 0} manifest${Number(r.metrc_manifests) === 1 ? "" : "s"} · ${r.package_tags || 0} package${Number(r.package_tags) === 1 ? "" : "s"} · ${usd(r.total_dollars)} Apex`,
+          meta: `shipped ${String(r.last_metrc_date || "").slice(0, 10)}${r.order_date ? " · ordered " + String(r.order_date).slice(0, 10) : ""}`,
+          drill: "sales_history",
+        });
+      });
+      invoices.slice(0, 8).forEach((inv) => {
+        if (apex.some((r) => String(r.invoice_number || "").replace(/\D/g, "") === String(inv).replace(/\D/g, ""))) return;
+        const g = byInvoice[inv];
+        rows.push({
+          label: `Metrc invoice ${inv} → ${g.dest || "destination not recorded"}`,
+          detail: `${g.n} line${g.n === 1 ? "" : "s"} · ${[...g.manifests].slice(0, 3).join(" · ") || "no manifest"} · ${usd(g.amount)} wholesale shipper`,
+          meta: (g.items || []).join(" · "),
+          drill: "sales_history",
+        });
+      });
+    }
+    xfer.slice(0, orderFirst ? 12 : 25).forEach((r) => {
+      rows.push({
+        label: `Manifest ${r.manifest_number} → ${r.recipient || "recipient not recorded"}`,
+        detail: `${r.packages || 0} packages${r.transporter ? " · " + r.transporter : ""}${r.driver ? " · " + r.driver : ""}`,
+        meta: `${String(r.departed || r.created_on || "").slice(0, 10)}${r.shipment_type ? " · " + r.shipment_type : ""}`,
         drill: "metrc_rpt_transfers",
-      })),
-    };
+      });
+    });
+    if (!rows.length) {
+      return {
+        headline: bits.join(" "),
+        rows: [{
+          label: "Nothing shipped in that window",
+          detail: "Read v_metrc_transfer_ledger (outbound), v_apex_order_metrc_link (MATCHED), and metrc_rpt_wholesale. Not a certified number.",
+          meta: win.label,
+          drill: "sales_history",
+        }],
+      };
+    }
+    return { headline: bits.join(" "), rows };
   }
   if (has("added to inventory today", "got added")) {
     const { rows } = await sel("v_coa_register");
@@ -1529,11 +1753,41 @@ export async function budzAnswer(question) {
     };
   }
 
+  if (/\b(hr|roster|employee|staff|who missed|callout|timesheet|payroll|attendance|no.?show)\b/.test(t)) {
+    const wait = await sel("v_hr_waiting_on_a_person");
+    const cap = await sel("v_employee_capacity");
+    const rows = [];
+    (wait.rows || []).slice(0, 25).forEach((r) => {
+      rows.push({
+        label: r.headline || r.name || "HR item",
+        detail: [r.severity, r.detail, r.plain_english].filter(Boolean).join(" · "),
+        meta: r.agent_confidence != null ? String(r.agent_confidence) : "",
+        drill: "dept_dash_hr",
+      });
+    });
+    (cap.rows || []).slice(0, 15).forEach((r) => {
+      const keys = Object.keys(r).filter((k) => k !== "raw").slice(0, 6);
+      rows.push({
+        label: String(r.full_name || r.name || r.employee || (keys[0] != null ? r[keys[0]] : "") || "capacity"),
+        detail: keys.slice(1, 4).map((k) => (r[k] != null && r[k] !== "" ? `${k} ${r[k]}` : "")).filter(Boolean).join(" · "),
+        meta: keys.slice(4).map((k) => (r[k] != null && r[k] !== "" ? `${k} ${r[k]}` : "")).filter(Boolean).join(" · "),
+        drill: "dept_dash_hr",
+      });
+    });
+    if (rows.length) {
+      return {
+        headline: `${rows.length} live HR row${rows.length === 1 ? "" : "s"} from v_hr_waiting_on_a_person and v_employee_capacity. Not a certified payroll figure.`,
+        rows,
+      };
+    }
+  }
+
+  const found = await searchLiveViews(question);
+  if (found && (found.rows?.length || found.headline)) return found;
   return {
-    headline:
-      "I do not have a built-in report for that one. Send it to Claude Desktop with the button below — it reads this same database live, over the subscription the company already pays for, and it can answer anything. Nothing is billed.",
+    headline: "No live OS view matched that wording.",
     rows: [],
-    askClaude: true,
+    askClaude: false,
   };
 }
 
@@ -1568,8 +1822,8 @@ const readProfileCache = () => {
    device. This is a person handing over one file. An assistant that confuses
    the two will refuse an upload while quoting a privacy rule that does not
    apply to it. */
-const CHAT_MAX_FILES = 10;
-const CHAT_MAX_BYTES = 100 * 1024 * 1024;
+const CHAT_MAX_FILES = 100;
+const CHAT_MAX_BYTES = Number.POSITIVE_INFINITY;
 
 export function useChatFiles(surface) {
   const [files, setFiles] = useState([]);
@@ -1585,8 +1839,8 @@ export function useChatFiles(surface) {
     /* Say what was dropped and why. Silently taking four of nine files is how
        somebody sends a partial set and believes all of it arrived. */
     const notes = [];
-    if (tooBig.length) notes.push(`${tooBig.map((f) => f.name).join(", ")} — over 100 MB, not attached.`);
-    if (incoming.length - tooBig.length > ok.length) notes.push(`Ten files at a time; the rest were not attached.`);
+    if (tooBig.length) notes.push(`${tooBig.map((f) => f.name).join(", ")} — this browser could not hold those bytes. Split the drop.`);
+    if (incoming.length - tooBig.length > ok.length) notes.push(`A hundred files at a time; drop the rest next.`);
     setWarn(notes.join(" "));
     if (ok.length) setFiles((cur) => [...cur, ...ok.map((f) => ({ name: f.name, type: f.type, size: f.size, file: f }))]);
   };
@@ -1607,19 +1861,19 @@ export function useChatFiles(surface) {
      find in November, which is the whole reason documents are tracked here. */
   const upload = async (question) => {
     if (!files.length) return [];
-    const out = [];
-    for (const f of files) {
-      const path = `chat/${surface}/${Date.now()}-${f.name.replace(/[^a-zA-Z0-9._-]/g, "")}`;
+    const stamp = Date.now();
+    const out = await Promise.all(files.map(async (f, i) => {
+      const path = `chat/${surface}/${stamp}-${i}-${f.name.replace(/[^a-zA-Z0-9._-]/g, "")}`;
       const { error } = await supabase.storage.from("assistant")
         .upload(path, f.file, { upsert: true, contentType: f.type || "application/octet-stream" });
-      if (error) { out.push({ name: f.name, error: error.message }); continue; }
+      if (error) return { name: f.name, error: error.message };
       const url = supabase.storage.from("assistant").getPublicUrl(path).data.publicUrl;
       await supabase.from("assistant_uploads").insert({
         surface, file_name: f.name, content_type: f.type || null,
         size_bytes: f.size ?? null, storage_path: path, url, question: question || null,
       });
-      out.push({ name: f.name, url, type: f.type, size: f.size });
-    }
+      return { name: f.name, url, type: f.type, size: f.size };
+    }));
     clear();
     return out;
   };
@@ -1789,21 +2043,20 @@ async function askMeteredApi(question, history) {
       body: JSON.stringify({ messages: hist }),
     });
     const out = await rr.json().catch(() => null);
-    /* A RACER MUST ONLY WIN WITH A REAL ANSWER. This returned out.reply
-       unconditionally, and budz-chat puts its FAILURES in that same field - "No
-       artificial intelligence key has been set yet" is a reply. So the moment
-       the race was introduced, a path with no key beat the desktop bridge in
-       milliseconds and the owner watched a working answer get replaced by an
-       excuse. The race did not cause the missing key; it promoted it over a
-       bridge that was answering correctly.
-
-       ok:false, needs_key and an http error all mean "I did not answer", and
-       none of them may beat a slower path that did. */
-    if (!rr.ok || out?.ok === false || out?.needs_key) return null;
-    return out?.reply ?? null;
+    if (!rr.ok || out?.ok === false || out?.needs_key || out?.blocked) return null;
+    const reply = out?.reply ?? null;
+    if (!realModelReply(reply)) return null;
+    return reply;
   } catch {
     return null;
   }
+}
+
+function realModelReply(text) {
+  const t = String(text || "").trim();
+  if (!t) return false;
+  if (/paid answers are switched off|the switch is simply off|no artificial intelligence key has been set|i cannot check who is asking|tap grok on bots desk first/i.test(t)) return false;
+  return true;
 }
 
 /* THE ONE WAY A QUESTION GETS ANSWERED. Owner, 8 August 2026: "make sure
@@ -1829,6 +2082,124 @@ async function askMeteredApi(question, history) {
    called, so both surfaces show what is known immediately and fill in the
    composed answer when it lands. Nobody waits on a model to see a number that
    was already sitting in a view. */
+function osTodayNy() {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York" }).format(new Date());
+}
+function osDayNy(daysBack) {
+  const [y, m, d] = osTodayNy().split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d + daysBack)).toISOString().slice(0, 10);
+}
+function osYesterdayNy() { return osDayNy(-1); }
+function osYmdAdd(ymd, days) {
+  const [y, m, d] = String(ymd).split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d + days)).toISOString().slice(0, 10);
+}
+/* last week / yesterday / today / last N days. Named dates, America/New_York. */
+function osDateWindow(question) {
+  const t = String(question || "").toLowerCase();
+  const today = osTodayNy();
+  if (/\byesterday\b/.test(t)) {
+    const y = osYesterdayNy();
+    return { from: y, to: y, label: y };
+  }
+  if (/\btoday\b/.test(t) && !/\b(last|past|yesterday)\b/.test(t)) {
+    return { from: today, to: today, label: today };
+  }
+  const mDays = t.match(/\b(?:last|past)\s+(\d+)\s+days?\b/);
+  if (mDays) {
+    const n = Math.min(90, Math.max(1, Number(mDays[1]) || 7));
+    const from = osYmdAdd(today, -n);
+    return { from, to: today, label: `${from} to ${today}` };
+  }
+  if (/\b(last|past|this past)\s+week\b/.test(t) || /\ba week ago\b/.test(t)) {
+    const from = osYmdAdd(today, -7);
+    return { from, to: today, label: `${from} to ${today}` };
+  }
+  if (/\bthis week\b/.test(t)) {
+    const [y, mo, d] = today.split("-").map(Number);
+    const dow = new Date(Date.UTC(y, mo - 1, d)).getUTCDay();
+    const from = osYmdAdd(today, dow === 0 ? -6 : 1 - dow);
+    return { from, to: today, label: `${from} to ${today}` };
+  }
+  const from = osYmdAdd(today, -7);
+  return { from, to: today, label: `${from} to ${today}` };
+}
+function osInWindow(value, from, to) {
+  const day = String(value || "").slice(0, 10);
+  return day >= from && day <= to;
+}
+
+let _navCache = { at: 0, rows: null, error: null };
+async function searchLiveViews(question) {
+  const q = String(question || "").toLowerCase();
+  /* Time words and short stems used to match the WRONG desk:
+     "week" hit "weekly", "out" hit "output", "last" hit "last ninety days",
+     "shipped" hit Material Forensic Dossier's blurb. Word boundaries + stop
+     those stems. If the question names a job (ship, harvest, tag, invoice),
+     the winning view has to be about that job. */
+  const stop = new Set(["tell","what","who","the","and","for","our","you","are","was","were","this","that","they","them","then","with","from","have","been","does","did","just","like","about","please","need","want","show","list","give","full","into","over","under","than","also","some","any","all","can","could","would","should","come","came","here","there","your","mine","last","week","weeks","past","days","today","yesterday","asked","wtf","out","into","live","rows","versus","cost","open","desk"]);
+  const words = q.split(/[^a-z0-9]+/).filter((w) => w.length > 3 && !stop.has(w));
+  if (!words.length) return null;
+  const intent = [
+    { re: /\b(shipped|shipping|shipment|outbound|went out|manifest)\b/i, must: /ship|manifest|transfer|wholesale|order/i },
+    { re: /\b(harvest|takedown|pulls?\b)\b/i, must: /harvest/i },
+    { re: /\b(tags?\b|adjust)\b/i, must: /tag|adjust|package_event/i },
+    { re: /\b(invoice|apex)\b/i, must: /apex|invoice|order|wholesale|sales/i },
+    { re: /\b(payroll|headcount|labour|labor cost)\b/i, must: /payroll|cost|hr|employee|leadership/i },
+  ].find((i) => i.re.test(q));
+  if (!_navCache.rows || Date.now() - _navCache.at > 60000) {
+    const got = await Promise.race([
+      supabase.from("nav_registry").select("view_key,label,table_ref,description").eq("enabled", true).limit(200),
+      new Promise((r) => setTimeout(() => r({ data: null, error: { message: "timed out" } }), 2500)),
+    ]);
+    const nav = got?.data;
+    const error = got?.error;
+    _navCache = { at: Date.now(), rows: Array.isArray(nav) ? nav : [], error };
+  }
+  if (_navCache.error) return { headline: "The live page list could not be read: " + _navCache.error.message, rows: [] };
+  const scored = _navCache.rows
+    .filter((r) => r.table_ref && /^[a-z][a-z0-9_]*$/i.test(r.table_ref) && !r.table_ref.startsWith("f_"))
+    .map((r) => {
+      const hay = `${r.view_key} ${r.label} ${r.table_ref} ${r.description || ""}`.toLowerCase();
+      if (intent && !intent.must.test(hay)) return { ...r, s: 0 };
+      let s = 0;
+      for (const w of words) {
+        const re = new RegExp(`(?:^|[^a-z0-9_])${w}(?:$|[^a-z0-9_])`);
+        if (re.test(hay)) s += (w.length > 5 ? 2 : 1);
+      }
+      return { ...r, s };
+    })
+    .filter((r) => r.s >= 3)
+    .sort((a, b) => b.s - a.s);
+  if (!scored.length) return null;
+  for (const hit of scored.slice(0, 3)) {
+    const hitQ = await Promise.race([
+      supabase.from(hit.table_ref).select("*").limit(40),
+      new Promise((r) => setTimeout(() => r({ data: null, error: { message: "timed out" } }), 2500)),
+    ]);
+    const qErr = hitQ?.error;
+    if (qErr) {
+      if (/timed out/i.test(qErr.message)) continue;
+      return { headline: `${hit.label} could not be read: ${qErr.message}`, rows: [{ label: hit.view_key, detail: qErr.message, meta: hit.table_ref, drill: hit.view_key }] };
+    }
+    const rows = Array.isArray(hitQ?.data) ? hitQ.data : [];
+    if (!rows.length) continue;
+    const keys = Object.keys(rows[0] || {}).filter((k) => k !== "raw").slice(0, 8);
+    return {
+      headline: `${rows.length} live row${rows.length === 1 ? "" : "s"} from ${hit.label} (${hit.table_ref}). These are OS records. Not a certified number unless that desk says so.`,
+      rows: rows.slice(0, 30).map((r) => ({
+        label: String(r[keys[0]] ?? r[keys[1]] ?? hit.label),
+        detail: keys.slice(1, 4).map((k) => (r[k] != null && r[k] !== "" ? `${k} ${r[k]}` : "")).filter(Boolean).join(" · "),
+        meta: keys.slice(4, 8).map((k) => (r[k] != null && r[k] !== "" ? `${k} ${r[k]}` : "")).filter(Boolean).join(" · "),
+        drill: hit.view_key,
+      })),
+    };
+  }
+  return null;
+}
+
+const _wxUrl = {};
+let _wxLast = { at: 0, name: "", text: "" };
 async function liveWeather(question) {
   if (!/\bweather\b|\bforecast\b|\btemperature\b|\btonight\b.*\b(ma|mass|boston)\b/i.test(question)) return null;
   const spots = [
@@ -1840,67 +2211,90 @@ async function liveWeather(question) {
   ];
   const hit = spots.find((s) => s.re.test(question));
   if (!hit) return null;
+  if (_wxLast.text && _wxLast.name === hit.name && Date.now() - _wxLast.at < 600000) return _wxLast.text;
+  const ctrl = new AbortController();
+  const kill = setTimeout(() => ctrl.abort(), 2500);
   try {
     const hdr = { Accept: "application/geo+json" };
-    const pt = await fetch(`https://api.weather.gov/points/${hit.lat},${hit.lon}`, { headers: hdr });
-    if (!pt.ok) return null;
-    const pj = await pt.json();
-    const url = pj.properties?.forecast;
-    if (!url) return null;
-    const fc = await fetch(url, { headers: hdr });
+    let url = _wxUrl[hit.name];
+    if (!url) {
+      const pt = await fetch(`https://api.weather.gov/points/${hit.lat},${hit.lon}`, { headers: hdr, signal: ctrl.signal });
+      if (!pt.ok) return null;
+      const pj = await pt.json();
+      url = pj.properties?.forecast;
+      if (!url) return null;
+      _wxUrl[hit.name] = url;
+    }
+    const fc = await fetch(url, { headers: hdr, signal: ctrl.signal });
     if (!fc.ok) return null;
     const fj = await fc.json();
     const periods = (fj.properties?.periods || []).slice(0, 4);
     if (!periods.length) return null;
     const lines = periods.map((p) => `${p.name}: ${p.temperature}°${p.temperatureUnit} — ${p.shortForecast}. ${p.detailedForecast || ""}`.trim());
-    return `Weather for ${hit.name} (National Weather Service, live):\n\n${lines.join("\n\n")}`;
+    const text = `Weather for ${hit.name} (National Weather Service, live):\n\n${lines.join("\n\n")}`;
+    _wxLast = { at: Date.now(), name: hit.name, text };
+    return text;
   } catch {
     return null;
+  } finally {
+    clearTimeout(kill);
   }
 }
 
 export async function askBudzFull(question, history = [], { onFacts, surface = "assistant", desk } = {}) {
   const askedAt = Date.now();
+  const hello = /^(hi|hey|hello|yo|hi there|good morning|good afternoon|howdy)[\s!.?]*$/i.test(String(question || "").trim());
+  if (hello) {
+    return {
+      headline: "",
+      facts: [],
+      composed: "Hey. I'm Top G. I handle this OS from chat — harvests, tags, Apex, HR, weather, code, stocks, anything. Tap Grok until the pill is green if you want grok.com in the same thread. No key.",
+      via: "Top G",
+      askErr: null,
+    };
+  }
 
-  /* Weather does not wait on Grok. National Weather Service, seconds, this page. */
+  /* Warm settings in the background. Do not block the first word on them. */
+  getAiCfg();
+
   const wx = await liveWeather(question);
   if (wx) {
     return { headline: "", facts: [], composed: wx, via: "National Weather Service", askErr: null };
   }
-  /* MEMORY, BEFORE THE QUESTION IS ANSWERED.
 
-     Wired HERE rather than in each screen, because the pet, the assistant page
-     and TG Brain all come through this one function. Three copies would drift
-     inside a month - the same argument as one chat attachment and one switch.
-
-     It carries three things: approved CORRECTIONS, which outrank the model's own
-     training because a person watched it get that wrong; confirmed FACTS, each
-     with the query that produced it so a number can be re-derived rather than
-     believed; and this person's RECENT questions, so a follow-up continues
-     instead of restarting.
-
-     Failure is silent on purpose. Memory makes a good answer better; it must
-     never be the reason there is no answer at all. */
-  let memory = null;
-  const needsRecords = /\b(harvest|metrc|package|plant|invoice|apex|coa|cultiv|inventory|strain|batch|tag|lab|license|payroll|employee|dutchie|weight|room|clone|flower|trim|waste|manifest|sales|cfo|vendor|po\b|pull this|past week|last week|\bpull\b|last \d+ days?|past \d+ days?)\b/i.test(question)
+  const lastBot = [...history].reverse().find((m) => m.who === "bot")?.text || "";
+  const lastMe = [...history].reverse().find((m) => m.who === "me")?.text || "";
+  const restates = /\b(i asked you|wtf i asked|not what i asked|you (did not|didn't) (answer|tell))\b/i.test(question);
+  const followWho = /\b(who|why did you not|i need to know)\b/i.test(question)
+    && /\b(tag|package|harvest|adjust|v_package)\b/i.test(`${lastBot} ${lastMe}`);
+  const followRecords = followWho || restates;
+  const needsRecords = /\b(harvest|metrc|package|plant|invoice|apex|coa|cultiv|inventory|strain|batch|tag|lab|license|payroll|employee|dutchie|weight|room|clone|flower|trim|waste|manifest|sales|cfo|vendor|po\b|pull this|past week|last week|\bpull\b|last \d+ days?|past \d+ days?|hr\b|roster|staff|callout|timesheet|attendance|who missed|permission|admin|shipped|shipping|shipment|outbound|went out)\b/i.test(question)
+    || followRecords
     || !!readHumanIntent(question).lastN;
+  const lookupQ = followWho && !/\btags?\b/i.test(question)
+    ? `${question} tags yesterday`
+    : question;
+
+  const a = needsRecords
+    ? await Promise.race([
+      budzAnswer(lookupQ),
+      new Promise((r) => setTimeout(() => r({ rows: [], headline: "Live records took too long. Ask again." }), 5000)),
+    ])
+    : { rows: [], headline: "" };
+  const facts = a.rows ?? [];
+  onFacts?.(a, facts);
+  const fromRecords = !a.askClaude && facts.length
+    ? [a.headline, ...facts.map((r) => [r.label, r.detail, r.meta].filter(Boolean).join(" — "))].filter(Boolean).join("\n")
+    : null;
   if (needsRecords) {
-    try {
-      const { data } = await supabase.rpc("f_brain_memory_for");
-      memory = data ?? null;
-    } catch { /* answer without it rather than not at all */ }
+    const composed = fromRecords || a.headline || "No live rows for that.";
+    return { headline: a.headline || "", facts, composed, via: "Live OS records", askErr: null };
   }
 
-  const a = needsRecords ? await budzAnswer(question) : { rows: [], headline: "" };
-  const facts = a.rows ?? [];
-  const cfg = await getAiCfg();
   let composed = null;
   let via = null;
-  /* Why it could not answer, if it could not. Rule A3: absence is explained,
-     never blank. A bare catch here once hid a total outage. */
   let askErr = null;
   const log = history;
-  onFacts?.(a, facts);
   const asked = [
     `You are Grok — a full AI assistant — working inside Twisted Growers Enterprise OS as ${desk?.name || "Top G"}, ${desk?.role || "Chief of Staff"}. Buddy on Grok Bots is the ultimate boss. You never outrank Buddy.`,
     `Work exactly as you work on grok.com. Same engagement. Same capability. Ordinary language. Typos, shorthand, half sentences. Answer what they meant. There is no required phrasing and no topic is off limits. You are not a harvest lookup and you are not limited to this OS. Weather, code, money, writing, news, strategy, IT, cultivation, anything a person would ask Grok — answer it. Collaborate. Do the work.`,
@@ -1911,291 +2305,165 @@ export async function askBudzFull(question, history = [], { onFacts, surface = "
     `QUESTION: ${question}`,
   ].filter(Boolean).join("\n");
 
-  /* A file request with live rows does not wait on Grok. Spreadsheet now. */
-  const fromRecords = (() => {
-    const lines = [];
-    if (a.headline) lines.push(a.headline);
-    for (const r of facts) {
-      if (!r || typeof r !== "object") continue;
-      if (r.label) lines.push([r.label, r.detail, r.meta].filter(Boolean).join(" — "));
+  const extQuestion = (() => {
+    const bits = [];
+    if (facts.length) {
+      bits.push("Live Twisted Growers OS records — use these numbers, do not invent a certified figure:");
+      if (a.headline) bits.push(a.headline);
+      for (const r of facts.slice(0, 15)) {
+        if (!r || typeof r !== "object") continue;
+        const line = [r.label, r.detail, r.meta].filter(Boolean).join(" — ");
+        if (line) bits.push(line);
+      }
+      bits.push("Metrc is read-only. If this is not about this company, ignore the records and answer as you would on grok.com.");
     }
-    return lines.filter(Boolean).join("\n") || null;
+    bits.push(question);
+    return bits.join("\n");
   })();
-  const lookupOnly = fromRecords && !a.askClaude && needsRecords
-    && /\b(as a spreadsheet|spreadsheet|xlsx|excel|pdf|docx|word document|\bas html\b)\b/i.test(question)
-    && /\b(last \d+ days|past \d+ days|past week|last week|last (two|three|\d+) harvest|harvest schedule)\b/i.test(question);
-  if (lookupOnly) {
-    return { headline: a.headline || "", facts, composed: fromRecords, via: "Live OS records", askErr: null };
+
+  /* One hop to the add-on. Do not ping first — a sleeping worker would eat
+     the status timeout and skip ASK_NOW. Provider is this computer's last tap. */
+  const extProv = extProviderNow();
+  const pickModel = extModelNow();
+  const canExt = typeof globalThis !== "undefined" && !!(globalThis.chrome && globalThis.chrome.runtime && globalThis.chrome.runtime.sendMessage);
+  let live = { installed: false, ok: false, error: "" };
+  if (canExt) {
+    live = await askTgBotsNow(extQuestion, { provider: extProv, model: pickModel });
+    if (!live.ok && live.installed && /tap grok/i.test(String(live.error || ""))) {
+      await pushButtonSetup({ provider: extProv, model: pickModel }).catch(() => {});
+      live = await askTgBotsNow(extQuestion, { provider: extProv, model: pickModel });
+    }
+  }
+  if (live.installed && live.ok && realModelReply(live.reply) && !/interrupted by the user|I DO NOT HAVE A BUILT-IN REPORT/i.test(live.reply)) {
+    composed = live.reply;
+    via = viaLine(live.provider || extProv, pickModel || live.model);
   }
 
-      /* ── 1. The desktop bridge ────────────────────────────────────────────
-         WHY THIS GOES THROUGH THE DATABASE AND NOT STRAIGHT TO 127.0.0.1.
-
-         It used to fetch http://127.0.0.1:8765/ask directly. That was correct
-         reasoning and it is now wrong in practice: Chrome 151 treats a public
-         https page reaching a local address as a USER PERMISSION -
-         `local-network-access`, alongside camera and microphone - and on the
-         owner's machine it reads DENIED. Once denied Chrome does not re-prompt.
-
-         Proved in his own browser, 7 Aug 2026: a fetch with `mode:'no-cors'`,
-         which bypasses CORS entirely, still threw `TypeError: Failed to fetch`,
-         and the bridge's log showed NOTHING arrived. The request never left the
-         browser. No header, allow-list or CORS change on the bridge side could
-         have fixed that, and a browser setting is not something this platform
-         can depend on - a Chrome update can revoke it again tomorrow.
-
-         So the direction is reversed. The question goes into ai_bridge_jobs,
-         which a signed-in owner is already permitted to write, and the bridge on
-         the desktop comes and gets it. NOTHING LOCAL IS CALLED, so no browser
-         has a vote.
-
-         The old objection to this design was that it needed a database
-         credential and used the PUBLISHABLE key that ships in every visitor's
-         browser - so closing the anonymous hole killed it. That objection does
-         not apply here: this runs as a SIGNED-IN user with a real session, under
-         the existing `abj_own` policy, and the bridge writes back through an
-         edge function authenticated with the token it already has. Neither side
-         touches anonymous access. Measured end to end at 11 seconds. */
-      if (cfg.bridge_enabled !== false) {
-        try {
-          const { data: u } = await supabase.auth.getUser();
-          const uid = u?.user?.id;
-          if (!uid) throw new Error("not signed in");
-          const [{ data: bridgeModel }, { data: pick }] = await Promise.all([
-            supabase.rpc("f_bridge_model_for", { p_user: uid }),
-            supabase.rpc("f_ai_model_for", { p_user: uid }),
-          ]);
-          const extProv = extProviderFromOs(pick?.provider);
-          const picked = extModelNow();
-          const pickModel = picked || "";
-
-          /* 1.3+ talks straight to the add-on. 1.2.0 does not know ASK_NOW, so
-             that call returns empty and we used to stop with "Press Allow" —
-             a tab 1.2.0 never opens. Fall back to the queue and WAKE so 1.2.0
-             can still type into the signed-in Grok tab. */
-          const ping = await pingTgBots();
-          let live = { installed: !!ping.installed, ok: false };
-          /* Token path and grok.com run together. A key in Settings, Keys and
-             Connections answers like the desktop API. No key: this returns
-             empty fast and grok.com still answers. */
-          const apiEarly = askMeteredApi(asked, log).catch(() => null);
-          if (ping.installed) {
-            live = await askTgBotsNow(asked, { provider: extProv, model: pickModel });
-          }
-          if (live.installed && live.ok && live.reply && !/interrupted by the user|I DO NOT HAVE A BUILT-IN REPORT/i.test(live.reply)) {
-            composed = live.reply;
-            via = viaLine(live.provider || extProv, picked || live.model || bridgeModel);
-          }
-          if (!composed && apiEarly) {
-            const peek = await Promise.race([apiEarly, new Promise((r) => setTimeout(() => r(null), 50))]);
-            if (peek) { composed = peek; via = "Claude (API)"; }
-          }
-
-          if (!composed) {
-          const { data: created, error: insErr } = await supabase
-            .from("ai_bridge_jobs")
-            .insert({
-              asked_by: uid,
-              question: asked,
-              /* THE MODEL RIDES INSIDE context, and that is deliberate.
-
-                 bridge-queue returns only id, question and context when the
-                 desktop claims a job, so a top-level model column would be
-                 written here and never arrive - the picker would set a value
-                 nobody reads, which is worse than having no picker. context is
-                 jsonb and already comes through untouched, so the choice reaches
-                 the desktop with no edge function redeploy and nothing new to
-                 keep in step. The column is still written for the audit trail.
-
-                 PROVIDER MUST RIDE HERE TOO. The add-on opens grok.com /
-                 claude.ai / chatgpt.com from context.provider. Sending only the
-                 alias ("current", "opus") while the add-on is sitting on a
-                 different site hunts that version in the wrong menu. */
-              context: { summary: a.headline, records: facts.slice(0, 40), model: pickModel,
-                         provider: extProv,
-                         desk: desk ? { name: desk.name, role: desk.role } : null,
-                         /* Corrections first in the object: a reader that truncates
-                            keeps the thing an owner deliberately approved. */
-                         memory },
-              /* Must match context.model. 1.2.0 reads job.model when context.model
-                 is empty, and grok-current opened a dead menu instead of typing HI. */
-              model: pickModel,
-              provider: extProv,
-              status: "pending",
-            })
-            .select("id")
-            .single();
-          if (insErr) throw insErr;
-
-          /* Lightning: do not wait for the 30s alarm. */
-          wakeTgBots();
-
-          /* Poll our own row. Deliberately bounded: an unbounded wait is how the
-             old version sat for 210 seconds and then failed silently. If the
-             desktop is asleep this gives up and SAYS SO, and the answer is still
-             written to the row if it arrives later. */
-          /* RACED, not queued. Owner, 8 Aug 2026: "ai is too fucking slow".
-
-             This used to run to completion - up to 150 seconds - before the
-             metered API was even considered, so the free path's worst case was
-             every question's worst case. The bridge now gets an 8 second head
-             start and then the API runs alongside it. Answer quickly and it
-             costs nothing; take longer and the API overtakes. Whichever lands
-             first is the answer, and the loser is abandoned rather than waited
-             on. Polling is 600ms rather than 1200ms, which alone takes half a
-             second off every answer. */
-          let apiRace = apiEarly;
-          const startApiRace = () => {
-            if (apiRace) return;
-            apiRace = askMeteredApi(asked, log).catch(() => null);
-          };
-          startApiRace();
-          const deadline = Date.now() + 45000;
-          const raceAt = Date.now();
-          let done = null;
-          let apiWon = null;
-          while (Date.now() < deadline) {
-            await new Promise((r) => setTimeout(r, 300));
-            if (Date.now() > raceAt) startApiRace();
-            if (apiRace) {
-              /* Peek without blocking: Promise.race against an already-resolved
-                 promise returns immediately, so a pending API call cannot itself
-                 become the thing we are waiting for. */
-              const peek = await Promise.race([apiRace, Promise.resolve("__pending__")]);
-              if (peek && peek !== "__pending__") { apiWon = peek; break; }
-            }
-            const { data: row } = await supabase
-              .from("ai_bridge_jobs")
-              .select("status, answer, error, seconds, provider, model")
-              .eq("id", created.id)
-              .maybeSingle();
-            if (row && (row.status === "done" || row.status === "error")) { done = row; break; }
-          }
-          if (apiWon) {
-            composed = apiWon;
-            via = "Claude (API, the desktop was slower)";
-          }
-
-          if (done?.status === "done" && done.answer && !/interrupted by the user|I DO NOT HAVE A BUILT-IN REPORT/i.test(done.answer)) {
-            composed = done.answer;
-            via = viaLine(done.provider || extProv, done.model || bridgeModel);
-          } else if (done?.status === "error") {
-            const raw = String(done.error ?? "The desktop answered with an error.");
-            askErr = /path specified/i.test(raw)
-              ? "The old Windows bot stole that question. Task Manager → end node.exe, stay signed in on grok.com, ask again."
-              : raw.slice(0, 250);
-          } else if (fromRecords) {
-            composed = fromRecords;
-            via = "Live OS records (Grok did not answer in time)";
-          } else {
-            askErr = "No answer in 45 seconds. Stay signed in on grok.com. Task Manager → end node.exe if it is running. Ask again.";
-          }
-          }
-        } catch (e) {
-          askErr = "Could not reach the desktop: " + String(e?.message ?? e).slice(0, 180);
-        }
-      }
-      if (!composed && cfg.local_model_enabled && cfg.local_model_url) {
-        try {
-          const hist = [...log, { who: "me", text: question }]
-            .filter((m) => m.text && !m.rows)
-            .slice(-6)
-            .map((m) => ({ role: m.who === "me" ? "user" : "assistant", content: m.text }));
-          const r = await fetch(cfg.local_model_url + "/api/chat", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              model: cfg.local_model_name || "qwen2.5:14b",
-              stream: false,
-              options: { temperature: 0.2, num_ctx: 16384 },
-              messages: [
-                { role: "system", content: LOCAL_SYSTEM },
-                ...hist.slice(0, -1),
-                {
-                  role: "user",
-                  content: [
-                    "LIVE RECORDS FROM THE DATABASE:",
-                    JSON.stringify({ summary: a.headline, records: facts.slice(0, 60) }).slice(0, 26000),
-                    "",
-                    "QUESTION: " + asked,
-                    "",
-                    "Answer from these records only. Be specific: name harvests, rooms, strains, dates and numbers. If the records do not contain the answer, say exactly that.",
-                  ].join(String.fromCharCode(10)),
-                },
-              ],
-            }),
-          });
-          if (r.ok) {
-            const jj = await r.json();
-            const txt = jj?.message?.content?.trim();
-            if (txt) { composed = txt; via = "the local model"; }
-          }
-        } catch {}
-      }
-      if (!composed) {
-        try {
-          const hist2 = [...log, { who: "me", text: asked }]
-            .filter((m) => m.text && !m.rows)
-            .slice(-8)
-            .map((m) => ({ role: m.who === "me" ? "user" : "assistant", content: m.text }));
-          if (hist2[hist2.length - 1]?.role !== "user") hist2.push({ role: "user", content: asked });
-          /* This used to build the URL from import.meta.env.VITE_SUPABASE_URL.
-             app/web has no .env and nothing in vite.config defines it, so
-             locally it was the string "undefined". On the deployed build it was
-             worse: Netlify DOES hold that variable, Vite inlined it, and the
-             host's secret scanner then rewrote it to asterisks in the served
-             file — the shipped bundle literally read
-                 fetch("****************e.co/functions/v1/budz-chat")
-             Either way the request never left the browser, which is why
-             ai_usage_log had zero rows and Budz had never answered anything.
-
-             FUNCTIONS_URL and ANON_KEY are plain constants in lib/supabase.js.
-             They are proven to survive the build: the same URL appears twice,
-             unmasked, in the deployed bundle. */
-          const { data: sess } = await supabase.auth.getSession();
-          const rr = await fetch(`${FUNCTIONS_URL}/budz-chat`, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: "Bearer " + (sess?.session?.access_token ?? ANON_KEY),
-              apikey: ANON_KEY,
-            },
-            body: JSON.stringify({ messages: hist2 }),
-          });
-          const out = await rr.json().catch(() => null);
-          if (out?.reply) { composed = out.reply; via = "Claude (API)"; }
-          else if (!rr.ok) {
-            /* Rule A3: absence is explained, never blank. A bare catch here is
-               what hid a total outage for as long as this has existed. */
-            askErr = out?.error
-              ? `The assistant service answered but could not help: ${String(out.error).slice(0, 160)}`
-              : `The assistant service returned ${rr.status}${rr.statusText ? " " + rr.statusText : ""}.`;
-          }
-        } catch (e) {
-          askErr = `Could not reach the assistant service: ${String(e?.message ?? e).slice(0, 160)}`;
-        }
-      }
-  /* REMEMBER IT. Fire and forget, and deliberately after the answer is built -
-     nobody waits on a write to a memory table to read their answer.
-
-     Only what was actually composed is stored. The database lookup alone is not
-     an answer worth recalling: it is re-derivable in milliseconds, and filling
-     the table with it would push the real answers out of the recent window. */
-  if (composed) {
-    try {
-      await supabase.from("brain_conversation").insert({
-        surface, question,
-        answer: String(composed).slice(0, 20000),
-        answered_by: via,
-        seconds: Math.round((Date.now() - askedAt) / 1000),
+  /* 1.2.0 has no ASK_NOW. Queue for the desktop without waiting — the UI
+     already has a fallback. 1.3+ already tried the signed-in tab. */
+  if (!composed && live.installed === false) {
+    supabase.auth.getUser().then(({ data: u }) => {
+      const uid = u?.user?.id;
+      if (!uid) return;
+      return supabase.from("ai_bridge_jobs").insert({
+        asked_by: uid,
+        question: asked,
+        context: {
+          summary: a.headline,
+          records: facts.slice(0, 40),
+          model: pickModel,
+          provider: extProv,
+          desk: desk ? { name: desk.name, role: desk.role } : null,
+        },
+        model: pickModel,
+        provider: extProv,
+        status: "pending",
       });
-    } catch { /* a memory that fails to save must never break the answer */ }
+    }).catch(() => {});
+  }
+
+  if (!composed) {
+    const cfg = _aiCfg || await Promise.race([
+      getAiCfg(),
+      new Promise((r) => setTimeout(() => r({ paid_model_enabled: false, local_model_enabled: false }), 1500)),
+    ]);
+    if (cfg.local_model_enabled && cfg.local_model_url) {
+      try {
+        const hist = [...log, { who: "me", text: question }]
+          .filter((m) => m.text && !m.rows)
+          .slice(-6)
+          .map((m) => ({ role: m.who === "me" ? "user" : "assistant", content: m.text }));
+        const r = await fetch(cfg.local_model_url + "/api/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            model: cfg.local_model_name || "qwen2.5:14b",
+            stream: false,
+            options: { temperature: 0.2, num_ctx: 16384 },
+            messages: [
+              { role: "system", content: LOCAL_SYSTEM },
+              ...hist.slice(0, -1),
+              {
+                role: "user",
+                content: [
+                  "LIVE RECORDS FROM THE DATABASE:",
+                  JSON.stringify({ summary: a.headline, records: facts.slice(0, 60) }).slice(0, 26000),
+                  "",
+                  "QUESTION: " + asked,
+                  "",
+                  "Answer from these records only. Be specific: name harvests, rooms, strains, dates and numbers. If the records do not contain the answer, say exactly that.",
+                ].join(String.fromCharCode(10)),
+              },
+            ],
+          }),
+        });
+        if (r.ok) {
+          const jj = await r.json();
+          const txt = jj?.message?.content?.trim();
+          if (txt) { composed = txt; via = "the local model"; }
+        }
+      } catch { /* local model down */ }
+    }
+    if (!composed && cfg.paid_model_enabled) {
+      try {
+        const hist2 = [...log, { who: "me", text: asked }]
+          .filter((m) => m.text && !m.rows)
+          .slice(-8)
+          .map((m) => ({ role: m.who === "me" ? "user" : "assistant", content: m.text }));
+        if (hist2[hist2.length - 1]?.role !== "user") hist2.push({ role: "user", content: asked });
+        const { data: sess } = await supabase.auth.getSession();
+        const rr = await fetch(`${FUNCTIONS_URL}/budz-chat`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: "Bearer " + (sess?.session?.access_token ?? ANON_KEY),
+            apikey: ANON_KEY,
+          },
+          body: JSON.stringify({ messages: hist2 }),
+        });
+        const out = await rr.json().catch(() => null);
+        if (out?.ok && realModelReply(out.reply)) { composed = out.reply; via = "Claude (your key)"; }
+        else if (!rr.ok) {
+          askErr = out?.error
+            ? `The assistant service answered but could not help: ${String(out.error).slice(0, 160)}`
+            : `The assistant service returned ${rr.status}${rr.statusText ? " " + rr.statusText : ""}.`;
+        }
+      } catch (e) {
+        askErr = `Could not reach the assistant service: ${String(e?.message ?? e).slice(0, 160)}`;
+      }
+    }
+  }
+
+  if (composed) {
+    supabase.from("brain_conversation").insert({
+      surface, question,
+      answer: String(composed).slice(0, 20000),
+      answered_by: via,
+      seconds: Math.round((Date.now() - askedAt) / 1000),
+    }).then(() => {}).catch(() => {});
+  }
+
+  if (!composed && !facts.length && !needsRecords) {
+    const extra = await Promise.race([
+      budzAnswer(question),
+      new Promise((r) => setTimeout(() => r({ rows: [], headline: "" }), 4000)),
+    ]);
+    const extraRows = extra.rows || [];
+    if (extraRows.length) {
+      composed = [extra.headline, ...extraRows.map((r) => [r.label, r.detail, r.meta].filter(Boolean).join(" — "))].filter(Boolean).join("\n");
+      via = "Live OS records";
+    } else if (extra.headline) {
+      a.headline = extra.headline;
+    }
   }
 
   if (!composed) {
     composed = fromRecords
-      || "I am Top G. I heard you. Grok did not come back in time. I answer any topic — this company, weather, code, money, writing, anything, in ordinary language. Ask again, or stay signed in on grok.com.";
-    via = fromRecords ? "Live OS records" : (via || "Top G");
+      || a.headline
+      || (canExt
+        ? "Grok tab did not answer. Stay signed in on grok.com and send it again."
+        : "Company records answer here on the phone. Stocks, code, and long writing use the computer that has the Grok tab.");
+    via = fromRecords || facts.length ? "Live OS records" : (via || "Top G");
     askErr = null;
   }
 
@@ -2666,11 +2934,12 @@ export function BudzPet({ go, onClose, view }) {
 
   const ask = async (text) => {
     const question = (text ?? q).trim();
-    if ((!question && !bag.files.length) || busy) return;
+    if (!question && !bag.files.length) return;
     const sending = bag.files.map((f) => f.name);
     setLog((l) => [...l, { who: "me", text: question || "(sent files)", files: sending }]);
     setQ("");
     setBusy(true);
+    try {
     if (sending.length) {
       const up = await bag.upload(question);
       const good = up.filter((u) => !u.error);
@@ -2706,7 +2975,9 @@ export function BudzPet({ go, onClose, view }) {
         setLog((l) => [...l, { who: "budz", text: "Could not pull that: " + String(e).slice(0, 120) }]);
       }
     }
-    setBusy(false);
+    } finally {
+      setBusy(false);
+    }
   };
 
   const name = prof?.name ?? "Budz";
@@ -2792,7 +3063,7 @@ export function BudzPet({ go, onClose, view }) {
               onChange={(e) => setQ(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && ask()}
             />
-            <button className="btn primary" disabled={busy} onClick={() => ask()}>Ask</button>
+            <button className="btn primary" onClick={() => ask()}>Ask</button>
           </div>
         </div>
       )}
@@ -3367,11 +3638,12 @@ export function BudzScreen({ go }) {
 
   const ask = async (text) => {
     const question = (text ?? q).trim();
-    if ((!question && !bag.files.length) || busy) return;
+    if (!question && !bag.files.length) return;
     const sending = bag.files.map((f) => f.name);
     setLog((l) => [...l, { who: "me", text: question || "(sent files)", files: sending }]);
     setQ("");
     setBusy(true);
+    try {
     if (sending.length) {
       const up = await bag.upload(question);
       const good = up.filter((u) => !u.error);
@@ -3381,7 +3653,7 @@ export function BudzScreen({ go }) {
          simply lower. Name it, or somebody believes it arrived. */
       if (bad.length) setLog((l) => [...l, { who: "budz", text: `Could not take ${bad.map((b) => b.name).join(", ")}: ${bad[0].error}` }]);
     }
-    if (!question) { setBusy(false); return; }
+    if (!question) { return; }
     try {
       const stamp = Date.now();
       const { facts, composed, via, askErr } = await askBudzFull(question, log, {
@@ -3401,7 +3673,9 @@ export function BudzScreen({ go }) {
     } catch (e) {
       setLog((l) => [...l, { who: "budz", text: `Couldn't pull that: ${String(e).slice(0, 140)}` }]);
     }
-    setBusy(false);
+    } finally {
+      setBusy(false);
+    }
   };
   return (
     <>
@@ -3503,7 +3777,7 @@ export function BudzScreen({ go }) {
               </div>
               <div className="bdchips">
                 {(BUDZ_DEPTS.find((d) => d.dept === dept) ?? BUDZ_DEPTS[0]).qs.map((c) => (
-                  <button key={c} className="budzchip" onClick={() => ask(c)} disabled={busy}>
+                  <button key={c} className="budzchip" onClick={() => ask(c)}>
                     {c}
                   </button>
                 ))}
@@ -3542,7 +3816,7 @@ export function BudzScreen({ go }) {
               onChange={(e) => setQ(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && ask()}
             />
-            <button className="btn" onClick={() => ask()} disabled={busy}>
+            <button className="btn" onClick={() => ask()}>
               Ask
             </button>
           </div>
