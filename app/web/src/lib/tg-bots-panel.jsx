@@ -153,7 +153,7 @@ export default function TgBotsPanel({ compact = false, onReady }) {
             <li>Come back to this OS page. Tap <b>Grok</b>, <b>Claude</b>, or <b>ChatGPT</b> once. The pill turns green. Do not tap it again.</li>
             <li>Type in the chat below the same way you would on that site. Weather, harvests, code, anything. No key. No extra bill.</li>
             <li>Pick a version with the chips if you want Grok 4, Claude Opus, or a ChatGPT model. Tab default uses whatever that site already has selected.</li>
-            <li>A key under Settings → Keys and Connections is optional. You do not need one.</li>
+            <li>A key under Settings → Connections is optional. You do not need one.</li>
           </ol>
         </div>
       ) : null}

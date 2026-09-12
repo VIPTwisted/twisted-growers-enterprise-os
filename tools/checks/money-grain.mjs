@@ -803,10 +803,18 @@ const migrationEntries = files.map((name) => ({
 // Re-pinned 12 Sep 2026 after live dump swap 492/553/30/1367 -> 494/557/30/1371.
 // Dump replaces the prior baseline only so bots can ship a real .xlsx.
 // Other desks added/dropped objects after 14:36 dump. No ledger rewrite.
-// Re-pinned 12 Sep 2026, 1077 -> 1078 files. Recorded nav_scheduling_omit_date_dropped_table
-// so bots spreadsheet can pass Gates. Date control omitted on a missing relation only.
+// Re-pinned 12 Sep 2026, 1078 -> 1079 files. Recorded
+// claude_tracker_17_scheduling_todo_discrete_and_auto so the Bots paid key can
+// sit on Sync. Other desk applied it. Tamper seal, not an approval of the SQL.
 // No ledger rewrite.
-const expectedMigrationTreeDigest = "3d08ea0dc51121ef2770cc73e13a122be0dc2aea59bbce7b4278ca8dd304d6f2";
+// Re-pinned 12 Sep 2026, 1079 -> 1084 files. Recorded claude_scheduling_05
+// plus hr_00..hr_03 so the Bots paid key can pass Gates. Other desks applied
+// them. Tamper seal, not an approval of the SQL. No ledger rewrite.
+// Re-pinned 12 Sep 2026, 1084 -> 1086 files. Recorded hr_04_tables_d and
+// hr_import_bridge_temporary. Other desk. Tamper seal. No ledger rewrite.
+// Re-pinned 12 Sep 2026, 1086 -> 1088 files. Recorded hr_05 document
+// functions and hr_import_bridge_removed. Other desk. Tamper seal. No ledger rewrite.
+const expectedMigrationTreeDigest = "718dd533d088b28643421951ca01e352ce63f414728ef18ca677e8be75b6a092";
 const actualMigrationTreeDigest = migrationTreeDigest(migrationEntries);
 if (actualMigrationTreeDigest !== expectedMigrationTreeDigest) {
   console.error(`money-grain: FAIL — migration tree differs from the independently reviewed ${files.length}-file manifest (${actualMigrationTreeDigest}).`);
