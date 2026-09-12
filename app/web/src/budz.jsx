@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { supabase, FUNCTIONS_URL, ANON_KEY } from "./lib/supabase.js";
 import { extProviderFromOs, viaLine, wakeTgBots, askTgBotsNow, pingTgBots, extModelNow } from "./lib/topg-connect.js";
 import { wantedFormats } from "./lib/os-bot-files.js";
+import { CORE_BOTS } from "./lib/os-bots.js";
 
 import TgBotsPanel from "./lib/tg-bots-panel.jsx";
 import { deskForView } from "./lib/os-desk.js";
@@ -1732,9 +1733,13 @@ export async function askBudzFull(question, history = [], { onFacts, surface = "
   const log = history;
   onFacts?.(a, facts);
   const asked = [
-    `Grok in Twisted Growers OS as ${desk?.name || "Top G"}. Answer anything. Metrc read-only. Buddy is boss.`,
-    facts.length ? `Records: ${JSON.stringify({ summary: a.headline, records: facts.slice(0, 12) }).slice(0, 4000)}` : "",
-    question,
+    `You are Grok — a full AI assistant — working inside Twisted Growers Enterprise OS as ${desk?.name || "Top G"}, ${desk?.role || "Chief of Staff"}. Buddy on Grok Bots is the ultimate boss. You never outrank Buddy.`,
+    `Answer ANY topic they ask: this company, cultivation, money, weather, code, strategy, IT, writing, planning, news, sports, science, anything a person would ask Grok. Collaborate. Do the work. When they need a page in this OS, send them to the live OS page for that desk.`,
+    `When the question is this business, use the live records below. Metrc is read-only. Apex invoice is money source of record. Do not invent a certified number. If a figure is not in the records, say so and name the report. When the question is not this business, answer as Grok normally — full knowledge, not a lookup bot.`,
+    `OS desks: ${CORE_BOTS.map((b) => `${b.name} (${b.role})`).join(", ")}. Buddy is boss. Top G is chief of staff.`,
+    desk?.job ? `This desk: ${desk.job}` : "",
+    facts.length ? `Live records: ${JSON.stringify({ summary: a.headline, records: facts.slice(0, 20) }).slice(0, 6000)}` : "",
+    `QUESTION: ${question}`,
   ].filter(Boolean).join("\n");
 
   /* A file request with live rows does not wait on Grok. Spreadsheet now. */
@@ -1747,7 +1752,10 @@ export async function askBudzFull(question, history = [], { onFacts, surface = "
     }
     return lines.filter(Boolean).join("\n") || null;
   })();
-  if (fromRecords && !a.askClaude && needsRecords) {
+  const lookupOnly = fromRecords && !a.askClaude && needsRecords
+    && /\b(pull|as a spreadsheet|last \d+ days|past \d+ days|past week|last week|harvest schedule)\b/i.test(question)
+    && !/\b(why|should|explain|write|draft|tell me|what should|how do we|strategy|plan a)\b/i.test(question);
+  if (lookupOnly) {
     return { headline: a.headline || "", facts, composed: fromRecords, via: "Live OS records", askErr: null };
   }
 
@@ -1867,8 +1875,9 @@ export async function askBudzFull(question, history = [], { onFacts, surface = "
             if (apiRace || !cfg.paid_model_enabled) return;
             apiRace = askMeteredApi(asked, log).catch(() => null);
           };
-          const deadline = Date.now() + 8000;
-          const raceAt = Date.now() + 2000;
+          startApiRace();
+          const deadline = Date.now() + 45000;
+          const raceAt = Date.now();
           let done = null;
           let apiWon = null;
           while (Date.now() < deadline) {
@@ -1905,7 +1914,7 @@ export async function askBudzFull(question, history = [], { onFacts, surface = "
             composed = fromRecords;
             via = "Live OS records (Grok did not answer in time)";
           } else {
-            askErr = "No answer in 8 seconds. Stay signed in on grok.com. Task Manager → end node.exe if it is running. Ask again.";
+            askErr = "No answer in 45 seconds. Stay signed in on grok.com. Task Manager → end node.exe if it is running. Ask again.";
           }
           }
         } catch (e) {
