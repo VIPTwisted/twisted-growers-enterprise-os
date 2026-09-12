@@ -315,3 +315,22 @@ guard. On resumption, production already had the correction in migration
 20260912044301, while its source file and regression cases were absent from the
 open PR. Compare applied migration statements, live function definitions and the
 PR head before repeating a repair or treating a handoff as current state.
+
+### 12 September 2026 — preserve failed precision maintenance evidence
+
+Rebuilding a large dependency graph can finish its DDL but still exceed the
+maintenance budget during final report reads. The first Metrc quantity attempt
+rolled back after its CFO dashboard availability check timed out at 15 minutes.
+The private immutable receipt retained that failure, and the job removed its
+schedule. Independent checks recovered the original six source mismatches and
+all 204 original dependency-definition fingerprints. A pg_cron transport status
+of `succeeded` had appeared while the SQL was still running: it is not the
+application's terminal result. Always read the sealed maintenance receipt.
+
+A new attempt must retain the first receipt and pass its own live source and
+dependency guards. The second candidate refreshes planner statistics on newly
+populated materialized views before planning their consumers, and exposes each
+phase through the session application name. It keeps the original time limit,
+row-availability assertions, ACLs and DDL guards. See
+[Metrc quantity precision](../docs/METRC_QUANTITY_PRECISION.md) for scope and
+recovery; a successful saved-source repair is not whole-population certification.

@@ -2156,7 +2156,7 @@ create table if not exists public.forms (
   "description" text,
   "target" text default 'tasks'::text not null,
   "fields" jsonb default '[]'::jsonb not null,
-  "public_token" text default encode(extensions.gen_random_bytes(12), 'hex'::text),
+  "public_token" text default encode(gen_random_bytes(12), 'hex'::text),
   "active" boolean default true,
   "created_by" uuid default auth.uid(),
   "created_at" timestamp with time zone default now()
@@ -3701,7 +3701,7 @@ create table if not exists public.metrc_packages (
   "license" text not null,
   "tag" text not null,
   "item_name" text,
-  "quantity" numeric(14,3),
+  "quantity" numeric,
   "uom" text,
   "location" text,
   "packaged_on" date,
@@ -5566,7 +5566,7 @@ create table if not exists public.sheet_sources (
   "name" text not null,
   "sheet_tab" text not null,
   "description" text,
-  "push_token" text default encode(extensions.gen_random_bytes(24), 'hex'::text) not null,
+  "push_token" text default encode(gen_random_bytes(24), 'hex'::text) not null,
   "enabled" boolean default true not null,
   "expected_every_minutes" integer default 1440 not null,
   "last_pushed_at" timestamp with time zone,
@@ -32157,78 +32157,78 @@ create or replace view public.v_metrc_vs_os as
                   WHERE metrc_packages.source_state = ANY (ARRAY['active'::text, 'onhold'::text])))::numeric AS os_rows,
             'The export is a point-in-time snapshot; the API holds live state. A large gap means the export is stale.'::text AS note
         UNION ALL
-         SELECT 'Harvests'::text,
-            'metrc_rpt_harvests'::text,
-            'metrc_harvests (API sync)'::text,
+         SELECT 'Harvests'::text AS text,
+            'metrc_rpt_harvests'::text AS text,
+            'metrc_harvests (API sync)'::text AS text,
             ( SELECT count(*) AS count
                    FROM metrc_rpt_harvests) AS count,
             ( SELECT count(*) AS count
                    FROM metrc_harvests) AS count,
-            'Must match exactly. Both describe the same harvest population.'::text
+            'Must match exactly. Both describe the same harvest population.'::text AS text
         UNION ALL
-         SELECT 'Lab Results'::text,
-            'metrc_rpt_lab_results'::text,
-            'metrc_lab_results (API sync)'::text,
+         SELECT 'Lab Results'::text AS text,
+            'metrc_rpt_lab_results'::text AS text,
+            'metrc_lab_results (API sync)'::text AS text,
             ( SELECT count(DISTINCT metrc_rpt_lab_results.package_tag) AS count
                    FROM metrc_rpt_lab_results) AS count,
             ( SELECT count(DISTINCT metrc_lab_results.package_tag) AS count
                    FROM metrc_lab_results) AS count,
-            'Compared on DISTINCT PACKAGES, not rows - the API holds one row per analyte, the export one per test.'::text
+            'Compared on DISTINCT PACKAGES, not rows - the API holds one row per analyte, the export one per test.'::text AS text
         UNION ALL
-         SELECT 'Transfers - Manifests'::text,
-            'metrc_rpt_transfer_manifests'::text,
-            'metrc_transfers (API sync)'::text,
+         SELECT 'Transfers - Manifests'::text AS text,
+            'metrc_rpt_transfer_manifests'::text AS text,
+            'metrc_transfers (API sync)'::text AS text,
             ( SELECT count(DISTINCT metrc_rpt_transfer_manifests.manifest_number) AS count
                    FROM metrc_rpt_transfer_manifests) AS count,
             ( SELECT count(DISTINCT metrc_transfers.manifest_number) AS count
                    FROM metrc_transfers) AS count,
-            'Every manifest in the API must appear in the export. 49 do not - 42 live incoming covering 277 packages.'::text
+            'Every manifest in the API must appear in the export. 49 do not - 42 live incoming covering 277 packages.'::text AS text
         UNION ALL
-         SELECT 'Packages - Transferred'::text,
-            'metrc_rpt_package_transfers'::text,
-            'manifests carrying package lines'::text,
+         SELECT 'Packages - Transferred'::text AS text,
+            'metrc_rpt_package_transfers'::text AS text,
+            'manifests carrying package lines'::text AS text,
             ( SELECT count(DISTINCT metrc_rpt_package_transfers.manifest_number) AS count
                    FROM metrc_rpt_package_transfers) AS count,
             ( SELECT count(DISTINCT metrc_transfers.manifest_number) AS count
                    FROM metrc_transfers) AS count,
-            'This export is the ONLY link between a package and its manifest. Anything it omits loses its custody evidence.'::text
+            'This export is the ONLY link between a package and its manifest. Anything it omits loses its custody evidence.'::text AS text
         UNION ALL
-         SELECT 'Wholesale Transfers'::text,
-            'metrc_rpt_wholesale'::text,
-            'metrc_rpt_package_transfers (the other export)'::text,
+         SELECT 'Wholesale Transfers'::text AS text,
+            'metrc_rpt_wholesale'::text AS text,
+            'metrc_rpt_package_transfers (the other export)'::text AS text,
             ( SELECT count(DISTINCT metrc_rpt_wholesale.manifest_number) AS count
                    FROM metrc_rpt_wholesale) AS count,
             ( SELECT count(DISTINCT metrc_rpt_package_transfers.manifest_number) AS count
                    FROM metrc_rpt_package_transfers) AS count,
-            'Two Metrc reports describing the same movements. They differ by $72,828 in value - one is incomplete.'::text
+            'Two Metrc reports describing the same movements. They differ by $72,828 in value - one is incomplete.'::text AS text
         UNION ALL
-         SELECT 'Adjustments'::text,
-            'metrc_rpt_adjustments'::text,
-            'packages with an adjustment'::text,
+         SELECT 'Adjustments'::text AS text,
+            'metrc_rpt_adjustments'::text AS text,
+            'packages with an adjustment'::text AS text,
             ( SELECT count(DISTINCT metrc_rpt_adjustments.package_tag) AS count
                    FROM metrc_rpt_adjustments) AS count,
             ( SELECT count(DISTINCT metrc_packages.tag) AS count
                    FROM metrc_packages
                   WHERE ((metrc_packages.raw ->> 'CreatedQuantity'::text)::numeric) <> metrc_packages.quantity) AS count,
-            'Packages whose quantity changed after creation should appear in the adjustments export.'::text
+            'Packages whose quantity changed after creation should appear in the adjustments export.'::text AS text
         UNION ALL
-         SELECT 'Harvest Moisture'::text,
-            'metrc_rpt_harvest_moisture'::text,
-            'metrc_harvests (API sync)'::text,
+         SELECT 'Harvest Moisture'::text AS text,
+            'metrc_rpt_harvest_moisture'::text AS text,
+            'metrc_harvests (API sync)'::text AS text,
             ( SELECT count(*) AS count
                    FROM metrc_rpt_harvest_moisture) AS count,
             ( SELECT count(*) AS count
                    FROM metrc_harvests) AS count,
-            'Moisture is recorded per harvest. A gap means harvests with no moisture entry.'::text
+            'Moisture is recorded per harvest. A gap means harvests with no moisture entry.'::text AS text
         UNION ALL
-         SELECT 'Test Batches'::text,
-            'metrc_rpt_test_batches'::text,
-            'distinct lab test batches'::text,
+         SELECT 'Test Batches'::text AS text,
+            'metrc_rpt_test_batches'::text AS text,
+            'distinct lab test batches'::text AS text,
             ( SELECT count(*) AS count
                    FROM metrc_rpt_test_batches) AS count,
             ( SELECT count(DISTINCT metrc_lab_results.raw ->> 'LabTestResultId'::text) AS count
                    FROM metrc_lab_results) AS count,
-            'Each test batch should correspond to a lab result set.'::text
+            'Each test batch should correspond to a lab result set.'::text AS text
         )
  SELECT metrc_report,
     report_table,
@@ -41433,6 +41433,61 @@ UNION ALL
     ('apex_raw (entity = '::text || s.entity) || ')'::text AS target
    FROM v_apex_entity_status s
      JOIN apex_entity e ON e.entity = s.entity;
+create or replace view public.v_tag_evidence as
+ SELECT e.tag,
+    e.item_name,
+    e.lab_testing_state,
+        CASE
+            WHEN e.evidence_source = ANY (ARRAY['direct'::text, 'inherited'::text]) THEN e.evidence_source
+            WHEN cr.package_tag IS NULL THEN e.evidence_source
+            WHEN cr.found_at_depth = 0 THEN 'certificate on file'::text
+            ELSE 'inherited'::text
+        END AS evidence_source,
+    COALESCE(e.certificate_id, b.lab_report_id) AS certificate_id,
+    COALESCE(e.certificate_date, b.report_date) AS certificate_date,
+    COALESCE(e.total_thc, b.total_thc) AS total_thc,
+        CASE
+            WHEN e.certificate_inherited_from IS NOT NULL THEN e.certificate_inherited_from
+            WHEN cr.found_at_depth > 0 THEN cr.certificate_on_package
+            ELSE NULL::text
+        END AS certificate_inherited_from,
+    COALESCE(e.certificate_document, b.storage_path) AS certificate_document,
+    e.lab_result_date,
+    e.lab_name,
+    e.manifest_number,
+    e.manifest_document,
+        CASE
+            WHEN e.evidence_source = ANY (ARRAY['direct'::text, 'inherited'::text]) THEN e.why_no_certificate
+            WHEN b.storage_path IS NOT NULL THEN NULL::text
+            ELSE e.why_no_certificate
+        END AS why_no_certificate,
+    e.why_no_manifest,
+        CASE
+            WHEN (EXISTS ( SELECT 1
+               FROM coa_extract c
+              WHERE c.package_tag = e.tag)) THEN 'direct — the certificate document names this tag'::text
+            WHEN e.certificate_inherited_from IS NOT NULL THEN 'inherited — a parsed certificate names ancestor '::text || e.certificate_inherited_from
+            WHEN cr.found_at_depth = 0 AND b.printed_tag IS NOT NULL AND b.printed_tag <> e.tag THEN ('certificate on file — Metrc''s lab result for this tag names this certificate, and the document itself prints a DIFFERENT tag, '::text || b.printed_tag) || '. One certificate covers a whole batch; this tag is a member the document does not list by name.'::text
+            WHEN cr.found_at_depth = 0 THEN 'certificate on file — Metrc''s lab result for this tag names this certificate; the document itself prints no tag we could read, so it does not name this package'::text
+            WHEN cr.found_at_depth > 0 THEN ('inherited via Metrc — the lab result for ancestor '::text || cr.certificate_on_package) || ' names this certificate'::text
+            WHEN e.evidence_source = 'lab result only'::text THEN 'lab result only — Metrc holds the result and that laboratory attached no certificate document'::text
+            ELSE 'none — no certificate on this tag, its lineage, or any Metrc lab result'::text
+        END AS certificate_grade,
+    cr.found_at_depth AS certificate_hops,
+    cr.cert_client AS certificate_client,
+    cr.cert_license AS certificate_client_license
+   FROM mv_tag_evidence e
+     LEFT JOIN mv_certificate_resolved cr ON cr.package_tag = e.tag
+     LEFT JOIN LATERAL ( SELECT d.storage_path,
+            c.lab_report_id,
+            c.report_date,
+            c.total_thc,
+            c.package_tag_on_document AS printed_tag
+           FROM metrc_lab_results l
+             JOIN metrc_documents d ON d.metrc_id = l.document_file_id AND d.doc_type = 'coa'::text
+             LEFT JOIN coa_extract c ON c.document_id = l.document_file_id
+          WHERE l.package_tag = cr.certificate_on_package AND l.document_file_id IS NOT NULL
+         LIMIT 1) b ON true;
 create or replace view public.v_tag_resolver as
  WITH universe AS (
          SELECT z.tag
@@ -42657,6 +42712,55 @@ create or replace view public.v_harvest_forensic as
                 END AS severity
            FROM h
              LEFT JOIN mv_harvest_pkg_rollup pk ON pk.harvest_name = h.harvest_name) q;
+create or replace view public.v_harvest_tag_index as
+ WITH pkg AS (
+         SELECT DISTINCT ON (d.tag) d.id,
+            d.license,
+            d.tag,
+            d.item_name,
+            d.quantity,
+            d.uom,
+            d.location,
+            d.packaged_on,
+            d.lab_testing_state,
+            d.finished,
+            d.raw,
+            d.synced_at,
+            d.source_state,
+            d.provenance,
+            d.report_as_of
+           FROM metrc_packages d
+          ORDER BY d.tag, (COALESCE(d.quantity, 0::numeric) > 0::numeric AND NOT COALESCE((d.raw ->> 'IsFinished'::text)::boolean, false)) DESC, (d.source_state = 'active'::text) DESC NULLS LAST, d.synced_at DESC NULLS LAST
+        )
+ SELECT btrim(h.hn) AS harvest,
+    p.tag,
+    p.item_name,
+    COALESCE(p.raw #>> '{Item,ProductCategoryName}'::text[], '(uncategorised)'::text) AS category,
+    p.source_state,
+    p.license,
+    p.location AS room,
+    round(f_to_pounds(p.quantity, p.uom), 3) AS lb,
+        CASE
+            WHEN NOT f_is_weight(p.uom) THEN p.quantity
+            ELSE NULL::numeric
+        END AS units,
+    p.lab_testing_state AS lab_state,
+    ev.certificate_id,
+    ev.certificate_document,
+    o.manifest_number AS outbound_manifest,
+    o.destination_facility AS shipped_to,
+    COALESCE(p.finished, false) OR (p.raw ->> 'ArchivedDate'::text) IS NOT NULL OR (p.raw ->> 'FinishedDate'::text) IS NOT NULL AS closed,
+    p.packaged_on
+   FROM pkg p
+     CROSS JOIN LATERAL unnest(string_to_array(COALESCE(p.raw ->> 'SourceHarvestNames'::text, ''::text), ','::text)) h(hn)
+     LEFT JOIN v_tag_evidence ev ON ev.tag = p.tag
+     LEFT JOIN LATERAL ( SELECT t.manifest_number,
+            t.destination_facility
+           FROM metrc_rpt_package_transfers t
+          WHERE t.package_tag = p.tag
+          ORDER BY t.received_on DESC NULLS LAST
+         LIMIT 1) o ON true
+  WHERE btrim(h.hn) <> ''::text;
 create or replace view public.v_issue_attribution_summary as
  SELECT issue,
     round(COALESCE(sum(pounds) FILTER (WHERE origin = 'Grown by us'::text), 0::numeric), 1) AS ours_lb,
@@ -44616,87 +44720,87 @@ create or replace view public.v_flow_stages as
             'Failed testing - remediate or destroy'::text AS note
         UNION ALL
          SELECT 1,
-            'Growing'::text,
+            'Growing'::text AS text,
             (( SELECT count(*) AS count
                    FROM metrc_plants
                   WHERE metrc_plants.source_state = ANY (ARRAY['vegetative'::text, 'flowering'::text, 'onhold'::text])))::numeric AS count,
-            'plants'::text,
+            'plants'::text AS text,
             NULL::numeric AS "numeric",
             NULL::integer AS int4,
-            'room_board'::text,
-            'Plants standing in the rooms now. Harvested and destroyed plants are excluded - they are not growing.'::text
+            'room_board'::text AS text,
+            'Plants standing in the rooms now. Harvested and destroyed plants are excluded - they are not growing.'::text AS text
         UNION ALL
          SELECT 2,
-            'Open harvests'::text,
+            'Open harvests'::text AS text,
             (( SELECT count(*) AS count
                    FROM v_harvest_still_in_room))::numeric AS count,
-            'harvests'::text,
+            'harvests'::text AS text,
             ( SELECT round(sum(v_harvest_still_in_room.really_left_lb), 1) AS round
                    FROM v_harvest_still_in_room) AS round,
             ( SELECT max(v_harvest_still_in_room.days_since_last_package) AS max
                    FROM v_harvest_still_in_room) AS max,
-            'harvest_issues'::text,
-            'Dry yield still to be packaged off. Dry-equivalent, not wet.'::text
+            'harvest_issues'::text AS text,
+            'Dry yield still to be packaged off. Dry-equivalent, not wet.'::text AS text
         UNION ALL
          SELECT 3,
-            'Awaiting test'::text,
+            'Awaiting test'::text AS text,
             ( SELECT sum(v_stock_on_hand.packages) AS sum
                    FROM v_stock_on_hand
                   WHERE v_stock_on_hand.lab_state = 'NotSubmitted'::text) AS sum,
-            'packages'::text,
+            'packages'::text AS text,
             ( SELECT round(sum(v_stock_on_hand.pounds), 1) AS round
                    FROM v_stock_on_hand
                   WHERE v_stock_on_hand.lab_state = 'NotSubmitted'::text) AS round,
             ( SELECT max(v_stock_on_hand.oldest_days) AS max
                    FROM v_stock_on_hand
                   WHERE v_stock_on_hand.lab_state = 'NotSubmitted'::text) AS max,
-            'lab_results'::text,
-            'Never sent to the laboratory'::text
+            'lab_results'::text AS text,
+            'Never sent to the laboratory'::text AS text
         UNION ALL
          SELECT 4,
-            'At the laboratory'::text,
+            'At the laboratory'::text AS text,
             ( SELECT sum(v_stock_on_hand.packages) AS sum
                    FROM v_stock_on_hand
                   WHERE v_stock_on_hand.lab_state ~~ '%ubmitted%'::text AND v_stock_on_hand.lab_state <> 'NotSubmitted'::text) AS sum,
-            'packages'::text,
+            'packages'::text AS text,
             ( SELECT round(sum(v_stock_on_hand.pounds), 1) AS round
                    FROM v_stock_on_hand
                   WHERE v_stock_on_hand.lab_state ~~ '%ubmitted%'::text AND v_stock_on_hand.lab_state <> 'NotSubmitted'::text) AS round,
             ( SELECT max(v_stock_on_hand.oldest_days) AS max
                    FROM v_stock_on_hand
                   WHERE v_stock_on_hand.lab_state ~~ '%ubmitted%'::text AND v_stock_on_hand.lab_state <> 'NotSubmitted'::text) AS max,
-            'lab_turnaround'::text,
-            'Awaiting a result'::text
+            'lab_turnaround'::text AS text,
+            'Awaiting a result'::text AS text
         UNION ALL
          SELECT 5,
-            'Sellable'::text,
+            'Sellable'::text AS text,
             ( SELECT sum(v_stock_on_hand.packages) AS sum
                    FROM v_stock_on_hand
                   WHERE v_stock_on_hand.lab_state = 'TestPassed'::text) AS sum,
-            'packages'::text,
+            'packages'::text AS text,
             ( SELECT round(sum(v_stock_on_hand.pounds), 1) AS round
                    FROM v_stock_on_hand
                   WHERE v_stock_on_hand.lab_state = 'TestPassed'::text) AS round,
             ( SELECT max(v_stock_on_hand.oldest_days) AS max
                    FROM v_stock_on_hand
                   WHERE v_stock_on_hand.lab_state = 'TestPassed'::text) AS max,
-            'stock_on_hand'::text,
-            'Passed and free to move'::text
+            'stock_on_hand'::text AS text,
+            'Passed and free to move'::text AS text
         UNION ALL
          SELECT 6,
-            'In transit'::text,
+            'In transit'::text AS text,
             (( SELECT count(*) AS count
                    FROM metrc_packages
                   WHERE metrc_packages.source_state = 'intransit'::text AND NOT COALESCE(metrc_packages.finished, false)))::numeric AS count,
-            'packages'::text,
+            'packages'::text AS text,
             ( SELECT round(sum(f_to_pounds(metrc_packages.quantity, metrc_packages.uom)), 1) AS round
                    FROM metrc_packages
                   WHERE metrc_packages.source_state = 'intransit'::text AND NOT COALESCE(metrc_packages.finished, false)) AS round,
             ( SELECT max(CURRENT_DATE - ((metrc_packages.raw ->> 'PackagedDate'::text)::date)) AS max
                    FROM metrc_packages
                   WHERE metrc_packages.source_state = 'intransit'::text AND NOT COALESCE(metrc_packages.finished, false) AND COALESCE(metrc_packages.raw ->> 'PackagedDate'::text, ''::text) <> ''::text) AS max,
-            'in_transit'::text,
-            'On an active transfer the destination has not accepted. OURS until the receiver signs - owner ruling 11 Aug 2026. If rejected, it comes back.'::text) q
+            'in_transit'::text AS text,
+            'On an active transfer the destination has not accepted. OURS until the receiver signs - owner ruling 11 Aug 2026. If rejected, it comes back.'::text AS text) q
   ORDER BY stage_no;
 create or replace view public.v_genetics_intake_review as
  SELECT i.intake_id,
@@ -44822,18 +44926,18 @@ create or replace view public.v_harvest_control_banner as
                    FROM policy))) || ' days, read from harvest_open_max_days. A room held by a finished harvest '::text) || 'cannot take its next planting, which is the most expensive loss in cultivation.'::text AS basis
         UNION ALL
          SELECT 2,
-            'wet_no_dry'::text,
-            'Wet weight recorded, nothing packaged yet'::text,
+            'wet_no_dry'::text AS text,
+            'Wet weight recorded, nothing packaged yet'::text AS text,
             (( SELECT count(*) AS count
                    FROM v_moisture_accounting m
                   WHERE m.finished IS NULL AND COALESCE(m.wet_lb, 0::numeric) > 0::numeric AND COALESCE(m.packaged_lb, 0::numeric) = 0::numeric))::numeric AS count,
-            'harvests'::text,
-            'grading'::text,
+            'harvests'::text AS text,
+            'grading'::text AS text,
             ('Metrc holds a wet weight for these harvests and no packaged weight against them. '::text || 'The dry figure is MISSING, not zero — a harvest with a wet weight and no dry weight '::text) || 'has not been measured, and it must never be read as a harvest that yielded nothing.'::text
         UNION ALL
          SELECT 3,
-            'mtd_vs_contract'::text,
-            'Dried weight this month against the contracted minimum'::text,
+            'mtd_vs_contract'::text AS text,
+            'Dried weight this month against the contracted minimum'::text AS text,
                 CASE
                     WHEN (( SELECT policy.contracted_min_lb
                        FROM policy)) IS NULL THEN NULL::numeric
@@ -44841,8 +44945,8 @@ create or replace view public.v_harvest_control_banner as
                        FROM policy)) - (( SELECT mtd.packaged_lb
                        FROM mtd)), 0::numeric)
                 END AS "greatest",
-            'lb short'::text,
-            'grading'::text,
+            'lb short'::text AS text,
+            'grading'::text AS text,
                 CASE
                     WHEN (( SELECT policy.contracted_min_lb
                        FROM policy)) IS NULL THEN ('NO CONTRACTED MINIMUM HAS BEEN SET. monthly_min_dried_flower_lb does not exist in '::text || 'conversion_factors, so there is nothing to measure the month against. A contract '::text) || 'nobody recorded is itself the finding; no floor is assumed here.'::text
@@ -44852,13 +44956,13 @@ create or replace view public.v_harvest_control_banner as
                 END AS "case"
         UNION ALL
          SELECT 4,
-            'moisture_need_action'::text,
-            'Moisture loss waiting to be recorded'::text,
+            'moisture_need_action'::text AS text,
+            'Moisture loss waiting to be recorded'::text AS text,
             (( SELECT count(*) AS count
                    FROM v_moisture_loss_register
                   WHERE v_moisture_loss_register.needs_recording = true))::numeric AS count,
-            'harvests'::text,
-            'moisture_loss_register'::text,
+            'harvests'::text AS text,
+            'moisture_loss_register'::text AS text,
             'Harvests the register says still need their moisture loss recorded. Until it is written, '::text || 'the mass balance for that harvest cannot close and the dry-equivalent is unproven.'::text
         )
  SELECT ord,
@@ -44907,23 +45011,23 @@ create or replace view public.v_money_position as
             'TestPassed'::text AS st,
             'Test passed and free to move'::text AS note
         UNION ALL
-         SELECT 'At the laboratory'::text,
+         SELECT 'At the laboratory'::text AS text,
             2,
-            'watch'::text,
-            'OUT'::text,
-            'Awaiting a result'::text
+            'watch'::text AS text,
+            'OUT'::text AS text,
+            'Awaiting a result'::text AS text
         UNION ALL
-         SELECT 'Never submitted'::text,
+         SELECT 'Never submitted'::text AS text,
             3,
-            'bad'::text,
-            'NotSubmitted'::text,
-            'Cannot legally be sold until submitted'::text
+            'bad'::text AS text,
+            'NotSubmitted'::text AS text,
+            'Cannot legally be sold until submitted'::text AS text
         UNION ALL
-         SELECT 'Failed testing'::text,
+         SELECT 'Failed testing'::text AS text,
             4,
-            'bad'::text,
-            'TestFailed'::text,
-            'Out of the flow until remediated or destroyed'::text
+            'bad'::text AS text,
+            'TestFailed'::text AS text,
+            'Out of the flow until remediated or destroyed'::text AS text
         ), agg AS (
          SELECT b.band,
             b.ord,
@@ -45007,6 +45111,120 @@ create or replace view public.v_strain_desk as
         END AS sourcing_verdict
    FROM v_strain_gate g
      JOIN strain s ON s.name = g.strain;
+create or replace view public.v_tag_lifecycle as
+ WITH pkg AS (
+         SELECT DISTINCT ON (p.tag) p.tag,
+            p.item_name,
+            p.license,
+            p.location,
+            p.packaged_on,
+            p.quantity,
+            p.uom,
+            p.finished,
+            p.source_state,
+            p.raw
+           FROM metrc_packages p
+          WHERE p.tag IS NOT NULL
+          ORDER BY p.tag, (COALESCE(p.quantity, 0::numeric) > 0::numeric AND NOT COALESCE(p.finished, false)) DESC, (p.source_state = 'active'::text) DESC NULLS LAST, p.synced_at DESC NULLS LAST
+        ), harv AS (
+         SELECT k_1.tag,
+            h_1.name AS harvest_name,
+            h_1.harvest_start,
+            h_1.flower_room,
+            (h_1.raw ->> 'FinishedDate'::text)::date AS harvest_finished_on
+           FROM pkg k_1
+             LEFT JOIN metrc_harvests h_1 ON h_1.name = split_part(COALESCE(k_1.raw ->> 'SourceHarvestNames'::text, ''::text), ','::text, 1)
+        ), outb AS (
+         SELECT DISTINCT ON (t.package_tag) t.package_tag,
+            t.manifest_number,
+            t.received_on AS shipped_on,
+            t.destination_facility,
+            t.destination_licence,
+            COALESCE(t.source_row ->> 'Type'::text, '(type not recorded)'::text) AS transfer_type,
+            NULLIF(btrim(t.source_row ->> 'Created by User'::text), ''::text) AS manifest_created_by,
+            NULLIF(btrim(t.source_row ->> 'Received by User'::text), ''::text) AS manifest_received_by
+           FROM metrc_rpt_package_transfers t
+          ORDER BY t.package_tag, t.received_on DESC NULLS LAST
+        ), inv AS (
+         SELECT o_1.package_tag,
+            m.apex_invoice_number AS invoice_number,
+            m.apex_invoice_date AS order_date
+           FROM outb o_1
+             JOIN v_metrc_manifest_invoice_truth m ON m.manifest_number = o_1.manifest_number
+          WHERE m.apex_invoice_number IS NOT NULL
+        )
+ SELECT k.tag,
+    k.item_name,
+    COALESCE(k.raw #>> '{Item,ProductCategoryName}'::text[], '(uncategorised)'::text) AS category,
+    k.raw #>> '{Item,StrainName}'::text[] AS strain,
+    k.license AS held_under_licence,
+    h.harvest_name AS stage1_harvest,
+    h.harvest_start AS stage1_cut_on,
+    h.flower_room AS stage1_grown_in,
+    COALESCE(h.harvest_name, 'NOT FROM A HARVEST OF OURS — bought in or made from another package'::text) AS stage1_note,
+    k.packaged_on AS stage2_packaged_on,
+    NULLIF(k.raw ->> 'SourcePackageLabels'::text, ''::text) AS stage2_made_from_packages,
+    NULLIF(k.raw ->> 'ProductionBatchNumber'::text, ''::text) AS stage2_production_batch,
+    (k.raw ->> 'LabTestingStateDate'::text)::date AS stage3_submitted_on,
+    (k.raw ->> 'LabTestingRecordedDate'::text)::date AS stage3_result_on,
+    k.raw ->> 'LabTestingState'::text AS stage3_lab_state,
+    ev.lab_name AS stage3_laboratory,
+    ev.certificate_id AS stage3_certificate,
+    ev.certificate_date AS stage3_certificate_date,
+    ev.certificate_document AS stage3_coa_document,
+    ev.evidence_source AS stage3_evidence_basis,
+    COALESCE(ev.why_no_certificate,
+        CASE
+            WHEN ev.certificate_document IS NULL THEN 'No certificate document held for this tag.'::text
+            ELSE NULL::text
+        END) AS stage3_note,
+    o.manifest_number AS stage4_manifest,
+    o.shipped_on AS stage4_shipped_on,
+    o.destination_facility AS stage4_shipped_to,
+    o.destination_licence AS stage4_buyer_licence,
+    o.transfer_type AS stage4_transfer_type,
+    o.manifest_created_by AS stage4_created_by,
+    o.manifest_received_by AS stage4_received_by,
+    ( SELECT d.storage_path
+           FROM metrc_documents d
+          WHERE d.manifest_number = o.manifest_number AND d.doc_type ~~* '%manifest%'::text
+         LIMIT 1) AS stage4_manifest_document,
+        CASE
+            WHEN o.manifest_number IS NULL THEN 'STILL HELD — this tag has not left our licences, so there is no manifest yet.'::text
+            ELSE NULL::text
+        END AS stage4_note,
+    i.invoice_number AS stage5_apex_invoice,
+    i.order_date AS stage5_invoice_date,
+    NULL::numeric AS stage5_invoice_usd,
+    NULL::text AS stage5_payment_status,
+        CASE
+            WHEN o.manifest_number IS NULL THEN 'Not shipped, so nothing to invoice.'::text
+            WHEN i.invoice_number IS NULL AND f_is_ours(o.destination_licence) THEN 'INTERNAL MOVE between our own licences — not a sale, no invoice expected.'::text
+            WHEN i.invoice_number IS NULL AND NOT f_can_be_a_customer(o.destination_licence) THEN 'Destination is a laboratory or a transporter — not a sale, no invoice expected.'::text
+            WHEN i.invoice_number IS NULL THEN 'NO EXACT APEX INVOICE FOUND for this shipment. This is a discrepancy to investigate.'::text
+            ELSE NULL::text
+        END AS stage5_note,
+    COALESCE(k.finished, false) AS stage6_finished,
+    (k.raw ->> 'FinishedDate'::text)::date AS stage6_finished_on,
+    k.location AS audit_room,
+    round(f_to_pounds(k.quantity, k.uom), 3) AS audit_lb,
+    k.quantity AS audit_quantity,
+    k.uom AS audit_uom,
+        CASE
+            WHEN COALESCE(k.finished, false) THEN 'CLOSED — nothing physical to inspect. The record '::text || 'is the evidence.'::text
+            WHEN COALESCE(k.quantity, 0::numeric) = 0::numeric THEN 'ZERO QUANTITY but not marked finished — the tag '::text || 'should be closed out in Metrc.'::text
+            WHEN o.manifest_number IS NOT NULL AND o.shipped_on IS NOT NULL THEN ((('SHIPPED on '::text || o.shipped_on) || ' to '::text) || COALESCE(o.destination_facility, 'a licensee'::text)) || '. Not on site.'::text
+            WHEN COALESCE(k.location, ''::text) = ''::text THEN 'ON SITE but Metrc records no room. Find it by tag.'::text
+            ELSE ((('ON SITE — '::text || k.location) || ', licence '::text) || k.license) || '. Inspect the physical tag against this record.'::text
+        END AS where_to_audit,
+    ((('https://'::text || COALESCE(( SELECT lower(btrim(s.value)) AS lower
+           FROM integration_secrets s
+          WHERE s.name = 'METRC_STATE'::text), 'ma'::text)) || '.metrc.com/industry/'::text) || k.license) || '/packages'::text AS metrc_screen
+   FROM pkg k
+     LEFT JOIN harv h ON h.tag = k.tag
+     LEFT JOIN v_tag_evidence ev ON ev.tag = k.tag
+     LEFT JOIN outb o ON o.package_tag = k.tag
+     LEFT JOIN inv i ON i.package_tag = k.tag;
 create or replace view public.v_xq_harvest_open_past_limit as
  SELECT queue,
     harvest_name,
@@ -45093,793 +45311,6 @@ create materialized view if not exists public.mv_flow_stages as
     drill,
     note
    FROM v_flow_stages;
-create or replace view public.mv_department_dashboard as
- SELECT b.department,
-    b.ord,
-        CASE
-            WHEN b.department = 'Command'::text AND b.ord = 1 THEN 'Dried flower on hand'::text
-            ELSE b.kpi
-        END AS kpi,
-        CASE
-            WHEN b.department = 'Command'::text AND b.ord = 1 THEN ( SELECT v_stock_headline.dried_lb
-               FROM v_stock_headline)
-            WHEN b.department = 'Metrc'::text AND b.ord = 1 THEN ( SELECT count(DISTINCT mp.tag)::numeric AS count
-               FROM metrc_packages mp)
-            WHEN b.department = 'Settings'::text AND b.ord = 2 THEN ( SELECT count(*)::numeric AS count
-               FROM conversion_factors cf
-              WHERE cf.set_by !~* '(owner|vinny)'::text)
-            WHEN b.department = 'Inventory'::text AND b.ord = 1 THEN ( SELECT round(sum(
-                    CASE
-                        WHEN v.stream = 'Fresh frozen'::text THEN v.grams / f_rule('fresh_frozen_wet_to_dry'::text)
-                        ELSE v.grams
-                    END) / 453.59237, 1) AS round
-               FROM v_stock_on_hand v)
-            WHEN b.department = 'Inventory'::text AND b.ord = 2 THEN ( SELECT round(sum(v.grams) FILTER (WHERE v.lab_state = 'TestPassed'::text) / 453.59237, 1) AS round
-               FROM v_stock_on_hand v)
-            WHEN b.department = 'Inventory'::text AND b.ord = 3 THEN ( SELECT round(sum(v.grams) FILTER (WHERE v.lab_state = 'NotSubmitted'::text) / 453.59237, 1) AS round
-               FROM v_stock_on_hand v)
-            WHEN b.department = 'Inventory'::text AND b.ord = 4 THEN ( SELECT round(sum(v.grams) FILTER (WHERE v.origin = 'Bought in'::text) / 453.59237, 1) AS round
-               FROM v_stock_on_hand v)
-            WHEN b.department = 'Inventory'::text AND b.ord = 5 THEN ( SELECT round(sum(a.lb), 1) AS round
-               FROM v_stock_ageing a
-              WHERE a.ageing_verdict ~~ 'STALE%'::text)
-            WHEN b.kpi = 'Moisture loss not recorded'::text THEN COALESCE(b.value, 0::numeric)
-            ELSE b.value
-        END AS value,
-    b.unit,
-    b.tone,
-        CASE
-            WHEN b.department = 'Command'::text AND b.ord = 1 THEN ('Dried only. Fresh frozen '::text || (( SELECT to_char(v_stock_headline.fresh_frozen_wet_lb, 'FM999999.0'::text) AS to_char
-               FROM v_stock_headline))) || ' lb is held separately at wet weight and is never added to this.'::text
-            WHEN b.department = 'Metrc'::text AND b.ord = 1 THEN 'Distinct tags. 715 tags appear twice because the package moved between our two licences — that is one package, not two.'::text
-            WHEN b.department = 'Settings'::text AND b.ord = 2 THEN 'Conversion factors not set by the owner. Each one is a number the platform is using that he has not confirmed.'::text
-            WHEN b.department = 'Inventory'::text AND b.ord = 1 THEN ( SELECT ((('Fresh frozen counted at dry-equivalent (wet ÷ '::text || f_rule('fresh_frozen_wet_to_dry'::text)) || ', owner-set). Wet-basis total: '::text) || to_char(sum(v.grams) / 453.59237, 'FM999999.0'::text)) || ' lb.'::text
-               FROM v_stock_on_hand v)
-            WHEN b.department = 'Inventory'::text AND b.ord = 5 THEN ( SELECT ('Per the owner ageing policy: categories that age, past their own limit, holding rooms suspend. '::text || count(*)) || ' packages. A raw 180-day age with no policy would say far more — that is not the ruling.'::text
-               FROM v_stock_ageing a
-              WHERE a.ageing_verdict ~~ 'STALE%'::text)
-            ELSE b.context
-        END AS context,
-    b.drill,
-    b.computed_at
-   FROM mv_department_dashboard_base b
-UNION ALL
- SELECT s.department,
-    s.ord,
-    s.kpi,
-    s.value,
-    s.unit,
-    s.tone,
-    s.context,
-    s.drill,
-    s.computed_at
-   FROM mv_dept_dash_supplement s;
-create materialized view if not exists public.mv_department_dashboard_base as
- WITH r AS (
-         SELECT f_rule('ageing_stock_days'::text) AS age,
-            f_rule('harvest_open_max_days'::text) AS hopen,
-            f_rule('fresh_frozen_wet_to_dry'::text) AS ff,
-            f_rule('dry_window_max_days'::text) AS drymax,
-            f_rule('dry_window_min_days'::text) AS drymin
-        ), tot AS (
-         SELECT round(sum(v_stock_on_hand.pounds), 1) AS lb_all,
-            round(sum(v_stock_on_hand.pounds) FILTER (WHERE v_stock_on_hand.lab_state = 'TestPassed'::text), 1) AS lb_sellable,
-            round(sum(v_stock_on_hand.pounds) FILTER (WHERE v_stock_on_hand.lab_state = 'TestFailed'::text), 1) AS lb_failed,
-            round(sum(v_stock_on_hand.pounds) FILTER (WHERE v_stock_on_hand.lab_state = 'TestFailed'::text AND f_is_ours(v_stock_on_hand.origin_license)), 1) AS lb_failed_ours,
-            round(sum(v_stock_on_hand.pounds) FILTER (WHERE v_stock_on_hand.lab_state = 'TestFailed'::text AND NOT f_is_ours(v_stock_on_hand.origin_license)), 1) AS lb_failed_theirs,
-            round(sum(v_stock_on_hand.pounds) FILTER (WHERE v_stock_on_hand.lab_state = 'NotSubmitted'::text), 1) AS lb_untested,
-            round(sum(v_stock_on_hand.pounds) FILTER (WHERE v_stock_on_hand.lab_state ~~ '%ubmitted%'::text AND v_stock_on_hand.lab_state <> 'NotSubmitted'::text), 1) AS lb_out,
-            round(sum(v_stock_on_hand.pounds) FILTER (WHERE v_stock_on_hand.origin = 'Bought in'::text), 1) AS lb_bought,
-            round(sum(v_stock_on_hand.pounds) FILTER (WHERE v_stock_on_hand.oldest_days::numeric > (( SELECT r.age
-                   FROM r))), 1) AS lb_old,
-            round(sum(v_stock_on_hand.pounds) FILTER (WHERE v_stock_on_hand.stream = 'Concentrate'::text), 1) AS lb_conc,
-            round(sum(v_stock_on_hand.pounds) FILTER (WHERE v_stock_on_hand.stream = 'Fresh frozen'::text), 1) AS lb_ff,
-            round(sum(v_stock_on_hand.pounds) FILTER (WHERE v_stock_on_hand.stream = 'Shake and trim'::text), 1) AS lb_shake,
-            round(sum(v_stock_on_hand.pounds) FILTER (WHERE v_stock_on_hand.stream = 'Pre-rolls'::text), 1) AS lb_pr,
-            round(sum(v_stock_on_hand.pounds) FILTER (WHERE v_stock_on_hand.stream = 'Pre-rolls'::text AND v_stock_on_hand.lab_state = 'NotSubmitted'::text), 1) AS lb_pr_untested,
-            round(sum(v_stock_on_hand.pounds * f_rate_for(v_stock_on_hand.stream))) AS val_all,
-            round(sum(v_stock_on_hand.pounds * f_rate_for(v_stock_on_hand.stream)) FILTER (WHERE v_stock_on_hand.lab_state = 'TestFailed'::text)) AS val_failed,
-            round(sum(v_stock_on_hand.pounds * f_rate_for(v_stock_on_hand.stream)) FILTER (WHERE v_stock_on_hand.lab_state = 'NotSubmitted'::text)) AS val_untested
-           FROM v_stock_on_hand
-        ), rooms AS (
-         SELECT round(sum(v_harvest_still_in_room.really_left_lb), 1) AS lb_dry_equiv,
-            round(sum(v_harvest_still_in_room.old_figure_wet_minus_dry), 1) AS lb_metrc_wet,
-            count(*) AS open_h
-           FROM v_harvest_still_in_room
-        ), phantom AS (
-         SELECT count(*) AS n,
-            round(sum(v_moisture_loss_register.phantom_lb), 1) AS lb
-           FROM v_moisture_loss_register
-          WHERE v_moisture_loss_register.harvest_state = 'CLOSED'::text AND v_moisture_loss_register.needs_recording AND v_moisture_loss_register.phantom_lb > 0::numeric
-        ), lab AS (
-         SELECT count(*) AS n,
-            round(sum(v_missing_lab_results.pounds), 1) AS lb
-           FROM v_missing_lab_results
-        ), find AS (
-         SELECT count(DISTINCT watchdog_findings.fingerprint) AS n
-           FROM watchdog_findings
-          WHERE watchdog_findings.observed_at > (now() - '48:00:00'::interval)
-        ), h AS (
-         SELECT count(*) FILTER (WHERE v_harvest_forensic.harvest_closed IS NULL AND v_harvest_forensic.total_days_start_to_now::numeric > (( SELECT r.hopen
-                   FROM r))) AS open21,
-            round(avg(v_harvest_forensic.dry_days_to_first_package) FILTER (WHERE v_harvest_forensic.dry_days_to_first_package IS NOT NULL), 1) AS avg_dry,
-            count(*) FILTER (WHERE v_harvest_forensic.dry_days_to_first_package::numeric > (( SELECT r.drymax
-                   FROM r))) AS dried_long,
-            round(avg(v_harvest_forensic.conversion_pct) FILTER (WHERE v_harvest_forensic.harvest_closed IS NOT NULL), 1) AS conv
-           FROM v_harvest_forensic
-        )
- SELECT department,
-    ord,
-    kpi,
-    value,
-    unit,
-    tone,
-    context,
-    drill,
-    now() AS computed_at
-   FROM ( SELECT 'Command'::text AS department,
-            1 AS ord,
-            'Total on hand, dry-equivalent'::text AS kpi,
-            ( SELECT tot.lb_all
-                   FROM tot) AS value,
-            'lb'::text AS unit,
-            'info'::text AS tone,
-            'Every package in Metrc under our licences.'::text AS context,
-            'stock_on_hand'::text AS drill
-        UNION ALL
-         SELECT 'Command'::text AS text,
-            2,
-            'In the rooms, dry-equivalent'::text AS text,
-            ( SELECT rooms.lb_dry_equiv
-                   FROM rooms) AS lb_dry_equiv,
-            'lb'::text AS text,
-            'warn'::text AS text,
-            ( SELECT ((('Metrc shows '::text || rooms.lb_metrc_wet) || ' lb wet across '::text) || rooms.open_h) || ' open harvests. This is the dry-equivalent — the rest is water.'::text
-                   FROM rooms),
-            'moisture_loss_register'::text AS text
-        UNION ALL
-         SELECT 'Command'::text AS text,
-            3,
-            'Harvests open too long'::text AS text,
-            ( SELECT h.open21
-                   FROM h) AS open21,
-            ''::text AS text,
-            'bad'::text AS text,
-            ( SELECT ('Past the '::text || r.hopen) || ' day limit from the 2026 calendar.'::text
-                   FROM r),
-            'harvest_issues'::text AS text
-        UNION ALL
-         SELECT 'Command'::text AS text,
-            4,
-            'Moisture loss not recorded'::text AS text,
-            ( SELECT phantom.lb
-                   FROM phantom) AS lb,
-            'lb'::text AS text,
-            'bad'::text AS text,
-            ( SELECT phantom.n || ' closed harvests still showing water in Metrc.'::text
-                   FROM phantom),
-            'moisture_loss_register'::text AS text
-        UNION ALL
-         SELECT 'Command'::text AS text,
-            5,
-            'Out at the laboratory, no result'::text AS text,
-            ( SELECT lab.lb
-                   FROM lab) AS lb,
-            'lb'::text AS text,
-            'bad'::text AS text,
-            ( SELECT lab.n || ' packages submitted and never reported back.'::text
-                   FROM lab),
-            'metrc_rpt_lab'::text AS text
-        UNION ALL
-         SELECT 'Command'::text AS text,
-            6,
-            'Never submitted for testing'::text AS text,
-            ( SELECT tot.lb_untested
-                   FROM tot) AS lb_untested,
-            'lb'::text AS text,
-            'bad'::text AS text,
-            'Cannot be sold until submitted.'::text AS text,
-            'lab_results'::text AS text
-        UNION ALL
-         SELECT 'Command'::text AS text,
-            7,
-            'Failed testing on hand'::text AS text,
-            ( SELECT tot.lb_failed
-                   FROM tot) AS lb_failed,
-            'lb'::text AS text,
-            'bad'::text AS text,
-            ( SELECT ((('Ours '::text || tot.lb_failed_ours) || ' lb, third party '::text) || tot.lb_failed_theirs) || ' lb.'::text
-                   FROM tot),
-            'failed_testing_by_origin'::text AS text
-        UNION ALL
-         SELECT 'Command'::text AS text,
-            8,
-            'Open watchdog findings'::text AS text,
-            ( SELECT find.n
-                   FROM find) AS n,
-            ''::text AS text,
-            'warn'::text AS text,
-            'Confirmed in the last 48 hours.'::text AS text,
-            'intelligence_briefing'::text AS text
-        UNION ALL
-         SELECT 'Cultivation'::text AS text,
-            1,
-            'In the rooms, dry-equivalent'::text AS text,
-            ( SELECT rooms.lb_dry_equiv
-                   FROM rooms) AS lb_dry_equiv,
-            'lb'::text AS text,
-            'warn'::text AS text,
-            ( SELECT ('Metrc shows '::text || rooms.lb_metrc_wet) || ' lb wet. The difference is evaporated water.'::text
-                   FROM rooms),
-            'moisture_loss_register'::text AS text
-        UNION ALL
-         SELECT 'Cultivation'::text AS text,
-            2,
-            'Harvests open too long'::text AS text,
-            ( SELECT h.open21
-                   FROM h) AS open21,
-            ''::text AS text,
-            'bad'::text AS text,
-            ( SELECT ('Past the '::text || r.hopen) || ' day limit.'::text
-                   FROM r),
-            'harvest_issues'::text AS text
-        UNION ALL
-         SELECT 'Cultivation'::text AS text,
-            3,
-            'Moisture loss not recorded'::text AS text,
-            ( SELECT phantom.lb
-                   FROM phantom) AS lb,
-            'lb'::text AS text,
-            'bad'::text AS text,
-            ( SELECT phantom.n || ' closed harvests.'::text
-                   FROM phantom),
-            'moisture_loss_register'::text AS text
-        UNION ALL
-         SELECT 'Cultivation'::text AS text,
-            4,
-            'Average dry time'::text AS text,
-            ( SELECT h.avg_dry
-                   FROM h) AS avg_dry,
-            'days'::text AS text,
-            'info'::text AS text,
-            ( SELECT ((('Target window is '::text || r.drymin) || ' to '::text) || r.drymax) || ' days.'::text
-                   FROM r),
-            'dry_room_performance'::text AS text
-        UNION ALL
-         SELECT 'Cultivation'::text AS text,
-            5,
-            'Harvests dried too long'::text AS text,
-            ( SELECT h.dried_long
-                   FROM h) AS dried_long,
-            ''::text AS text,
-            'bad'::text AS text,
-            ( SELECT ('Over '::text || r.drymax) || ' days.'::text
-                   FROM r),
-            'schedule_compliance'::text AS text
-        UNION ALL
-         SELECT 'Cultivation'::text AS text,
-            6,
-            'Conversion, dried flower only'::text AS text,
-            ( SELECT h.conv
-                   FROM h) AS conv,
-            '%'::text AS text,
-            'info'::text AS text,
-            'Closed harvests only.'::text AS text,
-            'issue_yield_gap'::text AS text
-        UNION ALL
-         SELECT 'Inventory'::text AS text,
-            1,
-            'Total on hand, dry-equivalent'::text AS text,
-            ( SELECT tot.lb_all
-                   FROM tot) AS lb_all,
-            'lb'::text AS text,
-            'info'::text AS text,
-            'All streams.'::text AS text,
-            'stock_on_hand'::text AS text
-        UNION ALL
-         SELECT 'Inventory'::text AS text,
-            2,
-            'Sellable right now'::text AS text,
-            ( SELECT tot.lb_sellable
-                   FROM tot) AS lb_sellable,
-            'lb'::text AS text,
-            'ok'::text AS text,
-            'Passed testing.'::text AS text,
-            'stock_on_hand'::text AS text
-        UNION ALL
-         SELECT 'Inventory'::text AS text,
-            3,
-            'Never submitted for testing'::text AS text,
-            ( SELECT tot.lb_untested
-                   FROM tot) AS lb_untested,
-            'lb'::text AS text,
-            'bad'::text AS text,
-            'Blocked from sale.'::text AS text,
-            'lab_results'::text AS text
-        UNION ALL
-         SELECT 'Inventory'::text AS text,
-            4,
-            'Bought in'::text AS text,
-            ( SELECT tot.lb_bought
-                   FROM tot) AS lb_bought,
-            'lb'::text AS text,
-            'info'::text AS text,
-            'Third party material.'::text AS text,
-            'third_party_stock'::text AS text
-        UNION ALL
-         SELECT 'Inventory'::text AS text,
-            5,
-            'Ageing stock'::text AS text,
-            ( SELECT tot.lb_old
-                   FROM tot) AS lb_old,
-            'lb'::text AS text,
-            'bad'::text AS text,
-            ( SELECT ('Older than the '::text || r.age) || ' day limit.'::text
-                   FROM r),
-            'issue_aging'::text AS text
-        UNION ALL
-         SELECT 'Quality'::text AS text,
-            1,
-            'Failed testing on hand'::text AS text,
-            ( SELECT tot.lb_failed
-                   FROM tot) AS lb_failed,
-            'lb'::text AS text,
-            'bad'::text AS text,
-            ( SELECT ((('Ours '::text || tot.lb_failed_ours) || ' lb, third party '::text) || tot.lb_failed_theirs) || ' lb.'::text
-                   FROM tot),
-            'failed_testing_by_origin'::text AS text
-        UNION ALL
-         SELECT 'Quality'::text AS text,
-            2,
-            'Out at the laboratory, no result'::text AS text,
-            ( SELECT lab.lb
-                   FROM lab) AS lb,
-            'lb'::text AS text,
-            'bad'::text AS text,
-            ( SELECT lab.n || ' packages, longest waiting is on the page.'::text
-                   FROM lab),
-            'metrc_rpt_lab'::text AS text
-        UNION ALL
-         SELECT 'Quality'::text AS text,
-            3,
-            'Out for testing'::text AS text,
-            ( SELECT tot.lb_out
-                   FROM tot) AS lb_out,
-            'lb'::text AS text,
-            'info'::text AS text,
-            'At the laboratory now.'::text AS text,
-            'lab_turnaround_report'::text AS text
-        UNION ALL
-         SELECT 'Quality'::text AS text,
-            4,
-            'Never submitted for testing'::text AS text,
-            ( SELECT tot.lb_untested
-                   FROM tot) AS lb_untested,
-            'lb'::text AS text,
-            'bad'::text AS text,
-            'Never sent.'::text AS text,
-            'lab_results'::text AS text
-        UNION ALL
-         SELECT 'Manufacturing'::text AS text,
-            1,
-            'Concentrate on hand'::text AS text,
-            ( SELECT tot.lb_conc
-                   FROM tot) AS lb_conc,
-            'lb'::text AS text,
-            'info'::text AS text,
-            ''::text AS text,
-            'stock_on_hand'::text AS text
-        UNION ALL
-         SELECT 'Manufacturing'::text AS text,
-            2,
-            'Fresh frozen on hand'::text AS text,
-            ( SELECT tot.lb_ff
-                   FROM tot) AS lb_ff,
-            'lb'::text AS text,
-            'info'::text AS text,
-            'Packaged wet.'::text AS text,
-            'stock_on_hand'::text AS text
-        UNION ALL
-         SELECT 'Manufacturing'::text AS text,
-            3,
-            'Fresh frozen dry-equivalent'::text AS text,
-            ( SELECT round(tot.lb_ff / (( SELECT r.ff
-                           FROM r)), 1) AS round
-                   FROM tot) AS round,
-            'lb'::text AS text,
-            'info'::text AS text,
-            ( SELECT ('Divided by the ratio of '::text || r.ff) || '.'::text
-                   FROM r),
-            'fresh_frozen_equiv'::text AS text
-        UNION ALL
-         SELECT 'Manufacturing'::text AS text,
-            4,
-            'Shake and trim on hand'::text AS text,
-            ( SELECT tot.lb_shake
-                   FROM tot) AS lb_shake,
-            'lb'::text AS text,
-            'info'::text AS text,
-            ''::text AS text,
-            'stock_on_hand'::text AS text
-        UNION ALL
-         SELECT 'Manufacturing'::text AS text,
-            5,
-            'Purchased material untouched'::text AS text,
-            ( SELECT tot.lb_bought
-                   FROM tot) AS lb_bought,
-            'lb'::text AS text,
-            'warn'::text AS text,
-            ''::text AS text,
-            'third_party_stock'::text AS text
-        UNION ALL
-         SELECT 'Infused Pre-Rolls & Flower'::text AS text,
-            1,
-            'Pre-rolls on hand'::text AS text,
-            ( SELECT tot.lb_pr
-                   FROM tot) AS lb_pr,
-            'lb'::text AS text,
-            'info'::text AS text,
-            ''::text AS text,
-            'stock_on_hand'::text AS text
-        UNION ALL
-         SELECT 'Infused Pre-Rolls & Flower'::text AS text,
-            2,
-            'Pre-rolls never tested'::text AS text,
-            ( SELECT tot.lb_pr_untested
-                   FROM tot) AS lb_pr_untested,
-            'lb'::text AS text,
-            'bad'::text AS text,
-            ''::text AS text,
-            'lab_results'::text AS text
-        UNION ALL
-         SELECT 'Infused Pre-Rolls & Flower'::text AS text,
-            3,
-            'Shake and trim available'::text AS text,
-            ( SELECT tot.lb_shake
-                   FROM tot) AS lb_shake,
-            'lb'::text AS text,
-            'info'::text AS text,
-            'Input material.'::text AS text,
-            'stock_on_hand'::text AS text
-        UNION ALL
-         SELECT 'Finance'::text AS text,
-            1,
-            'Value of stock on hand'::text AS text,
-            ( SELECT tot.val_all
-                   FROM tot) AS val_all,
-            '$'::text AS text,
-            'info'::text AS text,
-            'Each stream at its own rate.'::text AS text,
-            'valuation_rates'::text AS text
-        UNION ALL
-         SELECT 'Finance'::text AS text,
-            2,
-            'Failed testing value'::text AS text,
-            ( SELECT tot.val_failed
-                   FROM tot) AS val_failed,
-            '$'::text AS text,
-            'bad'::text AS text,
-            ''::text AS text,
-            'valuation_rates'::text AS text
-        UNION ALL
-         SELECT 'Finance'::text AS text,
-            3,
-            'Untested stock value'::text AS text,
-            ( SELECT tot.val_untested
-                   FROM tot) AS val_untested,
-            '$'::text AS text,
-            'bad'::text AS text,
-            ''::text AS text,
-            'valuation_rates'::text AS text
-        UNION ALL
-         SELECT 'Metrc'::text AS text,
-            1,
-            'Packages mirrored'::text AS text,
-            ( SELECT count(*) AS count
-                   FROM metrc_packages) AS count,
-            ''::text AS text,
-            'info'::text AS text,
-            ''::text AS text,
-            'metrc_mirror'::text AS text
-        UNION ALL
-         SELECT 'Metrc'::text AS text,
-            2,
-            'Harvests mirrored'::text AS text,
-            ( SELECT count(*) AS count
-                   FROM metrc_harvests) AS count,
-            ''::text AS text,
-            'info'::text AS text,
-            ''::text AS text,
-            'harvests'::text AS text
-        UNION ALL
-         SELECT 'Metrc'::text AS text,
-            3,
-            'Plants mirrored'::text AS text,
-            ( SELECT count(*) AS count
-                   FROM metrc_plants) AS count,
-            ''::text AS text,
-            'info'::text AS text,
-            ''::text AS text,
-            'metrc_mc'::text AS text
-        UNION ALL
-         SELECT 'Metrc'::text AS text,
-            4,
-            'Corrections outstanding'::text AS text,
-            ( SELECT count(*) AS count
-                   FROM v_metrc_corrections_open) AS count,
-            ''::text AS text,
-            'bad'::text AS text,
-            'Must be fixed in Metrc itself.'::text AS text,
-            'metrc_corrections'::text AS text
-        UNION ALL
-         SELECT 'Human Resources'::text AS text,
-            1,
-            'People on the roster'::text AS text,
-            ( SELECT count(*) AS count
-                   FROM employees) AS count,
-            ''::text AS text,
-            'info'::text AS text,
-            ''::text AS text,
-            'people'::text AS text
-        UNION ALL
-         SELECT 'Workspace'::text AS text,
-            1,
-            'Go-live items open'::text AS text,
-            ( SELECT count(*) AS count
-                   FROM golive_items
-                  WHERE golive_items.status <> 'done'::text) AS count,
-            ''::text AS text,
-            'warn'::text AS text,
-            ''::text AS text,
-            'golive'::text AS text
-        UNION ALL
-         SELECT 'Workspace'::text AS text,
-            2,
-            'Open questions'::text AS text,
-            ( SELECT count(*) AS count
-                   FROM v_open_questions) AS count,
-            ''::text AS text,
-            'warn'::text AS text,
-            ''::text AS text,
-            'open_questions'::text AS text
-        UNION ALL
-         SELECT 'Settings'::text AS text,
-            1,
-            'Pages in the platform'::text AS text,
-            ( SELECT count(*) AS count
-                   FROM nav_registry
-                  WHERE nav_registry.enabled) AS count,
-            ''::text AS text,
-            'info'::text AS text,
-            ''::text AS text,
-            'menu_manager'::text AS text
-        UNION ALL
-         SELECT 'Settings'::text AS text,
-            2,
-            'Business rules not yet set'::text AS text,
-            ( SELECT count(*) AS count
-                   FROM conversion_factors
-                  WHERE conversion_factors.set_by ~~ 'default%'::text) AS count,
-            ''::text AS text,
-            'warn'::text AS text,
-            ''::text AS text,
-            'business_rules'::text AS text) q;
-create materialized view if not exists public.mv_dept_dash_audit_tiles as
- SELECT department,
-    ord,
-    kpi,
-    value,
-    unit,
-    tone,
-    context,
-    drill,
-    computed_at
-   FROM v_dept_dash_audit_tiles;
-create materialized view if not exists public.mv_dept_dash_supplement as
- SELECT department,
-    ord,
-    kpi,
-    value,
-    unit,
-    tone,
-    context,
-    drill,
-    computed_at
-   FROM v_dept_dash_supplement;
-create materialized view if not exists public.mv_dept_dash_third_party as
- SELECT department,
-    ord,
-    kpi,
-    value,
-    unit,
-    tone,
-    context,
-    drill,
-    computed_at
-   FROM v_dept_dash_third_party;
-create materialized view if not exists public.mv_document_search as
- SELECT doc_type,
-    document,
-    reference,
-    package_tag,
-    manifest_number,
-    item_name,
-    shipper,
-    customer,
-    lab_facility,
-    manifest_date,
-    tested_on,
-    open_download_print,
-    direction,
-    current_location,
-    license,
-    lower(COALESCE(search_text, ''::text)) AS search_text
-   FROM v_document_library;
-create materialized view if not exists public.mv_forensic_audit_panel as
- SELECT ord,
-    kind,
-    line,
-    lb,
-    usd,
-    basis,
-    drill,
-    now() AS computed_at
-   FROM v_forensic_audit_panel_live;
-create materialized view if not exists public.mv_global_management as
- SELECT department,
-    is_the_unrouted_pile,
-    tiles,
-    tiles_bad,
-    tiles_null,
-    open_findings,
-    critical_findings,
-    oldest_finding,
-    open_orders,
-    orders_overdue,
-    tone,
-    gap_note
-   FROM v_global_management;
-create materialized view if not exists public.mv_ownership_verdict as
- WITH conflicted AS (
-         SELECT p.tag,
-            p.item_name,
-            p.uom,
-            p.quantity,
-            p.source_state,
-            p.lab_testing_state,
-            p.raw ->> 'ItemFromFacilityLicenseNumber'::text AS platform_license,
-            p.raw ->> 'ItemFromFacilityName'::text AS platform_name,
-            o.origin AS lineage
-           FROM ( SELECT DISTINCT ON (metrc_packages.tag) metrc_packages.tag,
-                    metrc_packages.item_name,
-                    metrc_packages.uom,
-                    metrc_packages.quantity,
-                    metrc_packages.source_state,
-                    metrc_packages.lab_testing_state,
-                    metrc_packages.raw
-                   FROM metrc_packages
-                  ORDER BY metrc_packages.tag, metrc_packages.license) p
-             CROSS JOIN LATERAL ( SELECT f_material_origin(p.tag) AS origin) o
-          WHERE (p.source_state = ANY (ARRAY['active'::text, 'onhold'::text])) AND f_is_ours(p.raw ->> 'ItemFromFacilityLicenseNumber'::text) AND ((o.origin ->> 'any_outside'::text)::boolean) IS TRUE
-        ), certed AS (
-         SELECT c.tag,
-            c.item_name,
-            c.uom,
-            c.quantity,
-            c.source_state,
-            c.lab_testing_state,
-            c.platform_license,
-            c.platform_name,
-            c.lineage,
-            r.cert_license,
-            r.cert_client,
-            r.found_at_depth,
-            r.certificate_on_package
-           FROM conflicted c
-             LEFT JOIN v_certificate_resolved r ON r.package_tag = c.tag
-        )
- SELECT tag AS package_tag,
-    "left"(item_name, 50) AS item_name,
-    source_state,
-    lab_testing_state,
-        CASE
-            WHEN f_is_weight(uom) THEN round(f_to_pounds(quantity, uom), 2)
-            ELSE NULL::numeric
-        END AS pounds,
-    platform_license AS platform_says,
-    lineage -> 'origin_names'::text AS lineage_says,
-    lineage -> 'origin_licences'::text AS lineage_licences,
-    lineage -> 'inbound_manifests'::text AS inbound_manifests,
-    cert_client AS certificate_says,
-    cert_license AS certificate_license,
-        CASE
-            WHEN found_at_depth IS NULL THEN NULL::text
-            WHEN found_at_depth = 0 THEN 'direct'::text
-            ELSE 'inherited via '::text || found_at_depth
-        END AS certificate_link,
-    certificate_on_package,
-        CASE
-            WHEN cert_license IS NULL AND cert_client IS NULL THEN 'UNPROVEN - no certificate in the lineage. Ownership doubt raised, not settled.'::text
-            WHEN cert_license IS NOT NULL AND f_licence_in_set(platform_license, cert_license) THEN ('INCONCLUSIVE - the certificate names us, but the lineage says the '::text || 'material came from outside. Consistent with us paying for a '::text) || 'retest after buying it. NOT proof we grew it.'::text
-            WHEN cert_license IS NOT NULL THEN ('CONFIRMED NOT OURS - the laboratory names '::text || COALESCE(cert_client, 'another licensee'::text)) || '. The certificate is independent and it wins.'::text
-            ELSE ('NAME ONLY - the certificate names '::text || COALESCE(cert_client, '?'::text)) || ' but prints no licence (MCR Labs does not). Judge on the name.'::text
-        END AS verdict,
-    'THE ISSUE: this package is counted as ours. Ownership drives yield, cost, loss and on-hand, and every one of those is wrong if this is somebody else''s material.'::text AS what_is_wrong,
-        CASE
-            WHEN NOT f_is_weight(uom) THEN quantity
-            ELSE NULL::numeric
-        END AS units,
-    uom AS unit_of_measure,
-    f_quantity_text(quantity, uom) AS how_much
-   FROM certed;
-create materialized view if not exists public.mv_stock_proof as
- WITH identity_one_per_tag AS (
-         SELECT DISTINCT ON (pi.package_tag) pi.package_tag,
-            pi.total_thc,
-            pi.total_cbd,
-            pi.total_terpenes,
-            pi.laboratory,
-            pi.coa_url
-           FROM v_product_identity pi
-          ORDER BY pi.package_tag, (pi.coa_url IS NOT NULL) DESC, (pi.total_thc IS NOT NULL) DESC, pi.license
-        )
- SELECT s.package_tag,
-    s.item_name,
-    s.strain,
-    s.stream,
-    s.origin,
-    s.made_by,
-    s.shipped_to_us_by,
-    s.license,
-    s.location,
-    s.days_here,
-    s.packaged_on,
-    s.quantity,
-    s.uom,
-    s.pounds,
-    s.units,
-    s.quantity_shown,
-    s.sold_by_weight,
-    s.lab_state,
-        CASE s.lab_state
-            WHEN 'TestPassed'::text THEN 'Sellable now'::text
-            WHEN 'RetestPassed'::text THEN 'Sellable now'::text
-            WHEN 'TestFailed'::text THEN 'Failed testing'::text
-            WHEN 'RetestFailed'::text THEN 'Failed testing'::text
-            WHEN 'NotSubmitted'::text THEN 'Never submitted'::text
-            ELSE 'At the laboratory'::text
-        END AS band,
-    f_test_status(s.lab_state, s.submitted_on, s.result_on) AS test_status,
-    s.submitted_on AS went_out_for_testing_on,
-    s.result_on AS came_back_on,
-        CASE
-            WHEN s.result_on IS NOT NULL AND s.submitted_on IS NOT NULL THEN s.result_on - s.submitted_on
-            WHEN s.submitted_on IS NOT NULL AND (s.lab_state = ANY (ARRAY['SubmittedForTesting'::text, 'TestingInProgress'::text])) THEN CURRENT_DATE - s.submitted_on
-            ELSE NULL::integer
-        END AS days_at_the_laboratory,
-    s.coa_expires AS certificate_valid_to,
-    lr.total_thc,
-    lr.total_cbd,
-    lr.total_terpenes,
-    lr.laboratory,
-    lr.coa_url,
-    f_potency_status(lr.total_thc, lr.total_terpenes, s.lab_state) AS potency_and_certificate,
-    s.inbound_manifest,
-        CASE
-            WHEN s.inbound_manifest IS NULL THEN 'NO MANIFEST — created here from our own harvest or another of our packages, so it never moved '::text || 'between licences. Manifests exist only for material that changed hands.'::text
-            ELSE ('Manifest '::text || s.inbound_manifest) || COALESCE(' from '::text || NULLIF(s.shipped_to_us_by, '—'::text), ''::text)
-        END AS manifest_proof,
-    s.source_harvest,
-    s.harvest_cut_on,
-    s.dried_in,
-    s.harvest_closed_on,
-    s.made_from_packages,
-    s.production_batch,
-    s.traceability,
-    f_rate_for(s.stream) AS rate_per_pound_used,
-    round(COALESCE(s.pounds, 0::numeric) * f_rate_for(s.stream)) AS value_at_our_rate
-   FROM v_stock_packages s
-     LEFT JOIN identity_one_per_tag lr ON lr.package_tag = s.package_tag;
 create materialized view if not exists public.mv_tag_documents as
  SELECT tag,
     stage3_certificate AS coa_certificate_id,
@@ -45891,60 +45322,6 @@ create materialized view if not exists public.mv_tag_documents as
     stage5_invoice_usd AS apex_invoice_usd,
     stage5_payment_status AS apex_payment_status
    FROM v_tag_lifecycle;
-create materialized view if not exists public.mv_tower_counts as
- SELECT ( SELECT count(*) AS count
-           FROM metrc_packages
-          WHERE metrc_packages.source_state = ANY (ARRAY['active'::text, 'onhold'::text])) AS packages_active,
-    ( SELECT count(*) AS count
-           FROM metrc_packages) AS packages_all,
-    ( SELECT count(*) AS count
-           FROM metrc_plants
-          WHERE metrc_plants.source_state = ANY (ARRAY['vegetative'::text, 'flowering'::text, 'onhold'::text])) AS plants_live,
-    ( SELECT count(*) AS count
-           FROM metrc_plants) AS plants_all,
-    ( SELECT count(*) AS count
-           FROM metrc_harvests) AS harvests,
-    ( SELECT count(*) AS count
-           FROM metrc_transfers) AS transfers,
-    ( SELECT count(*) AS count
-           FROM metrc_plant_batches) AS plant_batches,
-    ( SELECT count(*) AS count
-           FROM harvest_schedule) AS harvest_events,
-    ( SELECT count(*) AS count
-           FROM employees
-          WHERE employees.terminated_on IS NULL) AS employees_active,
-    ( SELECT count(*) AS count
-           FROM actions_register
-          WHERE actions_register.status = 'open'::text) AS actions_open,
-    ( SELECT count(*) AS count
-           FROM actions_register
-          WHERE actions_register.status = 'open'::text AND actions_register.priority = 'P0'::text) AS actions_p0,
-    ( SELECT count(*) AS count
-           FROM golive_items
-          WHERE golive_items.status <> 'done'::text) AS golive_open,
-    ( SELECT count(*) AS count
-           FROM v_custody_alerts) AS custody_flags,
-    ( SELECT count(*) AS count
-           FROM v_harvest_alerts) AS harvest_alerts,
-    ( SELECT count(*) AS count
-           FROM v_inventory_aging
-          WHERE v_inventory_aging.severity = 'critical'::text) AS aging_critical,
-    ( SELECT count(*) AS count
-           FROM metrc_packages
-          WHERE metrc_packages.lab_testing_state = 'TestFailed'::text AND (metrc_packages.source_state = ANY (ARRAY['active'::text, 'onhold'::text]))) AS failed_testing_on_hand,
-    ( SELECT count(*) AS count
-           FROM metrc_transfers
-          WHERE metrc_transfers.direction = 'outgoing'::text AND (metrc_transfers.raw ->> 'ReceivedDateTime'::text) IS NULL AND metrc_transfers.created_on < (CURRENT_DATE - 3)) AS manifests_unconfirmed,
-    ( SELECT max(metrc_sync_runs.started_at) AS max
-           FROM metrc_sync_runs) AS last_sync,
-    now() AS computed_at;
-create materialized view if not exists public.mv_tower_inventory as
- SELECT metric,
-    value,
-    label,
-    grp,
-    drill
-   FROM v_tower_inventory;
 create or replace view public.v_adjustment_conflicts as
  SELECT v.package_tag,
     v.adjusted_on,
@@ -46006,356 +45383,6 @@ create or replace view public.v_adjustment_conflicts as
              JOIN g ON g.package_tag = a.package_tag AND g.adjusted_on = a.adjusted_on AND g.reason = a.reason
           ORDER BY g.distinct_imports DESC, a.package_tag, a.adjusted_on, a.imported_at) v
      LEFT JOIN mv_tag_documents td ON td.tag = v.package_tag;
-create or replace view public.v_admin_alerts as
- SELECT what,
-    outstanding,
-    severity,
-    drill,
-    why_it_matters,
-    what_to_do,
-    detail
-   FROM ( SELECT a.what,
-            a.outstanding,
-            a.severity,
-            a.drill,
-            a.why_it_matters,
-            a.what_to_do,
-            a.detail
-           FROM ( SELECT 'Corrections outstanding in Metrc'::text AS what,
-                    count(*) AS outstanding,
-                    'critical'::text AS severity,
-                    'metrc_corrections'::text AS drill,
-                    'Wrong in the state record itself, not just here.'::text AS why_it_matters,
-                    'Follow the steps on Metrc Corrections, then record who fixed it and what was done.'::text AS what_to_do,
-                    ((round(sum(v_metrc_corrections_open.pounds), 1) || ' lb across '::text) || count(*)) || ' corrections'::text AS detail
-                   FROM v_metrc_corrections_open
-                 HAVING count(*) > 0) a
-        UNION ALL
-         SELECT b.text,
-            b.count,
-            b.text_1 AS text,
-            b.text_2 AS text,
-            b.text_3 AS text,
-            b.text_4 AS text,
-            b."?column?"
-           FROM ( SELECT 'Out at the laboratory with no result'::text AS text,
-                    count(*) AS count,
-                    'critical'::text AS text,
-                    'missing_lab_results'::text AS text,
-                    'Submitted for testing and never reported back. Cannot be sold until a result exists.'::text AS text,
-                    'Chase the laboratory for each certificate and enter it in Metrc.'::text AS text,
-                    ((round(sum(v_missing_lab_results.pounds), 1) || ' lb, longest waiting '::text) || max(v_missing_lab_results.days_missing)) || ' days'::text AS "?column?"
-                   FROM v_missing_lab_results
-                 HAVING count(*) > 0) b(text, count, text_1, text_2, text_3, text_4, "?column?")
-        UNION ALL
-         SELECT c.text,
-            c.count,
-            c.text_1 AS text,
-            c.text_2 AS text,
-            c.text_3 AS text,
-            c.text_4 AS text,
-            c."?column?"
-           FROM ( SELECT 'Moisture loss not recorded on closed harvests'::text AS text,
-                    count(*) AS count,
-                    'critical'::text AS text,
-                    'moisture_loss_register'::text AS text,
-                    'Metrc shows biomass on finished harvests that evaporated months ago. This is the group an inspector queries first.'::text AS text,
-                    'Open Moisture Loss and record the loss against each closed harvest, then enter the adjustment in Metrc.'::text AS text,
-                    ((round(sum(v_moisture_loss_register.phantom_lb), 1) || ' lb across '::text) || count(*)) || ' closed harvests not yet recorded'::text AS "?column?"
-                   FROM v_moisture_loss_register
-                  WHERE v_moisture_loss_register.harvest_state = 'CLOSED'::text AND v_moisture_loss_register.needs_recording AND v_moisture_loss_register.phantom_lb > 0::numeric
-                 HAVING count(*) > 0) c(text, count, text_1, text_2, text_3, text_4, "?column?")
-        UNION ALL
-         SELECT d.text,
-            d.count,
-            d.text_1 AS text,
-            d.text_2 AS text,
-            d.text_3 AS text,
-            d.text_4 AS text,
-            d."?column?"
-           FROM ( SELECT 'Never submitted for testing'::text AS text,
-                    count(*) AS count,
-                    'elevated'::text AS text,
-                    'lab_results'::text AS text,
-                    'Material never sent to the laboratory at all. It cannot lawfully be sold.'::text AS text,
-                    'Submit it, or record a disposition.'::text AS text,
-                    ((round(sum(lab_turnaround_log.pounds), 1) || ' lb, oldest '::text) || max(CURRENT_DATE - lab_turnaround_log.went_out_on)) || ' days'::text AS "?column?"
-                   FROM lab_turnaround_log
-                  WHERE lab_turnaround_log.testing_state = 'NotSubmitted'::text AND lab_turnaround_log.came_back_on IS NULL
-                 HAVING count(*) > 0) d(text, count, text_1, text_2, text_3, text_4, "?column?")
-        UNION ALL
-         SELECT e.text,
-            e.count,
-            e.text_1 AS text,
-            e.text_2 AS text,
-            e.text_3 AS text,
-            e.text_4 AS text,
-            e."?column?"
-           FROM ( SELECT 'Harvests open past the limit'::text AS text,
-                    count(*) AS count,
-                    'elevated'::text AS text,
-                    'overdue_harvests'::text AS text,
-                    'Room time paid for and weight quietly drying down.'::text AS text,
-                    'Finish packaging and close them out.'::text AS text,
-                    ((('Oldest is '::text || max(v_overdue_harvests.days_open)) || ' days against a '::text) || max(v_overdue_harvests.limit_days)) || ' day limit'::text AS "?column?"
-                   FROM v_overdue_harvests
-                 HAVING count(*) > 0) e(text, count, text_1, text_2, text_3, text_4, "?column?")
-        UNION ALL
-         SELECT f.text,
-            f.count,
-            f.text_1 AS text,
-            f.text_2 AS text,
-            f.text_3 AS text,
-            f.text_4 AS text,
-            f."?column?"
-           FROM ( SELECT 'Room rotation has drifted off the calendar'::text AS text,
-                    count(*) AS count,
-                    'elevated'::text AS text,
-                    'plan_vs_actual_harvest'::text AS text,
-                    'The 14 day cadence is intact and every room turns on 56 days, but the room ORDER slipped one position in late February.'::text AS text,
-                    'Re-sync the room order to the calendar, or reissue the calendar to match how the rooms actually run.'::text AS text,
-                    count(*) || ' of 26 pulls do not match the planned room'::text AS "?column?"
-                   FROM v_plan_vs_actual_harvest
-                  WHERE v_plan_vs_actual_harvest.schedule_verdict ~~ 'LATE%'::text OR v_plan_vs_actual_harvest.schedule_verdict ~~ 'EARLY%'::text OR v_plan_vs_actual_harvest.schedule_verdict ~~ 'MISSED%'::text
-                 HAVING count(*) > 0) f(text, count, text_1, text_2, text_3, text_4, "?column?")
-        UNION ALL
-         SELECT g.text,
-            g.count,
-            g.text_1 AS text,
-            g.text_2 AS text,
-            g.text_3 AS text,
-            g.text_4 AS text,
-            g.string_agg
-           FROM ( SELECT 'Required Metrc report not uploaded this month'::text AS text,
-                    count(*) AS count,
-                    'critical'::text AS text,
-                    'metrc_report_imports'::text AS text,
-                    'Moisture loss and wholesale price exist in no API endpoint. Without these files the 380 lb per month target and the revenue figure cannot be computed at all.'::text AS text,
-                    'Export each one from Metrc and upload it on Settings > Metrc Report Imports. It maps itself.'::text AS text,
-                    string_agg(((v_report_upload_due.title || ' ('::text) || v_report_upload_due.licence) || ')'::text, ', '::text ORDER BY v_report_upload_due.upload_priority) AS string_agg
-                   FROM v_report_upload_due
-                  WHERE NOT v_report_upload_due.received AND v_report_upload_due.cadence ~~ 'Monthly%'::text
-                 HAVING count(*) > 0) g(text, count, text_1, text_2, text_3, text_4, string_agg)
-        UNION ALL
-         SELECT h.text,
-            h.count,
-            h.text_1 AS text,
-            h.text_2 AS text,
-            h.text_3 AS text,
-            h.text_4 AS text,
-            h.string_agg
-           FROM ( SELECT 'Quarterly or yearly Metrc report overdue'::text AS text,
-                    count(*) AS count,
-                    'elevated'::text AS text,
-                    'metrc_report_imports'::text AS text,
-                    'Waste, destruction, lab linkage and invoice numbers are report-only data. The gap grows until the file is uploaded.'::text AS text,
-                    'Export and upload when convenient. These are not month-end blockers.'::text AS text,
-                    string_agg(((((v_report_upload_due.title || ' ('::text) || v_report_upload_due.licence) || ', '::text) || v_report_upload_due.period_label) || ')'::text, ', '::text ORDER BY v_report_upload_due.upload_priority) AS string_agg
-                   FROM v_report_upload_due
-                  WHERE NOT v_report_upload_due.received AND v_report_upload_due.cadence !~~ 'Monthly%'::text AND CURRENT_DATE > v_report_upload_due.due_by
-                 HAVING count(*) > 0) h(text, count, text_1, text_2, text_3, text_4, string_agg)
-        UNION ALL
-         SELECT i.text,
-            i.count,
-            i.text_1 AS text,
-            i.text_2 AS text,
-            i.text_3 AS text,
-            i.text_4 AS text,
-            i.string_agg
-           FROM ( SELECT 'Gap in the report record'::text AS text,
-                    count(*) AS count,
-                    'elevated'::text AS text,
-                    'metrc_report_imports'::text AS text,
-                    'Measured from the data actually held, not from what somebody meant to export. A short export or a skipped month shows up here rather than passing unnoticed.'::text AS text,
-                    'Open Metrc Report Imports - it names the exact export and date range for each gap. Overlapping a previous upload is safe: a re-imported row corrects, it never duplicates.'::text AS text,
-                    string_agg((((v_report_coverage.title || ' ('::text) || v_report_coverage.required_for_licence) || ') '::text) ||
-                        CASE
-                            WHEN v_report_coverage.rows_held IS NULL THEN 'never uploaded'::text
-                            ELSE 'nothing since '::text || to_char(v_report_coverage.last_event::timestamp with time zone, 'DD Mon YYYY'::text)
-                        END, ', '::text ORDER BY v_report_coverage.upload_priority) AS string_agg
-                   FROM v_report_coverage
-                  WHERE v_report_coverage.coverage <> 'Covered'::text
-                 HAVING count(*) > 0) i(text, count, text_1, text_2, text_3, text_4, string_agg)) q
-  ORDER BY (
-        CASE severity
-            WHEN 'critical'::text THEN 1
-            ELSE 2
-        END), outstanding DESC;
-create or replace view public.v_alert_destroyed_unexplained as
- SELECT v.fingerprint,
-    v.severity,
-    v.area,
-    v.headline,
-    v.detail,
-    v.what_to_do,
-    v.drill,
-    v.pounds,
-    v.raised_for_date,
-    v.tag,
-    v.supplier,
-    v.destroyed_by,
-    v.destroy_reason,
-    v.destroy_note,
-    v.lab_failures,
-    td.coa_certificate_id,
-    td.coa_document_link,
-    td.manifest_no,
-    td.manifest_document_link,
-    td.apex_invoice_no,
-    td.apex_invoice_usd
-   FROM ( SELECT 'destroyed_unexplained:'::text || d.tag AS fingerprint,
-                CASE
-                    WHEN COALESCE(d.destroy_note, ''::text) = ''::text THEN 'critical'::text
-                    ELSE 'elevated'::text
-                END AS severity,
-            'Inventory'::text AS area,
-                CASE
-                    WHEN COALESCE(d.destroy_note, ''::text) = ''::text THEN ('DESTROYED WITH NO EXPLANATION — '::text || abs(d.lb_adjusted)) || ' lb'::text
-                    ELSE ('Destroyed with no failing lab test — '::text || abs(d.lb_adjusted)) || ' lb'::text
-                END AS headline,
-            concat_ws(' '::text, (((('Tag '::text || d.tag) || ' ('::text) || COALESCE(d.category, '?'::text)) || COALESCE(', '::text || d.strain, ''::text)) || ')'::text, ('from '::text || COALESCE(d.supplier, 'unknown supplier'::text)) || '.'::text, ((((abs(d.lb_adjusted) || ' lb destroyed '::text) || COALESCE(d.date_destroyed::text, '?'::text)) || ' by '::text) || COALESCE(d.destroyed_by, 'an unrecorded user'::text)) || '.'::text, ('Reason code: '::text || COALESCE(NULLIF(d.destroy_reason, ''::text), 'NONE GIVEN'::text)) || '.'::text, ('Note: '::text || COALESCE(NULLIF(d.destroy_note, ''::text), 'NONE GIVEN'::text)) || '.'::text,
-                CASE
-                    WHEN COALESCE(d.lab_failures, 0::bigint) = 0 THEN 'NO FAILING LAB TEST on record for this tag.'::text
-                    ELSE ''::text
-                END, ((('Received '::text || COALESCE(d.date_received::text, '?'::text)) || COALESCE(' on manifest '::text || d.inbound_manifest, ''::text)) ||
-                CASE
-                    WHEN d.age_on_arrival_days IS NOT NULL THEN (', already '::text || d.age_on_arrival_days) || ' days old on arrival'::text
-                    ELSE ''::text
-                END) || '.'::text) AS detail,
-            ('Confirm the reason with '::text || COALESCE(d.destroyed_by, 'the user who adjusted it'::text)) || ' today, record it against the tag, and decide whether a supplier claim is warranted.'::text AS what_to_do,
-            'third_party_forensic'::text AS drill,
-            round(abs(d.lb_adjusted), 1) AS pounds,
-            d.date_destroyed AS raised_for_date,
-            d.tag,
-            d.supplier,
-            d.destroyed_by,
-            d.destroy_reason,
-            d.destroy_note,
-            d.lab_failures
-           FROM v_third_party_forensic d
-          WHERE d.lb_adjusted <= '-1'::integer::numeric AND (COALESCE(d.destroy_note, ''::text) = ''::text OR COALESCE(d.lab_failures, 0::bigint) = 0)) v
-     LEFT JOIN mv_tag_documents td ON td.tag = v.tag;
-create or replace view public.v_awaiting_allocation as
- SELECT v.material_class,
-    v.origin,
-    v.item,
-    v.strain,
-    v.identifier,
-    v.quantity,
-    v.uom,
-    v.location,
-    v.stage,
-    v.days_in_system,
-    v.vendor,
-    v.cost,
-    v.allocation_status,
-    v.approved_by,
-    v.approval_state,
-    td.coa_certificate_id,
-    td.coa_document_link,
-    td.manifest_no,
-    td.manifest_document_link,
-    td.apex_invoice_no,
-    td.apex_invoice_usd
-   FROM ( SELECT v_production_tracker.material_class,
-            v_production_tracker.origin,
-            v_production_tracker.item,
-            v_production_tracker.strain,
-            v_production_tracker.identifier,
-            v_production_tracker.quantity,
-            v_production_tracker.uom,
-            v_production_tracker.location,
-            v_production_tracker.stage,
-            v_production_tracker.days_in_system,
-            v_production_tracker.vendor,
-            v_production_tracker.cost,
-            COALESCE(v_production_tracker.allocation_status, 'no request'::text) AS allocation_status,
-            v_production_tracker.approved_by,
-                CASE
-                    WHEN v_production_tracker.allocation_status = 'approved'::text THEN 'Approved by '::text || COALESCE(v_production_tracker.approved_by, 'an approver'::text)
-                    WHEN v_production_tracker.allocation_status = 'pending'::text THEN 'AWAITING APPROVAL'::text
-                    WHEN v_production_tracker.allocation_status = 'denied'::text THEN 'DENIED - decide what happens to it'::text
-                    ELSE 'NO ALLOCATION REQUESTED - this material has no approved destination'::text
-                END AS approval_state
-           FROM v_production_tracker
-          WHERE COALESCE(v_production_tracker.allocation_status, ''::text) <> 'approved'::text
-          ORDER BY v_production_tracker.days_in_system DESC NULLS LAST) v
-     LEFT JOIN mv_tag_documents td ON td.tag = v.identifier;
-create or replace view public.v_ceo_dashboard as
- SELECT 'Money at stake'::text AS line,
-    '$'::text || to_char(COALESCE(( SELECT sum(agent_findings.dollars) AS sum
-           FROM agent_findings
-          WHERE agent_findings.resolved_at IS NULL), 0::numeric), 'FM999,999,999'::text) AS headline,
-    ((( SELECT count(*) AS count
-           FROM agent_findings
-          WHERE agent_findings.resolved_at IS NULL AND agent_findings.dollars > 0::numeric))::text) || ' findings carry a dollar figure'::text AS detail,
-    1 AS sort
-UNION ALL
- SELECT 'Critical findings'::text AS line,
-    (( SELECT count(*) AS count
-           FROM agent_findings
-          WHERE agent_findings.resolved_at IS NULL AND agent_findings.severity = 'critical'::text))::text AS headline,
-    ( SELECT string_agg(DISTINCT agent_findings.agent, ', '::text) AS string_agg
-           FROM agent_findings
-          WHERE agent_findings.resolved_at IS NULL AND agent_findings.severity = 'critical'::text) AS detail,
-    2 AS sort
-UNION ALL
- SELECT 'Schedule violations'::text AS line,
-    (( SELECT count(*) AS count
-           FROM v_late_violations
-          WHERE v_late_violations.rule_verdict ~~ 'VIOLATION%'::text))::text AS headline,
-    ('Hard rule: a pull or dry may be early, never late. '::text || COALESCE((( SELECT count(*) AS count
-           FROM v_weekend_watch
-          WHERE v_weekend_watch.action ~~ 'PLAN A WEEKEND%'::text))::text, '0'::text)) || ' upcoming events land on a weekend and need a crew planned'::text AS detail,
-    3 AS sort
-UNION ALL
- SELECT 'Compliance exposure'::text AS line,
-    (( SELECT count(*) AS count
-           FROM v_custody_alerts))::text AS headline,
-    ((((( SELECT count(*) AS count
-           FROM metrc_packages
-          WHERE metrc_packages.lab_testing_state = 'TestFailed'::text AND (metrc_packages.source_state = ANY (ARRAY['active'::text, 'onhold'::text]))))::text) || ' failed-testing packages still in inventory · '::text) || ((( SELECT count(*) AS count
-           FROM metrc_transfers
-          WHERE metrc_transfers.direction = 'outgoing'::text AND (metrc_transfers.raw ->> 'ReceivedDateTime'::text) IS NULL AND metrc_transfers.created_on < (CURRENT_DATE - 3)))::text)) || ' manifests never confirmed received'::text AS detail,
-    4 AS sort
-UNION ALL
- SELECT 'Cost of waste to date'::text AS line,
-    '$'::text || to_char(COALESCE(( SELECT sum(v_cost_of_loss.cost_of_waste) AS sum
-           FROM v_cost_of_loss
-          WHERE v_cost_of_loss.scope_type = 'Room'::text), 0::numeric), 'FM999,999,999'::text) AS headline,
-    (('At $'::text || COALESCE(( SELECT cost_model.cost_per_pound
-           FROM cost_model
-          WHERE cost_model.scope = 'cultivation'::text
-          ORDER BY cost_model.effective_from DESC
-         LIMIT 1), 0::numeric)::text) || ' per pound. Worst room: '::text) || COALESCE(( SELECT v_cost_of_loss.scope
-           FROM v_cost_of_loss
-          WHERE v_cost_of_loss.scope_type = 'Room'::text
-          ORDER BY v_cost_of_loss.cost_of_waste DESC
-         LIMIT 1), 'none'::text) AS detail,
-    5 AS sort
-UNION ALL
- SELECT 'Material without approved allocation'::text AS line,
-    (( SELECT count(*) AS count
-           FROM v_awaiting_allocation))::text AS headline,
-    'Every material grown or bought needs an approved allocation before it moves'::text AS detail,
-    6 AS sort
-UNION ALL
- SELECT 'Capital sitting too long'::text AS line,
-    (( SELECT count(*) AS count
-           FROM v_inventory_aging
-          WHERE v_inventory_aging.severity = ANY (ARRAY['critical'::text, 'elevated'::text])))::text AS headline,
-    'Aging stock flagged critical or elevated'::text AS detail,
-    7 AS sort
-UNION ALL
- SELECT 'Custody proof'::text AS line,
-    COALESCE(( SELECT v_custody_compliance.location_known_pct::text || '%'::text
-           FROM v_custody_compliance
-          WHERE v_custody_compliance.category = 'ALL TRACKED INVENTORY'::text), '—'::text) AS headline,
-    COALESCE(( SELECT v_custody_compliance.compliance_status
-           FROM v_custody_compliance
-          WHERE v_custody_compliance.category = 'ALL TRACKED INVENTORY'::text), ''::text) AS detail,
-    8 AS sort
-  ORDER BY 4;
 create or replace view public.v_certificate_disagreement as
  SELECT v.package_tag,
     v.distinct_clients,
@@ -46431,87 +45458,6 @@ create or replace view public.v_certificate_disagreement as
           GROUP BY a.package_tag
          HAVING count(DISTINCT a.lic) > 1) v
      LEFT JOIN mv_tag_documents td ON td.tag = v.package_tag;
-create or replace view public.v_certificate_gap as
- SELECT v.package_tag,
-    v.item_name,
-    v.license,
-    v.lab_testing_state,
-    v.source_state,
-    v.pounds,
-    v.packaged_on,
-    v.days_held,
-    v.location,
-    v.platform_license,
-    v.inbound_manifest,
-    v.received_from,
-    v.lab_result_rows,
-    v.coa_document_id,
-    v.bucket,
-    v.what_to_do,
-    v.what_is_wrong,
-    td.coa_certificate_id,
-    td.coa_document_link,
-    td.manifest_no,
-    td.manifest_document_link,
-    td.apex_invoice_no,
-    td.apex_invoice_usd
-   FROM ( WITH p AS (
-                 SELECT DISTINCT ON (metrc_packages.tag) metrc_packages.tag,
-                    metrc_packages.item_name,
-                    metrc_packages.license,
-                    metrc_packages.uom,
-                    metrc_packages.quantity,
-                    metrc_packages.packaged_on,
-                    metrc_packages.lab_testing_state,
-                    metrc_packages.source_state,
-                    metrc_packages.raw
-                   FROM metrc_packages
-                  ORDER BY metrc_packages.tag, metrc_packages.license
-                )
-         SELECT p.tag AS package_tag,
-            "left"(p.item_name, 55) AS item_name,
-            p.license,
-            p.lab_testing_state,
-            p.source_state,
-                CASE
-                    WHEN f_is_weight(p.uom) THEN round(f_to_pounds(p.quantity, p.uom), 2)
-                    ELSE NULL::numeric
-                END AS pounds,
-            p.packaged_on,
-            CURRENT_DATE - p.packaged_on AS days_held,
-            p.raw ->> 'LocationName'::text AS location,
-            p.raw ->> 'ItemFromFacilityLicenseNumber'::text AS platform_license,
-            NULLIF(p.raw ->> 'ReceivedFromManifestNumber'::text, ''::text) AS inbound_manifest,
-            NULLIF(p.raw ->> 'ReceivedFromFacilityName'::text, ''::text) AS received_from,
-            ( SELECT count(*) AS count
-                   FROM metrc_lab_results l
-                  WHERE l.package_tag = p.tag) AS lab_result_rows,
-            ( SELECT max(l.document_file_id) AS max
-                   FROM metrc_lab_results l
-                  WHERE l.package_tag = p.tag AND l.document_file_id IS NOT NULL) AS coa_document_id,
-                CASE
-                    WHEN (EXISTS ( SELECT 1
-                       FROM metrc_lab_results l
-                      WHERE l.package_tag = p.tag AND l.document_file_id IS NOT NULL)) THEN 'A - COA ID HELD'::text
-                    WHEN (EXISTS ( SELECT 1
-                       FROM metrc_lab_results l
-                      WHERE l.package_tag = p.tag)) THEN 'B - NO DOCUMENT ID'::text
-                    ELSE 'C - NO LAB RESULTS'::text
-                END AS bucket,
-                CASE
-                    WHEN (EXISTS ( SELECT 1
-                       FROM metrc_lab_results l
-                      WHERE l.package_tag = p.tag AND l.document_file_id IS NOT NULL)) THEN 'Download it: GET /labtests/v2/labtestdocument/<coa_document_id>, store in metrc_documents, parse the Client Info block.'::text
-                    WHEN (EXISTS ( SELECT 1
-                       FROM metrc_lab_results l
-                      WHERE l.package_tag = p.tag)) THEN 'Re-pull the lab result for this package to capture LabTestResultDocumentFileId, then download.'::text
-                    ELSE 'lab_testing_state says tested but no results are synced. Re-pull this package''s lab results from Metrc before anything else.'::text
-                END AS what_to_do,
-            'THE ISSUE: this package carries a test result but no certificate is linked to it or to anything in its lineage. Ownership and potency cannot be independently confirmed, so nothing may be posted on it.'::text AS what_is_wrong
-           FROM p
-             LEFT JOIN v_certificate_resolved r ON r.package_tag = p.tag
-          WHERE r.package_tag IS NULL AND (p.lab_testing_state <> ALL (ARRAY['NotSubmitted'::text, 'NotRequired'::text, 'SubmittedForTesting'::text, 'TestingInProgress'::text]))) v
-     LEFT JOIN mv_tag_documents td ON td.tag = v.package_tag;
 create or replace view public.v_certificate_resolved as
  SELECT v.package_tag,
     v.found_at_depth,
@@ -46528,147 +45474,6 @@ create or replace view public.v_certificate_resolved as
     td.apex_invoice_usd
    FROM mv_certificate_resolved v
      LEFT JOIN mv_tag_documents td ON td.tag = v.package_tag;
-create or replace view public.v_cfo_inventory_audit as
- SELECT v_forensic_audit_panel.ord,
-    v_forensic_audit_panel.kind,
-    v_forensic_audit_panel.line,
-    v_forensic_audit_panel.lb,
-    v_forensic_audit_panel.usd,
-    v_forensic_audit_panel.basis,
-    v_forensic_audit_panel.drill
-   FROM v_forensic_audit_panel
-UNION ALL
- SELECT 900 AS ord,
-    'materiality'::text AS kind,
-    'Materiality applied to this audit (owner-set 11 Aug 2026)'::text AS line,
-    NULL::numeric AS lb,
-    ( SELECT conversion_factors.value
-           FROM conversion_factors
-          WHERE conversion_factors.key = 'materiality_inventory_usd'::text) AS usd,
-    'Inventory/COGS threshold $500; planning $1,000; trivial $100 (accumulates). NO threshold on diversion-class items: one untagged plant, unmanifested transfer or undocumented destruction is a finding regardless of value.'::text AS basis,
-    'conversion_factors'::text AS drill
-UNION ALL
- SELECT 901 AS ord,
-    'basis-warning'::text AS kind,
-    'Third-party cost basis'::text AS line,
-    ( SELECT round(sum(v_third_party_forensic.lb_received), 1) AS round
-           FROM v_third_party_forensic) AS lb,
-    901941 AS usd,
-    'Restated 11 Aug 2026: $901,941 declared transfer price (was $1,276,288 before the owner''s Eagle Eyes 3PL ruling was enforced; $374,346 was our own material returning from storage). DECLARED price, not evidence of cash paid — 1,691.2 lb has no price in Metrc at all. Floor if every untestable line excluded: $838,953.'::text AS basis,
-    'third_party_forensic'::text AS drill
-UNION ALL
- SELECT 902 AS ord,
-    'open-question'::text AS kind,
-    'Third-party on hand — under reconciliation'::text AS line,
-    ( SELECT round(sum(v_third_party_forensic.lb_on_hand), 1) AS round
-           FROM v_third_party_forensic) AS lb,
-    NULL::numeric AS usd,
-    'In-transit counts as ours until the destination accepts (owner ruling). REMAINING: view computes 72 lb less than Metrc raw quantities on the same 100 active tags — Agent V owns it; check third-party-on-hand-two-ways fires until settled. Do not certify this figure yet.'::text AS basis,
-    'third_party_forensic'::text AS drill;
-create or replace view public.v_cfo_spend_ageing as
- SELECT COALESCE(ageing_band, 'unbanded'::text) AS ageing_band,
-    count(*) AS tags,
-    round(sum(lb_on_hand), 1) AS lb_on_hand,
-    round(sum(declared_value_on_hand_usd), 0) AS declared_cash_tied_usd,
-    round(avg(days_unsold_still_here), 0) AS avg_days_unsold,
-    max(days_unsold_still_here) AS worst_days_unsold
-   FROM v_cfo_spend_by_tag
-  WHERE COALESCE(lb_on_hand, 0::numeric) > 0::numeric
-  GROUP BY (COALESCE(ageing_band, 'unbanded'::text));
-create or replace view public.v_cfo_spend_by_supplier as
- SELECT COALESCE(NULLIF(supplier, ''::text), 'unnamed supplier'::text) AS supplier,
-    supplier_licence,
-    count(*) AS tags,
-    min(date_received) AS first_bought,
-    max(date_received) AS last_bought,
-    round(sum(lb_received), 1) AS lb_bought,
-    round(sum(declared_usd), 0) AS declared_usd,
-    round(sum(declared_usd) / NULLIF(sum(lb_received) FILTER (WHERE cost_basis_status <> 'NONE'::text), 0::numeric), 0) AS declared_usd_per_lb,
-    round(sum(lb_on_hand), 1) AS lb_still_on_hand,
-    count(*) FILTER (WHERE cost_basis_status = 'NONE'::text) AS tags_no_figure
-   FROM v_cfo_spend_by_tag
-  GROUP BY (COALESCE(NULLIF(supplier, ''::text), 'unnamed supplier'::text)), supplier_licence;
-create or replace view public.v_cfo_spend_by_tag as
- WITH billed AS (
-         SELECT DISTINCT ON (t.manifest_number, (upper(btrim(t.package_tag)))) upper(btrim(t.package_tag)) AS tag,
-            NULLIF(t.receiver_wholesale_price, 0::numeric) AS declared_usd
-           FROM metrc_rpt_package_transfers t
-          WHERE t.package_tag IS NOT NULL
-          ORDER BY t.manifest_number, (upper(btrim(t.package_tag))), t.received_on
-        ), per_tag AS (
-         SELECT billed.tag,
-            sum(billed.declared_usd) AS declared_usd
-           FROM billed
-          GROUP BY billed.tag
-        )
- SELECT f.tag,
-    f.year_received,
-    f.date_received,
-    f.date_supplier_packaged,
-    f.age_on_arrival_days,
-    f.supplier,
-    f.supplier_licence,
-    f.category,
-    f.strain,
-    f.item,
-    f.inbound_manifest,
-    f.status,
-    f.current_room,
-    f.current_sublocation,
-    f.lb_received,
-    f.lb_on_hand,
-    f.lb_sold,
-    f.made_lb,
-    f.days_held_total,
-    f.days_unsold_still_here,
-    f.ageing_band,
-    f.lab_result,
-    f.lab_state,
-    f.date_tested,
-    f.date_destroyed,
-    f.destroy_reason,
-    f.destroy_note,
-    f.destroyed_by,
-    f.destroy_rows_verbatim,
-    f.exit_sold_usd,
-    f.metrc_link,
-    f.location_history,
-    p.declared_usd,
-        CASE
-            WHEN p.declared_usd IS NOT NULL AND f.lb_received > 0::numeric THEN round(p.declared_usd / f.lb_received, 2)
-            ELSE NULL::numeric
-        END AS declared_usd_per_lb,
-        CASE
-            WHEN p.declared_usd IS NOT NULL AND f.lb_received > 0::numeric THEN round(p.declared_usd / f.lb_received * COALESCE(f.lb_on_hand, 0::numeric), 2)
-            ELSE NULL::numeric
-        END AS declared_value_on_hand_usd,
-        CASE
-            WHEN p.declared_usd IS NULL THEN 'NONE'::text
-            ELSE 'DECLARED'::text
-        END AS cost_basis_status,
-    'Metrc manifest declaration, NOT an Apex invoice. Apex receiving-orders holds 0 rows, so no evidenced cost exists for any tag.'::text AS cost_basis_note
-   FROM v_third_party_forensic f
-     LEFT JOIN per_tag p ON p.tag = f.tag;
-create or replace view public.v_cfo_spend_by_year as
- SELECT year_received AS tax_year,
-    count(*) AS tags,
-    count(*) FILTER (WHERE cost_basis_status = 'NONE'::text) AS tags_no_figure,
-    round(sum(lb_received), 1) AS lb_bought,
-    round(sum(declared_usd), 0) AS declared_usd,
-    round(sum(declared_usd) / NULLIF(sum(lb_received) FILTER (WHERE cost_basis_status <> 'NONE'::text), 0::numeric), 0) AS declared_usd_per_lb,
-    round(sum(lb_on_hand), 1) AS lb_still_on_hand,
-    round(sum(declared_value_on_hand_usd), 0) AS declared_value_on_hand_usd,
-    round(sum(exit_sold_usd), 0) AS resold_usd
-   FROM v_cfo_spend_by_tag
-  GROUP BY year_received;
-create or replace view public.v_cfo_spend_coverage as
- SELECT count(*) AS tags,
-    count(*) FILTER (WHERE cost_basis_status = 'DECLARED'::text) AS tags_declared,
-    count(*) FILTER (WHERE cost_basis_status = 'EVIDENCED'::text) AS tags_evidenced,
-    count(*) FILTER (WHERE cost_basis_status = 'NONE'::text) AS tags_no_figure,
-    round(sum(declared_usd), 0) AS declared_total_usd,
-    round(sum(lb_received) FILTER (WHERE cost_basis_status = 'NONE'::text), 1) AS lb_with_no_figure
-   FROM v_cfo_spend_by_tag;
 create or replace view public.v_coa_register as
  SELECT v.license,
     v.package_tag,
@@ -46784,49 +45589,6 @@ create or replace view public.v_coa_unparsed as
           WHERE d.doc_type = 'coa'::text AND d.storage_path IS NOT NULL AND COALESCE(e.identity_parser_version, ''::text) <> '2026-08-10.identity-1'::text
           ORDER BY d.metrc_id) v
      LEFT JOIN mv_tag_documents td ON td.tag = v.package_tag;
-create or replace view public.v_concentrate_valuation as
- SELECT v.package_tag,
-    v.item_name,
-    v.strain,
-    v.pounds,
-    v.grams,
-    v.lab_state,
-    v.location,
-    v.sub_type,
-    v.dollars_per_gram,
-    v.value_at_cost,
-    v.rate_source,
-    td.coa_certificate_id,
-    td.coa_document_link,
-    td.manifest_no,
-    td.manifest_document_link,
-    td.apex_invoice_no,
-    td.apex_invoice_usd
-   FROM ( SELECT s.package_tag,
-            s.item_name,
-            s.strain,
-            s.pounds,
-            round(s.quantity) AS grams,
-            s.lab_state,
-            s.location,
-            COALESCE(m.sub_type, 'Crude, distillate or isolate'::text) AS sub_type,
-            COALESCE(m.dollars_per_gram, round((( SELECT v_cost_of_goods.badder_crude_per_pound
-                   FROM v_cost_of_goods)) / 453.592, 4)) AS dollars_per_gram,
-            round(s.pounds * f_concentrate_rate_per_lb(s.item_name)) AS value_at_cost,
-            COALESCE(m.source, 'No sheet rate for this type. Falls back to the crude cost per gram computed '::text || 'by the Production Cost Calculator from the owner''s worksheet.'::text) AS rate_source
-           FROM v_stock_packages s
-             LEFT JOIN LATERAL ( SELECT m2.id,
-                    m2.match_pattern,
-                    m2.sub_type,
-                    m2.dollars_per_gram,
-                    m2.source,
-                    m2.sort
-                   FROM concentrate_rate_map m2
-                  WHERE s.item_name ~~* m2.match_pattern
-                  ORDER BY m2.sort
-                 LIMIT 1) m ON true
-          WHERE s.stream = 'Concentrate'::text) v
-     LEFT JOIN mv_tag_documents td ON td.tag = v.package_tag;
 create or replace view public.v_countable_inventory as
  SELECT v.package_tag,
     v.item_name,
@@ -46869,944 +45631,6 @@ create or replace view public.v_countable_inventory as
                   ORDER BY d.tag, (COALESCE(d.quantity, 0::numeric) > 0::numeric AND NOT COALESCE((d.raw ->> 'IsFinished'::text)::boolean, false)) DESC, (d.source_state = 'active'::text) DESC NULLS LAST, d.synced_at DESC NULLS LAST) p
           WHERE NOT f_is_weight(p.uom) AND (p.source_state = ANY (ARRAY['active'::text, 'onhold'::text, 'intransit'::text])) AND COALESCE(p.quantity, 0::numeric) > 0::numeric) v
      LEFT JOIN mv_tag_documents td ON td.tag = v.package_tag;
-create or replace view public.v_custody_alerts as
- SELECT v.flag,
-    v.severity,
-    v.license,
-    v.identifier,
-    v.item,
-    v.location,
-    v.quantity,
-    v.uom,
-    v.detail,
-    v.reference_date,
-    td.coa_certificate_id,
-    td.coa_document_link,
-    td.manifest_no,
-    td.manifest_document_link,
-    td.apex_invoice_no,
-    td.apex_invoice_usd
-   FROM ( SELECT 'Lineage break'::text AS flag,
-            'critical'::text AS severity,
-            p.license,
-            p.tag AS identifier,
-            COALESCE(p.item_name, '(unnamed)'::text) AS item,
-            COALESCE(p.location, '(no location)'::text) AS location,
-            COALESCE(p.quantity, 0::numeric) AS quantity,
-            COALESCE(p.uom, 'ea'::text) AS uom,
-            'Package has no source harvest recorded - the seed to sale chain cannot be proven for this package'::text AS detail,
-            p.packaged_on AS reference_date
-           FROM metrc_packages p
-          WHERE (p.source_state = ANY (ARRAY['active'::text, 'onhold'::text, 'intransit'::text])) AND COALESCE(NULLIF(p.raw ->> 'SourceHarvestNames'::text, ''::text), NULLIF(p.raw ->> 'SourcePackageLabels'::text, ''::text)) IS NULL
-        UNION ALL
-         SELECT 'On hold in Metrc'::text AS flag,
-            'critical'::text AS severity,
-            p.license,
-            p.tag AS identifier,
-            COALESCE(p.item_name, '(unnamed)'::text) AS item,
-            COALESCE(p.location, '(no location)'::text) AS location,
-            COALESCE(p.quantity, 0::numeric) AS quantity,
-            COALESCE(p.uom, 'ea'::text) AS uom,
-            'Package is on hold in Metrc - resolve the hold or record the disposition'::text AS detail,
-            p.packaged_on AS reference_date
-           FROM metrc_packages p
-          WHERE ((p.raw ->> 'IsOnHold'::text)::boolean) AND (p.source_state = ANY (ARRAY['active'::text, 'onhold'::text]))
-        UNION ALL
-         SELECT 'Failed testing unresolved'::text AS flag,
-            'critical'::text AS severity,
-            p.license,
-            p.tag AS identifier,
-            COALESCE(p.item_name, '(unnamed)'::text) AS item,
-            COALESCE(p.location, '(no location)'::text) AS location,
-            COALESCE(p.quantity, 0::numeric) AS quantity,
-            COALESCE(p.uom, 'ea'::text) AS uom,
-            'Failed a laboratory test and is still in inventory - remediate or destroy and record it'::text AS detail,
-            p.packaged_on AS reference_date
-           FROM metrc_packages p
-          WHERE p.lab_testing_state = 'TestFailed'::text AND (p.source_state = ANY (ARRAY['active'::text, 'onhold'::text]))
-        UNION ALL
-         SELECT 'Unexplained quantity loss'::text AS flag,
-            'elevated'::text AS severity,
-            p.license,
-            p.tag AS identifier,
-            COALESCE(p.item_name, '(unnamed)'::text) AS item,
-            COALESCE(p.location, '(no location)'::text) AS location,
-            round(COALESCE((p.raw ->> 'InitialQuantity'::text)::numeric, 0::numeric) - COALESCE(p.quantity, 0::numeric), 2) AS quantity,
-            COALESCE(p.uom, 'ea'::text) AS uom,
-            ((('Quantity dropped from '::text || (p.raw ->> 'InitialQuantity'::text)) || ' to '::text) || COALESCE(p.quantity, 0::numeric)) || ' with no adjustment reason recorded'::text AS detail,
-            p.packaged_on AS reference_date
-           FROM metrc_packages p
-          WHERE (COALESCE((p.raw ->> 'InitialQuantity'::text)::numeric, 0::numeric) - COALESCE(p.quantity, 0::numeric)) > 0.01 AND (p.source_state = ANY (ARRAY['active'::text, 'onhold'::text]))
-        UNION ALL
-         SELECT 'Transfer not received'::text AS flag,
-            'elevated'::text AS severity,
-            p.license,
-            p.tag AS identifier,
-            COALESCE(p.item_name, '(unnamed)'::text) AS item,
-            COALESCE(p.location, '(manifested)'::text) AS location,
-            COALESCE(p.quantity, 0::numeric) AS quantity,
-            COALESCE(p.uom, 'ea'::text) AS uom,
-            ('In transit for '::text || (CURRENT_DATE - p.packaged_on)) || ' days - confirm the receiving facility accepted it'::text AS detail,
-            p.packaged_on AS reference_date
-           FROM metrc_packages p
-          WHERE p.source_state = 'intransit'::text AND p.packaged_on < (CURRENT_DATE - 3)
-        UNION ALL
-         SELECT 'Under investigation'::text AS flag,
-            'critical'::text AS severity,
-            h.license,
-            h.name AS identifier,
-            COALESCE(h.raw ->> 'SourceStrainNames'::text, h.name) AS item,
-            COALESCE(h.raw ->> 'DryingLocationName'::text, '(no room)'::text) AS location,
-            COALESCE((h.raw ->> 'CurrentWeight'::text)::numeric, 0::numeric) AS quantity,
-            COALESCE(h.raw ->> 'UnitOfWeightName'::text, 'g'::text) AS uom,
-            'Harvest is flagged under investigation or recall in Metrc - do not move or sell until cleared'::text AS detail,
-            h.harvest_start AS reference_date
-           FROM metrc_harvests h
-          WHERE ((h.raw ->> 'IsOnInvestigation'::text)::boolean) OR ((h.raw ->> 'IsOnInvestigationHold'::text)::boolean) OR ((h.raw ->> 'IsOnInvestigationRecall'::text)::boolean)
-        UNION ALL
-         SELECT 'No location recorded'::text AS flag,
-            'critical'::text AS severity,
-            l.license,
-            l.identifier,
-            l.item,
-            l.location,
-            l.quantity,
-            l.uom,
-            'This item has no recorded location - custody cannot be proven to the Cannabis Control Commission'::text AS detail,
-            l.since_date AS reference_date
-           FROM v_inventory_locator l
-          WHERE l.location IS NULL OR (l.location = ANY (ARRAY['(no location)'::text, '(no room recorded)'::text]))
-        UNION ALL
-         SELECT 'Metrc data stale'::text AS flag,
-            'elevated'::text AS severity,
-            'BOTH'::text AS license,
-            'sync'::text AS identifier,
-            'Metrc mirror'::text AS item,
-            'System'::text AS location,
-            round(EXTRACT(epoch FROM now() - max(r.started_at)) / 3600::numeric, 1) AS quantity,
-            'hours since last sync'::text AS uom,
-            'No successful Metrc sync in over 2 hours - the custody picture may be out of date'::text AS detail,
-            CURRENT_DATE AS reference_date
-           FROM metrc_sync_runs r
-         HAVING max(r.started_at) < (now() - '02:00:00'::interval)) v
-     LEFT JOIN mv_tag_documents td ON td.tag = v.identifier;
-create or replace view public.v_custody_compliance as
- SELECT v_inventory_locator.category,
-    count(*)::numeric AS items,
-    count(*) FILTER (WHERE v_inventory_locator.location IS NULL OR (v_inventory_locator.location = ANY (ARRAY['(no location)'::text, '(no room recorded)'::text, '(manifested)'::text])))::numeric AS items_without_location,
-    count(*) FILTER (WHERE v_inventory_locator.identifier IS NULL OR v_inventory_locator.identifier = ''::text)::numeric AS items_without_identifier,
-    count(*) FILTER (WHERE v_inventory_locator.since_date IS NULL)::numeric AS items_without_date,
-    round(100.0 * count(*) FILTER (WHERE v_inventory_locator.location IS NOT NULL AND (v_inventory_locator.location <> ALL (ARRAY['(no location)'::text, '(no room recorded)'::text])))::numeric / NULLIF(count(*), 0)::numeric, 1) AS location_known_pct,
-    round(sum(v_inventory_locator.quantity) FILTER (WHERE v_inventory_locator.location IS NULL OR (v_inventory_locator.location = ANY (ARRAY['(no location)'::text, '(no room recorded)'::text]))), 1) AS quantity_unlocated,
-        CASE
-            WHEN count(*) FILTER (WHERE v_inventory_locator.location IS NULL OR (v_inventory_locator.location = ANY (ARRAY['(no location)'::text, '(no room recorded)'::text]))) = 0 THEN 'Every item accounted for'::text
-            ELSE count(*) FILTER (WHERE v_inventory_locator.location IS NULL OR (v_inventory_locator.location = ANY (ARRAY['(no location)'::text, '(no room recorded)'::text]))) || ' item(s) have no recorded location - resolve in Metrc'::text
-        END AS compliance_status
-   FROM v_inventory_locator
-  GROUP BY v_inventory_locator.category
-UNION ALL
- SELECT 'ALL TRACKED INVENTORY'::text AS category,
-    count(*)::numeric AS items,
-    count(*) FILTER (WHERE v_inventory_locator.location IS NULL OR (v_inventory_locator.location = ANY (ARRAY['(no location)'::text, '(no room recorded)'::text, '(manifested)'::text])))::numeric AS items_without_location,
-    count(*) FILTER (WHERE v_inventory_locator.identifier IS NULL OR v_inventory_locator.identifier = ''::text)::numeric AS items_without_identifier,
-    count(*) FILTER (WHERE v_inventory_locator.since_date IS NULL)::numeric AS items_without_date,
-    round(100.0 * count(*) FILTER (WHERE v_inventory_locator.location IS NOT NULL AND (v_inventory_locator.location <> ALL (ARRAY['(no location)'::text, '(no room recorded)'::text])))::numeric / NULLIF(count(*), 0)::numeric, 1) AS location_known_pct,
-    round(sum(v_inventory_locator.quantity) FILTER (WHERE v_inventory_locator.location IS NULL OR (v_inventory_locator.location = ANY (ARRAY['(no location)'::text, '(no room recorded)'::text]))), 1) AS quantity_unlocated,
-        CASE
-            WHEN count(*) FILTER (WHERE v_inventory_locator.location IS NULL OR (v_inventory_locator.location = ANY (ARRAY['(no location)'::text, '(no room recorded)'::text]))) = 0 THEN 'FULL CUSTODY - every tracked item has a known location'::text
-            ELSE ('CUSTODY GAP - '::text || count(*) FILTER (WHERE v_inventory_locator.location IS NULL OR (v_inventory_locator.location = ANY (ARRAY['(no location)'::text, '(no room recorded)'::text])))) || ' item(s) unlocated'::text
-        END AS compliance_status
-   FROM v_inventory_locator;
-create or replace view public.v_department_board as
- SELECT department,
-    items_needing_action,
-    open_alerts,
-    live_records,
-    what_is_wrong,
-    next_deadline,
-    next_deadline AS next_deadline_date
-   FROM ( SELECT 'Cultivation'::text AS department,
-            (( SELECT count(*) AS count
-                   FROM v_harvest_lifecycle
-                  WHERE v_harvest_lifecycle.verdict = ANY (ARRAY['BLOCKING THE ROOM'::text, 'MISSING WEIGHTS'::text, 'HARVESTED LATE'::text])))::numeric AS items_needing_action,
-            (( SELECT count(*) AS count
-                   FROM v_harvest_alerts))::numeric AS open_alerts,
-            (( SELECT count(*) AS count
-                   FROM metrc_plants
-                  WHERE metrc_plants.source_state = ANY (ARRAY['vegetative'::text, 'flowering'::text, 'onhold'::text])))::numeric AS live_records,
-            ( SELECT string_agg(DISTINCT v_harvest_lifecycle.verdict, ' · '::text) AS string_agg
-                   FROM v_harvest_lifecycle
-                  WHERE v_harvest_lifecycle.verdict <> ALL (ARRAY['Complete'::text, 'On track'::text])) AS what_is_wrong,
-            ( SELECT min(harvest_pulls.harvest_date) AS min
-                   FROM harvest_pulls
-                  WHERE harvest_pulls.harvest_date >= CURRENT_DATE) AS next_deadline
-        UNION ALL
-         SELECT 'Post-harvest (dry, cure, trim)'::text AS department,
-            (( SELECT count(*) AS count
-                   FROM v_harvest_stage_map
-                  WHERE v_harvest_stage_map.stage ~~ 'Drying%'::text AND v_harvest_stage_map.days_since_takedown > 14))::numeric AS items_needing_action,
-            (( SELECT count(*) AS count
-                   FROM v_harvest_stage_map
-                  WHERE v_harvest_stage_map.stage <> ALL (ARRAY['Finished'::text, 'Archived'::text])))::numeric AS open_alerts,
-            (( SELECT count(*) AS count
-                   FROM v_harvest_stage_map
-                  WHERE v_harvest_stage_map.stage <> ALL (ARRAY['Finished'::text, 'Archived'::text])))::numeric AS live_records,
-            ( SELECT string_agg(DISTINCT v_harvest_stage_map.stage, ' · '::text) AS string_agg
-                   FROM v_harvest_stage_map
-                  WHERE v_harvest_stage_map.stage <> ALL (ARRAY['Finished'::text, 'Archived'::text])) AS what_is_wrong,
-            ( SELECT min(v_harvest_stage_map.harvest_start + 14) AS min
-                   FROM v_harvest_stage_map
-                  WHERE v_harvest_stage_map.stage ~~ 'Drying%'::text) AS next_deadline
-        UNION ALL
-         SELECT 'Manufacturing'::text AS department,
-            (( SELECT count(*) AS count
-                   FROM v_turnaround_watch
-                  WHERE v_turnaround_watch.turnaround_violation))::numeric AS items_needing_action,
-            (( SELECT count(*) AS count
-                   FROM v_turnaround_watch
-                  WHERE v_turnaround_watch.no_policy_set))::numeric AS open_alerts,
-            (( SELECT count(*) AS count
-                   FROM pipeline_runs
-                  WHERE pipeline_runs.completed_at IS NULL))::numeric AS live_records,
-            'Open production runs and turnaround policy gaps'::text AS what_is_wrong,
-            NULL::date AS next_deadline
-        UNION ALL
-         SELECT 'Quality & compliance'::text AS department,
-            (( SELECT count(*) AS count
-                   FROM metrc_packages
-                  WHERE metrc_packages.lab_testing_state = 'TestFailed'::text AND (metrc_packages.source_state = ANY (ARRAY['active'::text, 'onhold'::text]))))::numeric AS items_needing_action,
-            (( SELECT count(*) AS count
-                   FROM v_custody_alerts))::numeric AS open_alerts,
-            (( SELECT count(*) AS count
-                   FROM metrc_packages
-                  WHERE metrc_packages.lab_testing_state = ANY (ARRAY['SubmittedForTesting'::text, 'TestingInProgress'::text])))::numeric AS live_records,
-            'Failed testing on hand and custody red flags'::text AS what_is_wrong,
-            NULL::date AS next_deadline
-        UNION ALL
-         SELECT 'Inventory & fulfilment'::text AS department,
-            (( SELECT count(*) AS count
-                   FROM v_inventory_aging
-                  WHERE v_inventory_aging.severity = 'critical'::text))::numeric AS items_needing_action,
-            (( SELECT count(*) AS count
-                   FROM v_inventory_aging
-                  WHERE v_inventory_aging.severity IS NOT NULL))::numeric AS open_alerts,
-            (( SELECT count(*) AS count
-                   FROM v_inventory_locator))::numeric AS live_records,
-            'Aging stock and unconfirmed manifests'::text AS what_is_wrong,
-            NULL::date AS next_deadline
-        UNION ALL
-         SELECT 'Human resources'::text AS department,
-            (( SELECT count(*) AS count
-                   FROM employees
-                  WHERE employees.terminated_on IS NULL AND employees.primary_role_id IS NULL))::numeric AS items_needing_action,
-            0::numeric AS open_alerts,
-            (( SELECT count(*) AS count
-                   FROM employees
-                  WHERE employees.terminated_on IS NULL))::numeric AS live_records,
-            'Roster records missing a position'::text AS what_is_wrong,
-            NULL::date AS next_deadline) q;
-create or replace view public.v_department_kpis_extra as
- SELECT 'Human Resources'::text AS dept,
-    1 AS ord,
-    'People on the roster'::text AS kpi,
-    (( SELECT count(*) AS count
-           FROM employees))::numeric AS value,
-    'people'::text AS unit,
-    'good'::text AS tone,
-    'people'::text AS drill,
-    ''::text AS sub
-UNION ALL
- SELECT 'Human Resources'::text AS dept,
-    2 AS ord,
-    'Shifts scheduled this week'::text AS kpi,
-    (( SELECT count(*) AS count
-           FROM employee_schedules
-          WHERE employee_schedules.work_date >= CURRENT_DATE AND employee_schedules.work_date <= (CURRENT_DATE + 7)))::numeric AS value,
-    'shifts'::text AS unit,
-    'good'::text AS tone,
-    'emp_schedule'::text AS drill,
-    'next seven days'::text AS sub
-UNION ALL
- SELECT 'Human Resources'::text AS dept,
-    3 AS ord,
-    'Departments'::text AS kpi,
-    (( SELECT count(*) AS count
-           FROM departments))::numeric AS value,
-    'departments'::text AS unit,
-    'good'::text AS tone,
-    'people'::text AS drill,
-    ''::text AS sub
-UNION ALL
- SELECT 'Human Resources'::text AS dept,
-    4 AS ord,
-    'Stock the payroll is carried against'::text AS kpi,
-    COALESCE(( SELECT v_tower_inventory.value
-           FROM v_tower_inventory
-          WHERE v_tower_inventory.metric = 'onhand_total_dry_equiv_lb'::text), 0::numeric) AS value,
-    'lb'::text AS unit,
-    'good'::text AS tone,
-    'plan_payroll'::text AS drill,
-    ''::text AS sub
-UNION ALL
- SELECT 'Infused Pre-Rolls & Flower'::text AS dept,
-    1 AS ord,
-    'Pre-rolls on hand'::text AS kpi,
-    COALESCE(( SELECT round(sum(v_stock_on_hand.pounds), 1) AS round
-           FROM v_stock_on_hand
-          WHERE v_stock_on_hand.stream = 'Pre-rolls'::text), 0::numeric) AS value,
-    'lb'::text AS unit,
-    'good'::text AS tone,
-    'stock_summary'::text AS drill,
-    ''::text AS sub
-UNION ALL
- SELECT 'Infused Pre-Rolls & Flower'::text AS dept,
-    2 AS ord,
-    'Shake and trim available'::text AS kpi,
-    COALESCE(( SELECT v_tower_inventory.value
-           FROM v_tower_inventory
-          WHERE v_tower_inventory.metric = 'onhand_shake_trim_lb'::text), 0::numeric) AS value,
-    'lb'::text AS unit,
-    'good'::text AS tone,
-    'stock_summary'::text AS drill,
-    'the input for pre-rolls'::text AS sub
-UNION ALL
- SELECT 'Infused Pre-Rolls & Flower'::text AS dept,
-    3 AS ord,
-    'Work orders open'::text AS kpi,
-    (( SELECT count(*) AS count
-           FROM work_orders
-          WHERE work_orders.status = ANY (ARRAY['ready'::wo_status, 'released'::wo_status])))::numeric AS value,
-    'orders'::text AS unit,
-    'warn'::text AS tone,
-    'work_orders'::text AS drill,
-    ''::text AS sub
-UNION ALL
- SELECT 'Infused Pre-Rolls & Flower'::text AS dept,
-    4 AS ord,
-    'Pre-rolls never tested'::text AS kpi,
-    COALESCE(( SELECT round(sum(v_stock_on_hand.pounds), 1) AS round
-           FROM v_stock_on_hand
-          WHERE v_stock_on_hand.stream = 'Pre-rolls'::text AND v_stock_on_hand.lab_state = 'NotSubmitted'::text), 0::numeric) AS value,
-    'lb'::text AS unit,
-    'bad'::text AS tone,
-    'lab_results'::text AS drill,
-    'cannot be sold'::text AS sub
-UNION ALL
- SELECT 'Settings'::text AS dept,
-    1 AS ord,
-    'Pages in the platform'::text AS kpi,
-    (( SELECT count(*) AS count
-           FROM nav_registry
-          WHERE nav_registry.enabled))::numeric AS value,
-    'pages'::text AS unit,
-    'good'::text AS tone,
-    'menu_manager'::text AS drill,
-    ''::text AS sub
-UNION ALL
- SELECT 'Settings'::text AS dept,
-    2 AS ord,
-    'Business rules not yet set'::text AS kpi,
-    (( SELECT count(*) AS count
-           FROM open_questions
-          WHERE open_questions.status = 'open'::text AND (open_questions.area = ANY (ARRAY['Measurement'::text, 'Inventory control'::text]))))::numeric AS value,
-    'rules'::text AS unit,
-    'warn'::text AS tone,
-    'open_questions'::text AS drill,
-    'defaults still in place'::text AS sub
-UNION ALL
- SELECT 'Settings'::text AS dept,
-    3 AS ord,
-    'Suppliers not classified'::text AS kpi,
-    (( SELECT count(*) AS count
-           FROM suppliers
-          WHERE suppliers.bought_as = 'not yet set'::text))::numeric AS value,
-    'suppliers'::text AS unit,
-    'warn'::text AS tone,
-    'suppliers'::text AS drill,
-    ''::text AS sub
-UNION ALL
- SELECT 'Settings'::text AS dept,
-    4 AS ord,
-    'Users with AI access'::text AS kpi,
-    (( SELECT count(*) AS count
-           FROM ai_user_access
-          WHERE ai_user_access.enabled))::numeric AS value,
-    'users'::text AS unit,
-    'good'::text AS tone,
-    'ai_access_status'::text AS drill,
-    ''::text AS sub;
-create or replace view public.v_dept_dash_audit_tiles as
- WITH yr AS (
-         SELECT make_date(EXTRACT(year FROM CURRENT_DATE)::integer, 1, 1) AS d0,
-            CURRENT_DATE AS d1
-        ), prod AS (
-         SELECT COALESCE(sum(f_to_pounds(COALESCE((p.raw ->> 'CreatedQuantity'::text)::numeric, 0::numeric), COALESCE(NULLIF(p.raw ->> 'UnitOfMeasureName'::text, ''::text), 'Grams'::text))) FILTER (WHERE ((p.raw ->> 'PackagedDate'::text)::date) >= (( SELECT yr.d0
-                   FROM yr)) AND ((p.raw ->> 'PackagedDate'::text)::date) <= (( SELECT yr.d1
-                   FROM yr))), 0::numeric) AS lb_ytd,
-            COALESCE(sum(f_to_pounds(COALESCE((p.raw ->> 'CreatedQuantity'::text)::numeric, 0::numeric), COALESCE(NULLIF(p.raw ->> 'UnitOfMeasureName'::text, ''::text), 'Grams'::text))), 0::numeric) AS lb_all
-           FROM metrc_packages p
-          WHERE NULLIF(p.raw ->> 'SourceHarvestNames'::text, ''::text) IS NOT NULL AND NULLIF(p.raw ->> 'SourcePackageLabels'::text, ''::text) IS NULL AND f_is_weight(COALESCE(NULLIF(p.raw ->> 'UnitOfMeasureName'::text, ''::text), 'Grams'::text))
-        ), xf AS (
-         SELECT COALESCE(sum(v_transfer_line.pounds) FILTER (WHERE v_transfer_line.direction = 'INBOUND'::text), 0::numeric) AS in_all,
-            COALESCE(sum(v_transfer_line.pounds) FILTER (WHERE v_transfer_line.direction = 'OUTBOUND'::text), 0::numeric) AS out_all,
-            COALESCE(sum(v_transfer_line.pounds) FILTER (WHERE v_transfer_line.direction = 'OUTBOUND'::text AND v_transfer_line.received_on >= (( SELECT yr.d0
-                   FROM yr)) AND v_transfer_line.received_on <= (( SELECT yr.d1
-                   FROM yr))), 0::numeric) AS out_ytd
-           FROM v_transfer_line
-          WHERE v_transfer_line.voided <> 'True'::text
-        ), adj AS (
-         SELECT COALESCE(sum(f_to_pounds(metrc_rpt_adjustments.quantity, metrc_rpt_adjustments.uom)), 0::numeric) AS lb
-           FROM metrc_rpt_adjustments
-          WHERE metrc_rpt_adjustments.quantity IS NOT NULL AND f_is_weight(metrc_rpt_adjustments.uom)
-        ), onhand AS (
-         SELECT COALESCE(sum(f_to_pounds(COALESCE((metrc_packages.raw ->> 'Quantity'::text)::numeric, 0::numeric), COALESCE(NULLIF(metrc_packages.raw ->> 'UnitOfMeasureName'::text, ''::text), 'Grams'::text))), 0::numeric) AS lb
-           FROM metrc_packages
-          WHERE NOT COALESCE((metrc_packages.raw ->> 'IsFinished'::text)::boolean, false) AND f_is_weight(COALESCE(NULLIF(metrc_packages.raw ->> 'UnitOfMeasureName'::text, ''::text), 'Grams'::text))
-        ), pos AS (
-         SELECT COALESCE(sum(v_forensic_inventory.pounds) FILTER (WHERE NOT v_forensic_inventory.is_ours), 0::numeric) AS third_party_lb,
-            COALESCE(sum(v_forensic_inventory.pounds) FILTER (WHERE v_forensic_inventory.stage = 'DRIED - AWAITING TRIM'::text), 0::numeric) AS awaiting_trim_lb,
-            COALESCE(sum(v_forensic_inventory.pounds) FILTER (WHERE v_forensic_inventory.stage = 'DRIED BULK FLOWER'::text), 0::numeric) AS bulk_lb,
-            COALESCE(sum(v_forensic_inventory.plant_count) FILTER (WHERE v_forensic_inventory.unit_type = 'PLANT'::text), 0::numeric) AS plants
-           FROM v_forensic_inventory
-          WHERE v_forensic_inventory.stage_group <> 'SOLD'::text
-        ), noinv AS (
-         SELECT count(*) AS n,
-            COALESCE(round(sum(v_forensic_sold_by_tag.pounds), 1), 0::numeric) AS lb
-           FROM v_forensic_sold_by_tag
-          WHERE v_forensic_sold_by_tag.invoice_match = 'NO APEX INVOICE'::text AND v_forensic_sold_by_tag.counts_as_sale AND v_forensic_sold_by_tag.shipped_on >= (( SELECT yr.d0
-                   FROM yr)) AND v_forensic_sold_by_tag.shipped_on <= (( SELECT yr.d1
-                   FROM yr))
-        )
- SELECT 'Command'::text AS department,
-    9 AS ord,
-    'Inventory variance, unexplained'::text AS kpi,
-    round((( SELECT onhand.lb
-           FROM onhand)) - ((( SELECT prod.lb_all
-           FROM prod)) + (( SELECT xf.in_all
-           FROM xf)) - (( SELECT xf.out_all
-           FROM xf)) + (( SELECT adj.lb
-           FROM adj))), 1) AS value,
-    'lb'::text AS unit,
-    'bad'::text AS tone,
-    'Counted on hand less expected, since inception, from five independent sources. Negative is manufacturing yield loss, which Metrc never tags.'::text AS context,
-    'forensic_reconciliation'::text AS drill,
-    now() AS computed_at
-UNION ALL
- SELECT 'Command'::text AS department,
-    10 AS ord,
-    'Sold and shipped, year to date'::text AS kpi,
-    round(( SELECT xf.out_ytd
-           FROM xf), 1) AS value,
-    'lb'::text AS unit,
-    'info'::text AS tone,
-    'Outbound manifests only. Movement between our own two licences is excluded — it is not a sale.'::text AS context,
-    'forensic_sold_by_tag'::text AS drill,
-    now() AS computed_at
-UNION ALL
- SELECT 'Command'::text AS department,
-    11 AS ord,
-    'Shipped with no Apex invoice'::text AS kpi,
-    ( SELECT noinv.lb
-           FROM noinv) AS value,
-    'lb'::text AS unit,
-    'bad'::text AS tone,
-    ( SELECT noinv.n || ' outbound lines this year carry no matching Apex invoice. Apex is the record of truth for sales.'::text
-           FROM noinv) AS context,
-    'forensic_sold_by_tag'::text AS drill,
-    now() AS computed_at
-UNION ALL
- SELECT 'Command'::text AS department,
-    12 AS ord,
-    'Third party material on hand'::text AS kpi,
-    round(( SELECT pos.third_party_lb
-           FROM pos), 1) AS value,
-    'lb'::text AS unit,
-    'warn'::text AS tone,
-    'Not grown or processed by us. Always reported separately from our own.'::text AS context,
-    'forensic_position'::text AS drill,
-    now() AS computed_at
-UNION ALL
- SELECT 'Cultivation'::text AS department,
-    7 AS ord,
-    'Plants growing now'::text AS kpi,
-    ( SELECT pos.plants
-           FROM pos) AS value,
-    ''::text AS unit,
-    'info'::text AS tone,
-    'Live plants across the flower rooms and mother stock. Counted, never weighed.'::text AS context,
-    'forensic_room_census'::text AS drill,
-    now() AS computed_at
-UNION ALL
- SELECT 'Cultivation'::text AS department,
-    8 AS ord,
-    'Produced from our harvests, year to date'::text AS kpi,
-    round(( SELECT prod.lb_ytd
-           FROM prod), 1) AS value,
-    'lb'::text AS unit,
-    'info'::text AS tone,
-    'Packages made directly off a harvest, dated on the package''s own PackagedDate.'::text AS context,
-    'forensic_reconciliation'::text AS drill,
-    now() AS computed_at
-UNION ALL
- SELECT 'Cultivation'::text AS department,
-    9 AS ord,
-    'Dried, awaiting trim'::text AS kpi,
-    round(( SELECT pos.awaiting_trim_lb
-           FROM pos), 1) AS value,
-    'lb'::text AS unit,
-    'warn'::text AS tone,
-    'In the pre-trim rooms now — dried and not yet through trim.'::text AS context,
-    'forensic_room_census'::text AS drill,
-    now() AS computed_at
-UNION ALL
- SELECT 'Cultivation'::text AS department,
-    10 AS ord,
-    'Dried bulk flower on hand'::text AS kpi,
-    round(( SELECT pos.bulk_lb
-           FROM pos), 1) AS value,
-    'lb'::text AS unit,
-    'info'::text AS tone,
-    'Cure vault and fulfillment vault.'::text AS context,
-    'forensic_position'::text AS drill,
-    now() AS computed_at;
-create or replace view public.v_dept_dash_cfo as
- SELECT 'Finance'::text AS department,
-    10 AS ord,
-    mv_department_dashboard.kpi,
-    mv_department_dashboard.value,
-    mv_department_dashboard.unit,
-    mv_department_dashboard.tone,
-    mv_department_dashboard.context,
-    mv_department_dashboard.drill,
-    mv_department_dashboard.computed_at
-   FROM mv_department_dashboard
-  WHERE mv_department_dashboard.department = 'Command'::text AND (mv_department_dashboard.kpi = ANY (ARRAY['Value of stock on hand'::text, 'Untested stock value'::text, 'Failed testing value'::text, 'Genuine loss to date'::text]))
-UNION ALL
- SELECT 'Finance'::text AS department,
-    20 + v_dept_dash_third_party.ord AS ord,
-    v_dept_dash_third_party.kpi,
-    v_dept_dash_third_party.value,
-    v_dept_dash_third_party.unit,
-    v_dept_dash_third_party.tone,
-    v_dept_dash_third_party.context,
-    v_dept_dash_third_party.drill,
-    v_dept_dash_third_party.computed_at
-   FROM v_dept_dash_third_party
-  WHERE v_dept_dash_third_party.kpi = ANY (ARRAY['Third-party spend, all time'::text, 'Third-party material on hand'::text, 'Third-party UNEXPLAINED'::text])
-UNION ALL
- SELECT 'Finance'::text AS department,
-    40 AS ord,
-    'Revenue — TWO ANSWERS'::text AS kpi,
-    ( SELECT round(abs(r.value_a - r.value_b)) AS round
-           FROM ( SELECT verification_runs.value_a,
-                    verification_runs.value_b
-                   FROM verification_runs
-                  WHERE verification_runs.check_key = 'revenue-two-reports'::text
-                  ORDER BY verification_runs.ran_at DESC
-                 LIMIT 1) r) AS value,
-    '$'::text AS unit,
-    'bad'::text AS tone,
-    ( SELECT format('Two reports disagree: $%s vs $%s. DO NOT QUOTE REVENUE until settled — the disagreement is larger than planning materiality. Check: revenue-two-reports.'::text, to_char(r.value_a, 'FM9,999,999'::text), to_char(r.value_b, 'FM9,999,999'::text)) AS format
-           FROM ( SELECT verification_runs.value_a,
-                    verification_runs.value_b
-                   FROM verification_runs
-                  WHERE verification_runs.check_key = 'revenue-two-reports'::text
-                  ORDER BY verification_runs.ran_at DESC
-                 LIMIT 1) r) AS context,
-    'verification_runs'::text AS drill,
-    now() AS computed_at
-UNION ALL
- SELECT 'Finance'::text AS department,
-    41 AS ord,
-    'Examination readiness'::text AS kpi,
-    ( SELECT count(*) FILTER (WHERE examination_standard.where_it_lives IS NOT NULL) AS count
-           FROM examination_standard) AS value,
-    'of '::text || ((( SELECT count(*) AS count
-           FROM examination_standard))::text) AS unit,
-        CASE
-            WHEN (( SELECT count(*) FILTER (WHERE examination_standard.where_it_lives IS NULL) AS count
-               FROM examination_standard)) > 0 THEN 'bad'::text
-            ELSE 'good'::text
-        END AS tone,
-    ( SELECT format('%s of %s IRS/CCC examiner tests producible. CANNOT PRODUCE: %s — worst is the year-end physical inventory count, the first thing an examiner asks on a 280E file.'::text, count(*) FILTER (WHERE examination_standard.where_it_lives IS NOT NULL), count(*), count(*) FILTER (WHERE examination_standard.where_it_lives IS NULL)) AS format
-           FROM examination_standard) AS context,
-    'examination_readiness'::text AS drill,
-    now() AS computed_at
-UNION ALL
- SELECT 'Finance'::text AS department,
-    42 AS ord,
-    'COGS substantiation'::text AS kpi,
-    (( SELECT count(*) AS count
-           FROM time_entries)) + (( SELECT count(*) AS count
-           FROM material_purchases)) AS value,
-    'records'::text AS unit,
-    'bad'::text AS tone,
-    ((('Direct labour records: '::text || ((( SELECT count(*) AS count
-           FROM time_entries))::text)) || '. Purchase records: '::text) || ((( SELECT count(*) AS count
-           FROM material_purchases))::text)) || '. Under IRC 280E only substantiated COGS survives — zero records means zero substantiated deductions today. cost_classes covers labour only; materials have no classifier yet.'::text AS context,
-    'cost_inputs'::text AS drill,
-    now() AS computed_at
-UNION ALL
- SELECT 'Finance'::text AS department,
-    43 AS ord,
-    'Materiality — owner set'::text AS kpi,
-    ( SELECT conversion_factors.value
-           FROM conversion_factors
-          WHERE conversion_factors.key = 'materiality_planning_usd'::text) AS value,
-    '$'::text AS unit,
-    'info'::text AS tone,
-    ( SELECT format('Planning $%s · inventory/COGS $%s · trivial $%s. OPERATIONAL thresholds (investigate everything); NOT reporting materiality for a return — that needs the signing CPA. No floor on diversion-class findings.'::text, to_char(( SELECT conversion_factors.value
-                   FROM conversion_factors
-                  WHERE conversion_factors.key = 'materiality_planning_usd'::text), 'FM9,999'::text), to_char(( SELECT conversion_factors.value
-                   FROM conversion_factors
-                  WHERE conversion_factors.key = 'materiality_inventory_usd'::text), 'FM9,999'::text), to_char(( SELECT conversion_factors.value
-                   FROM conversion_factors
-                  WHERE conversion_factors.key = 'materiality_trivial_usd'::text), 'FM9,999'::text)) AS format) AS context,
-    'conversion_factors'::text AS drill,
-    now() AS computed_at
-UNION ALL
- SELECT 'Finance'::text AS department,
-    44 AS ord,
-    'Findings carrying money'::text AS kpi,
-    ( SELECT count(*) AS count
-           FROM v_findings
-          WHERE v_findings.resolved_at IS NULL AND v_findings.dollars > 0::numeric AND NOT COALESCE(v_findings.is_duplicate, false)) AS value,
-    'findings'::text AS unit,
-    'bad'::text AS tone,
-    'Open findings with a dollar figure attached. TOTAL DELIBERATELY NOT SHOWN: check findings-money-deduplicated is DISAGREEING, so the same dollars appear in more than one finding and any sum is overstated by an unknown amount. Work v_finding_causes — 6 causes carry 83% of the queue.'::text AS context,
-    'finding_causes'::text AS drill,
-    now() AS computed_at
-UNION ALL
- SELECT 'Finance'::text AS department,
-    45 AS ord,
-    'Checks in disagreement'::text AS kpi,
-    ( SELECT count(*) AS count
-           FROM ( SELECT DISTINCT ON (verification_runs.check_key) verification_runs.verdict
-                   FROM verification_runs
-                  ORDER BY verification_runs.check_key, verification_runs.ran_at DESC) t
-          WHERE upper(t.verdict) <> 'AGREE'::text) AS value,
-    'of '::text || ((( SELECT count(*) AS count
-           FROM verification_checks
-          WHERE verification_checks.enabled))::text) AS unit,
-        CASE
-            WHEN (( SELECT count(*) AS count
-               FROM ( SELECT DISTINCT ON (verification_runs.check_key) verification_runs.verdict
-                       FROM verification_runs
-                      ORDER BY verification_runs.check_key, verification_runs.ran_at DESC) t
-              WHERE upper(t.verdict) <> 'AGREE'::text)) > 0 THEN 'bad'::text
-            ELSE 'good'::text
-        END AS tone,
-    'Hourly verification suite. Every disagreement is a named, owned finding within the hour. A figure whose check disagrees must not be quoted externally.'::text AS context,
-    'verification_runs'::text AS drill,
-    now() AS computed_at;
-create or replace view public.v_dept_dash_supplement as
- SELECT 'Human Resources'::text AS department,
-    60 AS ord,
-    'People on the roster'::text AS kpi,
-    ( SELECT count(*)::numeric AS count
-           FROM employees) AS value,
-    ''::text AS unit,
-    'info'::text AS tone,
-    ( SELECT count(*) FILTER (WHERE employees.status::text ~~* 'act%'::text)::text || ' active. Roster is the HR module''s data export; HR pages belong to their own designer.'::text
-           FROM employees) AS context,
-    'employees'::text AS drill,
-    now() AS computed_at
-UNION ALL
- SELECT 'Human Resources'::text AS department,
-    61 AS ord,
-    'Platform logins'::text AS kpi,
-    ( SELECT count(*)::numeric AS count
-           FROM app_users) AS value,
-    ''::text AS unit,
-    'info'::text AS tone,
-    'People who can sign in. One role tier (owner) exists so far - the role model widens deliberately, never by hack.'::text AS context,
-    'app_users'::text AS drill,
-    now() AS computed_at
-UNION ALL
- SELECT 'Human Resources'::text AS department,
-    62 AS ord,
-    'Timesheets recorded, ever'::text AS kpi,
-    ( SELECT count(*)::numeric AS count
-           FROM time_entries) AS value,
-    ''::text AS unit,
-    'bad'::text AS tone,
-    'ZERO means zero substantiated direct labour under IRC 471 - the single largest gap in the 280E position. Every day unrecorded is deduction lost.'::text AS context,
-    'time_entries'::text AS drill,
-    now() AS computed_at
-UNION ALL
- SELECT 'Sales & Cash'::text AS department,
-    70 AS ord,
-    'Revenue — TWO ANSWERS'::text AS kpi,
-    ( SELECT round(abs(r.value_a - r.value_b)) AS round
-           FROM ( SELECT verification_runs.value_a,
-                    verification_runs.value_b
-                   FROM verification_runs
-                  WHERE verification_runs.check_key = 'revenue-two-reports'::text
-                  ORDER BY verification_runs.ran_at DESC
-                 LIMIT 1) r) AS value,
-    '$'::text AS unit,
-    'bad'::text AS tone,
-    ( SELECT format('$%s vs $%s. DO NOT QUOTE REVENUE until the two reports reconcile - the gap exceeds planning materiality.'::text, to_char(r.value_a, 'FM9,999,999'::text), to_char(r.value_b, 'FM9,999,999'::text)) AS format
-           FROM ( SELECT verification_runs.value_a,
-                    verification_runs.value_b
-                   FROM verification_runs
-                  WHERE verification_runs.check_key = 'revenue-two-reports'::text
-                  ORDER BY verification_runs.ran_at DESC
-                 LIMIT 1) r) AS context,
-    'verification_runs'::text AS drill,
-    now() AS computed_at
-UNION ALL
- SELECT 'Sales & Cash'::text AS department,
-    71 AS ord,
-    'Going out today'::text AS kpi,
-    ( SELECT count(*)::numeric AS count
-           FROM metrc_transfers
-          WHERE COALESCE(NULLIF(metrc_transfers.raw ->> 'EstimatedDepartureDateTime'::text, ''::text), NULLIF(metrc_transfers.raw ->> 'CreatedDateTime'::text, ''::text))::date = CURRENT_DATE) AS value,
-    'manifests'::text AS unit,
-    'info'::text AS tone,
-    ( SELECT ('Pickups and deliveries dated today on the Metrc manifest record. '::text || count(*) FILTER (WHERE COALESCE(NULLIF(metrc_transfers.raw ->> 'EstimatedArrivalDateTime'::text, ''::text), ''::text) <> ''::text AND ((metrc_transfers.raw ->> 'EstimatedArrivalDateTime'::text)::date) = CURRENT_DATE)::text) || ' due to ARRIVE today.'::text
-           FROM metrc_transfers
-          WHERE COALESCE(NULLIF(metrc_transfers.raw ->> 'EstimatedDepartureDateTime'::text, ''::text), NULLIF(metrc_transfers.raw ->> 'CreatedDateTime'::text, ''::text))::date = CURRENT_DATE) AS context,
-    'transfers_today'::text AS drill,
-    now() AS computed_at
-UNION ALL
- SELECT 'Sales & Cash'::text AS department,
-    72 AS ord,
-    'Sale lines on the record'::text AS kpi,
-    ( SELECT count(*)::numeric AS count
-           FROM v_forensic_sold_by_tag) AS value,
-    'lines'::text AS unit,
-    'info'::text AS tone,
-    'Outbound sold-by-tag lines. CAUTION per check_defect CD-2: 152 Eagle Eyes custody lines still counted as sales until the counterparty ruling is wired into this view too.'::text AS context,
-    'forensic_sold_by_tag'::text AS drill,
-    now() AS computed_at
-UNION ALL
- SELECT 'Sales & Cash'::text AS department,
-    73 AS ord,
-    'Shipped with no Apex invoice'::text AS kpi,
-    ( SELECT count(*)::numeric AS count
-           FROM v_forensic_sold_by_tag
-          WHERE v_forensic_sold_by_tag.invoice_match = 'NO APEX INVOICE'::text) AS value,
-    'lines'::text AS unit,
-    'bad'::text AS tone,
-    'Every line that left with no matching order. 152 are the Eagle Eyes storage legs (no invoice because no sale); the remainder are real exceptions.'::text AS context,
-    'forensic_sold_by_tag'::text AS drill,
-    now() AS computed_at
-UNION ALL
- SELECT 'Inventory'::text AS department,
-    80 AS ord,
-    'On a truck right now'::text AS kpi,
-    ( SELECT round(sum(f_to_pounds(metrc_packages.quantity, metrc_packages.uom)), 1) AS round
-           FROM ( SELECT DISTINCT ON (d.tag) d.id,
-                    d.license,
-                    d.tag,
-                    d.item_name,
-                    d.quantity,
-                    d.uom,
-                    d.location,
-                    d.packaged_on,
-                    d.lab_testing_state,
-                    d.finished,
-                    d.raw,
-                    d.synced_at,
-                    d.source_state,
-                    d.provenance,
-                    d.report_as_of
-                   FROM metrc_packages d
-                  ORDER BY d.tag, (COALESCE(d.quantity, 0::numeric) > 0::numeric AND NOT COALESCE((d.raw ->> 'IsFinished'::text)::boolean, false)) DESC, (d.source_state = 'active'::text) DESC NULLS LAST, d.synced_at DESC NULLS LAST) metrc_packages
-          WHERE metrc_packages.source_state = 'intransit'::text AND NOT COALESCE(metrc_packages.finished, false)) AS value,
-    'lb'::text AS unit,
-    'watch'::text AS tone,
-    ( SELECT count(*)::text || ' packages on active transfers, ours until the destination accepts (owner ruling). Stuck transfers live in this number - the oldest is months past any truck ride.'::text
-           FROM ( SELECT DISTINCT ON (d.tag) d.id,
-                    d.license,
-                    d.tag,
-                    d.item_name,
-                    d.quantity,
-                    d.uom,
-                    d.location,
-                    d.packaged_on,
-                    d.lab_testing_state,
-                    d.finished,
-                    d.raw,
-                    d.synced_at,
-                    d.source_state,
-                    d.provenance,
-                    d.report_as_of
-                   FROM metrc_packages d
-                  ORDER BY d.tag, (COALESCE(d.quantity, 0::numeric) > 0::numeric AND NOT COALESCE((d.raw ->> 'IsFinished'::text)::boolean, false)) DESC, (d.source_state = 'active'::text) DESC NULLS LAST, d.synced_at DESC NULLS LAST) metrc_packages
-          WHERE metrc_packages.source_state = 'intransit'::text AND NOT COALESCE(metrc_packages.finished, false)) AS context,
-    'in_transit'::text AS drill,
-    now() AS computed_at
-UNION ALL
- SELECT 'Inventory'::text AS department,
-    81 AS ord,
-    'Cross-licence tags'::text AS kpi,
-    ( SELECT count(*)::numeric AS count
-           FROM v_cross_license_tags) AS value,
-    'tags'::text AS unit,
-    'watch'::text AS tone,
-    'Tags holding active material under BOTH licences at once. Legitimate moves, but each silently shifts pounds between per-tag and per-licence answers - 7 of these carried the entire 72 lb disagreement.'::text AS context,
-    'cross_license_tags'::text AS drill,
-    now() AS computed_at;
-create or replace view public.v_dept_dash_third_party as
- WITH f AS (
-         SELECT v_third_party_forensic.tag,
-            v_third_party_forensic.item,
-            v_third_party_forensic.category,
-            v_third_party_forensic.strain,
-            v_third_party_forensic.supplier,
-            v_third_party_forensic.supplier_licence,
-            v_third_party_forensic.our_licence,
-            v_third_party_forensic.inbound_manifest,
-            v_third_party_forensic.delivered_by,
-            v_third_party_forensic.date_received,
-            v_third_party_forensic.date_supplier_packaged,
-            v_third_party_forensic.lb_received,
-            v_third_party_forensic.age_on_arrival_days,
-            v_third_party_forensic.current_room,
-            v_third_party_forensic.current_sublocation,
-            v_third_party_forensic.lb_on_hand,
-            v_third_party_forensic.date_processed,
-            v_third_party_forensic.children,
-            v_third_party_forensic.made_into,
-            v_third_party_forensic.made_lb,
-            v_third_party_forensic.child_tags,
-            v_third_party_forensic.date_sold,
-            v_third_party_forensic.outbound_manifest,
-            v_third_party_forensic.sold_to,
-            v_third_party_forensic.lb_sold,
-            v_third_party_forensic.lb_adjusted,
-            v_third_party_forensic.destroy_reason,
-            v_third_party_forensic.destroy_note,
-            v_third_party_forensic.destroyed_by,
-            v_third_party_forensic.date_destroyed,
-            v_third_party_forensic.days_held_total,
-            v_third_party_forensic.days_to_process,
-            v_third_party_forensic.days_to_sell,
-            v_third_party_forensic.days_unsold_still_here,
-            v_third_party_forensic.ageing_band,
-            v_third_party_forensic.date_tested,
-            v_third_party_forensic.lab_tests,
-            v_third_party_forensic.lab_failures,
-            v_third_party_forensic.total_thc_pct,
-            v_third_party_forensic.moisture_pct,
-            v_third_party_forensic.lab_name,
-            v_third_party_forensic.failed_tests,
-            v_third_party_forensic.lab_result,
-            v_third_party_forensic.status,
-            v_third_party_forensic.metrc_link,
-            v_third_party_forensic.metrc_package_id,
-            v_third_party_forensic.manifest_document,
-            v_third_party_forensic.destroy_rows_verbatim,
-            v_third_party_forensic.year_received,
-            v_third_party_forensic.lab_state,
-            v_third_party_forensic.initial_lab_state,
-            v_third_party_forensic.lab_state_date,
-            v_third_party_forensic.contains_remediated,
-            v_third_party_forensic.remediation_date,
-            v_third_party_forensic.contains_decontaminated,
-            v_third_party_forensic.decontamination_date,
-            v_third_party_forensic.date_failed,
-            v_third_party_forensic.exit_child_tags,
-            v_third_party_forensic.exit_manifest,
-            v_third_party_forensic.exit_sold_to,
-            v_third_party_forensic.exit_shipped_on,
-            v_third_party_forensic.exit_lb,
-            v_third_party_forensic.exit_sold_usd,
-            v_third_party_forensic.exit_sold_as,
-            v_third_party_forensic.location_history
-           FROM v_third_party_forensic
-        ), paid AS (
-         SELECT round(sum(NULLIF(t.source_row ->> 'Receiver Wholesale Price'::text, ''::text)::numeric), 0) AS usd,
-            round(sum(COALESCE(
-                CASE
-                    WHEN (t.source_row ->> 'Weight Ship''d'::text) ~ '^[0-9.]+$'::text THEN (t.source_row ->> 'Weight Ship''d'::text)::numeric
-                    ELSE NULL::numeric
-                END, t.shipped_lb)), 1) AS lb
-           FROM metrc_rpt_package_transfers t
-          WHERE f_is_ours(COALESCE(NULLIF(t.source_row ->> 'Dest. Lic.'::text, ''::text), t.destination_licence)) AND NOT f_is_ours(COALESCE(NULLIF(t.source_row ->> 'Origin Lic.'::text, ''::text), t.licence)) AND COALESCE(t.source_row ->> 'Voided'::text, 'False'::text) <> 'True'::text AND NOT (EXISTS ( SELECT 1
-                   FROM counterparty_role cr
-                  WHERE cr.counts_as_purchase = false AND cr.facility_name = (t.source_row ->> 'Origin Facility'::text)))
-        )
- SELECT 'Command'::text AS department,
-    20 AS ord,
-    'Third-party material on hand'::text AS kpi,
-    ( SELECT round(sum(f.lb_on_hand), 1) AS round
-           FROM f) AS value,
-    'lb'::text AS unit,
-    'info'::text AS tone,
-    ( SELECT ((('Across '::text || count(*)) || ' tags from '::text) || count(DISTINCT f.supplier)) || ' suppliers. Purchased material only — never our own.'::text
-           FROM f
-          WHERE f.lb_on_hand > 0::numeric) AS context,
-    'third_party_forensic'::text AS drill,
-    now() AS computed_at
-UNION ALL
- SELECT 'Command'::text AS department,
-    21 AS ord,
-    'Third-party spend, all time'::text AS kpi,
-    ( SELECT paid.usd
-           FROM paid) AS value,
-    '$'::text AS unit,
-    'info'::text AS tone,
-    ( SELECT (((('For '::text || paid.lb) || ' lb at $'::text) || round(paid.usd / NULLIF(paid.lb, 0::numeric))) || '/lb. Taken from the '::text) || 'manifests'' own Receiver Wholesale Price — a DECLARED transfer price, not proof of cash paid. Excludes 3PL custody movements per counterparty_role. Floor if every untestable line is excluded too: 838,953 USD.'::text
-           FROM paid) AS context,
-    'third_party_forensic'::text AS drill,
-    now() AS computed_at
-UNION ALL
- SELECT 'Command'::text AS department,
-    22 AS ord,
-    'Third-party UNEXPLAINED'::text AS kpi,
-    ( SELECT round(sum(f.lb_received), 1) AS round
-           FROM f
-          WHERE f.status ~~ 'UNEXPLAINED%'::text) AS value,
-    'lb'::text AS unit,
-    'bad'::text AS tone,
-    ( SELECT ((count(*) || ' tags where the record stops with no sale, no processing and no '::text) || 'destruction. Every one has a manifest and a COA — the gap is a missing Metrc entry, '::text) || 'not missing paperwork.'::text
-           FROM f
-          WHERE f.status ~~ 'UNEXPLAINED%'::text) AS context,
-    'third_party_forensic'::text AS drill,
-    now() AS computed_at
-UNION ALL
- SELECT 'Command'::text AS department,
-    23 AS ord,
-    'Third-party cash tied up over 90 days'::text AS kpi,
-    ( SELECT round(sum(f.lb_on_hand), 1) AS round
-           FROM f
-          WHERE f.ageing_band = ANY (ARRAY['90-180 days'::text, 'OVER 180 DAYS — CASH TIED UP'::text])) AS value,
-    'lb'::text AS unit,
-    'warn'::text AS tone,
-    ( SELECT ((COALESCE(count(*), 0::bigint) || ' tags held more than 90 days since delivery. Oldest: '::text) || COALESCE(max(f.days_unsold_still_here)::text, '0'::text)) || ' days.'::text
-           FROM f
-          WHERE f.ageing_band = ANY (ARRAY['90-180 days'::text, 'OVER 180 DAYS — CASH TIED UP'::text])) AS context,
-    'third_party_forensic'::text AS drill,
-    now() AS computed_at
-UNION ALL
- SELECT 'Command'::text AS department,
-    24 AS ord,
-    'Failed material — remediated and processed on'::text AS kpi,
-    ( SELECT round(sum(f.lb_received), 1) AS round
-           FROM f
-          WHERE f.lab_failures > 0) AS value,
-    'lb'::text AS unit,
-    'info'::text AS tone,
-    ( SELECT ((count(*) || ' third-party tags failed a lab test — almost always yeast and mould. '::text) || 'This is NOT a compliance issue: failed material is remediated and processed on. '::text) || 'The parent tag keeps TestFailed; follow the child.'::text
-           FROM f
-          WHERE f.lab_failures > 0) AS context,
-    'third_party_forensic'::text AS drill,
-    now() AS computed_at
-UNION ALL
- SELECT 'Command'::text AS department,
-    25 AS ord,
-    'Third-party resold at markup'::text AS kpi,
-    ( SELECT round(sum(COALESCE(f.exit_lb, 0::numeric) + COALESCE(f.lb_sold, 0::numeric)), 1) AS round
-           FROM f) AS value,
-    'lb'::text AS unit,
-    'ok'::text AS tone,
-    ( SELECT (('Sold on for $'::text || round(sum(COALESCE(f.exit_sold_usd, 0::numeric)))) || '. Traced through the child tag on the outbound manifest — the parent alone '::text) || 'looks like a dead end.'::text
-           FROM f) AS context,
-    'third_party_forensic'::text AS drill,
-    now() AS computed_at;
 create or replace view public.v_document_library as
  SELECT v.doc_type,
     v.document,
@@ -47909,120 +45733,6 @@ create or replace view public.v_document_library as
                   ORDER BY r.result_date DESC NULLS LAST
                  LIMIT 1) lr ON true) v
      LEFT JOIN mv_tag_documents td ON td.tag = v.package_tag;
-create or replace view public.v_document_package_link as
- SELECT v.document_id,
-    v.metrc_id,
-    v.doc_type,
-    v.package_tag,
-    v.manifest_number,
-    v.storage_path,
-    v.link_basis,
-    v.link_depth,
-    td.coa_certificate_id,
-    td.coa_document_link,
-    td.manifest_no,
-    td.manifest_document_link,
-    td.apex_invoice_no,
-    td.apex_invoice_usd
-   FROM ( SELECT d.id AS document_id,
-            d.metrc_id,
-            d.doc_type,
-            d.package_tag,
-            d.manifest_number,
-            d.storage_path,
-            'DIRECT'::text AS link_basis,
-            0 AS link_depth
-           FROM metrc_documents d
-          WHERE d.doc_type = 'coa'::text AND d.package_tag IS NOT NULL
-        UNION ALL
-         SELECT d.id AS document_id,
-            d.metrc_id,
-            d.doc_type,
-            r.package_tag,
-            d.manifest_number,
-            d.storage_path,
-            'INHERITED from '::text || r.certificate_on_package AS link_basis,
-            r.found_at_depth AS link_depth
-           FROM v_certificate_resolved r
-             JOIN metrc_documents d ON d.doc_type = 'coa'::text AND d.package_tag = r.certificate_on_package
-          WHERE r.found_at_depth > 0
-        UNION ALL
-         SELECT d.id AS document_id,
-            d.metrc_id,
-            d.doc_type,
-            r.package_tag,
-            d.manifest_number,
-            d.storage_path,
-                CASE
-                    WHEN r.found_at_depth = 0 THEN 'LAB PAIRING'::text
-                    ELSE 'LAB PAIRING via '::text || r.certificate_on_package
-                END AS link_basis,
-            r.found_at_depth AS link_depth
-           FROM v_certificate_resolved r
-             JOIN metrc_lab_results l ON l.package_tag = r.certificate_on_package AND l.document_file_id IS NOT NULL
-             JOIN metrc_documents d ON d.doc_type = 'coa'::text AND d.metrc_id = l.document_file_id
-          WHERE NOT (EXISTS ( SELECT 1
-                   FROM metrc_documents d2
-                  WHERE d2.doc_type = 'coa'::text AND d2.package_tag = r.certificate_on_package))
-        UNION ALL
-         SELECT d.id AS document_id,
-            d.metrc_id,
-            d.doc_type,
-            t.package_tag,
-            d.manifest_number,
-            d.storage_path,
-            'ON MANIFEST'::text AS link_basis,
-            0 AS link_depth
-           FROM metrc_documents d
-             JOIN metrc_rpt_package_transfers t ON t.manifest_number = d.manifest_number
-          WHERE d.doc_type = 'manifest'::text
-        UNION ALL
-         SELECT d.id AS document_id,
-            d.metrc_id,
-            d.doc_type,
-            p.tag AS package_tag,
-            d.manifest_number,
-            d.storage_path,
-            'INBOUND on package record'::text AS link_basis,
-            0 AS link_depth
-           FROM metrc_documents d
-             JOIN ( SELECT DISTINCT ON (metrc_packages.tag) metrc_packages.tag,
-                    metrc_packages.raw
-                   FROM metrc_packages
-                  ORDER BY metrc_packages.tag, metrc_packages.license) p ON NULLIF(p.raw ->> 'ReceivedFromManifestNumber'::text, ''::text) = d.manifest_number
-          WHERE d.doc_type = 'manifest'::text) v
-     LEFT JOIN mv_tag_documents td ON td.tag = v.package_tag;
-create or replace view public.v_failed_by_maker as
- SELECT made_by,
-    made_by_license,
-    ours_or_theirs,
-    failed_packages,
-    failed_lb,
-    earliest_created,
-    latest_created,
-    earliest_harvest,
-    latest_harvest,
-    strains,
-    categories,
-    value_at_cost,
-    earliest_created AS earliest_created_date
-   FROM ( SELECT v_failed_provenance.made_by,
-            v_failed_provenance.made_by_license,
-            v_failed_provenance.ours_or_theirs,
-            count(*) AS failed_packages,
-            round(sum(v_failed_provenance.pounds), 1) AS failed_lb,
-            min(v_failed_provenance.package_created_on) AS earliest_created,
-            max(v_failed_provenance.package_created_on) AS latest_created,
-            min(v_failed_provenance.harvest_cut_on) AS earliest_harvest,
-            max(v_failed_provenance.harvest_cut_on) AS latest_harvest,
-            string_agg(DISTINCT v_failed_provenance.strain, ', '::text) AS strains,
-            string_agg(DISTINCT v_failed_provenance.category, ', '::text) AS categories,
-            round(sum(v_failed_provenance.pounds) * (( SELECT conversion_factors.value
-                   FROM conversion_factors
-                  WHERE conversion_factors.key = 'target_cost_per_lb'::text))) AS value_at_cost
-           FROM v_failed_provenance
-          GROUP BY v_failed_provenance.made_by, v_failed_provenance.made_by_license, v_failed_provenance.ours_or_theirs
-          ORDER BY (round(sum(v_failed_provenance.pounds), 1)) DESC) q;
 create or replace view public.v_failed_provenance as
  SELECT v.package_tag,
     v.item_name,
@@ -48131,216 +45841,6 @@ create or replace view public.v_failed_provenance as
              LEFT JOIN metrc_harvests h ON h.name = split_part(COALESCE(p.source_harvest, ''::text), ','::text, 1)
           ORDER BY p.quantity DESC NULLS LAST) v
      LEFT JOIN mv_tag_documents td ON td.tag = v.package_tag;
-create or replace view public.v_figure_disagreement as
- SELECT min(kpi) AS kpi,
-    count(*) AS published_on_surfaces,
-    string_agg(DISTINCT department, ' | '::text) AS where_it_appears,
-    count(DISTINCT value) AS distinct_values,
-    min(value) AS lowest,
-    max(value) AS highest,
-    round(max(value) - min(value), 3) AS spread,
-    string_agg(DISTINCT value::text, ' vs '::text) AS values_shown,
-        CASE
-            WHEN count(DISTINCT value) > 1 THEN 'DISAGREES — the same figure shows different totals'::text
-            WHEN count(DISTINCT kpi) > 1 THEN ('agrees, but published under '::text || count(DISTINCT kpi)) || ' different labels'::text
-            ELSE 'agrees'::text
-        END AS verdict,
-    f_metric_slug(kpi) AS figure_slug,
-    count(DISTINCT kpi) AS distinct_labels_used,
-    string_agg(DISTINCT kpi, '  ||  '::text) AS the_labels
-   FROM mv_department_dashboard
-  WHERE value IS NOT NULL
-  GROUP BY (f_metric_slug(kpi))
- HAVING count(*) > 1
-  ORDER BY (count(DISTINCT value)) DESC, (count(DISTINCT kpi)) DESC;
-create or replace view public.v_forensic_audit_panel as
- SELECT ord,
-    kind,
-    line,
-    lb,
-    usd,
-    basis,
-    drill
-   FROM mv_forensic_audit_panel
-  ORDER BY ord;
-create or replace view public.v_forensic_audit_panel_live as
- WITH prod AS (
-         SELECT COALESCE(sum(f_to_pounds(COALESCE((metrc_packages.raw ->> 'CreatedQuantity'::text)::numeric, 0::numeric), COALESCE(NULLIF(metrc_packages.raw ->> 'UnitOfMeasureName'::text, ''::text), 'Grams'::text))), 0::numeric) AS lb
-           FROM metrc_packages
-          WHERE NULLIF(metrc_packages.raw ->> 'SourceHarvestNames'::text, ''::text) IS NOT NULL AND NULLIF(metrc_packages.raw ->> 'SourcePackageLabels'::text, ''::text) IS NULL AND f_is_weight(COALESCE(NULLIF(metrc_packages.raw ->> 'UnitOfMeasureName'::text, ''::text), 'Grams'::text))
-        ), xf AS (
-         SELECT COALESCE(sum(v_transfer_line.pounds) FILTER (WHERE v_transfer_line.direction = 'INBOUND'::text), 0::numeric) AS in_lb,
-            COALESCE(sum(v_transfer_line.pounds) FILTER (WHERE v_transfer_line.direction = 'OUTBOUND'::text), 0::numeric) AS out_lb,
-            COALESCE(sum(v_transfer_line.pounds) FILTER (WHERE v_transfer_line.direction = 'INTERNAL'::text), 0::numeric) AS internal_lb
-           FROM v_transfer_line
-          WHERE v_transfer_line.voided <> 'True'::text
-        ), adj AS (
-         SELECT COALESCE(sum(f_to_pounds(metrc_rpt_adjustments.quantity, metrc_rpt_adjustments.uom)), 0::numeric) AS lb
-           FROM metrc_rpt_adjustments
-          WHERE metrc_rpt_adjustments.quantity IS NOT NULL AND f_is_weight(metrc_rpt_adjustments.uom)
-        ), oh AS (
-         SELECT COALESCE(sum(f_to_pounds(COALESCE((metrc_packages.raw ->> 'Quantity'::text)::numeric, 0::numeric), COALESCE(NULLIF(metrc_packages.raw ->> 'UnitOfMeasureName'::text, ''::text), 'Grams'::text))), 0::numeric) AS lb
-           FROM metrc_packages
-          WHERE NOT COALESCE((metrc_packages.raw ->> 'IsFinished'::text)::boolean, false) AND f_is_weight(COALESCE(NULLIF(metrc_packages.raw ->> 'UnitOfMeasureName'::text, ''::text), 'Grams'::text))
-        ), tp AS (
-         SELECT COALESCE(sum(v_third_party_forensic.lb_on_hand), 0::numeric) AS on_hand,
-            COALESCE(sum(v_third_party_forensic.lb_received) FILTER (WHERE v_third_party_forensic.status ~~ 'UNEXPLAINED%'::text), 0::numeric) AS unexplained,
-            COALESCE(sum(v_third_party_forensic.lb_received) FILTER (WHERE v_third_party_forensic.lab_failures > 0), 0::numeric) AS failed,
-            COALESCE(sum(COALESCE(v_third_party_forensic.exit_lb, 0::numeric) + COALESCE(v_third_party_forensic.lb_sold, 0::numeric)), 0::numeric) AS resold,
-            COALESCE(sum(v_third_party_forensic.exit_sold_usd), 0::numeric) AS resold_usd,
-            count(*) FILTER (WHERE v_third_party_forensic.status ~~ 'UNEXPLAINED%'::text) AS unexplained_tags
-           FROM v_third_party_forensic
-        ), spend AS (
-         SELECT COALESCE(sum(NULLIF(t.source_row ->> 'Receiver Wholesale Price'::text, ''::text)::numeric), 0::numeric) AS usd
-           FROM metrc_rpt_package_transfers t
-          WHERE f_is_ours(COALESCE(NULLIF(t.source_row ->> 'Dest. Lic.'::text, ''::text), t.destination_licence)) AND NOT f_is_ours(COALESCE(NULLIF(t.source_row ->> 'Origin Lic.'::text, ''::text), t.licence)) AND COALESCE(t.source_row ->> 'Voided'::text, 'False'::text) <> 'True'::text
-        ), noinv AS (
-         SELECT count(*) AS n,
-            COALESCE(sum(v_forensic_sold_by_tag.pounds), 0::numeric) AS lb
-           FROM v_forensic_sold_by_tag
-          WHERE v_forensic_sold_by_tag.invoice_match = 'NO APEX INVOICE'::text AND v_forensic_sold_by_tag.counts_as_sale
-        ), cert AS (
-         SELECT count(*) AS n
-           FROM mv_tag_certificate
-          WHERE mv_tag_certificate.certificate_source IS NULL
-        )
- SELECT 1 AS ord,
-    'IN'::text AS kind,
-    'Produced from our own harvests'::text AS line,
-    round(( SELECT prod.lb
-           FROM prod), 1) AS lb,
-    NULL::numeric AS usd,
-    'Packages made straight off a harvest, dated on the package''s own PackagedDate'::text AS basis,
-    'forensic_reconciliation'::text AS drill
-UNION ALL
- SELECT 2 AS ord,
-    'IN'::text AS kind,
-    'Purchased from third parties'::text AS line,
-    round(( SELECT xf.in_lb
-           FROM xf), 1) AS lb,
-    round(( SELECT spend.usd
-           FROM spend), 0) AS usd,
-    'Inbound manifests. Cost is the manifests'' own Receiver Wholesale Price — what we actually paid'::text AS basis,
-    'third_party_forensic'::text AS drill
-UNION ALL
- SELECT 3 AS ord,
-    'OUT'::text AS kind,
-    'Sold and shipped out'::text AS line,
-    round(- (( SELECT xf.out_lb
-           FROM xf)), 1) AS lb,
-    NULL::numeric AS usd,
-    'Outbound manifests where the destination is not one of our licences'::text AS basis,
-    'forensic_sold_by_tag'::text AS drill
-UNION ALL
- SELECT 4 AS ord,
-    'OUT'::text AS kind,
-    'Waste, destruction and corrections'::text AS line,
-    round(( SELECT adj.lb
-           FROM adj), 1) AS lb,
-    NULL::numeric AS usd,
-    'Metrc adjustment report, weight-denominated rows only'::text AS basis,
-    'destroyed_unexplained'::text AS drill
-UNION ALL
- SELECT 5 AS ord,
-    'RESULT'::text AS kind,
-    'Expected on hand'::text AS line,
-    round((( SELECT prod.lb
-           FROM prod)) + (( SELECT xf.in_lb
-           FROM xf)) - (( SELECT xf.out_lb
-           FROM xf)) + (( SELECT adj.lb
-           FROM adj)), 1) AS lb,
-    NULL::numeric AS usd,
-    'Everything in, less everything out'::text AS basis,
-    'forensic_reconciliation'::text AS drill
-UNION ALL
- SELECT 6 AS ord,
-    'RESULT'::text AS kind,
-    'Counted on hand'::text AS line,
-    round(( SELECT oh.lb
-           FROM oh), 1) AS lb,
-    NULL::numeric AS usd,
-    'Every open package in the Metrc mirror'::text AS basis,
-    'forensic_position'::text AS drill
-UNION ALL
- SELECT 7 AS ord,
-    'RESULT'::text AS kind,
-    'VARIANCE'::text AS line,
-    round((( SELECT oh.lb
-           FROM oh)) - ((( SELECT prod.lb
-           FROM prod)) + (( SELECT xf.in_lb
-           FROM xf)) - (( SELECT xf.out_lb
-           FROM xf)) + (( SELECT adj.lb
-           FROM adj))), 1) AS lb,
-    NULL::numeric AS usd,
-    'Expected NEGATIVE — manufacturing yield loss is real and Metrc never tags it'::text AS basis,
-    'forensic_reconciliation'::text AS drill
-UNION ALL
- SELECT 8 AS ord,
-    'MEMO'::text AS kind,
-    'Internal MC ↔ MP transfers'::text AS line,
-    round(( SELECT xf.internal_lb
-           FROM xf), 1) AS lb,
-    NULL::numeric AS usd,
-    'Our own material between our own licences. Neither a sale nor a purchase'::text AS basis,
-    'forensic_sold_by_tag'::text AS drill
-UNION ALL
- SELECT 10 AS ord,
-    'EXCEPTION'::text AS kind,
-    'Third-party UNEXPLAINED'::text AS line,
-    round(( SELECT tp.unexplained
-           FROM tp), 1) AS lb,
-    NULL::numeric AS usd,
-    ( SELECT tp.unexplained_tags || ' tags with a manifest and a COA but no recorded outcome'::text
-           FROM tp) AS basis,
-    'third_party_forensic'::text AS drill
-UNION ALL
- SELECT 11 AS ord,
-    'EXCEPTION'::text AS kind,
-    'Shipped with no Apex invoice'::text AS line,
-    round(( SELECT noinv.lb
-           FROM noinv), 1) AS lb,
-    NULL::numeric AS usd,
-    ( SELECT noinv.n || ' outbound lines with no matching invoice. Apex is the record of truth for sales'::text
-           FROM noinv) AS basis,
-    'forensic_sold_by_tag'::text AS drill
-UNION ALL
- SELECT 12 AS ord,
-    'EXCEPTION'::text AS kind,
-    'Tags with no certificate imported'::text AS line,
-    (( SELECT cert.n
-           FROM cert))::numeric AS lb,
-    NULL::numeric AS usd,
-    'Nothing ships without a COA — these are holes in our import, not compliance failures'::text AS basis,
-    'tag_coa_gap'::text AS drill
-UNION ALL
- SELECT 20 AS ord,
-    'THIRD PARTY'::text AS kind,
-    'On hand'::text AS line,
-    round(( SELECT tp.on_hand
-           FROM tp), 1) AS lb,
-    NULL::numeric AS usd,
-    'Purchased material still in our rooms'::text AS basis,
-    'third_party_forensic'::text AS drill
-UNION ALL
- SELECT 21 AS ord,
-    'THIRD PARTY'::text AS kind,
-    'Resold at markup'::text AS line,
-    round(( SELECT tp.resold
-           FROM tp), 1) AS lb,
-    round(( SELECT tp.resold_usd
-           FROM tp), 0) AS usd,
-    'Traced through the child tag on the outbound manifest'::text AS basis,
-    'third_party_forensic'::text AS drill
-UNION ALL
- SELECT 22 AS ord,
-    'THIRD PARTY'::text AS kind,
-    'Failed then remediated'::text AS line,
-    round(( SELECT tp.failed
-           FROM tp), 1) AS lb,
-    NULL::numeric AS usd,
-    'Failed material is remediated and processed on. NOT a compliance issue'::text AS basis,
-    'third_party_forensic'::text AS drill
-  ORDER BY 1;
 create or replace view public.v_forensic_inventory as
  SELECT v.stage_group,
     v.stage,
@@ -48459,19 +45959,6 @@ create or replace view public.v_forensic_inventory as
            FROM v_transfer_line x
           WHERE x.direction = 'OUTBOUND'::text AND x.voided <> 'True'::text) v
      LEFT JOIN mv_tag_documents td ON td.tag = v.tag;
-create or replace view public.v_forensic_panel_freshness as
- SELECT 'mv_forensic_audit_panel'::text AS matview,
-    computed_at,
-    now() - computed_at AS computation_age,
-    '00:30:00'::interval AS computation_slo,
-    f_matview_freshness_verdict(computed_at, now(), '00:30:00'::interval) AS verdict,
-    row_count,
-    'refresh-forensic-panel, every 10 min at :04'::text AS refreshed_by,
-    ARRAY['mv_tag_certificate'::text, 'mv_forensic_sales'::text] AS inputs_without_a_clock,
-    'Lines 11 and 12 derive from matviews that carry no computed_at and are refreshed only by snapshot-dashboards (05:05 daily). Their age is UNMEASURABLE, so the age above is the age of the COMPUTATION, not of the DATA.'::text AS honesty_note
-   FROM ( SELECT max(mv_forensic_audit_panel.computed_at) AS computed_at,
-            count(*)::integer AS row_count
-           FROM mv_forensic_audit_panel) m;
 create or replace view public.v_forensic_sold_by_tag as
  SELECT t.received_on AS shipped_on,
     t.manifest_number,
@@ -48506,313 +45993,6 @@ create or replace view public.v_forensic_sold_by_tag as
   WHERE t.shipped_lb IS NOT NULL AND t.shipped_lb <> 0::numeric AND (upper(btrim(COALESCE(NULLIF(t.source_row ->> 'Origin Lic.'::text, ''::text), t.licence))) IN ( SELECT upper(btrim(c.license)) AS upper
            FROM company_licenses c
           WHERE c.active));
-create or replace view public.v_forensic_sold_by_tag_safe as
- SELECT s.shipped_on,
-    s.manifest_number,
-    s.package_tag,
-    s.item,
-    s.category,
-    s.strain,
-    s.product_line,
-    s.pounds,
-    s.sold_by_licence,
-    s.sold_by_facility,
-    s.buyer_licence,
-    s.buyer,
-    s.internal_transfer,
-    s.status,
-    s.transfer_type,
-    m.apex_invoice_number AS invoice_number,
-    NULL::numeric AS total_usd,
-    NULL::text AS payment_status,
-    COALESCE(m.match_status, 'NO METRC WHOLESALE INVOICE'::text) AS invoice_match,
-    s.is_transport_leg,
-    s.counts_as_sale,
-    s.coa_certificate_id,
-    s.coa_document_link,
-    s.manifest_no,
-    s.manifest_document_link,
-    m.apex_invoice_number AS apex_invoice_no,
-    NULL::numeric AS apex_invoice_usd
-   FROM v_forensic_sold_by_tag s
-     LEFT JOIN v_metrc_manifest_invoice_truth m ON m.manifest_number = s.manifest_number;
-create or replace view public.v_gap_system as
- WITH required_types AS (
-         SELECT unnest(ARRAY['planting'::text, 'move'::text, 'harvest'::text, 'package_create'::text, 'lab_test'::text, 'transfer_out'::text, 'transfer_in'::text, 'sale'::text, 'adjustment'::text, 'destruction'::text]) AS spec_type
-        ), mapped AS (
-         SELECT r.spec_type,
-                CASE r.spec_type
-                    WHEN 'move'::text THEN 'location_change'::text
-                    WHEN 'package_create'::text THEN 'packaged'::text
-                    WHEN 'lab_test'::text THEN 'tested'::text
-                    WHEN 'transfer_in'::text THEN 'received'::text
-                    WHEN 'transfer_out'::text THEN 'shipped'::text
-                    WHEN 'sale'::text THEN 'sold'::text
-                    WHEN 'adjustment'::text THEN 'adjusted'::text
-                    ELSE r.spec_type
-                END AS ledger_type
-           FROM required_types r
-        )
- SELECT 'missing_event_types'::text AS gap_type,
-    'critical'::text AS severity,
-    m.spec_type AS subject,
-    (((('The specification requires a '::text || m.spec_type) || ' event; the ledger has recorded none '::text) || '(this schema calls it "'::text) || m.ledger_type) || '").'::text AS description,
-    'Promote this fact from the mirror into tag_event so the tag timeline is complete. Every '::text || 'gate that depends on it stays blind until then.'::text AS required_action
-   FROM mapped m
-  WHERE NOT (EXISTS ( SELECT 1
-           FROM tag_event p
-          WHERE p.event_type = m.ledger_type))
-UNION ALL
- SELECT 'source_sync_stale'::text AS gap_type,
-    'critical'::text AS severity,
-    f.source AS subject,
-    f.verdict AS description,
-    'Run the sync, read its error, and fix the cause. Do not clear this by hand — it clears itself on the next successful run.'::text AS required_action
-   FROM v_source_freshness f
-  WHERE f.is_stale
-UNION ALL
- SELECT 'import_failure'::text AS gap_type,
-    'critical'::text AS severity,
-    i.source_key AS subject,
-    (((((((((('Import run '::text || i.id) || ' on '::text) || COALESCE(i.started_at::date::text, '?'::text)) || ' from '::text) || i.source_key) || ' read '::text) || COALESCE(i.rows_read, 0)) || ' rows and accepted '::text) || COALESCE(i.rows_accepted, 0)) || COALESCE(' — outcome '::text || i.outcome, ''::text)) || '.'::text AS description,
-    'Re-run the import and read its error. An import that accepts nothing is a silent data outage.'::text AS required_action
-   FROM import_run i
-  WHERE i.started_at > (now() - '30 days'::interval) AND COALESCE(i.rows_read, 0) > 0 AND COALESCE(i.rows_accepted, 0) = 0
-UNION ALL
- SELECT 'date_range_not_applied'::text AS gap_type,
-    'critical'::text AS severity,
-    (b.department || ' ord '::text) || b.ord AS subject,
-    ('Dashboard figure "'::text || b.kpi) || '" has no dated recomputation path, so it cannot honour a selected range.'::text AS description,
-    'Add it to f_department_dashboard as a FLOW or an as-of POSITION, or state on the tile why it cannot move.'::text AS required_action
-   FROM mv_department_dashboard b
-  WHERE NOT (EXISTS ( SELECT 1
-           FROM f_department_dashboard(b.department, CURRENT_DATE - 30, CURRENT_DATE) d(department, ord, kpi, value, unit, tone, context, drill, computed_at, tile_kind, honours_range, range_note)
-          WHERE d.ord = b.ord AND d.honours_range))
-UNION ALL
- SELECT 'quickbooks_not_connected'::text AS gap_type,
-    'critical'::text AS severity,
-    'QuickBooks'::text AS subject,
-    'No QuickBooks connection exists, so inventory_mismatch_os_quickbooks, the OS-to-QuickBooks '::text || 'revenue tie-out and invoice ageing cannot run.'::text AS description,
-    'Build the connector, write every run to quickbooks_import_log, and reconcile OS sales to Apex to QuickBooks.'::text AS required_action
-  WHERE NOT (EXISTS ( SELECT 1
-           FROM information_schema.tables
-          WHERE tables.table_name::name = 'quickbooks_import_log'::name))
-UNION ALL
- SELECT 'apex_inventory_not_synced'::text AS gap_type,
-    'critical'::text AS severity,
-    'Apex inventory'::text AS subject,
-    'Apex sends sales only. Inventory adjustments, counts and package-level inventory are not '::text || 'synced, so OS-to-Apex inventory cannot be reconciled.'::text AS description,
-    'Extend apex-sync to the inventory endpoints per docs/vendor/APEX_API_MANUAL.md and log to apex_import_log.'::text AS required_action
-  WHERE NOT (EXISTS ( SELECT 1
-           FROM information_schema.tables
-          WHERE tables.table_name::name = 'apex_import_log'::name))
-UNION ALL
- SELECT 'documents_not_consolidated'::text AS gap_type,
-    'warning'::text AS severity,
-    'document tables'::text AS subject,
-    'Documents live in metrc_documents, coa_extract and manifest_extract with no single '::text || 'document_id, so no one row identifies a document across the OS.'::text AS description,
-    'Consolidate to one document table with a stable id and repoint the parsers.'::text AS required_action
-  WHERE NOT (EXISTS ( SELECT 1
-           FROM information_schema.tables
-          WHERE tables.table_name::name = 'document'::name));
-create or replace view public.v_global_management as
- WITH mapped AS (
-         SELECT COALESCE(o.department, f.lane) AS department,
-            o.department IS NULL AS lane_unmapped,
-            f.open_findings,
-            f.critical_findings,
-            f.oldest_finding
-           FROM ( SELECT COALESCE(NULLIF(vf.department, ''::text), 'Unassigned'::text) AS lane,
-                    count(*) AS open_findings,
-                    count(*) FILTER (WHERE vf.severity = 'critical'::text) AS critical_findings,
-                    min(vf.first_raised)::date AS oldest_finding
-                   FROM v_findings vf
-                  WHERE vf.resolved_at IS NULL AND NOT COALESCE(vf.is_duplicate, false)
-                  GROUP BY (COALESCE(NULLIF(vf.department, ''::text), 'Unassigned'::text))) f
-             LEFT JOIN finding_lane_owner o ON o.lane = f.lane
-        ), rolled AS (
-         SELECT mapped.department,
-            bool_or(mapped.lane_unmapped) AS any_unmapped,
-            sum(mapped.open_findings)::bigint AS open_findings,
-            sum(mapped.critical_findings)::bigint AS critical_findings,
-            min(mapped.oldest_finding) AS oldest_finding
-           FROM mapped
-          GROUP BY mapped.department
-        ), depts AS (
-         SELECT mv_department_dashboard.department,
-            count(*) AS tiles,
-            count(*) FILTER (WHERE mv_department_dashboard.tone = 'bad'::text) AS tiles_bad,
-            count(*) FILTER (WHERE mv_department_dashboard.value IS NULL) AS tiles_null
-           FROM mv_department_dashboard
-          GROUP BY mv_department_dashboard.department
-        ), t AS (
-         SELECT COALESCE(NULLIF(tasks.department, ''::text), 'Unassigned'::text) AS department,
-            count(*) AS open_orders,
-            count(*) FILTER (WHERE tasks.due_on < CURRENT_DATE) AS orders_overdue
-           FROM tasks
-          WHERE tasks.status <> ALL (ARRAY['done'::text, 'completed'::text])
-          GROUP BY (COALESCE(NULLIF(tasks.department, ''::text), 'Unassigned'::text))
-        )
- SELECT COALESCE(d.department, r.department, t.department) AS department,
-    COALESCE(d.department, r.department, t.department) = 'Unassigned'::text AS is_the_unrouted_pile,
-    COALESCE(d.tiles, 0::bigint) AS tiles,
-    COALESCE(d.tiles_bad, 0::bigint) AS tiles_bad,
-    COALESCE(d.tiles_null, 0::bigint) AS tiles_null,
-    COALESCE(r.open_findings, 0::bigint) AS open_findings,
-    COALESCE(r.critical_findings, 0::bigint) AS critical_findings,
-    r.oldest_finding,
-    COALESCE(t.open_orders, 0::bigint) AS open_orders,
-    COALESCE(t.orders_overdue, 0::bigint) AS orders_overdue,
-        CASE
-            WHEN COALESCE(r.critical_findings, 0::bigint) > 0 THEN 'bad'::text
-            WHEN COALESCE(d.tiles_bad, 0::bigint) > 0 OR COALESCE(t.orders_overdue, 0::bigint) > 0 THEN 'watch'::text
-            WHEN COALESCE(d.tiles, 0::bigint) = 0 THEN 'bad'::text
-            ELSE 'good'::text
-        END AS tone,
-        CASE
-            WHEN COALESCE(d.tiles, 0::bigint) = 0 AND COALESCE(d.department, ''::text) <> ''::text THEN 'PUBLISHES NO TILES — a required category with nothing replicating up (rule 1/4)'::text
-            WHEN COALESCE(r.any_unmapped, false) THEN 'LANE NOT MAPPED — findings arrive under a lane name with no owning department; add a row to finding_lane_owner'::text
-            ELSE NULL::text
-        END AS gap_note
-   FROM depts d
-     FULL JOIN rolled r ON r.department = d.department
-     FULL JOIN t ON t.department = COALESCE(d.department, r.department);
-create or replace view public.v_glossary_conflicts as
- WITH corpus AS (
-         SELECT nav_registry.label AS phrase,
-            'nav label'::text AS surface
-           FROM nav_registry
-          WHERE nav_registry.label IS NOT NULL
-        UNION ALL
-         SELECT mv_department_dashboard.kpi,
-            'dashboard kpi'::text
-           FROM mv_department_dashboard
-        UNION ALL
-         SELECT columns.column_name,
-            'column'::text
-           FROM information_schema.columns
-          WHERE columns.table_schema::name = 'public'::name
-        UNION ALL
-         SELECT tables.table_name,
-            'relation'::text
-           FROM information_schema.tables
-          WHERE tables.table_schema::name = 'public'::name
-        )
- SELECT v.term,
-    t.preferred_form,
-    v.variant,
-    v.variant_kind,
-    t.settled,
-    count(c.phrase) AS live_uses,
-    string_agg(DISTINCT c.surface, ', '::text) AS appears_in,
-        CASE
-            WHEN v.variant_kind = 'accepted'::text THEN 'fine'::text
-            WHEN count(c.phrase) = 0 THEN 'clean'::text
-            ELSE ((((('INCONSISTENT — '::text || count(c.phrase)) || ' uses of "'::text) || v.variant) || '" where the preferred form is "'::text) || t.preferred_form) || '"'::text
-        END AS verdict
-   FROM glossary_variant v
-     JOIN glossary_term t ON t.term = v.term
-     LEFT JOIN corpus c ON lower(c.phrase) ~ (('(^|[^a-z])'::text || lower(v.variant)) || '([^a-z]|$)'::text)
-  GROUP BY v.term, t.preferred_form, v.variant, v.variant_kind, t.settled
-  ORDER BY (v.variant_kind <> 'accepted'::text) DESC, (count(c.phrase)) DESC;
-create or replace view public.v_harvest_tag_index as
- WITH pkg AS (
-         SELECT DISTINCT ON (d.tag) d.id,
-            d.license,
-            d.tag,
-            d.item_name,
-            d.quantity,
-            d.uom,
-            d.location,
-            d.packaged_on,
-            d.lab_testing_state,
-            d.finished,
-            d.raw,
-            d.synced_at,
-            d.source_state,
-            d.provenance,
-            d.report_as_of
-           FROM metrc_packages d
-          ORDER BY d.tag, (COALESCE(d.quantity, 0::numeric) > 0::numeric AND NOT COALESCE((d.raw ->> 'IsFinished'::text)::boolean, false)) DESC, (d.source_state = 'active'::text) DESC NULLS LAST, d.synced_at DESC NULLS LAST
-        )
- SELECT btrim(h.hn) AS harvest,
-    p.tag,
-    p.item_name,
-    COALESCE(p.raw #>> '{Item,ProductCategoryName}'::text[], '(uncategorised)'::text) AS category,
-    p.source_state,
-    p.license,
-    p.location AS room,
-    round(f_to_pounds(p.quantity, p.uom), 3) AS lb,
-        CASE
-            WHEN NOT f_is_weight(p.uom) THEN p.quantity
-            ELSE NULL::numeric
-        END AS units,
-    p.lab_testing_state AS lab_state,
-    ev.certificate_id,
-    ev.certificate_document,
-    o.manifest_number AS outbound_manifest,
-    o.destination_facility AS shipped_to,
-    COALESCE(p.finished, false) OR (p.raw ->> 'ArchivedDate'::text) IS NOT NULL OR (p.raw ->> 'FinishedDate'::text) IS NOT NULL AS closed,
-    p.packaged_on
-   FROM pkg p
-     CROSS JOIN LATERAL unnest(string_to_array(COALESCE(p.raw ->> 'SourceHarvestNames'::text, ''::text), ','::text)) h(hn)
-     LEFT JOIN v_tag_evidence ev ON ev.tag = p.tag
-     LEFT JOIN LATERAL ( SELECT t.manifest_number,
-            t.destination_facility
-           FROM metrc_rpt_package_transfers t
-          WHERE t.package_tag = p.tag
-          ORDER BY t.received_on DESC NULLS LAST
-         LIMIT 1) o ON true
-  WHERE btrim(h.hn) <> ''::text;
-create or replace view public.v_inventory_aging as
- SELECT v.category,
-    v.stage,
-    v.location,
-    v.license,
-    v.item,
-    v.identifier,
-    v.quantity,
-    v.uom,
-    v.days_here,
-    v.severity,
-    v.action,
-    td.coa_certificate_id,
-    td.coa_document_link,
-    td.manifest_no,
-    td.manifest_document_link,
-    td.apex_invoice_no,
-    td.apex_invoice_usd
-   FROM ( SELECT l.category,
-            l.stage,
-            l.location,
-            l.license,
-            l.item,
-            l.identifier,
-            l.quantity,
-            l.uom,
-            l.days_here,
-                CASE
-                    WHEN l.category = 'Harvest lots'::text AND l.stage ~~ 'Drying%'::text AND l.days_here > f_rule('dry_window_max_days'::text) THEN 'critical'::text
-                    WHEN l.category = 'Harvest lots'::text AND l.days_here > f_rule('harvest_open_max_days'::text) THEN 'elevated'::text
-                    WHEN l.category = 'Packages'::text AND l.stage = 'Awaiting laboratory'::text AND l.days_here > f_rule('lab_wait_alert_days'::text) THEN 'elevated'::text
-                    WHEN l.category = 'Packages'::text AND l.stage = 'FAILED TESTING'::text THEN 'critical'::text
-                    WHEN sa.tag IS NOT NULL THEN 'elevated'::text
-                    WHEN l.stage = 'ON HOLD'::text THEN 'critical'::text
-                    ELSE NULL::text
-                END AS severity,
-                CASE
-                    WHEN l.category = 'Harvest lots'::text AND l.stage ~~ 'Drying%'::text AND l.days_here > f_rule('dry_window_max_days'::text) THEN ('Past the '::text || f_rule('dry_window_max_days'::text)) || '-day dry limit - move it or record the weights'::text
-                    WHEN l.category = 'Harvest lots'::text AND l.days_here > f_rule('harvest_open_max_days'::text) THEN ('Harvest lot open more than '::text || f_rule('harvest_open_max_days'::text)) || ' days - the room turn is at risk'::text
-                    WHEN l.category = 'Packages'::text AND l.stage = 'Awaiting laboratory'::text AND l.days_here > f_rule('lab_wait_alert_days'::text) THEN ('Waiting on a laboratory result more than '::text || f_rule('lab_wait_alert_days'::text)) || ' days - chase the laboratory'::text
-                    WHEN l.category = 'Packages'::text AND l.stage = 'FAILED TESTING'::text THEN 'Failed testing - decide remediation or destruction'::text
-                    WHEN sa.tag IS NOT NULL THEN ('Past its category ageing limit ('::text || sa.stale_after) || ') under the owner policy - sell, discount or write off'::text
-                    WHEN l.stage = 'ON HOLD'::text THEN 'On hold in Metrc - resolve the hold'::text
-                    ELSE NULL::text
-                END AS action
-           FROM v_inventory_locator l
-             LEFT JOIN v_stock_ageing sa ON sa.tag = l.identifier AND sa.ageing_verdict ~~ 'STALE%'::text
-          WHERE l.days_here IS NOT NULL) v
-     LEFT JOIN mv_tag_documents td ON td.tag = v.identifier;
 create or replace view public.v_inventory_locator as
  SELECT v.category,
     v.stage_no,
@@ -48991,258 +46171,6 @@ create or replace view public.v_inventory_locator as
                   ORDER BY d.tag, (COALESCE(d.quantity, 0::numeric) > 0::numeric AND NOT COALESCE((d.raw ->> 'IsFinished'::text)::boolean, false)) DESC, (d.source_state = 'active'::text) DESC NULLS LAST, d.synced_at DESC NULLS LAST) p
           WHERE (p.source_state <> ALL (ARRAY['active'::text, 'onhold'::text, 'intransit'::text])) AND COALESCE(p.quantity, 0::numeric) > 0::numeric AND COALESCE(p.finished, false) = false AND (p.raw ->> 'ArchivedDate'::text) IS NULL AND (p.raw ->> 'FinishedDate'::text) IS NULL) v
      LEFT JOIN mv_tag_documents td ON td.tag = v.identifier;
-create or replace view public.v_inventory_report as
- SELECT v.package_tag,
-    v.item_name,
-    v.strain,
-    v.category,
-    v.stream,
-    v.room,
-    v.sublocation,
-    v.licence,
-    v.status,
-    v.lab_state,
-    v.on_hold,
-    v.finished,
-    v.is_weighed,
-    v.unit_of_measure,
-    v.pounds,
-    v.units,
-    v.quantity_shown,
-    v.weight_basis,
-    v.pounds_wet,
-    v.pounds_dry,
-    v.pounds_dry_equivalent,
-    v.packaged_on,
-    v.days_held,
-    v.age_band,
-    v.past_age_limit,
-    v.item_defined_by,
-    v.item_defined_by_name,
-    v.custody_origin_licences,
-    v.ownership,
-    v.certificate_client,
-    v.certificate_licence,
-    v.from_harvest,
-    v.made_from_n_packages,
-    v.is_primary_production,
-    v.arrived_on_manifest,
-    v.received_from,
-    v.has_certificate,
-    v.certificate_basis,
-    v.manifests_held,
-    v.document_status,
-    v.value_at_our_cost,
-    v.cost_basis,
-    td.coa_certificate_id,
-    td.coa_document_link,
-    td.manifest_no,
-    td.manifest_document_link,
-    td.apex_invoice_no,
-    td.apex_invoice_usd
-   FROM ( WITH p AS (
-                 SELECT DISTINCT ON (metrc_packages.tag) metrc_packages.tag,
-                    metrc_packages.item_name,
-                    metrc_packages.license,
-                    metrc_packages.uom,
-                    metrc_packages.quantity,
-                    metrc_packages.source_state,
-                    metrc_packages.lab_testing_state,
-                    metrc_packages.packaged_on,
-                    metrc_packages.raw
-                   FROM metrc_packages
-                  ORDER BY metrc_packages.tag, metrc_packages.license
-                ), ff AS (
-                 SELECT f_rule('fresh_frozen_wet_to_dry'::text) AS ratio
-                )
-         SELECT p.tag AS package_tag,
-            p.item_name,
-            p.raw #>> '{Item,StrainName}'::text[] AS strain,
-            p.raw #>> '{Item,ProductCategoryName}'::text[] AS category,
-                CASE
-                    WHEN (p.raw #>> '{Item,ProductCategoryName}'::text[]) ~~* '%fresh frozen%'::text THEN 'Fresh frozen'::text
-                    WHEN (p.raw #>> '{Item,ProductCategoryName}'::text[]) ~~* '%bud%'::text THEN 'Dried flower'::text
-                    WHEN (p.raw #>> '{Item,ProductCategoryName}'::text[]) ~~* '%shake%'::text OR (p.raw #>> '{Item,ProductCategoryName}'::text[]) ~~* '%trim%'::text THEN 'Shake and trim'::text
-                    WHEN (p.raw #>> '{Item,ProductCategoryName}'::text[]) ~~* '%concentrate%'::text THEN 'Concentrate'::text
-                    WHEN (p.raw #>> '{Item,ProductCategoryName}'::text[]) ~~* '%pre-roll%'::text OR (p.raw #>> '{Item,ProductCategoryName}'::text[]) ~~* '%preroll%'::text THEN 'Pre-rolls'::text
-                    WHEN (p.raw #>> '{Item,ProductCategoryName}'::text[]) ~~* '%edible%'::text THEN 'Edibles'::text
-                    WHEN (p.raw #>> '{Item,ProductCategoryName}'::text[]) ~~* '%vape%'::text THEN 'Vapes'::text
-                    WHEN (p.raw #>> '{Item,ProductCategoryName}'::text[]) ~~* '%seed%'::text THEN 'Seeds'::text
-                    ELSE COALESCE(p.raw #>> '{Item,ProductCategoryName}'::text[], 'Other'::text)
-                END AS stream,
-            p.raw ->> 'LocationName'::text AS room,
-            NULLIF(p.raw ->> 'SublocationName'::text, ''::text) AS sublocation,
-            p.license AS licence,
-            p.source_state AS status,
-            p.lab_testing_state AS lab_state,
-            (p.raw ->> 'IsOnHold'::text)::boolean AS on_hold,
-            (p.raw ->> 'IsFinished'::text)::boolean AS finished,
-            f_is_weight(p.uom) AS is_weighed,
-            p.uom AS unit_of_measure,
-                CASE
-                    WHEN f_is_weight(p.uom) THEN round(f_to_pounds(p.quantity, p.uom), 3)
-                    ELSE NULL::numeric
-                END AS pounds,
-                CASE
-                    WHEN NOT f_is_weight(p.uom) THEN p.quantity
-                    ELSE NULL::numeric
-                END AS units,
-            f_quantity_text(p.quantity, p.uom) AS quantity_shown,
-                CASE
-                    WHEN f_is_weight(p.uom) AND (p.raw #>> '{Item,ProductCategoryName}'::text[]) ~~* '%fresh frozen%'::text THEN 'wet'::text
-                    WHEN f_is_weight(p.uom) THEN 'dry'::text
-                    ELSE NULL::text
-                END AS weight_basis,
-                CASE
-                    WHEN f_is_weight(p.uom) AND (p.raw #>> '{Item,ProductCategoryName}'::text[]) ~~* '%fresh frozen%'::text THEN round(f_to_pounds(p.quantity, p.uom), 3)
-                    ELSE NULL::numeric
-                END AS pounds_wet,
-                CASE
-                    WHEN f_is_weight(p.uom) AND (p.raw #>> '{Item,ProductCategoryName}'::text[]) !~~* '%fresh frozen%'::text THEN round(f_to_pounds(p.quantity, p.uom), 3)
-                    ELSE NULL::numeric
-                END AS pounds_dry,
-                CASE
-                    WHEN f_is_weight(p.uom) THEN round(
-                    CASE
-                        WHEN (p.raw #>> '{Item,ProductCategoryName}'::text[]) ~~* '%fresh frozen%'::text THEN f_to_pounds(p.quantity, p.uom) / (( SELECT ff.ratio
-                           FROM ff))
-                        ELSE f_to_pounds(p.quantity, p.uom)
-                    END, 3)
-                    ELSE NULL::numeric
-                END AS pounds_dry_equivalent,
-            p.packaged_on,
-            CURRENT_DATE - p.packaged_on AS days_held,
-                CASE
-                    WHEN (CURRENT_DATE - p.packaged_on) > 365 THEN 'over a year'::text
-                    WHEN (CURRENT_DATE - p.packaged_on) > 180 THEN '180-365 days'::text
-                    WHEN (CURRENT_DATE - p.packaged_on) > 90 THEN '90-180 days'::text
-                    WHEN (CURRENT_DATE - p.packaged_on) > 30 THEN '30-90 days'::text
-                    ELSE 'under 30 days'::text
-                END AS age_band,
-            (CURRENT_DATE - p.packaged_on) > 180 AS past_age_limit,
-            p.raw ->> 'ItemFromFacilityLicenseNumber'::text AS item_defined_by,
-            p.raw ->> 'ItemFromFacilityName'::text AS item_defined_by_name,
-            oc.custody_says AS custody_origin_licences,
-            COALESCE(oc.custody_verdict, 'not assessed - only active packages are judged'::text) AS ownership,
-            cr.cert_client AS certificate_client,
-            cr.cert_license AS certificate_licence,
-            NULLIF(p.raw ->> 'SourceHarvestNames'::text, ''::text) AS from_harvest,
-            (p.raw ->> 'SourcePackageCount'::text)::integer AS made_from_n_packages,
-            ((p.raw ->> 'SourcePackageCount'::text)::integer) = 0 AS is_primary_production,
-            NULLIF(p.raw ->> 'ReceivedFromManifestNumber'::text, ''::text) AS arrived_on_manifest,
-            NULLIF(p.raw ->> 'ReceivedFromFacilityName'::text, ''::text) AS received_from,
-            cr.package_tag IS NOT NULL AS has_certificate,
-            cr.certificate_link AS certificate_basis,
-            ( SELECT count(DISTINCT l.manifest_number) AS count
-                   FROM v_document_package_link l
-                  WHERE l.package_tag = p.tag AND l.doc_type = 'manifest'::text) AS manifests_held,
-                CASE
-                    WHEN cr.package_tag IS NOT NULL AND (EXISTS ( SELECT 1
-                       FROM v_document_package_link l
-                      WHERE l.package_tag = p.tag AND l.doc_type = 'manifest'::text)) THEN 'COMPLETE - certificate and manifest'::text
-                    WHEN cr.package_tag IS NOT NULL THEN 'certificate only'::text
-                    WHEN (EXISTS ( SELECT 1
-                       FROM v_document_package_link l
-                      WHERE l.package_tag = p.tag AND l.doc_type = 'manifest'::text)) THEN 'manifest only'::text
-                    ELSE 'NEITHER'::text
-                END AS document_status,
-                CASE
-                    WHEN f_is_weight(p.uom) AND f_is_ours(p.raw ->> 'ItemFromFacilityLicenseNumber'::text) THEN round(
-                    CASE
-                        WHEN (p.raw #>> '{Item,ProductCategoryName}'::text[]) ~~* '%fresh frozen%'::text THEN f_to_pounds(p.quantity, p.uom) / (( SELECT ff.ratio
-                           FROM ff))
-                        ELSE f_to_pounds(p.quantity, p.uom)
-                    END * (( SELECT cm.cost_per_pound
-                       FROM cost_model cm
-                      WHERE cm.scope = 'cultivation'::text
-                      ORDER BY cm.effective_from DESC
-                     LIMIT 1)), 0)
-                    ELSE NULL::numeric
-                END AS value_at_our_cost,
-                CASE
-                    WHEN NOT f_is_weight(p.uom) THEN 'countable - no weight, no cost per pound'::text
-                    WHEN NOT f_is_ours(p.raw ->> 'ItemFromFacilityLicenseNumber'::text) THEN 'bought in - material_purchases is EMPTY, what was paid exists nowhere'::text
-                    ELSE 'our cultivation cost per pound, dry-equivalent basis'::text
-                END AS cost_basis
-           FROM p
-             LEFT JOIN v_ownership_by_custody oc ON oc.package_tag = p.tag
-             LEFT JOIN v_certificate_resolved cr ON cr.package_tag = p.tag) v
-     LEFT JOIN mv_tag_documents td ON td.tag = v.package_tag;
-create or replace view public.v_issue_aging as
- WITH loc AS MATERIALIZED (
-         SELECT v_inventory_locator.category,
-            v_inventory_locator.stage_no,
-            v_inventory_locator.stage,
-            v_inventory_locator.location,
-            v_inventory_locator.license,
-            v_inventory_locator.item,
-            v_inventory_locator.identifier,
-            v_inventory_locator.quantity,
-            v_inventory_locator.uom,
-            v_inventory_locator.since_date,
-            v_inventory_locator.days_here,
-            v_inventory_locator.detail,
-            v_inventory_locator.lab_state,
-            v_inventory_locator.source_lineage,
-            v_inventory_locator.coa_certificate_id,
-            v_inventory_locator.coa_document_link,
-            v_inventory_locator.manifest_no,
-            v_inventory_locator.manifest_document_link,
-            v_inventory_locator.apex_invoice_no,
-            v_inventory_locator.apex_invoice_usd
-           FROM v_inventory_locator
-        )
- SELECT v.category,
-    v.item,
-    v.identifier,
-    v.location,
-    v.stage,
-    v.license,
-    v.quantity,
-    v.uom,
-    v.pounds,
-    v.harvested_or_packaged_on,
-    v.days_sitting,
-    v.value_at_cost,
-    v.laboratory_state,
-    v.came_from,
-    v.extra_detail,
-    v.severity,
-    v.what_is_wrong,
-    v.what_to_do,
-    td.coa_certificate_id,
-    td.coa_document_link,
-    td.manifest_no,
-    td.manifest_document_link,
-    td.apex_invoice_no,
-    td.apex_invoice_usd
-   FROM ( SELECT COALESCE(l.category, 'Packages'::text) AS category,
-            COALESCE(l.item, a.item_name) AS item,
-            a.tag AS identifier,
-            a.location,
-            COALESCE(l.stage, 'On hand'::text) AS stage,
-            a.license,
-            l.quantity,
-            l.uom,
-            round(COALESCE(f_to_pounds(l.quantity, l.uom), a.lb), 3) AS pounds,
-            a.packaged_on AS harvested_or_packaged_on,
-            COALESCE(l.days_here, a.days_held::numeric) AS days_sitting,
-            round(COALESCE(f_to_pounds(l.quantity, l.uom), a.lb) * (( SELECT cost_model.cost_per_pound
-                   FROM cost_model
-                  WHERE cost_model.scope = 'cultivation'::text
-                  ORDER BY cost_model.effective_from DESC
-                 LIMIT 1)), 0) AS value_at_cost,
-            l.lab_state AS laboratory_state,
-            l.source_lineage AS came_from,
-            l.detail AS extra_detail,
-            'elevated'::text AS severity,
-            'THE ISSUE: '::text || a.ageing_verdict AS what_is_wrong,
-            ((('Sitting '::text || a.days_held) || ' days against its category limit of '::text) || a.stale_after) || '. Decide: sell, discount, or write off.'::text AS what_to_do
-           FROM v_stock_ageing a
-             LEFT JOIN loc l ON l.identifier = a.tag
-          WHERE a.ageing_verdict ~~ 'STALE%'::text
-          ORDER BY a.days_held DESC) v
-     LEFT JOIN mv_tag_documents td ON td.tag = v.identifier;
 create or replace view public.v_issue_failed_testing as
  SELECT v.license,
     v.package_tag,
@@ -49313,378 +46241,6 @@ create or replace view public.v_issue_failed_testing as
                     ELSE NULL::numeric
                 END) DESC NULLS LAST) v
      LEFT JOIN mv_tag_documents td ON td.tag = v.package_tag;
-create or replace view public.v_issue_no_allocation as
- SELECT v.material_class,
-    v.origin,
-    v.item,
-    v.strain,
-    v.identifier,
-    v.quantity,
-    v.uom,
-    v.location,
-    v.stage,
-    v.days_in_system,
-    v.vendor,
-    v.approval_state,
-    v.what_is_wrong,
-    v.what_to_do,
-    td.coa_certificate_id,
-    td.coa_document_link,
-    td.manifest_no,
-    td.manifest_document_link,
-    td.apex_invoice_no,
-    td.apex_invoice_usd
-   FROM ( SELECT v_awaiting_allocation.material_class,
-            v_awaiting_allocation.origin,
-            v_awaiting_allocation.item,
-            v_awaiting_allocation.strain,
-            v_awaiting_allocation.identifier,
-            v_awaiting_allocation.quantity,
-            v_awaiting_allocation.uom,
-            v_awaiting_allocation.location,
-            v_awaiting_allocation.stage,
-            v_awaiting_allocation.days_in_system,
-            v_awaiting_allocation.vendor,
-            v_awaiting_allocation.approval_state,
-            ('THE ISSUE: '::text || v_awaiting_allocation.approval_state) || '. Material is in the facility with no approved destination.'::text AS what_is_wrong,
-            'Raise an allocation request, or approve the pending one, before this material moves.'::text AS what_to_do
-           FROM v_awaiting_allocation
-          ORDER BY v_awaiting_allocation.days_in_system DESC NULLS LAST) v
-     LEFT JOIN mv_tag_documents td ON td.tag = v.identifier;
-create or replace view public.v_item_documents as
- SELECT v.package_tag,
-    v.item_name,
-    v.source_state,
-    v.lab_testing_state,
-    v.pounds,
-    v.coa_count,
-    v.manifest_count,
-    v.coa_depth,
-    v.coa_is_direct,
-    v.manifests,
-    v.was_tested,
-    v.was_shipped,
-    v.document_status,
-    td.coa_certificate_id,
-    td.coa_document_link,
-    td.manifest_no,
-    td.manifest_document_link,
-    td.apex_invoice_no,
-    td.apex_invoice_usd
-   FROM ( SELECT p.tag AS package_tag,
-            "left"(p.item_name, 55) AS item_name,
-            p.source_state,
-            p.lab_testing_state,
-                CASE
-                    WHEN f_is_weight(p.uom) THEN round(f_to_pounds(p.quantity, p.uom), 2)
-                    ELSE NULL::numeric
-                END AS pounds,
-            count(*) FILTER (WHERE l.doc_type = 'coa'::text) AS coa_count,
-            count(DISTINCT l.manifest_number) AS manifest_count,
-            min(l.link_depth) FILTER (WHERE l.doc_type = 'coa'::text) AS coa_depth,
-            bool_or(l.doc_type = 'coa'::text AND l.link_depth = 0) AS coa_is_direct,
-            string_agg(DISTINCT l.manifest_number, ', '::text) FILTER (WHERE l.doc_type = 'manifest'::text) AS manifests,
-            p.lab_testing_state = ANY (ARRAY['TestPassed'::text, 'TestFailed'::text]) AS was_tested,
-            (EXISTS ( SELECT 1
-                   FROM metrc_rpt_package_transfers t
-                  WHERE t.package_tag = p.tag)) AS was_shipped,
-                CASE
-                    WHEN count(*) FILTER (WHERE l.doc_type = 'coa'::text) > 0 AND count(*) FILTER (WHERE l.doc_type = 'manifest'::text) > 0 THEN 'COMPLETE - COA and manifest'::text
-                    WHEN count(*) FILTER (WHERE l.doc_type = 'coa'::text) > 0 THEN 'COA only'::text
-                    WHEN count(*) FILTER (WHERE l.doc_type = 'manifest'::text) > 0 THEN 'MANIFEST only'::text
-                    ELSE 'NEITHER'::text
-                END AS document_status
-           FROM ( SELECT DISTINCT ON (metrc_packages.tag) metrc_packages.tag,
-                    metrc_packages.item_name,
-                    metrc_packages.uom,
-                    metrc_packages.quantity,
-                    metrc_packages.source_state,
-                    metrc_packages.lab_testing_state
-                   FROM metrc_packages
-                  ORDER BY metrc_packages.tag, metrc_packages.license) p
-             LEFT JOIN v_document_package_link l ON l.package_tag = p.tag
-          GROUP BY p.tag, ("left"(p.item_name, 55)), p.source_state, p.lab_testing_state, (
-                CASE
-                    WHEN f_is_weight(p.uom) THEN round(f_to_pounds(p.quantity, p.uom), 2)
-                    ELSE NULL::numeric
-                END), (p.lab_testing_state = ANY (ARRAY['TestPassed'::text, 'TestFailed'::text])), ((EXISTS ( SELECT 1
-                   FROM metrc_rpt_package_transfers t
-                  WHERE t.package_tag = p.tag)))) v
-     LEFT JOIN mv_tag_documents td ON td.tag = v.package_tag;
-create or replace view public.v_item_flag_summary as
- SELECT v_item_flags.area,
-    v_item_flags.area_colour,
-    count(*) AS open_issues,
-    count(*) FILTER (WHERE v_item_flags.severity = 'critical'::text) AS critical,
-    count(*) FILTER (WHERE v_item_flags.severity = 'elevated'::text) AS elevated,
-    count(*) FILTER (WHERE v_item_flags.severity = 'watch'::text) AS watch,
-    count(*) FILTER (WHERE v_item_flags.disposition = 'MARKED FIXED BUT STILL PRESENT'::text) AS claimed_fixed_but_not,
-    count(*) FILTER (WHERE v_item_flags.days_open > 7) AS open_over_a_week,
-    max(v_item_flags.days_open) AS oldest_days_open,
-    count(DISTINCT v_item_flags.entity_key) AS items_affected
-   FROM v_item_flags
-  GROUP BY v_item_flags.area, v_item_flags.area_colour
-UNION ALL
- SELECT 'ALL AREAS TOGETHER'::text AS area,
-    NULL::text AS area_colour,
-    count(*) AS open_issues,
-    count(*) FILTER (WHERE v_item_flags.severity = 'critical'::text) AS critical,
-    count(*) FILTER (WHERE v_item_flags.severity = 'elevated'::text) AS elevated,
-    count(*) FILTER (WHERE v_item_flags.severity = 'watch'::text) AS watch,
-    count(*) FILTER (WHERE v_item_flags.disposition = 'MARKED FIXED BUT STILL PRESENT'::text) AS claimed_fixed_but_not,
-    count(*) FILTER (WHERE v_item_flags.days_open > 7) AS open_over_a_week,
-    max(v_item_flags.days_open) AS oldest_days_open,
-    count(DISTINCT v_item_flags.entity_key) AS items_affected
-   FROM v_item_flags;
-create or replace view public.v_item_flags as
- SELECT entity_type,
-    entity_key,
-    severity,
-    headline,
-    detail,
-    why,
-    what_to_do,
-    source,
-    source_ref,
-    raised_on,
-    context,
-    disposition,
-    decision_reason,
-    decision_note,
-    decided_by,
-    decided_at,
-    review_on,
-    needs_a_decision,
-    licence,
-    area,
-    area_colour,
-    days_open
-   FROM v_item_flags_all
-  WHERE needs_a_decision;
-create or replace view public.v_item_flags_all as
- WITH raw_flags AS (
-         SELECT 'package'::text AS entity_type,
-            r.row_key AS entity_key,
-                CASE
-                    WHEN r.agent_confidence = 'needs_a_person'::text THEN 'elevated'::text
-                    ELSE 'watch'::text
-                END AS severity,
-            'Upload disagreement on '::text || r.field_name AS headline,
-            (((('The file says '::text || COALESCE(r.value_in_the_file, '(blank)'::text)) || ' where we hold '::text) || COALESCE(r.value_we_hold, '(blank)'::text)) || COALESCE(' - a difference of '::text || round(r.difference, 4), ''::text)) || COALESCE((' ('::text || round(r.pct_difference, 2)) || '%)'::text, ''::text) AS detail,
-            COALESCE(r.agent_reasoning, 'No recommendation was recorded.'::text) AS why,
-                CASE r.agent_recommendation
-                    WHEN 'accept_file'::text THEN 'AgentMapper suggests taking the file value. Confirm or reject.'::text
-                    WHEN 'keep_ours'::text THEN 'AgentMapper suggests keeping ours. Confirm or reject.'::text
-                    ELSE 'AgentMapper could not decide. Someone who knows this record must choose.'::text
-                END AS what_to_do,
-            'import_reconciliation'::text AS source,
-            r.id::text AS source_ref,
-            r.created_at::date AS raised_on,
-            r.report_key AS context,
-            run.licence
-           FROM import_reconciliation r
-             LEFT JOIN import_reconciliation_run run ON run.id = r.run_id
-          WHERE r.outcome = 'differs'::text AND r.decision IS NULL
-        UNION ALL
-         SELECT 'package'::text AS text,
-            t.tag,
-                CASE
-                    WHEN c.urgency = 'urgent'::text THEN 'critical'::text
-                    ELSE 'elevated'::text
-                END AS "case",
-            c.title,
-            c.what_is_wrong,
-            c.why_it_matters,
-            c.how_to_fix_in_metrc,
-            'metrc_corrections'::text AS text,
-            (c.id::text || ':'::text) || t.tag,
-            c.raised_on,
-            'Metrc record'::text AS text,
-            ( SELECT p.license
-                   FROM metrc_packages p
-                  WHERE p.tag = t.tag
-                 LIMIT 1) AS license
-           FROM metrc_corrections c
-             CROSS JOIN LATERAL ( SELECT btrim(x.x) AS tag
-                   FROM unnest(string_to_array(COALESCE(c.packages_affected, ''::text), ','::text)) x(x)) t
-          WHERE c.fixed_in_metrc = false AND t.tag ~ '^1A[0-9A-Z]{22}$'::text AND (EXISTS ( SELECT 1
-                   FROM metrc_packages p
-                  WHERE p.tag = t.tag))
-        UNION ALL
-         SELECT 'correction'::text AS text,
-            c.id::text AS id,
-                CASE
-                    WHEN c.urgency = 'urgent'::text THEN 'critical'::text
-                    ELSE 'elevated'::text
-                END AS "case",
-            c.title,
-            c.what_is_wrong,
-            c.why_it_matters,
-            c.how_to_fix_in_metrc,
-            'metrc_corrections'::text AS text,
-            c.id::text AS id,
-            c.raised_on,
-            COALESCE(NULLIF(btrim(c.packages_affected), ''::text), 'Company-wide'::text) AS "coalesce",
-            NULL::text AS text
-           FROM metrc_corrections c
-          WHERE c.fixed_in_metrc = false AND NOT (EXISTS ( SELECT 1
-                   FROM unnest(string_to_array(COALESCE(c.packages_affected, ''::text), ','::text)) x(x)
-                  WHERE btrim(x.x) ~ '^1A[0-9A-Z]{22}$'::text AND (EXISTS ( SELECT 1
-                           FROM metrc_packages p
-                          WHERE p.tag = btrim(x.x)))))
-        UNION ALL
-         SELECT 'package'::text AS text,
-            p.package_tag,
-                CASE
-                    WHEN p.verdict ~~ 'METRC HOLDS ZERO%'::text THEN 'critical'::text
-                    ELSE 'elevated'::text
-                END AS "case",
-            'Potency disagrees with the COA'::text AS text,
-            ((((((((('Metrc records '::text || p.metrc_value) || ' '::text) || COALESCE(p.metrc_unit, ''::text)) || '; COA '::text) || COALESCE(p.coa_document, '(no document id)'::text)) || ' reports '::text) || p.coa_percent) || '%. Difference '::text) || p.difference) || ' percentage points.'::text,
-            'The certificate of analysis is independent of Metrc, so it is the only thing that can catch a wrong figure inside Metrc.'::text AS text,
-            'Compare against the COA document and raise a Metrc correction if the state record is wrong. Do not edit the figure only here.'::text AS text,
-            'v_potency_vs_coa'::text AS text,
-            p.package_tag,
-            CURRENT_DATE AS "current_date",
-            'Lab result'::text AS text,
-            p.license
-           FROM v_potency_vs_coa p
-          WHERE p.verdict = ANY (ARRAY['disagrees with the COA - needs a person'::text, 'METRC HOLDS ZERO, THE COA DOES NOT - raise a correction'::text])
-        UNION ALL
-         SELECT 'package'::text AS text,
-            p.tag,
-            'critical'::text AS text,
-            ('OUR OWN '::text || upper(COALESCE(p.raw #>> '{Item,ProductCategoryName}'::text[], 'material'::text))) || ' FAILED TESTING - address with the team'::text AS text,
-            ((((((((round(COALESCE(p.quantity, 0::numeric) / f_rule('grams_per_pound'::text), 1) || ' lb of '::text) || COALESCE(p.item_name, '(unnamed)'::text)) || COALESCE((' (strain '::text || (p.raw #>> '{Item,StrainName}'::text[])) || ')'::text, ''::text)) || ' in '::text) || COALESCE(p.location, 'no location recorded'::text)) || '. Failed on: '::text) || COALESCE(( SELECT string_agg(DISTINCT r.test_name, '; '::text) AS string_agg
-                   FROM metrc_lab_results r
-                  WHERE r.package_tag = p.tag AND r.passed = false), 'NO FAILED TEST ON RECORD - the reason was never captured, so nobody can act on it'::text)) || '. Source harvests: '::text) || COALESCE(NULLIF(p.raw ->> 'SourceHarvestNames'::text, ''::text), 'not recorded'::text) AS text,
-            (('This is our own production failing, which is a team matter before it is a stock matter. '::text || 'The material is remediated and processed either way, so this is not a money loss - '::text) || 'it is the signal that something in growing, drying or extraction produced it. '::text) || 'Remediating it recovers the value and answers nothing about the cause.'::text AS text,
-            ('Raise it with the team responsible, trace it to the source harvest and room, and record '::text || 'what is being changed. THEN remediate and process. Where no failed test is on record, '::text) || 'get the result from the laboratory first - without it the team has nothing to act on.'::text AS text,
-            'failed_own_material'::text AS text,
-            p.tag,
-            CURRENT_DATE AS "current_date",
-            COALESCE(p.raw #>> '{Item,ProductCategoryName}'::text[], 'Failed testing'::text) AS "coalesce",
-            p.license
-           FROM metrc_packages p
-          WHERE p.lab_testing_state = 'TestFailed'::text AND (p.source_state = ANY (ARRAY['active'::text, 'onhold'::text])) AND ((p.raw ->> 'ItemFromFacilityLicenseNumber'::text) = ANY (ARRAY['MC281714'::text, 'MP281909'::text]))
-        UNION ALL
-         SELECT 'package'::text AS text,
-            a.package_tag,
-            'watch'::text AS text,
-            'Conflicting adjustment records'::text AS text,
-            ((('We hold '::text || a.rows_held) || ' adjustment rows for this package with '::text) || a.distinct_quantities) || ' different quantities.'::text,
-            COALESCE(a.reading, 'The same package was adjusted to more than one quantity.'::text) AS "coalesce",
-            'Establish which adjustment is correct and record the decision.'::text AS text,
-            'v_adjustment_conflicts'::text AS text,
-            a.package_tag,
-            COALESCE(a.adjusted_on, CURRENT_DATE) AS "coalesce",
-            'Adjustment'::text AS text,
-            a.licence
-           FROM v_adjustment_conflicts a
-          WHERE a.needs_a_decision
-        )
- SELECT f.entity_type,
-    f.entity_key,
-        CASE
-            WHEN d.decision = 'fixed'::text THEN 'critical'::text
-            ELSE f.severity
-        END AS severity,
-    f.headline,
-    f.detail,
-    f.why,
-    f.what_to_do,
-    f.source,
-    f.source_ref,
-    f.raised_on,
-    f.context,
-        CASE
-            WHEN d.id IS NULL THEN 'open'::text
-            WHEN d.decision = 'fixed'::text THEN 'MARKED FIXED BUT STILL PRESENT'::text
-            WHEN d.decision = 'ignored'::text AND d.review_on <= CURRENT_DATE THEN 'ignore expired - back for review'::text
-            WHEN d.decision = 'ignored'::text THEN 'ignored until '::text || d.review_on
-            ELSE d.decision
-        END AS disposition,
-    d.reason AS decision_reason,
-    d.note AS decision_note,
-    d.decided_by,
-    d.decided_at,
-    d.review_on,
-    d.id IS NULL OR d.decision = 'fixed'::text OR d.decision = 'ignored'::text AND d.review_on <= CURRENT_DATE AS needs_a_decision,
-    f.licence,
-    COALESCE(lp.short_name,
-        CASE
-            WHEN f.entity_type = 'correction'::text THEN 'Company-wide'::text
-            ELSE 'Not attributed to a licence'::text
-        END) AS area,
-    lp.colour AS area_colour,
-    CURRENT_DATE - f.raised_on AS days_open
-   FROM raw_flags f
-     LEFT JOIN licence_profile lp ON lp.licence = f.licence
-     LEFT JOIN item_flag_decision d ON d.entity_type = f.entity_type AND d.entity_key = f.entity_key AND d.source = f.source AND d.source_ref = f.source_ref AND d.superseded_at IS NULL;
-create or replace view public.v_kpi_staleness as
- WITH live AS (
-         SELECT mv_department_dashboard.department,
-            mv_department_dashboard.kpi,
-            mv_department_dashboard.value AS live_value,
-            mv_department_dashboard.unit
-           FROM mv_department_dashboard
-        ), latest_snap AS (
-         SELECT DISTINCT ON (dashboard_snapshots.department, dashboard_snapshots.kpi) dashboard_snapshots.department,
-            dashboard_snapshots.kpi,
-            dashboard_snapshots.value AS last_snap_value,
-            dashboard_snapshots.taken_on
-           FROM dashboard_snapshots
-          ORDER BY dashboard_snapshots.department, dashboard_snapshots.kpi, dashboard_snapshots.taken_on DESC
-        ), hist AS (
-         SELECT dashboard_snapshots.department,
-            dashboard_snapshots.kpi,
-            dashboard_snapshots.taken_on,
-            dashboard_snapshots.value,
-            lag(dashboard_snapshots.value) OVER (PARTITION BY dashboard_snapshots.department, dashboard_snapshots.kpi ORDER BY dashboard_snapshots.taken_on) AS prev_value
-           FROM dashboard_snapshots
-        ), changed AS (
-         SELECT hist.department,
-            hist.kpi,
-            max(hist.taken_on) FILTER (WHERE hist.prev_value IS DISTINCT FROM hist.value) AS last_changed_on,
-            count(*) AS snapshots_held
-           FROM hist
-          GROUP BY hist.department, hist.kpi
-        ), resolved AS (
-         SELECT l.department,
-            l.kpi,
-            l.live_value,
-            l.unit,
-            c.snapshots_held,
-                CASE
-                    WHEN s.last_snap_value IS DISTINCT FROM l.live_value THEN CURRENT_DATE
-                    ELSE c.last_changed_on
-                END AS last_changed_on,
-            s.last_snap_value IS DISTINCT FROM l.live_value AS moved_since_last_snapshot
-           FROM live l
-             LEFT JOIN changed c ON c.department = l.department AND c.kpi = l.kpi
-             LEFT JOIN latest_snap s ON s.department = l.department AND s.kpi = l.kpi
-        )
- SELECT r.department,
-    r.kpi,
-    r.live_value,
-    r.unit,
-    r.last_changed_on,
-    r.snapshots_held,
-    CURRENT_DATE - r.last_changed_on AS days_unchanged,
-    p.must_move_within,
-    p.exempt,
-    p.why AS policy_reason,
-        CASE
-            WHEN r.live_value IS NULL THEN 'NULL VALUE — the tile shows nothing and asks nobody a question'::text
-            WHEN p.department IS NULL THEN 'UNPOLICED — no freshness policy declared for this KPI'::text
-            WHEN p.exempt THEN 'EXEMPT — '::text || p.why
-            WHEN r.last_changed_on IS NULL THEN 'NO HISTORY — never seen to change; snapshots begin 6 Aug 2026'::text
-            WHEN ((CURRENT_DATE - r.last_changed_on)::double precision * '1 day'::interval) > p.must_move_within THEN (('STALE — unchanged for '::text || (CURRENT_DATE - r.last_changed_on)) || ' days against a policy of '::text) || p.must_move_within
-            ELSE 'FRESH'::text
-        END AS verdict,
-    r.moved_since_last_snapshot
-   FROM resolved r
-     LEFT JOIN kpi_freshness_policy p ON p.department = r.department AND p.kpi = r.kpi;
 create or replace view public.v_lab_analytes as
  SELECT v.package_tag,
     v.licence,
@@ -49732,32 +46288,6 @@ create or replace view public.v_lab_analytes as
                    FROM metrc_lab_results a
                   WHERE a.package_tag = r.package_tag))) v
      LEFT JOIN mv_tag_documents td ON td.tag = v.package_tag;
-create or replace view public.v_lab_fail_rate_by_origin as
- SELECT COALESCE(NULLIF(supplier, ''::text),
-        CASE
-            WHEN origin = 'Grown by us'::text THEN 'Twisted Growers (our own)'::text
-            ELSE 'Supplier not recorded'::text
-        END) AS supplier,
-    origin,
-    count(*) AS packages_tested,
-    count(*) FILTER (WHERE verdict = 'FAILED'::text) AS failed,
-    count(*) FILTER (WHERE verdict = 'Passed'::text) AS passed,
-    count(*) FILTER (WHERE verdict = 'Awaiting result'::text) AS awaiting_result,
-    count(*) FILTER (WHERE verdict = 'NEVER SUBMITTED'::text) AS never_submitted,
-    round(100.0 * count(*) FILTER (WHERE verdict = 'FAILED'::text)::numeric / NULLIF(count(*) FILTER (WHERE verdict = ANY (ARRAY['FAILED'::text, 'Passed'::text])), 0)::numeric, 1) AS fail_rate_pct,
-    round(sum(pounds) FILTER (WHERE verdict = 'FAILED'::text), 1) AS failed_pounds,
-    round(sum(pounds), 1) AS total_pounds,
-    max(result_on) AS most_recent_result_on,
-        CASE
-            WHEN count(*) FILTER (WHERE verdict = ANY (ARRAY['FAILED'::text, 'Passed'::text])) = 0 THEN 'No completed tests for this supplier yet, so a fail rate cannot be calculated.'::text
-            ELSE NULL::text
-        END AS why_no_rate
-   FROM v_lab_results r
-  GROUP BY (COALESCE(NULLIF(supplier, ''::text),
-        CASE
-            WHEN origin = 'Grown by us'::text THEN 'Twisted Growers (our own)'::text
-            ELSE 'Supplier not recorded'::text
-        END)), origin;
 create or replace view public.v_lab_results as
  SELECT v.license,
     v.package_tag,
@@ -50041,72 +46571,6 @@ create or replace view public.v_lab_turnaround_packages as
              LEFT JOIN v_harvest_forensic hf ON hf.harvest_name = split_part(NULLIF(p.raw ->> 'SourceHarvestNames'::text, ''::text), ','::text, 1)
           WHERE NULLIF(p.raw ->> 'LabTestingStateDate'::text, ''::text) IS NOT NULL) v
      LEFT JOIN mv_tag_documents td ON td.tag = v.package_tag;
-create or replace view public.v_leadership_accountability as
- WITH paid AS (
-         SELECT e.id,
-            e.full_name,
-            e.employee_code,
-            COALESCE(rc.name, 'not recorded'::text) AS "position",
-            COALESCE(d.name, 'not assigned'::text) AS department,
-            e.weekly_target_hours,
-            ( SELECT round(pf.loaded_weekly_cost, 0) AS round
-                   FROM v_payroll_forecast pf
-                  WHERE pf.full_name = e.full_name
-                 LIMIT 1) AS loaded_weekly_cost,
-            ( SELECT round(pf.loaded_weekly_cost * 52::numeric, 0) AS round
-                   FROM v_payroll_forecast pf
-                  WHERE pf.full_name = e.full_name
-                 LIMIT 1) AS loaded_annual_cost
-           FROM employees e
-             LEFT JOIN roles_catalog rc ON rc.id = e.primary_role_id
-             LEFT JOIN departments d ON d.id = e.primary_department_id
-          WHERE e.terminated_on IS NULL
-        )
- SELECT full_name,
-    "position",
-    department,
-    employee_code,
-    loaded_weekly_cost,
-    loaded_annual_cost,
-        CASE
-            WHEN department ~~* '%cultivation%'::text THEN ( SELECT count(*) AS count
-               FROM v_late_violations
-              WHERE v_late_violations.rule_verdict ~~ 'VIOLATION%'::text)
-            WHEN department ~~* '%pre-roll%'::text OR department ~~* '%manufactur%'::text OR department ~~* '%extract%'::text OR department ~~* '%packag%'::text THEN ( SELECT count(*) AS count
-               FROM v_turnaround_watch
-              WHERE v_turnaround_watch.turnaround_violation)
-            ELSE NULL::bigint
-        END AS violations_in_their_area,
-        CASE
-            WHEN department ~~* '%cultivation%'::text THEN ( SELECT round(avg(v_true_cost_per_pound.wet_to_saleable_pct), 1) AS round
-               FROM v_true_cost_per_pound
-              WHERE v_true_cost_per_pound.month_date >= (CURRENT_DATE - 90))
-            ELSE NULL::numeric
-        END AS area_conversion_pct_90d,
-        CASE
-            WHEN department ~~* '%cultivation%'::text THEN ( SELECT count(*) AS count
-               FROM v_harvest_lifecycle
-              WHERE v_harvest_lifecycle.verdict = 'MISSING WEIGHTS'::text)
-            ELSE NULL::bigint
-        END AS missing_weight_reports,
-        CASE
-            WHEN department ~~* '%cultivation%'::text THEN ( SELECT count(*) AS count
-               FROM v_harvest_lifecycle
-              WHERE v_harvest_lifecycle.verdict = 'BLOCKING THE ROOM'::text)
-            ELSE NULL::bigint
-        END AS rooms_blocked,
-    ( SELECT count(*) AS count
-           FROM v_custody_alerts) AS company_compliance_flags,
-        CASE
-            WHEN loaded_annual_cost IS NULL THEN 'Pay rate not loaded - cannot measure cost against delivery'::text
-            WHEN department ~~* '%cultivation%'::text AND (( SELECT count(*) AS count
-               FROM v_late_violations
-              WHERE v_late_violations.rule_verdict ~~ 'VIOLATION%'::text)) > 0 THEN 'Schedule violations in their area - review directly'::text
-            WHEN department = 'not assigned'::text THEN 'No department assigned - cannot attribute accountability'::text
-            ELSE 'No open violations attributed to their area'::text
-        END AS accountability_note
-   FROM paid p
-  ORDER BY loaded_annual_cost DESC NULLS LAST;
 create or replace view public.v_location_history as
  SELECT v.package_tag,
     v.item_name,
@@ -50201,34 +46665,6 @@ create or replace view public.v_location_history as
                         END) || ' · history last recorded '::text) || COALESCE(moves.last_recorded_on::text, 'never'::text) AS location_story
                    FROM moves) q) v
      LEFT JOIN mv_tag_documents td ON td.tag = v.package_tag;
-create or replace view public.v_manufacturing_client_stock as
- SELECT COALESCE(mc.client_name, 'Twisted Growers'::text) AS brand_owner,
-    COALESCE(mc.client_key, 'tg'::text) AS brand_owner_key,
-        CASE
-            WHEN mc.client_key IS NULL THEN 'ours'::text
-            ELSE 'separate — '::text || mc.relationship
-        END AS ownership_basis,
-    s.package_tag,
-    s.item_name,
-    s.stream,
-    s.license,
-    s.pounds,
-    s.units,
-    s.quantity_shown,
-    s.packaged_on,
-    s.location,
-    s.evidence_source,
-    s.certificate_document,
-    s.certificate_grade,
-    mc.their_licence AS client_licence,
-        CASE
-            WHEN mc.client_key IS NOT NULL THEN ((((('Made here for '::text || mc.client_name) || ' under our own licence '::text) || mc.we_make_it_under) || ' on a LICENSING FEE arrangement — owner ruling 13 Aug 2026, tracked separately as if a third licence. Metrc counts it against us and that is correct, because Metrc tracks custody. A licensing fee is NOT cost of goods sold, and who pays whom is still '::text) || COALESCE(mc.fee_direction, 'unrecorded'::text)) || ' — no money figure may be derived from these units until the owner and the CPA settle it.'::text
-            ELSE NULL::text
-        END AS what_this_means,
-    mc.fee_direction,
-    mc.money_treatment
-   FROM v_stock_packages s
-     LEFT JOIN manufacturing_client mc ON s.item_name ~* mc.item_name_pattern;
 create or replace view public.v_material_forensic_dossier as
  SELECT v.tag,
     v.item,
@@ -50550,326 +46986,6 @@ create or replace view public.v_material_ownership_conflict as
              CROSS JOIN LATERAL f_material_origin(p.tag) o(o)
           WHERE (p.source_state = ANY (ARRAY['active'::text, 'onhold'::text])) AND f_is_ours(p.raw ->> 'ItemFromFacilityLicenseNumber'::text) AND ((o.o ->> 'any_outside'::text)::boolean) IS TRUE) v
      LEFT JOIN mv_tag_documents td ON td.tag = v.package_tag;
-create or replace view public.v_metrc_apex_tag_reconciliation as
- SELECT s.package_tag,
-    s.manifest_number,
-    s.shipped_on,
-    s.buyer,
-    s.buyer_licence,
-    round(COALESCE(s.pounds, 0::numeric), 3) AS lb,
-    s.invoice_number AS apex_invoice,
-    s.total_usd AS apex_usd,
-    s.payment_status,
-        CASE
-            WHEN s.internal_transfer THEN 'NOT A SALE — INTERNAL MOVE'::text
-            WHEN s.is_transport_leg THEN 'NOT A SALE — TRANSPORT LEG'::text
-            WHEN NOT f_can_be_a_customer(s.buyer_licence) THEN 'NOT A SALE — LABORATORY'::text
-            WHEN s.invoice_match = 'matched'::text THEN 'RECONCILED'::text
-            WHEN s.shipped_on < '2025-01-30'::date THEN 'PRE-INVOICE ERA — matching impossible'::text
-            WHEN u.manifest_number IS NOT NULL AND u.diagnosis ~~ 'LICENCE FORMAT%'::text THEN 'APEX HAS IT — JOIN BROKEN (licence format)'::text
-            ELSE 'ABSENT FROM APEX — investigate (deal-docs endpoint never synced)'::text
-        END AS verdict,
-    u.apex_candidate_invoice,
-    u.apex_candidate_usd
-   FROM v_forensic_sold_by_tag s
-     LEFT JOIN v_unmatched_manifest_forensic u ON u.manifest_number = s.manifest_number;
-create or replace view public.v_missing_lab_results as
- SELECT v.package_tag,
-    v.product,
-    v.category,
-    v.strain,
-    v.source_harvest,
-    v.pounds,
-    v.went_out_on,
-    v.days_missing,
-    v.testing_state,
-    v.value_at_risk,
-    v.where_it_is_now,
-    v.origin,
-    v.what_to_do,
-    td.coa_certificate_id,
-    td.coa_document_link,
-    td.manifest_no,
-    td.manifest_document_link,
-    td.apex_invoice_no,
-    td.apex_invoice_usd
-   FROM ( SELECT l.package_tag,
-            l.product,
-            l.category,
-            l.strain,
-            l.source_harvest,
-            l.pounds,
-            l.went_out_on,
-            CURRENT_DATE - l.went_out_on AS days_missing,
-            l.testing_state,
-            round(l.pounds * f_rate_for(s.stream)) AS value_at_risk,
-            s.location AS where_it_is_now,
-            s.origin,
-            ((((('Submitted to the laboratory on '::text || l.went_out_on) || ' and still showing '::text) || l.testing_state) || ' after '::text) || (CURRENT_DATE - l.went_out_on)) || ' days. No result has been recorded. Chase the laboratory for the certificate and enter it.'::text AS what_to_do
-           FROM lab_turnaround_log l
-             LEFT JOIN v_stock_packages s ON s.package_tag = l.package_tag
-          WHERE l.came_back_on IS NULL AND (l.testing_state = ANY (ARRAY['SubmittedForTesting'::text, 'TestingInProgress'::text]))
-          ORDER BY (CURRENT_DATE - l.went_out_on) DESC) v
-     LEFT JOIN mv_tag_documents td ON td.tag = v.package_tag;
-create or replace view public.v_never_tested_proof as
- WITH base AS (
-         SELECT DISTINCT ON (p.tag) p.tag,
-            p.item_name,
-            p.uom,
-            p.quantity,
-            p.license,
-            p.lab_testing_state,
-            p.source_state,
-            p.packaged_on,
-            p.raw
-           FROM metrc_packages p
-          ORDER BY p.tag, p.license
-        )
- SELECT tag AS metrc_tag,
-    license AS metrc_licence,
-    "left"(item_name, 46) AS item,
-    raw #>> '{Item,ProductCategoryName}'::text[] AS category,
-    f_quantity_text(quantity, uom) AS metrc_quantity,
-    raw ->> 'LocationName'::text AS metrc_room,
-    raw ->> 'LocationTypeName'::text AS room_type,
-    NULLIF(raw ->> 'SublocationName'::text, ''::text) AS sublocation,
-    lab_testing_state AS metrc_lab_state,
-    source_state AS metrc_status,
-    (raw ->> 'IsOnHold'::text)::boolean AS on_hold,
-    (raw ->> 'IsFinished'::text)::boolean AS finished,
-    packaged_on AS metrc_packaged_on,
-    (raw ->> 'LastModified'::text)::date AS metrc_last_modified,
-    CURRENT_DATE - packaged_on AS days_in_facility,
-    NULLIF(raw ->> 'SourceHarvestNames'::text, ''::text) AS from_harvest,
-    (raw ->> 'SourcePackageCount'::text)::integer AS made_from_n_packages,
-    "left"(NULLIF(raw ->> 'SourcePackageLabels'::text, ''::text), 120) AS made_from_packages,
-    NULLIF(raw ->> 'ProductionBatchNumber'::text, ''::text) AS production_batch,
-    NULLIF(raw ->> 'ReceivedFromManifestNumber'::text, ''::text) AS arrived_on_manifest,
-    ( SELECT string_agg(c.tag, ', '::text) AS string_agg
-           FROM metrc_packages c
-          WHERE (c.raw ->> 'SourcePackageLabels'::text) ~~ (('%'::text || b.tag) || '%'::text)) AS became_packages,
-    ( SELECT count(*) AS count
-           FROM metrc_lab_results l
-          WHERE l.package_tag = b.tag) AS lab_results,
-    ( SELECT count(*) AS count
-           FROM metrc_rpt_package_transfers t
-          WHERE t.package_tag = b.tag) AS manifest_lines,
-    ( SELECT count(*) AS count
-           FROM v_certificate_resolved r
-          WHERE r.package_tag = b.tag AND r.found_at_depth = 0) AS own_certificate,
-    ( SELECT max(r.found_at_depth) AS max
-           FROM v_certificate_resolved r
-          WHERE r.package_tag = b.tag) AS inherited_cert_depth,
-        CASE
-            WHEN (raw ->> 'LocationName'::text) IS NULL THEN 'FAILS THE RULE - Metrc holds no room for this tag'::text
-            WHEN (( SELECT count(*) AS count
-               FROM metrc_lab_results l
-              WHERE l.package_tag = b.tag)) > 0 THEN 'FAILS THE RULE - claimed untested but laboratory results exist'::text
-            WHEN (( SELECT count(*) AS count
-               FROM metrc_rpt_package_transfers t
-              WHERE t.package_tag = b.tag)) > 0 THEN 'FAILS THE RULE - claimed never shipped but it is on a manifest line'::text
-            WHEN (( SELECT count(*) AS count
-               FROM v_certificate_resolved r
-              WHERE r.package_tag = b.tag AND r.found_at_depth = 0)) > 0 THEN 'FAILS THE RULE - claimed untested but a certificate is filed against it'::text
-            ELSE ((('PROVEN - Metrc holds it in '::text || (raw ->> 'LocationName'::text)) || ', state '::text) || lab_testing_state) || ', no results, no manifest, no certificate'::text
-        END AS proof
-   FROM base b
-  WHERE (lab_testing_state = ANY (ARRAY['NotSubmitted'::text, 'NotRequired'::text])) AND (source_state = ANY (ARRAY['active'::text, 'onhold'::text]));
-create or replace view public.v_never_tested_reconciliation as
- SELECT v.package_tag,
-    v.item_name,
-    v.category,
-    v.location,
-    v.how_much,
-    v.metrc_says,
-    v.packaged_on,
-    v.days_held,
-    v.lab_results,
-    v.manifest_lines,
-    v.direct_certificates,
-    v.inherited_at_depth,
-    v.reconciliation,
-    v.what_is_wrong,
-    td.coa_certificate_id,
-    td.coa_document_link,
-    td.manifest_no,
-    td.manifest_document_link,
-    td.apex_invoice_no,
-    td.apex_invoice_usd
-   FROM ( WITH claimed AS (
-                 SELECT p.tag,
-                    p.item_name,
-                    p.lab_testing_state,
-                    p.uom,
-                    p.quantity,
-                    p.source_state,
-                    p.raw ->> 'LocationName'::text AS location,
-                    p.raw #>> '{Item,ProductCategoryName}'::text[] AS category,
-                    p.packaged_on,
-                    CURRENT_DATE - p.packaged_on AS days_held
-                   FROM ( SELECT DISTINCT ON (metrc_packages.tag) metrc_packages.tag,
-                            metrc_packages.item_name,
-                            metrc_packages.lab_testing_state,
-                            metrc_packages.uom,
-                            metrc_packages.quantity,
-                            metrc_packages.source_state,
-                            metrc_packages.packaged_on,
-                            metrc_packages.raw
-                           FROM metrc_packages
-                          ORDER BY metrc_packages.tag, metrc_packages.license) p
-                  WHERE (p.lab_testing_state = ANY (ARRAY['NotSubmitted'::text, 'NotRequired'::text])) AND (p.source_state = ANY (ARRAY['active'::text, 'onhold'::text]))
-                )
-         SELECT c.tag AS package_tag,
-            "left"(c.item_name, 50) AS item_name,
-            c.category,
-            c.location,
-            f_quantity_text(c.quantity, c.uom) AS how_much,
-            c.lab_testing_state AS metrc_says,
-            c.packaged_on,
-            c.days_held,
-            ( SELECT count(*) AS count
-                   FROM metrc_lab_results l
-                  WHERE l.package_tag = c.tag) AS lab_results,
-            ( SELECT count(*) AS count
-                   FROM metrc_rpt_package_transfers t
-                  WHERE t.package_tag = c.tag) AS manifest_lines,
-            ( SELECT count(*) AS count
-                   FROM v_certificate_resolved r
-                  WHERE r.package_tag = c.tag AND r.found_at_depth = 0) AS direct_certificates,
-            ( SELECT max(r.found_at_depth) AS max
-                   FROM v_certificate_resolved r
-                  WHERE r.package_tag = c.tag) AS inherited_at_depth,
-                CASE
-                    WHEN (( SELECT count(*) AS count
-                       FROM metrc_lab_results l
-                      WHERE l.package_tag = c.tag)) > 0 THEN 'CONTRADICTION - Metrc says never submitted but laboratory results exist'::text
-                    WHEN (( SELECT count(*) AS count
-                       FROM v_certificate_resolved r
-                      WHERE r.package_tag = c.tag AND r.found_at_depth = 0)) > 0 THEN 'CONTRADICTION - Metrc says never submitted but a certificate is filed DIRECTLY against it'::text
-                    WHEN (( SELECT count(*) AS count
-                       FROM metrc_rpt_package_transfers t
-                      WHERE t.package_tag = c.tag)) > 0 THEN 'CONTRADICTION - Metrc says never tested but it travelled on a manifest'::text
-                    ELSE 'RECONCILED - never tested, never shipped, consistent on all four sources'::text
-                END AS reconciliation,
-            'THE RULE: a claim of never tested must reconcile against Metrc, the laboratory results, the custody export and the document store. Three of those four are outside this platform''s own reasoning.'::text AS what_is_wrong
-           FROM claimed c) v
-     LEFT JOIN mv_tag_documents td ON td.tag = v.package_tag;
-create or replace view public.v_outbound_balance as
- SELECT 'Internal moves between our own licences'::text AS stream,
-    1 AS ord,
-    round(sum(v_forensic_sold_by_tag.pounds), 1) AS lb,
-    count(DISTINCT v_forensic_sold_by_tag.package_tag) AS tags,
-    'Not a sale. MC to MP or back — the material never left the company.'::text AS why
-   FROM v_forensic_sold_by_tag
-  WHERE v_forensic_sold_by_tag.internal_transfer
-UNION ALL
- SELECT 'Transport legs'::text AS stream,
-    2 AS ord,
-    round(sum(v_forensic_sold_by_tag.pounds), 1) AS lb,
-    count(DISTINCT v_forensic_sold_by_tag.package_tag) AS tags,
-    ('Not a sale. A transporter is a leg of a journey, not a buyer. 75 of these tags '::text || 'also appear on a manifest to the real customer and were counted twice until '::text) || '18 Aug 2026.'::text AS why
-   FROM v_forensic_sold_by_tag
-  WHERE v_forensic_sold_by_tag.is_transport_leg
-UNION ALL
- SELECT 'Samples to testing laboratories'::text AS stream,
-    3 AS ord,
-    round(sum(v_forensic_sold_by_tag.pounds), 1) AS lb,
-    count(DISTINCT v_forensic_sold_by_tag.package_tag) AS tags,
-    'Not a sale. $0.00 declared on every line. Tracked in v_lab_samples_out.'::text AS why
-   FROM v_forensic_sold_by_tag
-  WHERE NOT v_forensic_sold_by_tag.internal_transfer AND NOT v_forensic_sold_by_tag.is_transport_leg AND NOT v_forensic_sold_by_tag.counts_as_sale
-UNION ALL
- SELECT 'Genuinely sold to a customer'::text AS stream,
-    4 AS ord,
-    round(sum(v_forensic_sold_by_tag.pounds), 1) AS lb,
-    count(DISTINCT v_forensic_sold_by_tag.package_tag) AS tags,
-    'The only stream that should ever appear in a revenue or pounds-sold figure.'::text AS why
-   FROM v_forensic_sold_by_tag
-  WHERE v_forensic_sold_by_tag.counts_as_sale
-UNION ALL
- SELECT 'TOTAL — everything that left our licences'::text AS stream,
-    9 AS ord,
-    round(sum(v_forensic_sold_by_tag.pounds), 1) AS lb,
-    count(DISTINCT v_forensic_sold_by_tag.package_tag) AS tags,
-    'The four streams above sum to this with no overlap and no remainder.'::text AS why
-   FROM v_forensic_sold_by_tag;
-create or replace view public.v_ownership_by_custody as
- SELECT v.package_tag,
-    v.item_name,
-    v.source_state,
-    v.how_much,
-    v.pounds,
-    v.units,
-    v.item_field_says,
-    v.custody_says,
-    v.manifests,
-    v.custody_events,
-    v.certificate_client,
-    v.certificate_licence,
-    v.certificate_link,
-    v.custody_verdict,
-    v.certificate_vs_custody,
-    td.coa_certificate_id,
-    td.coa_document_link,
-    td.manifest_no,
-    td.manifest_document_link,
-    td.apex_invoice_no,
-    td.apex_invoice_usd
-   FROM ( WITH pkg AS (
-                 SELECT DISTINCT ON (metrc_packages.tag) metrc_packages.tag,
-                    metrc_packages.item_name,
-                    metrc_packages.uom,
-                    metrc_packages.quantity,
-                    metrc_packages.source_state,
-                    metrc_packages.lab_testing_state,
-                    metrc_packages.raw ->> 'ItemFromFacilityLicenseNumber'::text AS item_license,
-                    metrc_packages.raw ->> 'SourcePackageCount'::text AS source_packages
-                   FROM metrc_packages
-                  ORDER BY metrc_packages.tag, metrc_packages.license
-                ), custody AS (
-                 SELECT t.package_tag,
-                    string_agg(DISTINCT t.source_row ->> 'Origin Lic.'::text, ', '::text) FILTER (WHERE (t.source_row ->> 'Origin Lic.'::text) IS NOT NULL) AS origin_licences,
-                    string_agg(DISTINCT t.manifest_number, ', '::text) AS manifests,
-                    count(*) AS custody_events
-                   FROM metrc_rpt_package_transfers t
-                  GROUP BY t.package_tag
-                )
-         SELECT p.tag AS package_tag,
-            "left"(p.item_name, 50) AS item_name,
-            p.source_state,
-            f_quantity_text(p.quantity, p.uom) AS how_much,
-                CASE
-                    WHEN f_is_weight(p.uom) THEN round(f_to_pounds(p.quantity, p.uom), 2)
-                    ELSE NULL::numeric
-                END AS pounds,
-                CASE
-                    WHEN NOT f_is_weight(p.uom) THEN p.quantity
-                    ELSE NULL::numeric
-                END AS units,
-            p.item_license AS item_field_says,
-            c.origin_licences AS custody_says,
-            c.manifests,
-            c.custody_events,
-            r.cert_client AS certificate_client,
-            r.cert_license AS certificate_licence,
-            r.certificate_link,
-                CASE
-                    WHEN c.package_tag IS NULL THEN 'NO CUSTODY RECORD - never appeared on a manifest line. Cannot judge ownership from a testing document; get the manifest.'::text
-                    WHEN c.origin_licences IS NULL THEN 'CUSTODY RECORD WITHOUT AN ORIGIN LICENCE - the export line is incomplete.'::text
-                    WHEN f_all_ours(c.origin_licences) THEN 'OURS - every custody origin on the manifests is one of our licences.'::text
-                    WHEN NOT f_any_ours(c.origin_licences) THEN 'NOT OURS - the manifests name only outside licences as origin.'::text
-                    ELSE 'MIXED - the manifests name both our licences and outside ones. Needs the line detail.'::text
-                END AS custody_verdict,
-                CASE
-                    WHEN r.cert_license IS NULL OR c.origin_licences IS NULL THEN NULL::text
-                    WHEN f_any_ours(r.cert_license) = f_any_ours(c.origin_licences) THEN 'agree'::text
-                    ELSE 'DISAGREE - certificate and manifest point different ways'::text
-                END AS certificate_vs_custody
-           FROM pkg p
-             LEFT JOIN custody c ON c.package_tag = p.tag
-             LEFT JOIN v_certificate_resolved r ON r.package_tag = p.tag
-          WHERE p.source_state = ANY (ARRAY['active'::text, 'onhold'::text])) v
-     LEFT JOIN mv_tag_documents td ON td.tag = v.package_tag;
 create or replace view public.v_ownership_evidence as
  SELECT v.tag,
     v.item_name,
@@ -51058,51 +47174,6 @@ create or replace view public.v_ownership_misattribution as
              LEFT JOIN metrc_documents d_coa ON d_coa.package_tag = x.tag AND d_coa.doc_type ~~* '%coa%'::text
              LEFT JOIN metrc_documents d_man ON d_man.manifest_number = ((x.g -> 'inbound_manifests'::text) ->> 0) AND d_man.doc_type ~~* '%manifest%'::text) v
      LEFT JOIN mv_tag_documents td ON td.tag = v.tag;
-create or replace view public.v_ownership_verdict as
- SELECT v.package_tag,
-    v.item_name,
-    v.source_state,
-    v.lab_testing_state,
-    v.pounds,
-    v.platform_says,
-    v.lineage_says,
-    v.lineage_licences,
-    v.inbound_manifests,
-    v.certificate_says,
-    v.certificate_license,
-    v.certificate_link,
-    v.certificate_on_package,
-    v.verdict,
-    v.what_is_wrong,
-    v.units,
-    v.unit_of_measure,
-    v.how_much,
-    td.coa_certificate_id,
-    td.coa_document_link,
-    td.manifest_no,
-    td.manifest_document_link,
-    td.apex_invoice_no,
-    td.apex_invoice_usd
-   FROM ( SELECT mv_ownership_verdict.package_tag,
-            mv_ownership_verdict.item_name,
-            mv_ownership_verdict.source_state,
-            mv_ownership_verdict.lab_testing_state,
-            mv_ownership_verdict.pounds,
-            mv_ownership_verdict.platform_says,
-            mv_ownership_verdict.lineage_says,
-            mv_ownership_verdict.lineage_licences,
-            mv_ownership_verdict.inbound_manifests,
-            mv_ownership_verdict.certificate_says,
-            mv_ownership_verdict.certificate_license,
-            mv_ownership_verdict.certificate_link,
-            mv_ownership_verdict.certificate_on_package,
-            mv_ownership_verdict.verdict,
-            mv_ownership_verdict.what_is_wrong,
-            mv_ownership_verdict.units,
-            mv_ownership_verdict.unit_of_measure,
-            mv_ownership_verdict.how_much
-           FROM mv_ownership_verdict) v
-     LEFT JOIN mv_tag_documents td ON td.tag = v.package_tag;
 create or replace view public.v_ownership_vs_certificate as
  SELECT v.package_tag,
     v.item_name,
@@ -51268,363 +47339,6 @@ create or replace view public.v_package_documents as
                   ORDER BY tr.created_on DESC NULLS LAST
                  LIMIT 1) t ON true
              LEFT JOIN metrc_documents md ON md.doc_type = 'manifest'::text AND md.manifest_number = t.manifest_number) v
-     LEFT JOIN mv_tag_documents td ON td.tag = v.package_tag;
-create or replace view public.v_package_dossier as
- SELECT v.package_tag,
-    v.item_name,
-    v.strain,
-    v.category,
-    v.category_type,
-    v.department,
-    v.licence,
-    v.quantity,
-    v.status,
-    v.room,
-    v.cultivator_on_certificate,
-    v.cultivator_licence,
-    v.cultivator_address,
-    v.item_defined_by,
-    v.custody_origin_licences,
-    v.ownership_verdict,
-    v.coa_number,
-    v.lab_report_number,
-    v.coa_storage_path,
-    v.certificate_basis,
-    v.certificate_sampled_package,
-    v.laboratory,
-    v.tested_on,
-    v.coa_valid_until,
-    v.certificate_expired,
-    v.manifest_numbers,
-    v.manifest_storage_path,
-    v.arrived_on_manifest,
-    v.received_from,
-    v.batch_on_certificate,
-    v.production_batch,
-    v.source_harvest,
-    v.harvest_date,
-    v.harvest_type,
-    v.drying_room,
-    v.packaged_on,
-    v.days_held,
-    v.made_from_n_packages,
-    v.made_from_packages,
-    v.lab_state,
-    v.tests_run,
-    v.tests_failed,
-    v.failed_analytes,
-    v.total_thc,
-    v.total_cbd,
-    v.total_terpenes,
-    v.total_cannabinoids,
-    v.microbiology,
-    v.mycotoxins,
-    v.heavy_metals,
-    v.pesticides,
-    v.solvents,
-    v.pathogens,
-    v.water_activity,
-    v.proof_status,
-    v.how_to_open,
-    v.pounds,
-    v.units,
-    v.unit_of_measure,
-    v.quantity_raw,
-    v.created_quantity,
-    v.original_quantity,
-    v.received_quantity,
-    v.consumed_since_creation,
-    v.weight_basis,
-    v.item_id,
-    v.unit_weight,
-    v.unit_weight_uom,
-    v.unit_thc_percent,
-    v.serving_size,
-    v.brand,
-    v.administration_method,
-    v.quantity_type,
-    v.received_on,
-    v.lab_state_dated,
-    v.lab_result_recorded_on,
-    v.expiration_date,
-    v.sell_by_date,
-    v.use_by_date,
-    v.finished_date,
-    v.archived_date,
-    v.last_modified,
-    v.remediation_date,
-    v.decontamination_date,
-    v.on_hold,
-    v.finished,
-    v.on_recall,
-    v.trade_sample,
-    v.donation,
-    v.testing_sample,
-    v.production_batch_flag,
-    v.contains_remediated,
-    v.requires_remediation,
-    v.on_investigation,
-    v.sublocation,
-    v.room_type,
-    v.is_primary_production,
-    v.harvest_wet_lb,
-    v.harvest_waste_lb,
-    v.harvest_packaged_lb,
-    v.harvest_plants,
-    v.harvest_moisture_loss_pct,
-    v.days_cut_to_package,
-    v.shipped_to,
-    v.destination_kind,
-    v.transporter,
-    v.last_shipped_on,
-    v.manifests_held,
-    v.declared_transfer_price,
-    v.value_at_our_cost,
-    v.cost_basis,
-    v.supplier_name,
-    v.bought_as,
-    v.typical_discount_pct,
-    v.lab_licence,
-    v.first_tested_on,
-    v.coa_bytes,
-    v.coa_fetched,
-    v.coa_report_date,
-    v.coa_sample_id,
-    v.coa_source_package,
-    td.coa_certificate_id,
-    td.coa_document_link,
-    td.manifest_no,
-    td.manifest_document_link,
-    td.apex_invoice_no,
-    td.apex_invoice_usd
-   FROM ( WITH p AS (
-                 SELECT DISTINCT ON (metrc_packages.tag) metrc_packages.tag,
-                    metrc_packages.item_name,
-                    metrc_packages.license,
-                    metrc_packages.uom,
-                    metrc_packages.quantity,
-                    metrc_packages.source_state,
-                    metrc_packages.lab_testing_state,
-                    metrc_packages.packaged_on,
-                    metrc_packages.raw
-                   FROM metrc_packages
-                  ORDER BY metrc_packages.tag, metrc_packages.license
-                ), cert_doc AS (
-                 SELECT l_1.package_tag,
-                    min(d.metrc_id) AS coa_number,
-                    min(d.storage_path) AS coa_file,
-                    min(d.byte_size) AS coa_bytes,
-                    min(d.fetched_at)::date AS coa_fetched
-                   FROM v_document_package_link l_1
-                     JOIN metrc_documents d ON d.id = l_1.document_id
-                  WHERE l_1.doc_type = 'coa'::text
-                  GROUP BY l_1.package_tag
-                ), man_doc AS (
-                 SELECT l_1.package_tag,
-                    string_agg(DISTINCT l_1.manifest_number, ', '::text ORDER BY l_1.manifest_number) AS manifest_numbers,
-                    min(d.storage_path) AS manifest_file,
-                    count(DISTINCT l_1.manifest_number) AS manifest_count
-                   FROM v_document_package_link l_1
-                     JOIN metrc_documents d ON d.id = l_1.document_id
-                  WHERE l_1.doc_type = 'manifest'::text
-                  GROUP BY l_1.package_tag
-                ), labs AS (
-                 SELECT metrc_lab_results.package_tag,
-                    count(*) AS tests_run,
-                    count(*) FILTER (WHERE metrc_lab_results.passed IS FALSE) AS tests_failed,
-                    string_agg(DISTINCT metrc_lab_results.test_name, '; '::text) FILTER (WHERE metrc_lab_results.passed IS FALSE) AS failed_analytes,
-                    max(metrc_lab_results.lab_facility) AS laboratory,
-                    max(metrc_lab_results.result_date) AS tested_on,
-                    max((metrc_lab_results.raw ->> 'ExpirationDateTime'::text)::date) AS coa_valid_until,
-                    min(metrc_lab_results.result_date) AS first_tested_on,
-                    max(metrc_lab_results.raw ->> 'LabFacilityLicenseNumber'::text) AS lab_licence
-                   FROM metrc_lab_results
-                  GROUP BY metrc_lab_results.package_tag
-                ), harv AS (
-                 SELECT h_1.name,
-                    min(h_1.raw ->> 'HarvestType'::text) AS harvest_type,
-                    min((h_1.raw ->> 'HarvestStartDate'::text)::date) AS cut_on,
-                    min(h_1.raw ->> 'DryingRoomName'::text) AS drying_room,
-                    sum((h_1.raw ->> 'TotalWetWeight'::text)::numeric) AS wet_g,
-                    sum((h_1.raw ->> 'TotalWasteWeight'::text)::numeric) AS waste_g,
-                    sum((h_1.raw ->> 'TotalPackagedWeight'::text)::numeric) AS packaged_g,
-                    sum((h_1.raw ->> 'PlantCount'::text)::numeric) AS plants
-                   FROM metrc_harvests h_1
-                  GROUP BY h_1.name
-                ), ship AS (
-                 SELECT t.package_tag,
-                    string_agg(DISTINCT c.delivered_to, ', '::text) AS shipped_to,
-                    string_agg(DISTINCT c.destination_kind, ', '::text) AS destination_kind,
-                    string_agg(DISTINCT c.carried_by, ', '::text) AS transporter,
-                    max(c.date_created) AS last_shipped_on,
-                    max(NULLIF(t.source_row ->> 'Shipper Wholesale Price'::text, ''::text)::numeric) AS declared_price
-                   FROM metrc_rpt_package_transfers t
-                     JOIN v_manifest_custody c ON c.manifest_number = t.manifest_number
-                  GROUP BY t.package_tag
-                )
-         SELECT p.tag AS package_tag,
-            p.item_name,
-            p.raw #>> '{Item,StrainName}'::text[] AS strain,
-            p.raw #>> '{Item,ProductCategoryName}'::text[] AS category,
-            p.raw #>> '{Item,ProductCategoryType}'::text[] AS category_type,
-                CASE
-                    WHEN p.license = 'MC281714'::text THEN 'Cultivation'::text
-                    ELSE 'Manufacturing'::text
-                END AS department,
-            p.license AS licence,
-            f_quantity_text(p.quantity, p.uom) AS quantity,
-            p.source_state AS status,
-            p.raw ->> 'LocationName'::text AS room,
-            e.client_name AS cultivator_on_certificate,
-            e.client_license AS cultivator_licence,
-            e.client_address AS cultivator_address,
-            p.raw ->> 'ItemFromFacilityName'::text AS item_defined_by,
-            oc.custody_says AS custody_origin_licences,
-            oc.custody_verdict AS ownership_verdict,
-            cd.coa_number,
-            e.lab_report_id AS lab_report_number,
-            cd.coa_file AS coa_storage_path,
-            cr.certificate_link AS certificate_basis,
-            cr.certificate_on_package AS certificate_sampled_package,
-            l.laboratory,
-            l.tested_on,
-            l.coa_valid_until,
-            l.coa_valid_until < CURRENT_DATE AS certificate_expired,
-            md.manifest_numbers,
-            md.manifest_file AS manifest_storage_path,
-            NULLIF(p.raw ->> 'ReceivedFromManifestNumber'::text, ''::text) AS arrived_on_manifest,
-            NULLIF(p.raw ->> 'ReceivedFromFacilityName'::text, ''::text) AS received_from,
-            e.metrc_batch_id AS batch_on_certificate,
-            NULLIF(p.raw ->> 'ProductionBatchNumber'::text, ''::text) AS production_batch,
-            NULLIF(p.raw ->> 'SourceHarvestNames'::text, ''::text) AS source_harvest,
-            h.cut_on AS harvest_date,
-            h.harvest_type,
-            h.drying_room,
-            p.packaged_on,
-            CURRENT_DATE - p.packaged_on AS days_held,
-            (p.raw ->> 'SourcePackageCount'::text)::integer AS made_from_n_packages,
-            "left"(NULLIF(p.raw ->> 'SourcePackageLabels'::text, ''::text), 160) AS made_from_packages,
-            p.lab_testing_state AS lab_state,
-            l.tests_run,
-            l.tests_failed,
-            l.failed_analytes,
-            e.total_thc,
-            e.total_cbd,
-            e.total_terpenes,
-            e.total_cannabinoids,
-            e.microbiology,
-            e.mycotoxins,
-            e.heavy_metals,
-            e.pesticides,
-            e.solvents,
-            e.pathogens,
-            e.water_activity,
-                CASE
-                    WHEN cd.coa_number IS NOT NULL AND md.manifest_numbers IS NOT NULL THEN 'COMPLETE - certificate and manifest both held'::text
-                    WHEN cd.coa_number IS NOT NULL THEN 'certificate only - no manifest'::text
-                    WHEN md.manifest_numbers IS NOT NULL THEN 'manifest only - no certificate'::text
-                    ELSE 'NEITHER - no legal document held for this package'::text
-                END AS proof_status,
-            'Open either document with supabase.storage.from(''metrc-documents'').createSignedUrl(path, ttl) at click time. The file is permanent; never store the URL.'::text AS how_to_open,
-                CASE
-                    WHEN f_is_weight(p.uom) THEN round(f_to_pounds(p.quantity, p.uom), 3)
-                    ELSE NULL::numeric
-                END AS pounds,
-                CASE
-                    WHEN NOT f_is_weight(p.uom) THEN p.quantity
-                    ELSE NULL::numeric
-                END AS units,
-            p.uom AS unit_of_measure,
-            p.quantity AS quantity_raw,
-            (p.raw ->> 'CreatedQuantity'::text)::numeric AS created_quantity,
-            (p.raw ->> 'OriginalPackageQuantity'::text)::numeric AS original_quantity,
-            (p.raw ->> 'ReceivedQuantity'::text)::numeric AS received_quantity,
-            round(COALESCE((p.raw ->> 'CreatedQuantity'::text)::numeric, 0::numeric) - COALESCE(p.quantity, 0::numeric), 3) AS consumed_since_creation,
-                CASE
-                    WHEN f_is_weight(p.uom) AND (p.raw #>> '{Item,ProductCategoryName}'::text[]) ~~* '%fresh frozen%'::text THEN 'wet'::text
-                    WHEN f_is_weight(p.uom) THEN 'dry'::text
-                    ELSE NULL::text
-                END AS weight_basis,
-            p.raw #>> '{Item,Id}'::text[] AS item_id,
-            p.raw #>> '{Item,UnitWeight}'::text[] AS unit_weight,
-            p.raw #>> '{Item,UnitWeightUnitOfMeasureName}'::text[] AS unit_weight_uom,
-            p.raw #>> '{Item,UnitThcPercent}'::text[] AS unit_thc_percent,
-            p.raw #>> '{Item,ServingSize}'::text[] AS serving_size,
-            p.raw #>> '{Item,ItemBrandName}'::text[] AS brand,
-            p.raw #>> '{Item,AdministrationMethod}'::text[] AS administration_method,
-            p.raw #>> '{Item,QuantityType}'::text[] AS quantity_type,
-            (p.raw ->> 'ReceivedDateTime'::text)::date AS received_on,
-            (p.raw ->> 'LabTestingStateDate'::text)::date AS lab_state_dated,
-            (p.raw ->> 'LabTestingRecordedDate'::text)::date AS lab_result_recorded_on,
-            (p.raw ->> 'ExpirationDate'::text)::date AS expiration_date,
-            (p.raw ->> 'SellByDate'::text)::date AS sell_by_date,
-            (p.raw ->> 'UseByDate'::text)::date AS use_by_date,
-            (p.raw ->> 'FinishedDate'::text)::date AS finished_date,
-            (p.raw ->> 'ArchivedDate'::text)::date AS archived_date,
-            (p.raw ->> 'LastModified'::text)::date AS last_modified,
-            (p.raw ->> 'RemediationDate'::text)::date AS remediation_date,
-            (p.raw ->> 'DecontaminationDate'::text)::date AS decontamination_date,
-            (p.raw ->> 'IsOnHold'::text)::boolean AS on_hold,
-            (p.raw ->> 'IsFinished'::text)::boolean AS finished,
-            (p.raw ->> 'IsOnRecall'::text)::boolean AS on_recall,
-            (p.raw ->> 'IsTradeSample'::text)::boolean AS trade_sample,
-            (p.raw ->> 'IsDonation'::text)::boolean AS donation,
-            (p.raw ->> 'IsTestingSample'::text)::boolean AS testing_sample,
-            (p.raw ->> 'IsProductionBatch'::text)::boolean AS production_batch_flag,
-            (p.raw ->> 'ContainsRemediatedProduct'::text)::boolean AS contains_remediated,
-            (p.raw ->> 'ProductRequiresRemediation'::text)::boolean AS requires_remediation,
-            (p.raw ->> 'IsOnInvestigation'::text)::boolean AS on_investigation,
-            NULLIF(p.raw ->> 'SublocationName'::text, ''::text) AS sublocation,
-            p.raw ->> 'LocationTypeName'::text AS room_type,
-            ((p.raw ->> 'SourcePackageCount'::text)::integer) = 0 AS is_primary_production,
-            round(h.wet_g / 453.59237, 1) AS harvest_wet_lb,
-            round(h.waste_g / 453.59237, 1) AS harvest_waste_lb,
-            round(h.packaged_g / 453.59237, 1) AS harvest_packaged_lb,
-            h.plants AS harvest_plants,
-                CASE
-                    WHEN h.wet_g > 0::numeric THEN round((1::numeric - h.packaged_g / h.wet_g) * 100::numeric, 1)
-                    ELSE NULL::numeric
-                END AS harvest_moisture_loss_pct,
-            p.packaged_on - h.cut_on AS days_cut_to_package,
-            s.shipped_to,
-            s.destination_kind,
-            s.transporter,
-            s.last_shipped_on,
-            md.manifest_count AS manifests_held,
-            s.declared_price AS declared_transfer_price,
-                CASE
-                    WHEN f_is_weight(p.uom) AND f_is_ours(p.raw ->> 'ItemFromFacilityLicenseNumber'::text) THEN round(f_to_pounds(p.quantity, p.uom) * (( SELECT cm.cost_per_pound
-                       FROM cost_model cm
-                      WHERE cm.scope = 'cultivation'::text
-                      ORDER BY cm.effective_from DESC
-                     LIMIT 1)), 0)
-                    ELSE NULL::numeric
-                END AS value_at_our_cost,
-                CASE
-                    WHEN NOT f_is_weight(p.uom) THEN 'countable - no cost per pound'::text
-                    WHEN NOT f_is_ours(p.raw ->> 'ItemFromFacilityLicenseNumber'::text) THEN 'bought in - material_purchases is EMPTY, what was paid exists nowhere'::text
-                    ELSE 'our cultivation cost per pound'::text
-                END AS cost_basis,
-            sup.supplier_name,
-            sup.bought_as,
-            sup.typical_discount_pct,
-            l.lab_licence,
-            l.first_tested_on,
-            cd.coa_bytes,
-            cd.coa_fetched,
-            e.report_date AS coa_report_date,
-            e.metrc_sample_id AS coa_sample_id,
-            e.metrc_source_id AS coa_source_package
-           FROM p
-             LEFT JOIN cert_doc cd ON cd.package_tag = p.tag
-             LEFT JOIN man_doc md ON md.package_tag = p.tag
-             LEFT JOIN labs l ON l.package_tag = p.tag
-             LEFT JOIN v_certificate_resolved cr ON cr.package_tag = p.tag
-             LEFT JOIN coa_extract e ON e.document_id = cd.coa_number
-             LEFT JOIN v_ownership_by_custody oc ON oc.package_tag = p.tag
-             LEFT JOIN harv h ON h.name = split_part(NULLIF(p.raw ->> 'SourceHarvestNames'::text, ''::text), ','::text, 1)
-             LEFT JOIN ship s ON s.package_tag = p.tag
-             LEFT JOIN suppliers sup ON sup.origin_license = (p.raw ->> 'ItemFromFacilityLicenseNumber'::text)) v
      LEFT JOIN mv_tag_documents td ON td.tag = v.package_tag;
 create or replace view public.v_package_forensic as
  SELECT v.package_tag,
@@ -51821,88 +47535,6 @@ create or replace view public.v_package_manifest as
                 END AS manifest_story
            FROM metrc_packages p
              LEFT JOIN metrc_transfers t ON (t.raw ->> 'ManifestNumber'::text) = NULLIF(p.raw ->> 'ReceivedFromManifestNumber'::text, ''::text)) v
-     LEFT JOIN mv_tag_documents td ON td.tag = v.package_tag;
-create or replace view public.v_pipeline_timing as
- SELECT 'Cut to first package'::text AS stage,
-    1 AS ord,
-    round(avg(v_harvest_forensic.dry_days_to_first_package), 1) AS avg_days,
-    percentile_cont(0.5::double precision) WITHIN GROUP (ORDER BY (v_harvest_forensic.dry_days_to_first_package::double precision)) AS median_days,
-    max(v_harvest_forensic.dry_days_to_first_package) AS worst_days,
-    f_rule('dry_window_max_days'::text) AS target_days,
-    'The drying and trimming stage. This is where the time actually goes.'::text AS note
-   FROM v_harvest_forensic
-  WHERE v_harvest_forensic.dry_days_to_first_package IS NOT NULL
-UNION ALL
- SELECT 'First to last package'::text AS stage,
-    2 AS ord,
-    round(avg(v_harvest_forensic.packaging_window_days), 1) AS avg_days,
-    percentile_cont(0.5::double precision) WITHIN GROUP (ORDER BY (v_harvest_forensic.packaging_window_days::double precision)) AS median_days,
-    max(v_harvest_forensic.packaging_window_days) AS worst_days,
-    NULL::numeric AS target_days,
-    'How long a single harvest keeps producing packages. A long window means it is being worked in pieces.'::text AS note
-   FROM v_harvest_forensic
-  WHERE v_harvest_forensic.packaging_window_days IS NOT NULL
-UNION ALL
- SELECT 'At the laboratory'::text AS stage,
-    3 AS ord,
-    round(avg(v_lab_turnaround_packages.days_out_at_the_laboratory), 2) AS avg_days,
-    percentile_cont(0.5::double precision) WITHIN GROUP (ORDER BY (v_lab_turnaround_packages.days_out_at_the_laboratory::double precision)) AS median_days,
-    max(v_lab_turnaround_packages.days_out_at_the_laboratory) AS worst_days,
-    f_rule('lab_turnaround_max_days'::text) AS target_days,
-    'Recorded gap between submitted and result. 97 percent inside 3 days — the laboratory is not the bottleneck.'::text AS note
-   FROM v_lab_turnaround_packages
-  WHERE v_lab_turnaround_packages.days_out_at_the_laboratory IS NOT NULL
-  ORDER BY 2;
-create or replace view public.v_potency_vs_coa as
- SELECT v.package_tag,
-    v.license,
-    v.item_name,
-    v.category,
-    v.metrc_value,
-    v.metrc_unit,
-    v.metrc_as_percent,
-    v.coa_percent,
-    v.coa_document,
-    v.coa_sample,
-    v.difference,
-    v.verdict,
-    td.coa_certificate_id,
-    td.coa_document_link,
-    td.manifest_no,
-    td.manifest_document_link,
-    td.apex_invoice_no,
-    td.apex_invoice_usd
-   FROM ( SELECT v_1.package_tag,
-            v_1.license,
-            v_1.item_name,
-            v_1.category,
-            v_1.total_thc AS metrc_value,
-            v_1.total_thc_unit AS metrc_unit,
-                CASE
-                    WHEN v_1.total_thc_unit = 'mg/g'::text THEN round(v_1.total_thc / f_rule('mg_per_g_per_percent'::text), 5)
-                    ELSE v_1.total_thc
-                END AS metrc_as_percent,
-            c.total_thc AS coa_percent,
-            c.document_id AS coa_document,
-            c.sample_id AS coa_sample,
-            round(abs(
-                CASE
-                    WHEN v_1.total_thc_unit = 'mg/g'::text THEN v_1.total_thc / f_rule('mg_per_g_per_percent'::text)
-                    ELSE v_1.total_thc
-                END - c.total_thc), 5) AS difference,
-                CASE
-                    WHEN c.total_thc IS NULL THEN 'no COA figure to check against'::text
-                    WHEN v_1.total_thc IS NULL THEN 'no Metrc figure'::text
-                    WHEN abs(
-                    CASE
-                        WHEN v_1.total_thc_unit = 'mg/g'::text THEN v_1.total_thc / f_rule('mg_per_g_per_percent'::text)
-                        ELSE v_1.total_thc
-                    END - c.total_thc) <= 0.05 THEN 'agrees with the COA'::text
-                    WHEN v_1.total_thc = 0::numeric THEN 'METRC HOLDS ZERO, THE COA DOES NOT - raise a correction'::text
-                    ELSE 'disagrees with the COA - needs a person'::text
-                END AS verdict
-           FROM v_lab_results v_1
-             JOIN coa_extract c ON c.package_tag = v_1.package_tag) v
      LEFT JOIN mv_tag_documents td ON td.tag = v.package_tag;
 create or replace view public.v_product_identity as
  SELECT v.package_tag,
@@ -52455,65 +48087,6 @@ create or replace view public.v_remediation_owed as
                     ELSE NULL::numeric
                 END) DESC NULLS LAST) v
      LEFT JOIN mv_tag_documents td ON td.tag = v.package_tag;
-create or replace view public.v_remediation_yield as
- SELECT supplier,
-    source_tag,
-    source_item,
-    strain,
-    received_qty AS material_in,
-    source_uom,
-    count(*) AS products_made,
-    round(sum(made_qty)) AS output_qty,
-    string_agg(DISTINCT made_into_category, ', '::text) AS became,
-    round(100.0 * sum(made_qty) / NULLIF(received_qty, 0::numeric), 1) AS recovery_pct,
-    count(*) FILTER (WHERE made_lab_state = 'TestPassed'::text) AS output_passed,
-    count(*) FILTER (WHERE made_lab_state = 'TestFailed'::text) AS output_failed
-   FROM v_third_party_downstream
-  GROUP BY supplier, source_tag, source_item, strain, received_qty, source_uom
-  ORDER BY received_qty DESC NULLS LAST;
-create or replace view public.v_section_narrative as
- SELECT 'cultivation'::text AS page,
-    'dry_time'::text AS section_key,
-    ( SELECT format('%s of %s dry harvests since February missed the %s-day window. Every day past %s burns saleable weight — the owner''s own rule, zero late tolerance. The average this month is %s days to first package against a target of %s–%s. Fresh-frozen harvests are excluded: they package in about two days by design.'::text, sum(v_dry_time_discipline.dried_too_long) + sum(v_dry_time_discipline.pulled_too_fast), sum(v_dry_time_discipline.harvests_scored), max(v_dry_time_discipline.window_to_days), max(v_dry_time_discipline.window_to_days), ( SELECT v_dry_time_discipline_1.avg_dry_days
-                   FROM v_dry_time_discipline v_dry_time_discipline_1
-                  ORDER BY v_dry_time_discipline_1.month DESC
-                 LIMIT 1), max(v_dry_time_discipline.window_from_days), max(v_dry_time_discipline.window_to_days)) AS format
-           FROM v_dry_time_discipline
-          WHERE v_dry_time_discipline.month >= '2026-02'::text) AS narrative,
-    'bad'::text AS tone,
-    'dry_time_discipline'::text AS drill,
-    now() AS computed_at
-UNION ALL
- SELECT 'finance'::text AS page,
-    'third_party'::text AS section_key,
-    ( SELECT format('Third-party spend restated to $%s on 11 Aug 2026 after the owner''s Eagle Eyes ruling was enforced — $374,346 of it was our own material returning from a 3PL warehouse, booked as purchases by a tile that read who SHIPPED rather than who MADE. The figure is declared transfer price, not evidence of cash paid: %s lb of third-party material has no price in Metrc at all.'::text, to_char(901941, 'FM9,999,999'::text), ( SELECT to_char(round(sum(v_third_party_forensic.lb_received) - sum(v_third_party_forensic.lb_received) FILTER (WHERE v_third_party_forensic.lb_sold IS NOT NULL OR v_third_party_forensic.made_lb IS NOT NULL), 0), 'FM9,999'::text) AS to_char
-                   FROM v_third_party_forensic)) AS format) AS narrative,
-    'info'::text AS tone,
-    'third_party_forensic'::text AS drill,
-    now() AS computed_at
-UNION ALL
- SELECT 'command'::text AS page,
-    'findings'::text AS section_key,
-    ( SELECT format('%s findings are open, but they come from only %s distinct causes — and %s causes carry over 80%% of the queue. The list is not cleaned by working findings top-down; it is cleaned by fixing causes, and each fix retires dozens at once. Largest single cause: the missing allotment approval workflow, %s findings on its own.'::text, count(*), count(DISTINCT v_findings.pattern_key), 6, ( SELECT v_finding_causes.findings_that_clear_if_fixed
-                   FROM v_finding_causes
-                  ORDER BY v_finding_causes.findings_that_clear_if_fixed DESC
-                 LIMIT 1)) AS format
-           FROM v_findings
-          WHERE v_findings.resolved_at IS NULL AND NOT COALESCE(v_findings.is_duplicate, false)) AS narrative,
-    'bad'::text AS tone,
-    'finding_causes'::text AS drill,
-    now() AS computed_at
-UNION ALL
- SELECT 'cultivation'::text AS page,
-    'moisture'::text AS section_key,
-    ( SELECT format('Two harvests cut 7 April are still open in Metrc %s days later, carrying 418.7 lb of water that evaporated months ago. They are part of %s open harvests holding %s lb of unrecorded moisture. Metrc is the legal record: until a person closes these out, the physical count can never reconcile to the state''s books.'::text, CURRENT_DATE - '2026-04-07'::date, ( SELECT count(*) AS count
-                   FROM v_moisture_loss_register
-                  WHERE v_moisture_loss_register.needs_recording AND v_moisture_loss_register.phantom_lb > 0::numeric), ( SELECT to_char(round(sum(v_moisture_loss_register.phantom_lb), 1), 'FM9,999.9'::text) AS to_char
-                   FROM v_moisture_loss_register
-                  WHERE v_moisture_loss_register.needs_recording AND v_moisture_loss_register.phantom_lb > 0::numeric)) AS format) AS narrative,
-    'bad'::text AS tone,
-    'moisture_loss_register'::text AS drill,
-    now() AS computed_at;
 create or replace view public.v_seed_to_sale_chain as
  SELECT v.license,
     v.harvest,
@@ -52595,29 +48168,6 @@ create or replace view public.v_seed_to_sale_chain as
                           ORDER BY t_1.created_on DESC
                          LIMIT 1) t ON true) q) v
      LEFT JOIN mv_tag_documents td ON td.tag = v.package_tag;
-create or replace view public.v_sheet_metrc_alerts as
- SELECT source_name,
-    verdict,
-    count(*) AS rows_affected,
-    round(sum(abs(COALESCE(difference, 0::numeric))), 2) AS total_difference,
-        CASE verdict
-            WHEN 'IN THE SHEET, NOT IN METRC'::text THEN 'critical'::text
-            WHEN 'QUANTITY DISAGREES'::text THEN 'critical'::text
-            WHEN 'IN METRC, NOT IN THE SHEET'::text THEN 'elevated'::text
-            WHEN 'NO QUANTITY IN THE SHEET'::text THEN 'elevated'::text
-            ELSE 'watch'::text
-        END AS severity,
-    min(what_it_means) AS example
-   FROM v_sheet_metrc_reconciliation
-  WHERE verdict <> 'AGREES'::text
-  GROUP BY source_name, verdict
-  ORDER BY (
-        CASE verdict
-            WHEN 'QUANTITY DISAGREES'::text THEN 1
-            WHEN 'IN THE SHEET, NOT IN METRC'::text THEN 2
-            WHEN 'IN METRC, NOT IN THE SHEET'::text THEN 3
-            ELSE 4
-        END);
 create or replace view public.v_sheet_metrc_reconciliation as
  SELECT v.source_name,
     v.package_tag,
@@ -52846,97 +48396,6 @@ create or replace view public.v_stock_packages as
           WHERE COALESCE(p.quantity, 0::numeric) > 0::numeric AND COALESCE((p.raw ->> 'IsFinished'::text)::boolean, false) = false AND (p.source_state = ANY (ARRAY['active'::text, 'onhold'::text, 'intransit'::text]))
           ORDER BY p.tag, (p.source_state = 'active'::text) DESC NULLS LAST, p.synced_at DESC NULLS LAST) v
      LEFT JOIN mv_tag_documents td ON td.tag = v.package_tag;
-create or replace view public.v_stock_proof as
- SELECT v.package_tag,
-    v.item_name,
-    v.strain,
-    v.stream,
-    v.origin,
-    v.made_by,
-    v.shipped_to_us_by,
-    v.license,
-    v.location,
-    v.days_here,
-    v.packaged_on,
-    v.quantity,
-    v.uom,
-    v.pounds,
-    v.units,
-    v.quantity_shown,
-    v.sold_by_weight,
-    v.lab_state,
-    v.band,
-    v.test_status,
-    v.went_out_for_testing_on,
-    v.came_back_on,
-    v.days_at_the_laboratory,
-    v.certificate_valid_to,
-    v.total_thc,
-    v.total_cbd,
-    v.total_terpenes,
-    v.laboratory,
-    v.coa_url,
-    v.potency_and_certificate,
-    v.inbound_manifest,
-    v.manifest_proof,
-    v.source_harvest,
-    v.harvest_cut_on,
-    v.dried_in,
-    v.harvest_closed_on,
-    v.made_from_packages,
-    v.production_batch,
-    v.traceability,
-    v.rate_per_pound_used,
-    v.value_at_our_rate,
-    td.coa_certificate_id,
-    td.coa_document_link,
-    td.manifest_no,
-    td.manifest_document_link,
-    td.apex_invoice_no,
-    td.apex_invoice_usd
-   FROM ( SELECT mv_stock_proof.package_tag,
-            mv_stock_proof.item_name,
-            mv_stock_proof.strain,
-            mv_stock_proof.stream,
-            mv_stock_proof.origin,
-            mv_stock_proof.made_by,
-            mv_stock_proof.shipped_to_us_by,
-            mv_stock_proof.license,
-            mv_stock_proof.location,
-            mv_stock_proof.days_here,
-            mv_stock_proof.packaged_on,
-            mv_stock_proof.quantity,
-            mv_stock_proof.uom,
-            mv_stock_proof.pounds,
-            mv_stock_proof.units,
-            mv_stock_proof.quantity_shown,
-            mv_stock_proof.sold_by_weight,
-            mv_stock_proof.lab_state,
-            mv_stock_proof.band,
-            mv_stock_proof.test_status,
-            mv_stock_proof.went_out_for_testing_on,
-            mv_stock_proof.came_back_on,
-            mv_stock_proof.days_at_the_laboratory,
-            mv_stock_proof.certificate_valid_to,
-            mv_stock_proof.total_thc,
-            mv_stock_proof.total_cbd,
-            mv_stock_proof.total_terpenes,
-            mv_stock_proof.laboratory,
-            mv_stock_proof.coa_url,
-            mv_stock_proof.potency_and_certificate,
-            mv_stock_proof.inbound_manifest,
-            mv_stock_proof.manifest_proof,
-            mv_stock_proof.source_harvest,
-            mv_stock_proof.harvest_cut_on,
-            mv_stock_proof.dried_in,
-            mv_stock_proof.harvest_closed_on,
-            mv_stock_proof.made_from_packages,
-            mv_stock_proof.production_batch,
-            mv_stock_proof.traceability,
-            mv_stock_proof.rate_per_pound_used,
-            mv_stock_proof.value_at_our_rate
-           FROM mv_stock_proof) v
-     LEFT JOIN mv_tag_documents td ON td.tag = v.package_tag;
 create or replace view public.v_strain_conflicts as
  SELECT v.manifest_number,
     v.package_tag,
@@ -53045,423 +48504,6 @@ create or replace view public.v_tag_certificate_final as
                   WHERE upper(btrim(mp.raw ->> 'Label'::text)) = c.tag
                  LIMIT 1) pcat ON true) v
      LEFT JOIN mv_tag_documents td ON td.tag = v.tag;
-create or replace view public.v_tag_coa_gap as
- SELECT v.tag,
-    v.item,
-    v.category,
-    v.strain,
-    v.ownership,
-    v.grown_or_processed_by,
-    v.licence,
-    v.room,
-    v.tag_status,
-    v.packaged_on,
-    v.first_received,
-    v.last_shipped,
-    v.moved_on,
-    v.manifests_in,
-    v.received_from,
-    v.manifests_out,
-    v.shipped_to,
-    v.on_hand_lb,
-    v.shipped_lb,
-    v.coa_basis,
-    v.coa_found_on_tag,
-    v.coa_hops,
-    v.coa_document,
-    v.source_harvests,
-    v.source_packages,
-    v.known_from,
-    td.coa_certificate_id,
-    td.coa_document_link,
-    td.manifest_no,
-    td.manifest_document_link,
-    td.apex_invoice_no,
-    td.apex_invoice_usd
-   FROM ( SELECT m.tag,
-            m.item,
-            m.category,
-            m.strain,
-            m.ownership,
-            m.grown_or_processed_by,
-            m.licence,
-            m.room,
-            m.tag_status,
-            m.packaged_on,
-            m.first_received,
-            m.last_shipped,
-            COALESCE(m.last_shipped, m.first_received, m.packaged_on) AS moved_on,
-            m.manifests_in,
-            m.received_from,
-            m.manifests_out,
-            m.shipped_to,
-            m.on_hand_lb,
-            m.shipped_lb,
-            f.certificate_basis AS coa_basis,
-            f.certificate_on_tag AS coa_found_on_tag,
-            f.certificate_hops AS coa_hops,
-            f.certificate_document AS coa_document,
-            m.source_harvests,
-            m.source_packages,
-            m.known_from
-           FROM v_tag_master m
-             JOIN v_tag_certificate_final f ON f.tag = m.tag
-          WHERE f.certificate_source IS NULL AND f.certificate_basis !~~ 'NOT TESTED%'::text) v
-     LEFT JOIN mv_tag_documents td ON td.tag = v.tag;
-create or replace view public.v_tag_evidence as
- SELECT e.tag,
-    e.item_name,
-    e.lab_testing_state,
-        CASE
-            WHEN e.evidence_source = ANY (ARRAY['direct'::text, 'inherited'::text]) THEN e.evidence_source
-            WHEN cr.package_tag IS NULL THEN e.evidence_source
-            WHEN cr.found_at_depth = 0 THEN 'certificate on file'::text
-            ELSE 'inherited'::text
-        END AS evidence_source,
-    COALESCE(e.certificate_id, b.lab_report_id) AS certificate_id,
-    COALESCE(e.certificate_date, b.report_date) AS certificate_date,
-    COALESCE(e.total_thc, b.total_thc) AS total_thc,
-        CASE
-            WHEN e.certificate_inherited_from IS NOT NULL THEN e.certificate_inherited_from
-            WHEN cr.found_at_depth > 0 THEN cr.certificate_on_package
-            ELSE NULL::text
-        END AS certificate_inherited_from,
-    COALESCE(e.certificate_document, b.storage_path) AS certificate_document,
-    e.lab_result_date,
-    e.lab_name,
-    e.manifest_number,
-    e.manifest_document,
-        CASE
-            WHEN e.evidence_source = ANY (ARRAY['direct'::text, 'inherited'::text]) THEN e.why_no_certificate
-            WHEN b.storage_path IS NOT NULL THEN NULL::text
-            ELSE e.why_no_certificate
-        END AS why_no_certificate,
-    e.why_no_manifest,
-        CASE
-            WHEN (EXISTS ( SELECT 1
-               FROM coa_extract c
-              WHERE c.package_tag = e.tag)) THEN 'direct — the certificate document names this tag'::text
-            WHEN e.certificate_inherited_from IS NOT NULL THEN 'inherited — a parsed certificate names ancestor '::text || e.certificate_inherited_from
-            WHEN cr.found_at_depth = 0 AND b.printed_tag IS NOT NULL AND b.printed_tag <> e.tag THEN ('certificate on file — Metrc''s lab result for this tag names this certificate, and the document itself prints a DIFFERENT tag, '::text || b.printed_tag) || '. One certificate covers a whole batch; this tag is a member the document does not list by name.'::text
-            WHEN cr.found_at_depth = 0 THEN 'certificate on file — Metrc''s lab result for this tag names this certificate; the document itself prints no tag we could read, so it does not name this package'::text
-            WHEN cr.found_at_depth > 0 THEN ('inherited via Metrc — the lab result for ancestor '::text || cr.certificate_on_package) || ' names this certificate'::text
-            WHEN e.evidence_source = 'lab result only'::text THEN 'lab result only — Metrc holds the result and that laboratory attached no certificate document'::text
-            ELSE 'none — no certificate on this tag, its lineage, or any Metrc lab result'::text
-        END AS certificate_grade,
-    cr.found_at_depth AS certificate_hops,
-    cr.cert_client AS certificate_client,
-    cr.cert_license AS certificate_client_license
-   FROM mv_tag_evidence e
-     LEFT JOIN v_certificate_resolved cr ON cr.package_tag = e.tag
-     LEFT JOIN LATERAL ( SELECT d.storage_path,
-            c.lab_report_id,
-            c.report_date,
-            c.total_thc,
-            c.package_tag_on_document AS printed_tag
-           FROM metrc_lab_results l
-             JOIN metrc_documents d ON d.metrc_id = l.document_file_id AND d.doc_type = 'coa'::text
-             LEFT JOIN coa_extract c ON c.document_id = l.document_file_id
-          WHERE l.package_tag = cr.certificate_on_package AND l.document_file_id IS NOT NULL
-         LIMIT 1) b ON true;
-create or replace view public.v_tag_gap as
- WITH led AS (
-         SELECT p.tag,
-            p.item_name,
-            p.license,
-            p.location,
-            p.quantity,
-            p.uom,
-            p.packaged_on,
-            p.lab_testing_state,
-            p.finished,
-            p.raw,
-            COALESCE(p.raw #>> '{Item,ProductCategoryName}'::text[], '(uncategorised)'::text) AS category,
-            COALESCE(p.finished, false) OR NULLIF(p.raw ->> 'FinishedDate'::text, ''::text) IS NOT NULL OR NULLIF(p.raw ->> 'ArchivedDate'::text, ''::text) IS NOT NULL AS is_closed,
-            COALESCE(p.quantity, 0::numeric) > 0::numeric AND NOT COALESCE(p.finished, false) AS is_live
-           FROM ( SELECT DISTINCT ON (d.tag) d.id,
-                    d.license,
-                    d.tag,
-                    d.item_name,
-                    d.quantity,
-                    d.uom,
-                    d.location,
-                    d.packaged_on,
-                    d.lab_testing_state,
-                    d.finished,
-                    d.raw,
-                    d.synced_at,
-                    d.source_state,
-                    d.provenance,
-                    d.report_as_of
-                   FROM metrc_packages d
-                  ORDER BY d.tag, (COALESCE(d.quantity, 0::numeric) > 0::numeric AND NOT COALESCE((d.raw ->> 'IsFinished'::text)::boolean, false)) DESC, (d.source_state = 'active'::text) DESC NULLS LAST, d.synced_at DESC NULLS LAST) p
-        ), ev AS (
-         SELECT tag_event.tag,
-            count(*) AS n_events,
-            count(*) FILTER (WHERE tag_event.event_type = 'packaged'::text) AS n_packaged,
-            count(*) FILTER (WHERE tag_event.event_type = 'received'::text) AS n_received,
-            count(*) FILTER (WHERE tag_event.event_type = 'location_change'::text) AS n_moves
-           FROM tag_event
-          GROUP BY tag_event.tag
-        ), stay_bad AS (
-         SELECT v_tag_stay.tag,
-            count(*) FILTER (WHERE v_tag_stay.duration_hours < 0::numeric) AS negative_stays,
-            count(*) FILTER (WHERE v_tag_stay.duration_hours = 0::numeric AND NOT v_tag_stay.is_current) AS zero_stays
-           FROM v_tag_stay
-          GROUP BY v_tag_stay.tag
-        )
- SELECT l.tag,
-    'A'::text AS rule_code,
-    'COA MISSING'::text AS gap_type,
-        CASE
-            WHEN l.lab_testing_state = 'TestPassed'::text THEN 'critical'::text
-            ELSE 'elevated'::text
-        END AS severity,
-    'Package is at package stage with no certificate in its lineage'::text AS what_is_wrong,
-        CASE
-            WHEN l.lab_testing_state = 'TestPassed'::text THEN 'PASSED testing but no COA document is held — it cannot be evidenced as sellable. Locate the certificate and attach it, or re-submit.'::text
-            ELSE 'No COA document held. Submit for testing or attach the certificate before this can be sold.'::text
-        END AS required_action,
-    l.location AS room,
-    l.license AS licence,
-    round(f_to_pounds(l.quantity, l.uom), 3) AS lb,
-    td.coa_document_link,
-    td.manifest_document_link,
-    td.apex_invoice_no
-   FROM led l
-     LEFT JOIN mv_tag_documents td ON td.tag = l.tag
-  WHERE l.is_live AND td.coa_document_link IS NULL
-UNION ALL
- SELECT s.package_tag AS tag,
-    'B'::text AS rule_code,
-    'MANIFEST MISSING'::text AS gap_type,
-    'critical'::text AS severity,
-    'This tag left the facility with no manifest recorded'::text AS what_is_wrong,
-    'A transfer without a manifest is a compliance breach. Locate the Metrc manifest for this shipment and attach it.'::text AS required_action,
-    NULL::text AS room,
-    NULL::text AS licence,
-    s.pounds AS lb,
-    td.coa_document_link,
-    td.manifest_document_link,
-    td.apex_invoice_no
-   FROM v_forensic_sold_by_tag s
-     LEFT JOIN mv_tag_documents td ON td.tag = s.package_tag
-  WHERE s.manifest_number IS NULL
-UNION ALL
- SELECT s.package_tag AS tag,
-    'C'::text AS rule_code,
-    'INVOICE MISSING'::text AS gap_type,
-    'elevated'::text AS severity,
-    'Shipped as a sale with no Apex invoice matched'::text AS what_is_wrong,
-    'Find the Apex invoice for this shipment and link it, or record why no invoice exists (sample, return, internal).'::text AS required_action,
-    NULL::text AS room,
-    NULL::text AS licence,
-    s.pounds AS lb,
-    td.coa_document_link,
-    td.manifest_document_link,
-    NULL::text AS apex_invoice_no
-   FROM v_forensic_sold_by_tag s
-     LEFT JOIN mv_tag_documents td ON td.tag = s.package_tag
-  WHERE s.invoice_match = 'NO APEX INVOICE'::text AND NOT s.internal_transfer
-UNION ALL
- SELECT l.tag,
-    'D'::text AS rule_code,
-    'BROKEN TAG CHAIN'::text AS gap_type,
-    'critical'::text AS severity,
-        CASE
-            WHEN e.tag IS NULL THEN 'This package has NO event history at all — it exists in the mirror with no recorded life'::text
-            ELSE ('Metrc records a packaged date of '::text || l.packaged_on) || ' but the ledger holds no creation event'::text
-        END AS what_is_wrong,
-    'Re-run the ledger build for this tag and compare against Metrc. A tag with no chain cannot be defended in an audit.'::text AS required_action,
-    l.location AS room,
-    l.license AS licence,
-    round(f_to_pounds(l.quantity, l.uom), 3) AS lb,
-    td.coa_document_link,
-    td.manifest_document_link,
-    td.apex_invoice_no
-   FROM led l
-     LEFT JOIN ev e ON e.tag = l.tag
-     LEFT JOIN mv_tag_documents td ON td.tag = l.tag
-  WHERE e.tag IS NULL OR l.packaged_on IS NOT NULL AND e.n_packaged = 0
-UNION ALL
- SELECT l.tag,
-    'E'::text AS rule_code,
-    'LOCATION GAP'::text AS gap_type,
-    'elevated'::text AS severity,
-    ('Metrc shows this package in '::text || l.location) || ' but no movement event records it arriving there'::text AS what_is_wrong,
-    'A missing movement breaks the room history. Re-sync locations for this tag; if Metrc has no move either, the physical move was never recorded.'::text AS required_action,
-    l.location AS room,
-    l.license AS licence,
-    round(f_to_pounds(l.quantity, l.uom), 3) AS lb,
-    td.coa_document_link,
-    td.manifest_document_link,
-    td.apex_invoice_no
-   FROM led l
-     LEFT JOIN ev e ON e.tag = l.tag
-     LEFT JOIN mv_tag_documents td ON td.tag = l.tag
-  WHERE l.is_live AND COALESCE(l.location, ''::text) <> ''::text AND COALESCE(e.n_moves, 0::bigint) = 0 AND NOT (EXISTS ( SELECT 1
-           FROM v_tag_stay st
-          WHERE st.tag = l.tag AND st.room = l.location))
-UNION ALL
- SELECT b.tag,
-    'F'::text AS rule_code,
-    'TIMESTAMP GAP'::text AS gap_type,
-    'elevated'::text AS severity,
-        CASE
-            WHEN b.negative_stays > 0 THEN b.negative_stays || ' stay(s) end BEFORE they begin'::text
-            ELSE b.zero_stays || ' closed stay(s) of zero hours'::text
-        END AS what_is_wrong,
-    'Event timestamps are out of order or duplicated. Re-import the movement events for this tag from the source report.'::text AS required_action,
-    NULL::text AS room,
-    NULL::text AS licence,
-    NULL::numeric AS lb,
-    td.coa_document_link,
-    td.manifest_document_link,
-    td.apex_invoice_no
-   FROM stay_bad b
-     LEFT JOIN mv_tag_documents td ON td.tag = b.tag
-  WHERE b.negative_stays > 0 OR b.zero_stays > 0
-UNION ALL
- SELECT v.package_tag AS tag,
-    'G'::text AS rule_code,
-    'DOCUMENT MISMATCH'::text AS gap_type,
-    'critical'::text AS severity,
-    'Certificate and lineage disagree on whose material this is: '::text || "left"(v.verdict, 90) AS what_is_wrong,
-    'The certificate is the independent source and wins. Re-attribute the package or explain the disagreement in writing.'::text AS required_action,
-    NULL::text AS room,
-    NULL::text AS licence,
-    v.pounds AS lb,
-    td.coa_document_link,
-    td.manifest_document_link,
-    td.apex_invoice_no
-   FROM v_ownership_verdict v
-     LEFT JOIN mv_tag_documents td ON td.tag = v.package_tag
-  WHERE v.verdict ~~* 'CONFIRMED NOT OURS%'::text;
-create or replace view public.v_tag_gap_summary as
- SELECT rule_code,
-    gap_type,
-    severity,
-    count(*) AS gaps,
-    count(DISTINCT tag) AS tags,
-    round(sum(COALESCE(lb, 0::numeric)), 1) AS lb_at_stake,
-    max(required_action) AS required_action
-   FROM v_tag_gap
-  GROUP BY rule_code, gap_type, severity
-  ORDER BY rule_code;
-create or replace view public.v_tag_lifecycle as
- WITH pkg AS (
-         SELECT DISTINCT ON (p.tag) p.tag,
-            p.item_name,
-            p.license,
-            p.location,
-            p.packaged_on,
-            p.quantity,
-            p.uom,
-            p.finished,
-            p.source_state,
-            p.raw
-           FROM metrc_packages p
-          WHERE p.tag IS NOT NULL
-          ORDER BY p.tag, (COALESCE(p.quantity, 0::numeric) > 0::numeric AND NOT COALESCE(p.finished, false)) DESC, (p.source_state = 'active'::text) DESC NULLS LAST, p.synced_at DESC NULLS LAST
-        ), harv AS (
-         SELECT k_1.tag,
-            h_1.name AS harvest_name,
-            h_1.harvest_start,
-            h_1.flower_room,
-            (h_1.raw ->> 'FinishedDate'::text)::date AS harvest_finished_on
-           FROM pkg k_1
-             LEFT JOIN metrc_harvests h_1 ON h_1.name = split_part(COALESCE(k_1.raw ->> 'SourceHarvestNames'::text, ''::text), ','::text, 1)
-        ), outb AS (
-         SELECT DISTINCT ON (t.package_tag) t.package_tag,
-            t.manifest_number,
-            t.received_on AS shipped_on,
-            t.destination_facility,
-            t.destination_licence,
-            COALESCE(t.source_row ->> 'Type'::text, '(type not recorded)'::text) AS transfer_type,
-            NULLIF(btrim(t.source_row ->> 'Created by User'::text), ''::text) AS manifest_created_by,
-            NULLIF(btrim(t.source_row ->> 'Received by User'::text), ''::text) AS manifest_received_by
-           FROM metrc_rpt_package_transfers t
-          ORDER BY t.package_tag, t.received_on DESC NULLS LAST
-        ), inv AS (
-         SELECT o_1.package_tag,
-            m.apex_invoice_number AS invoice_number,
-            m.apex_invoice_date AS order_date
-           FROM outb o_1
-             JOIN v_metrc_manifest_invoice_truth m ON m.manifest_number = o_1.manifest_number
-          WHERE m.apex_invoice_number IS NOT NULL
-        )
- SELECT k.tag,
-    k.item_name,
-    COALESCE(k.raw #>> '{Item,ProductCategoryName}'::text[], '(uncategorised)'::text) AS category,
-    k.raw #>> '{Item,StrainName}'::text[] AS strain,
-    k.license AS held_under_licence,
-    h.harvest_name AS stage1_harvest,
-    h.harvest_start AS stage1_cut_on,
-    h.flower_room AS stage1_grown_in,
-    COALESCE(h.harvest_name, 'NOT FROM A HARVEST OF OURS — bought in or made from another package'::text) AS stage1_note,
-    k.packaged_on AS stage2_packaged_on,
-    NULLIF(k.raw ->> 'SourcePackageLabels'::text, ''::text) AS stage2_made_from_packages,
-    NULLIF(k.raw ->> 'ProductionBatchNumber'::text, ''::text) AS stage2_production_batch,
-    (k.raw ->> 'LabTestingStateDate'::text)::date AS stage3_submitted_on,
-    (k.raw ->> 'LabTestingRecordedDate'::text)::date AS stage3_result_on,
-    k.raw ->> 'LabTestingState'::text AS stage3_lab_state,
-    ev.lab_name AS stage3_laboratory,
-    ev.certificate_id AS stage3_certificate,
-    ev.certificate_date AS stage3_certificate_date,
-    ev.certificate_document AS stage3_coa_document,
-    ev.evidence_source AS stage3_evidence_basis,
-    COALESCE(ev.why_no_certificate,
-        CASE
-            WHEN ev.certificate_document IS NULL THEN 'No certificate document held for this tag.'::text
-            ELSE NULL::text
-        END) AS stage3_note,
-    o.manifest_number AS stage4_manifest,
-    o.shipped_on AS stage4_shipped_on,
-    o.destination_facility AS stage4_shipped_to,
-    o.destination_licence AS stage4_buyer_licence,
-    o.transfer_type AS stage4_transfer_type,
-    o.manifest_created_by AS stage4_created_by,
-    o.manifest_received_by AS stage4_received_by,
-    ( SELECT d.storage_path
-           FROM metrc_documents d
-          WHERE d.manifest_number = o.manifest_number AND d.doc_type ~~* '%manifest%'::text
-         LIMIT 1) AS stage4_manifest_document,
-        CASE
-            WHEN o.manifest_number IS NULL THEN 'STILL HELD — this tag has not left our licences, so there is no manifest yet.'::text
-            ELSE NULL::text
-        END AS stage4_note,
-    i.invoice_number AS stage5_apex_invoice,
-    i.order_date AS stage5_invoice_date,
-    NULL::numeric AS stage5_invoice_usd,
-    NULL::text AS stage5_payment_status,
-        CASE
-            WHEN o.manifest_number IS NULL THEN 'Not shipped, so nothing to invoice.'::text
-            WHEN i.invoice_number IS NULL AND f_is_ours(o.destination_licence) THEN 'INTERNAL MOVE between our own licences — not a sale, no invoice expected.'::text
-            WHEN i.invoice_number IS NULL AND NOT f_can_be_a_customer(o.destination_licence) THEN 'Destination is a laboratory or a transporter — not a sale, no invoice expected.'::text
-            WHEN i.invoice_number IS NULL THEN 'NO EXACT APEX INVOICE FOUND for this shipment. This is a discrepancy to investigate.'::text
-            ELSE NULL::text
-        END AS stage5_note,
-    COALESCE(k.finished, false) AS stage6_finished,
-    (k.raw ->> 'FinishedDate'::text)::date AS stage6_finished_on,
-    k.location AS audit_room,
-    round(f_to_pounds(k.quantity, k.uom), 3) AS audit_lb,
-    k.quantity AS audit_quantity,
-    k.uom AS audit_uom,
-        CASE
-            WHEN COALESCE(k.finished, false) THEN 'CLOSED — nothing physical to inspect. The record '::text || 'is the evidence.'::text
-            WHEN COALESCE(k.quantity, 0::numeric) = 0::numeric THEN 'ZERO QUANTITY but not marked finished — the tag '::text || 'should be closed out in Metrc.'::text
-            WHEN o.manifest_number IS NOT NULL AND o.shipped_on IS NOT NULL THEN ((('SHIPPED on '::text || o.shipped_on) || ' to '::text) || COALESCE(o.destination_facility, 'a licensee'::text)) || '. Not on site.'::text
-            WHEN COALESCE(k.location, ''::text) = ''::text THEN 'ON SITE but Metrc records no room. Find it by tag.'::text
-            ELSE ((('ON SITE — '::text || k.location) || ', licence '::text) || k.license) || '. Inspect the physical tag against this record.'::text
-        END AS where_to_audit,
-    ((('https://'::text || COALESCE(( SELECT lower(btrim(s.value)) AS lower
-           FROM integration_secrets s
-          WHERE s.name = 'METRC_STATE'::text), 'ma'::text)) || '.metrc.com/industry/'::text) || k.license) || '/packages'::text AS metrc_screen
-   FROM pkg k
-     LEFT JOIN harv h ON h.tag = k.tag
-     LEFT JOIN v_tag_evidence ev ON ev.tag = k.tag
-     LEFT JOIN outb o ON o.package_tag = k.tag
-     LEFT JOIN inv i ON i.package_tag = k.tag;
 create or replace view public.v_tag_master as
  SELECT v.tag,
     v.item,
@@ -53816,39 +48858,6 @@ create or replace view public.v_third_party_chain as
            FROM inc
           ORDER BY inc.received_on DESC NULLS LAST, inc.supplier) v
      LEFT JOIN mv_tag_documents td ON td.tag = v.tag;
-create or replace view public.v_third_party_cycle_time as
- SELECT supplier,
-    count(*) AS packages,
-    round(sum(qty_received)) AS qty_in,
-    round(sum(qty_remaining)) AS qty_still_here,
-    round(avg(days_receipt_to_test), 1) AS avg_days_to_test,
-    round(avg(days_receipt_to_first_output), 1) AS avg_days_to_first_output,
-    round(avg(days_receipt_to_first_sale), 1) AS avg_days_receipt_to_sale,
-    max(days_since_received) AS oldest_untouched_days,
-    count(*) FILTER (WHERE "position" ~~ 'SITTING%'::text) AS sitting_untouched,
-    count(*) FILTER (WHERE "position" ~~ 'COMPLETE%'::text) AS completed,
-    round(avg(recovery_pct), 1) AS avg_recovery_pct
-   FROM v_third_party_lifecycle
-  GROUP BY supplier
-  ORDER BY (round(sum(qty_received))) DESC NULLS LAST;
-create or replace view public.v_third_party_downstream as
- SELECT src.supplier,
-    src.tag AS source_tag,
-    src.item_name AS source_item,
-    src.strain,
-    src.received_qty,
-    src.uom AS source_uom,
-    child.tag AS made_into_tag,
-    child.item_name AS made_into,
-    child.raw #>> '{Item,ProductCategoryName}'::text[] AS made_into_category,
-    child.quantity AS made_qty,
-    child.uom AS made_uom,
-    child.packaged_on AS made_on,
-    child.raw ->> 'LabTestingState'::text AS made_lab_state,
-    child.license AS made_under
-   FROM v_third_party_chain src
-     JOIN metrc_packages child ON string_to_array(replace(COALESCE(child.raw ->> 'SourcePackageLabels'::text, ''::text), ' '::text, ''::text), ','::text) @> ARRAY[src.tag]
-  ORDER BY src.supplier, src.received_on DESC NULLS LAST;
 create or replace view public.v_third_party_forensic as
  SELECT v.tag,
     v.item,
@@ -54241,6 +49250,2172 @@ create or replace view public.v_third_party_lifecycle as
              LEFT JOIN sold s ON s.parent_tag = i.tag
           ORDER BY i.received_on DESC NULLS LAST) v
      LEFT JOIN mv_tag_documents td ON td.tag = v.tag;
+create or replace view public.v_xq_src_certificate_resolved as
+ SELECT v.package_tag,
+    v.found_at_depth,
+    v.certificate_on_package,
+    v.cert_license,
+    v.cert_client,
+    v.cert_report,
+    v.certificate_link,
+    td.coa_certificate_id,
+    td.coa_document_link,
+    td.manifest_no,
+    td.manifest_document_link,
+    td.apex_invoice_no,
+    td.apex_invoice_usd
+   FROM ( WITH RECURSIVE edges AS (
+                 SELECT DISTINCT ON (p.tag) p.tag,
+                    p.raw ->> 'SourcePackageLabels'::text AS srcs
+                   FROM metrc_packages p
+                  ORDER BY p.tag, p.license
+                ), walk AS (
+                 SELECT e.tag AS package_tag,
+                    e.tag AS ancestor,
+                    0 AS depth,
+                    e.srcs
+                   FROM edges e
+                UNION
+                 SELECT w.package_tag,
+                    s.tag,
+                    w.depth + 1,
+                    s.srcs
+                   FROM walk w
+                     JOIN LATERAL ( SELECT TRIM(BOTH FROM x.x) AS lbl
+                           FROM unnest(string_to_array(COALESCE(w.srcs, ''::text), ','::text)) x(x)
+                          WHERE TRIM(BOTH FROM x.x) <> ''::text) l ON true
+                     JOIN edges s ON s.tag = l.lbl
+                  WHERE w.depth < 6
+                ), cert AS (
+                 SELECT coa_extract.package_tag,
+                    max(coa_extract.client_license) AS lic,
+                    max(coa_extract.client_name) AS nm,
+                    max(coa_extract.lab_report_id) AS rpt,
+                    count(*) AS n
+                   FROM coa_extract
+                  WHERE coa_extract.package_tag IS NOT NULL
+                  GROUP BY coa_extract.package_tag
+                UNION ALL
+                 SELECT l.package_tag,
+                    max(e.client_license) AS max,
+                    max(e.client_name) AS max,
+                    max(e.lab_report_id) AS max,
+                    count(*) AS count
+                   FROM metrc_lab_results l
+                     JOIN coa_extract e ON e.document_id = l.document_file_id
+                  WHERE l.document_file_id IS NOT NULL AND l.package_tag IS NOT NULL
+                  GROUP BY l.package_tag
+                ), cert1 AS (
+                 SELECT cert.package_tag,
+                    max(cert.lic) AS lic,
+                    max(cert.nm) AS nm,
+                    max(cert.rpt) AS rpt,
+                    sum(cert.n) AS n
+                   FROM cert
+                  GROUP BY cert.package_tag
+                ), hit AS (
+                 SELECT w.package_tag,
+                    w.depth,
+                    c.lic,
+                    c.nm,
+                    c.rpt,
+                    w.ancestor,
+                    row_number() OVER (PARTITION BY w.package_tag ORDER BY w.depth) AS rn
+                   FROM walk w
+                     JOIN cert1 c ON c.package_tag = w.ancestor
+                )
+         SELECT h.package_tag,
+            h.depth AS found_at_depth,
+            h.ancestor AS certificate_on_package,
+            h.lic AS cert_license,
+            h.nm AS cert_client,
+            h.rpt AS cert_report,
+                CASE
+                    WHEN h.depth = 0 THEN 'DIRECT'::text
+                    ELSE (('INHERITED via '::text || h.depth) || ' repack'::text) ||
+                    CASE
+                        WHEN h.depth > 1 THEN 's'::text
+                        ELSE ''::text
+                    END
+                END AS certificate_link
+           FROM hit h
+          WHERE h.rn = 1) v
+     LEFT JOIN mv_tag_documents td ON td.tag = v.package_tag;
+create materialized view if not exists public.mv_document_search as
+ SELECT doc_type,
+    document,
+    reference,
+    package_tag,
+    manifest_number,
+    item_name,
+    shipper,
+    customer,
+    lab_facility,
+    manifest_date,
+    tested_on,
+    open_download_print,
+    direction,
+    current_location,
+    license,
+    lower(COALESCE(search_text, ''::text)) AS search_text
+   FROM v_document_library;
+create materialized view if not exists public.mv_ownership_verdict as
+ WITH conflicted AS (
+         SELECT p.tag,
+            p.item_name,
+            p.uom,
+            p.quantity,
+            p.source_state,
+            p.lab_testing_state,
+            p.raw ->> 'ItemFromFacilityLicenseNumber'::text AS platform_license,
+            p.raw ->> 'ItemFromFacilityName'::text AS platform_name,
+            o.origin AS lineage
+           FROM ( SELECT DISTINCT ON (metrc_packages.tag) metrc_packages.tag,
+                    metrc_packages.item_name,
+                    metrc_packages.uom,
+                    metrc_packages.quantity,
+                    metrc_packages.source_state,
+                    metrc_packages.lab_testing_state,
+                    metrc_packages.raw
+                   FROM metrc_packages
+                  ORDER BY metrc_packages.tag, metrc_packages.license) p
+             CROSS JOIN LATERAL ( SELECT f_material_origin(p.tag) AS origin) o
+          WHERE (p.source_state = ANY (ARRAY['active'::text, 'onhold'::text])) AND f_is_ours(p.raw ->> 'ItemFromFacilityLicenseNumber'::text) AND ((o.origin ->> 'any_outside'::text)::boolean) IS TRUE
+        ), certed AS (
+         SELECT c.tag,
+            c.item_name,
+            c.uom,
+            c.quantity,
+            c.source_state,
+            c.lab_testing_state,
+            c.platform_license,
+            c.platform_name,
+            c.lineage,
+            r.cert_license,
+            r.cert_client,
+            r.found_at_depth,
+            r.certificate_on_package
+           FROM conflicted c
+             LEFT JOIN v_certificate_resolved r ON r.package_tag = c.tag
+        )
+ SELECT tag AS package_tag,
+    "left"(item_name, 50) AS item_name,
+    source_state,
+    lab_testing_state,
+        CASE
+            WHEN f_is_weight(uom) THEN round(f_to_pounds(quantity, uom), 2)
+            ELSE NULL::numeric
+        END AS pounds,
+    platform_license AS platform_says,
+    lineage -> 'origin_names'::text AS lineage_says,
+    lineage -> 'origin_licences'::text AS lineage_licences,
+    lineage -> 'inbound_manifests'::text AS inbound_manifests,
+    cert_client AS certificate_says,
+    cert_license AS certificate_license,
+        CASE
+            WHEN found_at_depth IS NULL THEN NULL::text
+            WHEN found_at_depth = 0 THEN 'direct'::text
+            ELSE 'inherited via '::text || found_at_depth
+        END AS certificate_link,
+    certificate_on_package,
+        CASE
+            WHEN cert_license IS NULL AND cert_client IS NULL THEN 'UNPROVEN - no certificate in the lineage. Ownership doubt raised, not settled.'::text
+            WHEN cert_license IS NOT NULL AND f_licence_in_set(platform_license, cert_license) THEN ('INCONCLUSIVE - the certificate names us, but the lineage says the '::text || 'material came from outside. Consistent with us paying for a '::text) || 'retest after buying it. NOT proof we grew it.'::text
+            WHEN cert_license IS NOT NULL THEN ('CONFIRMED NOT OURS - the laboratory names '::text || COALESCE(cert_client, 'another licensee'::text)) || '. The certificate is independent and it wins.'::text
+            ELSE ('NAME ONLY - the certificate names '::text || COALESCE(cert_client, '?'::text)) || ' but prints no licence (MCR Labs does not). Judge on the name.'::text
+        END AS verdict,
+    'THE ISSUE: this package is counted as ours. Ownership drives yield, cost, loss and on-hand, and every one of those is wrong if this is somebody else''s material.'::text AS what_is_wrong,
+        CASE
+            WHEN NOT f_is_weight(uom) THEN quantity
+            ELSE NULL::numeric
+        END AS units,
+    uom AS unit_of_measure,
+    f_quantity_text(quantity, uom) AS how_much
+   FROM certed;
+create materialized view if not exists public.mv_stock_proof as
+ WITH identity_one_per_tag AS (
+         SELECT DISTINCT ON (pi.package_tag) pi.package_tag,
+            pi.total_thc,
+            pi.total_cbd,
+            pi.total_terpenes,
+            pi.laboratory,
+            pi.coa_url
+           FROM v_product_identity pi
+          ORDER BY pi.package_tag, (pi.coa_url IS NOT NULL) DESC, (pi.total_thc IS NOT NULL) DESC, pi.license
+        )
+ SELECT s.package_tag,
+    s.item_name,
+    s.strain,
+    s.stream,
+    s.origin,
+    s.made_by,
+    s.shipped_to_us_by,
+    s.license,
+    s.location,
+    s.days_here,
+    s.packaged_on,
+    s.quantity,
+    s.uom,
+    s.pounds,
+    s.units,
+    s.quantity_shown,
+    s.sold_by_weight,
+    s.lab_state,
+        CASE s.lab_state
+            WHEN 'TestPassed'::text THEN 'Sellable now'::text
+            WHEN 'RetestPassed'::text THEN 'Sellable now'::text
+            WHEN 'TestFailed'::text THEN 'Failed testing'::text
+            WHEN 'RetestFailed'::text THEN 'Failed testing'::text
+            WHEN 'NotSubmitted'::text THEN 'Never submitted'::text
+            ELSE 'At the laboratory'::text
+        END AS band,
+    f_test_status(s.lab_state, s.submitted_on, s.result_on) AS test_status,
+    s.submitted_on AS went_out_for_testing_on,
+    s.result_on AS came_back_on,
+        CASE
+            WHEN s.result_on IS NOT NULL AND s.submitted_on IS NOT NULL THEN s.result_on - s.submitted_on
+            WHEN s.submitted_on IS NOT NULL AND (s.lab_state = ANY (ARRAY['SubmittedForTesting'::text, 'TestingInProgress'::text])) THEN CURRENT_DATE - s.submitted_on
+            ELSE NULL::integer
+        END AS days_at_the_laboratory,
+    s.coa_expires AS certificate_valid_to,
+    lr.total_thc,
+    lr.total_cbd,
+    lr.total_terpenes,
+    lr.laboratory,
+    lr.coa_url,
+    f_potency_status(lr.total_thc, lr.total_terpenes, s.lab_state) AS potency_and_certificate,
+    s.inbound_manifest,
+        CASE
+            WHEN s.inbound_manifest IS NULL THEN 'NO MANIFEST — created here from our own harvest or another of our packages, so it never moved '::text || 'between licences. Manifests exist only for material that changed hands.'::text
+            ELSE ('Manifest '::text || s.inbound_manifest) || COALESCE(' from '::text || NULLIF(s.shipped_to_us_by, '—'::text), ''::text)
+        END AS manifest_proof,
+    s.source_harvest,
+    s.harvest_cut_on,
+    s.dried_in,
+    s.harvest_closed_on,
+    s.made_from_packages,
+    s.production_batch,
+    s.traceability,
+    f_rate_for(s.stream) AS rate_per_pound_used,
+    round(COALESCE(s.pounds, 0::numeric) * f_rate_for(s.stream)) AS value_at_our_rate
+   FROM v_stock_packages s
+     LEFT JOIN identity_one_per_tag lr ON lr.package_tag = s.package_tag;
+create or replace view public.v_alert_destroyed_unexplained as
+ SELECT v.fingerprint,
+    v.severity,
+    v.area,
+    v.headline,
+    v.detail,
+    v.what_to_do,
+    v.drill,
+    v.pounds,
+    v.raised_for_date,
+    v.tag,
+    v.supplier,
+    v.destroyed_by,
+    v.destroy_reason,
+    v.destroy_note,
+    v.lab_failures,
+    td.coa_certificate_id,
+    td.coa_document_link,
+    td.manifest_no,
+    td.manifest_document_link,
+    td.apex_invoice_no,
+    td.apex_invoice_usd
+   FROM ( SELECT 'destroyed_unexplained:'::text || d.tag AS fingerprint,
+                CASE
+                    WHEN COALESCE(d.destroy_note, ''::text) = ''::text THEN 'critical'::text
+                    ELSE 'elevated'::text
+                END AS severity,
+            'Inventory'::text AS area,
+                CASE
+                    WHEN COALESCE(d.destroy_note, ''::text) = ''::text THEN ('DESTROYED WITH NO EXPLANATION — '::text || abs(d.lb_adjusted)) || ' lb'::text
+                    ELSE ('Destroyed with no failing lab test — '::text || abs(d.lb_adjusted)) || ' lb'::text
+                END AS headline,
+            concat_ws(' '::text, (((('Tag '::text || d.tag) || ' ('::text) || COALESCE(d.category, '?'::text)) || COALESCE(', '::text || d.strain, ''::text)) || ')'::text, ('from '::text || COALESCE(d.supplier, 'unknown supplier'::text)) || '.'::text, ((((abs(d.lb_adjusted) || ' lb destroyed '::text) || COALESCE(d.date_destroyed::text, '?'::text)) || ' by '::text) || COALESCE(d.destroyed_by, 'an unrecorded user'::text)) || '.'::text, ('Reason code: '::text || COALESCE(NULLIF(d.destroy_reason, ''::text), 'NONE GIVEN'::text)) || '.'::text, ('Note: '::text || COALESCE(NULLIF(d.destroy_note, ''::text), 'NONE GIVEN'::text)) || '.'::text,
+                CASE
+                    WHEN COALESCE(d.lab_failures, 0::bigint) = 0 THEN 'NO FAILING LAB TEST on record for this tag.'::text
+                    ELSE ''::text
+                END, ((('Received '::text || COALESCE(d.date_received::text, '?'::text)) || COALESCE(' on manifest '::text || d.inbound_manifest, ''::text)) ||
+                CASE
+                    WHEN d.age_on_arrival_days IS NOT NULL THEN (', already '::text || d.age_on_arrival_days) || ' days old on arrival'::text
+                    ELSE ''::text
+                END) || '.'::text) AS detail,
+            ('Confirm the reason with '::text || COALESCE(d.destroyed_by, 'the user who adjusted it'::text)) || ' today, record it against the tag, and decide whether a supplier claim is warranted.'::text AS what_to_do,
+            'third_party_forensic'::text AS drill,
+            round(abs(d.lb_adjusted), 1) AS pounds,
+            d.date_destroyed AS raised_for_date,
+            d.tag,
+            d.supplier,
+            d.destroyed_by,
+            d.destroy_reason,
+            d.destroy_note,
+            d.lab_failures
+           FROM v_third_party_forensic d
+          WHERE d.lb_adjusted <= '-1'::integer::numeric AND (COALESCE(d.destroy_note, ''::text) = ''::text OR COALESCE(d.lab_failures, 0::bigint) = 0)) v
+     LEFT JOIN mv_tag_documents td ON td.tag = v.tag;
+create or replace view public.v_awaiting_allocation as
+ SELECT v.material_class,
+    v.origin,
+    v.item,
+    v.strain,
+    v.identifier,
+    v.quantity,
+    v.uom,
+    v.location,
+    v.stage,
+    v.days_in_system,
+    v.vendor,
+    v.cost,
+    v.allocation_status,
+    v.approved_by,
+    v.approval_state,
+    td.coa_certificate_id,
+    td.coa_document_link,
+    td.manifest_no,
+    td.manifest_document_link,
+    td.apex_invoice_no,
+    td.apex_invoice_usd
+   FROM ( SELECT v_production_tracker.material_class,
+            v_production_tracker.origin,
+            v_production_tracker.item,
+            v_production_tracker.strain,
+            v_production_tracker.identifier,
+            v_production_tracker.quantity,
+            v_production_tracker.uom,
+            v_production_tracker.location,
+            v_production_tracker.stage,
+            v_production_tracker.days_in_system,
+            v_production_tracker.vendor,
+            v_production_tracker.cost,
+            COALESCE(v_production_tracker.allocation_status, 'no request'::text) AS allocation_status,
+            v_production_tracker.approved_by,
+                CASE
+                    WHEN v_production_tracker.allocation_status = 'approved'::text THEN 'Approved by '::text || COALESCE(v_production_tracker.approved_by, 'an approver'::text)
+                    WHEN v_production_tracker.allocation_status = 'pending'::text THEN 'AWAITING APPROVAL'::text
+                    WHEN v_production_tracker.allocation_status = 'denied'::text THEN 'DENIED - decide what happens to it'::text
+                    ELSE 'NO ALLOCATION REQUESTED - this material has no approved destination'::text
+                END AS approval_state
+           FROM v_production_tracker
+          WHERE COALESCE(v_production_tracker.allocation_status, ''::text) <> 'approved'::text
+          ORDER BY v_production_tracker.days_in_system DESC NULLS LAST) v
+     LEFT JOIN mv_tag_documents td ON td.tag = v.identifier;
+create or replace view public.v_certificate_gap as
+ SELECT v.package_tag,
+    v.item_name,
+    v.license,
+    v.lab_testing_state,
+    v.source_state,
+    v.pounds,
+    v.packaged_on,
+    v.days_held,
+    v.location,
+    v.platform_license,
+    v.inbound_manifest,
+    v.received_from,
+    v.lab_result_rows,
+    v.coa_document_id,
+    v.bucket,
+    v.what_to_do,
+    v.what_is_wrong,
+    td.coa_certificate_id,
+    td.coa_document_link,
+    td.manifest_no,
+    td.manifest_document_link,
+    td.apex_invoice_no,
+    td.apex_invoice_usd
+   FROM ( WITH p AS (
+                 SELECT DISTINCT ON (metrc_packages.tag) metrc_packages.tag,
+                    metrc_packages.item_name,
+                    metrc_packages.license,
+                    metrc_packages.uom,
+                    metrc_packages.quantity,
+                    metrc_packages.packaged_on,
+                    metrc_packages.lab_testing_state,
+                    metrc_packages.source_state,
+                    metrc_packages.raw
+                   FROM metrc_packages
+                  ORDER BY metrc_packages.tag, metrc_packages.license
+                )
+         SELECT p.tag AS package_tag,
+            "left"(p.item_name, 55) AS item_name,
+            p.license,
+            p.lab_testing_state,
+            p.source_state,
+                CASE
+                    WHEN f_is_weight(p.uom) THEN round(f_to_pounds(p.quantity, p.uom), 2)
+                    ELSE NULL::numeric
+                END AS pounds,
+            p.packaged_on,
+            CURRENT_DATE - p.packaged_on AS days_held,
+            p.raw ->> 'LocationName'::text AS location,
+            p.raw ->> 'ItemFromFacilityLicenseNumber'::text AS platform_license,
+            NULLIF(p.raw ->> 'ReceivedFromManifestNumber'::text, ''::text) AS inbound_manifest,
+            NULLIF(p.raw ->> 'ReceivedFromFacilityName'::text, ''::text) AS received_from,
+            ( SELECT count(*) AS count
+                   FROM metrc_lab_results l
+                  WHERE l.package_tag = p.tag) AS lab_result_rows,
+            ( SELECT max(l.document_file_id) AS max
+                   FROM metrc_lab_results l
+                  WHERE l.package_tag = p.tag AND l.document_file_id IS NOT NULL) AS coa_document_id,
+                CASE
+                    WHEN (EXISTS ( SELECT 1
+                       FROM metrc_lab_results l
+                      WHERE l.package_tag = p.tag AND l.document_file_id IS NOT NULL)) THEN 'A - COA ID HELD'::text
+                    WHEN (EXISTS ( SELECT 1
+                       FROM metrc_lab_results l
+                      WHERE l.package_tag = p.tag)) THEN 'B - NO DOCUMENT ID'::text
+                    ELSE 'C - NO LAB RESULTS'::text
+                END AS bucket,
+                CASE
+                    WHEN (EXISTS ( SELECT 1
+                       FROM metrc_lab_results l
+                      WHERE l.package_tag = p.tag AND l.document_file_id IS NOT NULL)) THEN 'Download it: GET /labtests/v2/labtestdocument/<coa_document_id>, store in metrc_documents, parse the Client Info block.'::text
+                    WHEN (EXISTS ( SELECT 1
+                       FROM metrc_lab_results l
+                      WHERE l.package_tag = p.tag)) THEN 'Re-pull the lab result for this package to capture LabTestResultDocumentFileId, then download.'::text
+                    ELSE 'lab_testing_state says tested but no results are synced. Re-pull this package''s lab results from Metrc before anything else.'::text
+                END AS what_to_do,
+            'THE ISSUE: this package carries a test result but no certificate is linked to it or to anything in its lineage. Ownership and potency cannot be independently confirmed, so nothing may be posted on it.'::text AS what_is_wrong
+           FROM p
+             LEFT JOIN v_certificate_resolved r ON r.package_tag = p.tag
+          WHERE r.package_tag IS NULL AND (p.lab_testing_state <> ALL (ARRAY['NotSubmitted'::text, 'NotRequired'::text, 'SubmittedForTesting'::text, 'TestingInProgress'::text]))) v
+     LEFT JOIN mv_tag_documents td ON td.tag = v.package_tag;
+create or replace view public.v_cfo_spend_by_tag as
+ WITH billed AS (
+         SELECT DISTINCT ON (t.manifest_number, (upper(btrim(t.package_tag)))) upper(btrim(t.package_tag)) AS tag,
+            NULLIF(t.receiver_wholesale_price, 0::numeric) AS declared_usd
+           FROM metrc_rpt_package_transfers t
+          WHERE t.package_tag IS NOT NULL
+          ORDER BY t.manifest_number, (upper(btrim(t.package_tag))), t.received_on
+        ), per_tag AS (
+         SELECT billed.tag,
+            sum(billed.declared_usd) AS declared_usd
+           FROM billed
+          GROUP BY billed.tag
+        )
+ SELECT f.tag,
+    f.year_received,
+    f.date_received,
+    f.date_supplier_packaged,
+    f.age_on_arrival_days,
+    f.supplier,
+    f.supplier_licence,
+    f.category,
+    f.strain,
+    f.item,
+    f.inbound_manifest,
+    f.status,
+    f.current_room,
+    f.current_sublocation,
+    f.lb_received,
+    f.lb_on_hand,
+    f.lb_sold,
+    f.made_lb,
+    f.days_held_total,
+    f.days_unsold_still_here,
+    f.ageing_band,
+    f.lab_result,
+    f.lab_state,
+    f.date_tested,
+    f.date_destroyed,
+    f.destroy_reason,
+    f.destroy_note,
+    f.destroyed_by,
+    f.destroy_rows_verbatim,
+    f.exit_sold_usd,
+    f.metrc_link,
+    f.location_history,
+    p.declared_usd,
+        CASE
+            WHEN p.declared_usd IS NOT NULL AND f.lb_received > 0::numeric THEN round(p.declared_usd / f.lb_received, 2)
+            ELSE NULL::numeric
+        END AS declared_usd_per_lb,
+        CASE
+            WHEN p.declared_usd IS NOT NULL AND f.lb_received > 0::numeric THEN round(p.declared_usd / f.lb_received * COALESCE(f.lb_on_hand, 0::numeric), 2)
+            ELSE NULL::numeric
+        END AS declared_value_on_hand_usd,
+        CASE
+            WHEN p.declared_usd IS NULL THEN 'NONE'::text
+            ELSE 'DECLARED'::text
+        END AS cost_basis_status,
+    'Metrc manifest declaration, NOT an Apex invoice. Apex receiving-orders holds 0 rows, so no evidenced cost exists for any tag.'::text AS cost_basis_note
+   FROM v_third_party_forensic f
+     LEFT JOIN per_tag p ON p.tag = f.tag;
+create or replace view public.v_concentrate_valuation as
+ SELECT v.package_tag,
+    v.item_name,
+    v.strain,
+    v.pounds,
+    v.grams,
+    v.lab_state,
+    v.location,
+    v.sub_type,
+    v.dollars_per_gram,
+    v.value_at_cost,
+    v.rate_source,
+    td.coa_certificate_id,
+    td.coa_document_link,
+    td.manifest_no,
+    td.manifest_document_link,
+    td.apex_invoice_no,
+    td.apex_invoice_usd
+   FROM ( SELECT s.package_tag,
+            s.item_name,
+            s.strain,
+            s.pounds,
+            round(s.quantity) AS grams,
+            s.lab_state,
+            s.location,
+            COALESCE(m.sub_type, 'Crude, distillate or isolate'::text) AS sub_type,
+            COALESCE(m.dollars_per_gram, round((( SELECT v_cost_of_goods.badder_crude_per_pound
+                   FROM v_cost_of_goods)) / 453.592, 4)) AS dollars_per_gram,
+            round(s.pounds * f_concentrate_rate_per_lb(s.item_name)) AS value_at_cost,
+            COALESCE(m.source, 'No sheet rate for this type. Falls back to the crude cost per gram computed '::text || 'by the Production Cost Calculator from the owner''s worksheet.'::text) AS rate_source
+           FROM v_stock_packages s
+             LEFT JOIN LATERAL ( SELECT m2.id,
+                    m2.match_pattern,
+                    m2.sub_type,
+                    m2.dollars_per_gram,
+                    m2.source,
+                    m2.sort
+                   FROM concentrate_rate_map m2
+                  WHERE s.item_name ~~* m2.match_pattern
+                  ORDER BY m2.sort
+                 LIMIT 1) m ON true
+          WHERE s.stream = 'Concentrate'::text) v
+     LEFT JOIN mv_tag_documents td ON td.tag = v.package_tag;
+create or replace view public.v_custody_alerts as
+ SELECT v.flag,
+    v.severity,
+    v.license,
+    v.identifier,
+    v.item,
+    v.location,
+    v.quantity,
+    v.uom,
+    v.detail,
+    v.reference_date,
+    td.coa_certificate_id,
+    td.coa_document_link,
+    td.manifest_no,
+    td.manifest_document_link,
+    td.apex_invoice_no,
+    td.apex_invoice_usd
+   FROM ( SELECT 'Lineage break'::text AS flag,
+            'critical'::text AS severity,
+            p.license,
+            p.tag AS identifier,
+            COALESCE(p.item_name, '(unnamed)'::text) AS item,
+            COALESCE(p.location, '(no location)'::text) AS location,
+            COALESCE(p.quantity, 0::numeric) AS quantity,
+            COALESCE(p.uom, 'ea'::text) AS uom,
+            'Package has no source harvest recorded - the seed to sale chain cannot be proven for this package'::text AS detail,
+            p.packaged_on AS reference_date
+           FROM metrc_packages p
+          WHERE (p.source_state = ANY (ARRAY['active'::text, 'onhold'::text, 'intransit'::text])) AND COALESCE(NULLIF(p.raw ->> 'SourceHarvestNames'::text, ''::text), NULLIF(p.raw ->> 'SourcePackageLabels'::text, ''::text)) IS NULL
+        UNION ALL
+         SELECT 'On hold in Metrc'::text AS flag,
+            'critical'::text AS severity,
+            p.license,
+            p.tag AS identifier,
+            COALESCE(p.item_name, '(unnamed)'::text) AS item,
+            COALESCE(p.location, '(no location)'::text) AS location,
+            COALESCE(p.quantity, 0::numeric) AS quantity,
+            COALESCE(p.uom, 'ea'::text) AS uom,
+            'Package is on hold in Metrc - resolve the hold or record the disposition'::text AS detail,
+            p.packaged_on AS reference_date
+           FROM metrc_packages p
+          WHERE ((p.raw ->> 'IsOnHold'::text)::boolean) AND (p.source_state = ANY (ARRAY['active'::text, 'onhold'::text]))
+        UNION ALL
+         SELECT 'Failed testing unresolved'::text AS flag,
+            'critical'::text AS severity,
+            p.license,
+            p.tag AS identifier,
+            COALESCE(p.item_name, '(unnamed)'::text) AS item,
+            COALESCE(p.location, '(no location)'::text) AS location,
+            COALESCE(p.quantity, 0::numeric) AS quantity,
+            COALESCE(p.uom, 'ea'::text) AS uom,
+            'Failed a laboratory test and is still in inventory - remediate or destroy and record it'::text AS detail,
+            p.packaged_on AS reference_date
+           FROM metrc_packages p
+          WHERE p.lab_testing_state = 'TestFailed'::text AND (p.source_state = ANY (ARRAY['active'::text, 'onhold'::text]))
+        UNION ALL
+         SELECT 'Unexplained quantity loss'::text AS flag,
+            'elevated'::text AS severity,
+            p.license,
+            p.tag AS identifier,
+            COALESCE(p.item_name, '(unnamed)'::text) AS item,
+            COALESCE(p.location, '(no location)'::text) AS location,
+            round(COALESCE((p.raw ->> 'InitialQuantity'::text)::numeric, 0::numeric) - COALESCE(p.quantity, 0::numeric), 2) AS quantity,
+            COALESCE(p.uom, 'ea'::text) AS uom,
+            ((('Quantity dropped from '::text || (p.raw ->> 'InitialQuantity'::text)) || ' to '::text) || COALESCE(p.quantity, 0::numeric)) || ' with no adjustment reason recorded'::text AS detail,
+            p.packaged_on AS reference_date
+           FROM metrc_packages p
+          WHERE (COALESCE((p.raw ->> 'InitialQuantity'::text)::numeric, 0::numeric) - COALESCE(p.quantity, 0::numeric)) > 0.01 AND (p.source_state = ANY (ARRAY['active'::text, 'onhold'::text]))
+        UNION ALL
+         SELECT 'Transfer not received'::text AS flag,
+            'elevated'::text AS severity,
+            p.license,
+            p.tag AS identifier,
+            COALESCE(p.item_name, '(unnamed)'::text) AS item,
+            COALESCE(p.location, '(manifested)'::text) AS location,
+            COALESCE(p.quantity, 0::numeric) AS quantity,
+            COALESCE(p.uom, 'ea'::text) AS uom,
+            ('In transit for '::text || (CURRENT_DATE - p.packaged_on)) || ' days - confirm the receiving facility accepted it'::text AS detail,
+            p.packaged_on AS reference_date
+           FROM metrc_packages p
+          WHERE p.source_state = 'intransit'::text AND p.packaged_on < (CURRENT_DATE - 3)
+        UNION ALL
+         SELECT 'Under investigation'::text AS flag,
+            'critical'::text AS severity,
+            h.license,
+            h.name AS identifier,
+            COALESCE(h.raw ->> 'SourceStrainNames'::text, h.name) AS item,
+            COALESCE(h.raw ->> 'DryingLocationName'::text, '(no room)'::text) AS location,
+            COALESCE((h.raw ->> 'CurrentWeight'::text)::numeric, 0::numeric) AS quantity,
+            COALESCE(h.raw ->> 'UnitOfWeightName'::text, 'g'::text) AS uom,
+            'Harvest is flagged under investigation or recall in Metrc - do not move or sell until cleared'::text AS detail,
+            h.harvest_start AS reference_date
+           FROM metrc_harvests h
+          WHERE ((h.raw ->> 'IsOnInvestigation'::text)::boolean) OR ((h.raw ->> 'IsOnInvestigationHold'::text)::boolean) OR ((h.raw ->> 'IsOnInvestigationRecall'::text)::boolean)
+        UNION ALL
+         SELECT 'No location recorded'::text AS flag,
+            'critical'::text AS severity,
+            l.license,
+            l.identifier,
+            l.item,
+            l.location,
+            l.quantity,
+            l.uom,
+            'This item has no recorded location - custody cannot be proven to the Cannabis Control Commission'::text AS detail,
+            l.since_date AS reference_date
+           FROM v_inventory_locator l
+          WHERE l.location IS NULL OR (l.location = ANY (ARRAY['(no location)'::text, '(no room recorded)'::text]))
+        UNION ALL
+         SELECT 'Metrc data stale'::text AS flag,
+            'elevated'::text AS severity,
+            'BOTH'::text AS license,
+            'sync'::text AS identifier,
+            'Metrc mirror'::text AS item,
+            'System'::text AS location,
+            round(EXTRACT(epoch FROM now() - max(r.started_at)) / 3600::numeric, 1) AS quantity,
+            'hours since last sync'::text AS uom,
+            'No successful Metrc sync in over 2 hours - the custody picture may be out of date'::text AS detail,
+            CURRENT_DATE AS reference_date
+           FROM metrc_sync_runs r
+         HAVING max(r.started_at) < (now() - '02:00:00'::interval)) v
+     LEFT JOIN mv_tag_documents td ON td.tag = v.identifier;
+create or replace view public.v_custody_compliance as
+ SELECT v_inventory_locator.category,
+    count(*)::numeric AS items,
+    count(*) FILTER (WHERE v_inventory_locator.location IS NULL OR (v_inventory_locator.location = ANY (ARRAY['(no location)'::text, '(no room recorded)'::text, '(manifested)'::text])))::numeric AS items_without_location,
+    count(*) FILTER (WHERE v_inventory_locator.identifier IS NULL OR v_inventory_locator.identifier = ''::text)::numeric AS items_without_identifier,
+    count(*) FILTER (WHERE v_inventory_locator.since_date IS NULL)::numeric AS items_without_date,
+    round(100.0 * count(*) FILTER (WHERE v_inventory_locator.location IS NOT NULL AND (v_inventory_locator.location <> ALL (ARRAY['(no location)'::text, '(no room recorded)'::text])))::numeric / NULLIF(count(*), 0)::numeric, 1) AS location_known_pct,
+    round(sum(v_inventory_locator.quantity) FILTER (WHERE v_inventory_locator.location IS NULL OR (v_inventory_locator.location = ANY (ARRAY['(no location)'::text, '(no room recorded)'::text]))), 1) AS quantity_unlocated,
+        CASE
+            WHEN count(*) FILTER (WHERE v_inventory_locator.location IS NULL OR (v_inventory_locator.location = ANY (ARRAY['(no location)'::text, '(no room recorded)'::text]))) = 0 THEN 'Every item accounted for'::text
+            ELSE count(*) FILTER (WHERE v_inventory_locator.location IS NULL OR (v_inventory_locator.location = ANY (ARRAY['(no location)'::text, '(no room recorded)'::text]))) || ' item(s) have no recorded location - resolve in Metrc'::text
+        END AS compliance_status
+   FROM v_inventory_locator
+  GROUP BY v_inventory_locator.category
+UNION ALL
+ SELECT 'ALL TRACKED INVENTORY'::text AS category,
+    count(*)::numeric AS items,
+    count(*) FILTER (WHERE v_inventory_locator.location IS NULL OR (v_inventory_locator.location = ANY (ARRAY['(no location)'::text, '(no room recorded)'::text, '(manifested)'::text])))::numeric AS items_without_location,
+    count(*) FILTER (WHERE v_inventory_locator.identifier IS NULL OR v_inventory_locator.identifier = ''::text)::numeric AS items_without_identifier,
+    count(*) FILTER (WHERE v_inventory_locator.since_date IS NULL)::numeric AS items_without_date,
+    round(100.0 * count(*) FILTER (WHERE v_inventory_locator.location IS NOT NULL AND (v_inventory_locator.location <> ALL (ARRAY['(no location)'::text, '(no room recorded)'::text])))::numeric / NULLIF(count(*), 0)::numeric, 1) AS location_known_pct,
+    round(sum(v_inventory_locator.quantity) FILTER (WHERE v_inventory_locator.location IS NULL OR (v_inventory_locator.location = ANY (ARRAY['(no location)'::text, '(no room recorded)'::text]))), 1) AS quantity_unlocated,
+        CASE
+            WHEN count(*) FILTER (WHERE v_inventory_locator.location IS NULL OR (v_inventory_locator.location = ANY (ARRAY['(no location)'::text, '(no room recorded)'::text]))) = 0 THEN 'FULL CUSTODY - every tracked item has a known location'::text
+            ELSE ('CUSTODY GAP - '::text || count(*) FILTER (WHERE v_inventory_locator.location IS NULL OR (v_inventory_locator.location = ANY (ARRAY['(no location)'::text, '(no room recorded)'::text])))) || ' item(s) unlocated'::text
+        END AS compliance_status
+   FROM v_inventory_locator;
+create or replace view public.v_dept_dash_audit_tiles as
+ WITH yr AS (
+         SELECT make_date(EXTRACT(year FROM CURRENT_DATE)::integer, 1, 1) AS d0,
+            CURRENT_DATE AS d1
+        ), prod AS (
+         SELECT COALESCE(sum(f_to_pounds(COALESCE((p.raw ->> 'CreatedQuantity'::text)::numeric, 0::numeric), COALESCE(NULLIF(p.raw ->> 'UnitOfMeasureName'::text, ''::text), 'Grams'::text))) FILTER (WHERE ((p.raw ->> 'PackagedDate'::text)::date) >= (( SELECT yr.d0
+                   FROM yr)) AND ((p.raw ->> 'PackagedDate'::text)::date) <= (( SELECT yr.d1
+                   FROM yr))), 0::numeric) AS lb_ytd,
+            COALESCE(sum(f_to_pounds(COALESCE((p.raw ->> 'CreatedQuantity'::text)::numeric, 0::numeric), COALESCE(NULLIF(p.raw ->> 'UnitOfMeasureName'::text, ''::text), 'Grams'::text))), 0::numeric) AS lb_all
+           FROM metrc_packages p
+          WHERE NULLIF(p.raw ->> 'SourceHarvestNames'::text, ''::text) IS NOT NULL AND NULLIF(p.raw ->> 'SourcePackageLabels'::text, ''::text) IS NULL AND f_is_weight(COALESCE(NULLIF(p.raw ->> 'UnitOfMeasureName'::text, ''::text), 'Grams'::text))
+        ), xf AS (
+         SELECT COALESCE(sum(v_transfer_line.pounds) FILTER (WHERE v_transfer_line.direction = 'INBOUND'::text), 0::numeric) AS in_all,
+            COALESCE(sum(v_transfer_line.pounds) FILTER (WHERE v_transfer_line.direction = 'OUTBOUND'::text), 0::numeric) AS out_all,
+            COALESCE(sum(v_transfer_line.pounds) FILTER (WHERE v_transfer_line.direction = 'OUTBOUND'::text AND v_transfer_line.received_on >= (( SELECT yr.d0
+                   FROM yr)) AND v_transfer_line.received_on <= (( SELECT yr.d1
+                   FROM yr))), 0::numeric) AS out_ytd
+           FROM v_transfer_line
+          WHERE v_transfer_line.voided <> 'True'::text
+        ), adj AS (
+         SELECT COALESCE(sum(f_to_pounds(metrc_rpt_adjustments.quantity, metrc_rpt_adjustments.uom)), 0::numeric) AS lb
+           FROM metrc_rpt_adjustments
+          WHERE metrc_rpt_adjustments.quantity IS NOT NULL AND f_is_weight(metrc_rpt_adjustments.uom)
+        ), onhand AS (
+         SELECT COALESCE(sum(f_to_pounds(COALESCE((metrc_packages.raw ->> 'Quantity'::text)::numeric, 0::numeric), COALESCE(NULLIF(metrc_packages.raw ->> 'UnitOfMeasureName'::text, ''::text), 'Grams'::text))), 0::numeric) AS lb
+           FROM metrc_packages
+          WHERE NOT COALESCE((metrc_packages.raw ->> 'IsFinished'::text)::boolean, false) AND f_is_weight(COALESCE(NULLIF(metrc_packages.raw ->> 'UnitOfMeasureName'::text, ''::text), 'Grams'::text))
+        ), pos AS (
+         SELECT COALESCE(sum(v_forensic_inventory.pounds) FILTER (WHERE NOT v_forensic_inventory.is_ours), 0::numeric) AS third_party_lb,
+            COALESCE(sum(v_forensic_inventory.pounds) FILTER (WHERE v_forensic_inventory.stage = 'DRIED - AWAITING TRIM'::text), 0::numeric) AS awaiting_trim_lb,
+            COALESCE(sum(v_forensic_inventory.pounds) FILTER (WHERE v_forensic_inventory.stage = 'DRIED BULK FLOWER'::text), 0::numeric) AS bulk_lb,
+            COALESCE(sum(v_forensic_inventory.plant_count) FILTER (WHERE v_forensic_inventory.unit_type = 'PLANT'::text), 0::numeric) AS plants
+           FROM v_forensic_inventory
+          WHERE v_forensic_inventory.stage_group <> 'SOLD'::text
+        ), noinv AS (
+         SELECT count(*) AS n,
+            COALESCE(round(sum(v_forensic_sold_by_tag.pounds), 1), 0::numeric) AS lb
+           FROM v_forensic_sold_by_tag
+          WHERE v_forensic_sold_by_tag.invoice_match = 'NO APEX INVOICE'::text AND v_forensic_sold_by_tag.counts_as_sale AND v_forensic_sold_by_tag.shipped_on >= (( SELECT yr.d0
+                   FROM yr)) AND v_forensic_sold_by_tag.shipped_on <= (( SELECT yr.d1
+                   FROM yr))
+        )
+ SELECT 'Command'::text AS department,
+    9 AS ord,
+    'Inventory variance, unexplained'::text AS kpi,
+    round((( SELECT onhand.lb
+           FROM onhand)) - ((( SELECT prod.lb_all
+           FROM prod)) + (( SELECT xf.in_all
+           FROM xf)) - (( SELECT xf.out_all
+           FROM xf)) + (( SELECT adj.lb
+           FROM adj))), 1) AS value,
+    'lb'::text AS unit,
+    'bad'::text AS tone,
+    'Counted on hand less expected, since inception, from five independent sources. Negative is manufacturing yield loss, which Metrc never tags.'::text AS context,
+    'forensic_reconciliation'::text AS drill,
+    now() AS computed_at
+UNION ALL
+ SELECT 'Command'::text AS department,
+    10 AS ord,
+    'Sold and shipped, year to date'::text AS kpi,
+    round(( SELECT xf.out_ytd
+           FROM xf), 1) AS value,
+    'lb'::text AS unit,
+    'info'::text AS tone,
+    'Outbound manifests only. Movement between our own two licences is excluded — it is not a sale.'::text AS context,
+    'forensic_sold_by_tag'::text AS drill,
+    now() AS computed_at
+UNION ALL
+ SELECT 'Command'::text AS department,
+    11 AS ord,
+    'Shipped with no Apex invoice'::text AS kpi,
+    ( SELECT noinv.lb
+           FROM noinv) AS value,
+    'lb'::text AS unit,
+    'bad'::text AS tone,
+    ( SELECT noinv.n || ' outbound lines this year carry no matching Apex invoice. Apex is the record of truth for sales.'::text
+           FROM noinv) AS context,
+    'forensic_sold_by_tag'::text AS drill,
+    now() AS computed_at
+UNION ALL
+ SELECT 'Command'::text AS department,
+    12 AS ord,
+    'Third party material on hand'::text AS kpi,
+    round(( SELECT pos.third_party_lb
+           FROM pos), 1) AS value,
+    'lb'::text AS unit,
+    'warn'::text AS tone,
+    'Not grown or processed by us. Always reported separately from our own.'::text AS context,
+    'forensic_position'::text AS drill,
+    now() AS computed_at
+UNION ALL
+ SELECT 'Cultivation'::text AS department,
+    7 AS ord,
+    'Plants growing now'::text AS kpi,
+    ( SELECT pos.plants
+           FROM pos) AS value,
+    ''::text AS unit,
+    'info'::text AS tone,
+    'Live plants across the flower rooms and mother stock. Counted, never weighed.'::text AS context,
+    'forensic_room_census'::text AS drill,
+    now() AS computed_at
+UNION ALL
+ SELECT 'Cultivation'::text AS department,
+    8 AS ord,
+    'Produced from our harvests, year to date'::text AS kpi,
+    round(( SELECT prod.lb_ytd
+           FROM prod), 1) AS value,
+    'lb'::text AS unit,
+    'info'::text AS tone,
+    'Packages made directly off a harvest, dated on the package''s own PackagedDate.'::text AS context,
+    'forensic_reconciliation'::text AS drill,
+    now() AS computed_at
+UNION ALL
+ SELECT 'Cultivation'::text AS department,
+    9 AS ord,
+    'Dried, awaiting trim'::text AS kpi,
+    round(( SELECT pos.awaiting_trim_lb
+           FROM pos), 1) AS value,
+    'lb'::text AS unit,
+    'warn'::text AS tone,
+    'In the pre-trim rooms now — dried and not yet through trim.'::text AS context,
+    'forensic_room_census'::text AS drill,
+    now() AS computed_at
+UNION ALL
+ SELECT 'Cultivation'::text AS department,
+    10 AS ord,
+    'Dried bulk flower on hand'::text AS kpi,
+    round(( SELECT pos.bulk_lb
+           FROM pos), 1) AS value,
+    'lb'::text AS unit,
+    'info'::text AS tone,
+    'Cure vault and fulfillment vault.'::text AS context,
+    'forensic_position'::text AS drill,
+    now() AS computed_at;
+create or replace view public.v_dept_dash_supplement as
+ SELECT 'Human Resources'::text AS department,
+    60 AS ord,
+    'People on the roster'::text AS kpi,
+    ( SELECT count(*)::numeric AS count
+           FROM employees) AS value,
+    ''::text AS unit,
+    'info'::text AS tone,
+    ( SELECT count(*) FILTER (WHERE employees.status::text ~~* 'act%'::text)::text || ' active. Roster is the HR module''s data export; HR pages belong to their own designer.'::text
+           FROM employees) AS context,
+    'employees'::text AS drill,
+    now() AS computed_at
+UNION ALL
+ SELECT 'Human Resources'::text AS department,
+    61 AS ord,
+    'Platform logins'::text AS kpi,
+    ( SELECT count(*)::numeric AS count
+           FROM app_users) AS value,
+    ''::text AS unit,
+    'info'::text AS tone,
+    'People who can sign in. One role tier (owner) exists so far - the role model widens deliberately, never by hack.'::text AS context,
+    'app_users'::text AS drill,
+    now() AS computed_at
+UNION ALL
+ SELECT 'Human Resources'::text AS department,
+    62 AS ord,
+    'Timesheets recorded, ever'::text AS kpi,
+    ( SELECT count(*)::numeric AS count
+           FROM time_entries) AS value,
+    ''::text AS unit,
+    'bad'::text AS tone,
+    'ZERO means zero substantiated direct labour under IRC 471 - the single largest gap in the 280E position. Every day unrecorded is deduction lost.'::text AS context,
+    'time_entries'::text AS drill,
+    now() AS computed_at
+UNION ALL
+ SELECT 'Sales & Cash'::text AS department,
+    70 AS ord,
+    'Revenue — TWO ANSWERS'::text AS kpi,
+    ( SELECT round(abs(r.value_a - r.value_b)) AS round
+           FROM ( SELECT verification_runs.value_a,
+                    verification_runs.value_b
+                   FROM verification_runs
+                  WHERE verification_runs.check_key = 'revenue-two-reports'::text
+                  ORDER BY verification_runs.ran_at DESC
+                 LIMIT 1) r) AS value,
+    '$'::text AS unit,
+    'bad'::text AS tone,
+    ( SELECT format('$%s vs $%s. DO NOT QUOTE REVENUE until the two reports reconcile - the gap exceeds planning materiality.'::text, to_char(r.value_a, 'FM9,999,999'::text), to_char(r.value_b, 'FM9,999,999'::text)) AS format
+           FROM ( SELECT verification_runs.value_a,
+                    verification_runs.value_b
+                   FROM verification_runs
+                  WHERE verification_runs.check_key = 'revenue-two-reports'::text
+                  ORDER BY verification_runs.ran_at DESC
+                 LIMIT 1) r) AS context,
+    'verification_runs'::text AS drill,
+    now() AS computed_at
+UNION ALL
+ SELECT 'Sales & Cash'::text AS department,
+    71 AS ord,
+    'Going out today'::text AS kpi,
+    ( SELECT count(*)::numeric AS count
+           FROM metrc_transfers
+          WHERE COALESCE(NULLIF(metrc_transfers.raw ->> 'EstimatedDepartureDateTime'::text, ''::text), NULLIF(metrc_transfers.raw ->> 'CreatedDateTime'::text, ''::text))::date = CURRENT_DATE) AS value,
+    'manifests'::text AS unit,
+    'info'::text AS tone,
+    ( SELECT ('Pickups and deliveries dated today on the Metrc manifest record. '::text || count(*) FILTER (WHERE COALESCE(NULLIF(metrc_transfers.raw ->> 'EstimatedArrivalDateTime'::text, ''::text), ''::text) <> ''::text AND ((metrc_transfers.raw ->> 'EstimatedArrivalDateTime'::text)::date) = CURRENT_DATE)::text) || ' due to ARRIVE today.'::text
+           FROM metrc_transfers
+          WHERE COALESCE(NULLIF(metrc_transfers.raw ->> 'EstimatedDepartureDateTime'::text, ''::text), NULLIF(metrc_transfers.raw ->> 'CreatedDateTime'::text, ''::text))::date = CURRENT_DATE) AS context,
+    'transfers_today'::text AS drill,
+    now() AS computed_at
+UNION ALL
+ SELECT 'Sales & Cash'::text AS department,
+    72 AS ord,
+    'Sale lines on the record'::text AS kpi,
+    ( SELECT count(*)::numeric AS count
+           FROM v_forensic_sold_by_tag) AS value,
+    'lines'::text AS unit,
+    'info'::text AS tone,
+    'Outbound sold-by-tag lines. CAUTION per check_defect CD-2: 152 Eagle Eyes custody lines still counted as sales until the counterparty ruling is wired into this view too.'::text AS context,
+    'forensic_sold_by_tag'::text AS drill,
+    now() AS computed_at
+UNION ALL
+ SELECT 'Sales & Cash'::text AS department,
+    73 AS ord,
+    'Shipped with no Apex invoice'::text AS kpi,
+    ( SELECT count(*)::numeric AS count
+           FROM v_forensic_sold_by_tag
+          WHERE v_forensic_sold_by_tag.invoice_match = 'NO APEX INVOICE'::text) AS value,
+    'lines'::text AS unit,
+    'bad'::text AS tone,
+    'Every line that left with no matching order. 152 are the Eagle Eyes storage legs (no invoice because no sale); the remainder are real exceptions.'::text AS context,
+    'forensic_sold_by_tag'::text AS drill,
+    now() AS computed_at
+UNION ALL
+ SELECT 'Inventory'::text AS department,
+    80 AS ord,
+    'On a truck right now'::text AS kpi,
+    ( SELECT round(sum(f_to_pounds(metrc_packages.quantity, metrc_packages.uom)), 1) AS round
+           FROM ( SELECT DISTINCT ON (d.tag) d.id,
+                    d.license,
+                    d.tag,
+                    d.item_name,
+                    d.quantity,
+                    d.uom,
+                    d.location,
+                    d.packaged_on,
+                    d.lab_testing_state,
+                    d.finished,
+                    d.raw,
+                    d.synced_at,
+                    d.source_state,
+                    d.provenance,
+                    d.report_as_of
+                   FROM metrc_packages d
+                  ORDER BY d.tag, (COALESCE(d.quantity, 0::numeric) > 0::numeric AND NOT COALESCE((d.raw ->> 'IsFinished'::text)::boolean, false)) DESC, (d.source_state = 'active'::text) DESC NULLS LAST, d.synced_at DESC NULLS LAST) metrc_packages
+          WHERE metrc_packages.source_state = 'intransit'::text AND NOT COALESCE(metrc_packages.finished, false)) AS value,
+    'lb'::text AS unit,
+    'watch'::text AS tone,
+    ( SELECT count(*)::text || ' packages on active transfers, ours until the destination accepts (owner ruling). Stuck transfers live in this number - the oldest is months past any truck ride.'::text
+           FROM ( SELECT DISTINCT ON (d.tag) d.id,
+                    d.license,
+                    d.tag,
+                    d.item_name,
+                    d.quantity,
+                    d.uom,
+                    d.location,
+                    d.packaged_on,
+                    d.lab_testing_state,
+                    d.finished,
+                    d.raw,
+                    d.synced_at,
+                    d.source_state,
+                    d.provenance,
+                    d.report_as_of
+                   FROM metrc_packages d
+                  ORDER BY d.tag, (COALESCE(d.quantity, 0::numeric) > 0::numeric AND NOT COALESCE((d.raw ->> 'IsFinished'::text)::boolean, false)) DESC, (d.source_state = 'active'::text) DESC NULLS LAST, d.synced_at DESC NULLS LAST) metrc_packages
+          WHERE metrc_packages.source_state = 'intransit'::text AND NOT COALESCE(metrc_packages.finished, false)) AS context,
+    'in_transit'::text AS drill,
+    now() AS computed_at
+UNION ALL
+ SELECT 'Inventory'::text AS department,
+    81 AS ord,
+    'Cross-licence tags'::text AS kpi,
+    ( SELECT count(*)::numeric AS count
+           FROM v_cross_license_tags) AS value,
+    'tags'::text AS unit,
+    'watch'::text AS tone,
+    'Tags holding active material under BOTH licences at once. Legitimate moves, but each silently shifts pounds between per-tag and per-licence answers - 7 of these carried the entire 72 lb disagreement.'::text AS context,
+    'cross_license_tags'::text AS drill,
+    now() AS computed_at;
+create or replace view public.v_dept_dash_third_party as
+ WITH f AS (
+         SELECT v_third_party_forensic.tag,
+            v_third_party_forensic.item,
+            v_third_party_forensic.category,
+            v_third_party_forensic.strain,
+            v_third_party_forensic.supplier,
+            v_third_party_forensic.supplier_licence,
+            v_third_party_forensic.our_licence,
+            v_third_party_forensic.inbound_manifest,
+            v_third_party_forensic.delivered_by,
+            v_third_party_forensic.date_received,
+            v_third_party_forensic.date_supplier_packaged,
+            v_third_party_forensic.lb_received,
+            v_third_party_forensic.age_on_arrival_days,
+            v_third_party_forensic.current_room,
+            v_third_party_forensic.current_sublocation,
+            v_third_party_forensic.lb_on_hand,
+            v_third_party_forensic.date_processed,
+            v_third_party_forensic.children,
+            v_third_party_forensic.made_into,
+            v_third_party_forensic.made_lb,
+            v_third_party_forensic.child_tags,
+            v_third_party_forensic.date_sold,
+            v_third_party_forensic.outbound_manifest,
+            v_third_party_forensic.sold_to,
+            v_third_party_forensic.lb_sold,
+            v_third_party_forensic.lb_adjusted,
+            v_third_party_forensic.destroy_reason,
+            v_third_party_forensic.destroy_note,
+            v_third_party_forensic.destroyed_by,
+            v_third_party_forensic.date_destroyed,
+            v_third_party_forensic.days_held_total,
+            v_third_party_forensic.days_to_process,
+            v_third_party_forensic.days_to_sell,
+            v_third_party_forensic.days_unsold_still_here,
+            v_third_party_forensic.ageing_band,
+            v_third_party_forensic.date_tested,
+            v_third_party_forensic.lab_tests,
+            v_third_party_forensic.lab_failures,
+            v_third_party_forensic.total_thc_pct,
+            v_third_party_forensic.moisture_pct,
+            v_third_party_forensic.lab_name,
+            v_third_party_forensic.failed_tests,
+            v_third_party_forensic.lab_result,
+            v_third_party_forensic.status,
+            v_third_party_forensic.metrc_link,
+            v_third_party_forensic.metrc_package_id,
+            v_third_party_forensic.manifest_document,
+            v_third_party_forensic.destroy_rows_verbatim,
+            v_third_party_forensic.year_received,
+            v_third_party_forensic.lab_state,
+            v_third_party_forensic.initial_lab_state,
+            v_third_party_forensic.lab_state_date,
+            v_third_party_forensic.contains_remediated,
+            v_third_party_forensic.remediation_date,
+            v_third_party_forensic.contains_decontaminated,
+            v_third_party_forensic.decontamination_date,
+            v_third_party_forensic.date_failed,
+            v_third_party_forensic.exit_child_tags,
+            v_third_party_forensic.exit_manifest,
+            v_third_party_forensic.exit_sold_to,
+            v_third_party_forensic.exit_shipped_on,
+            v_third_party_forensic.exit_lb,
+            v_third_party_forensic.exit_sold_usd,
+            v_third_party_forensic.exit_sold_as,
+            v_third_party_forensic.location_history
+           FROM v_third_party_forensic
+        ), paid AS (
+         SELECT round(sum(NULLIF(t.source_row ->> 'Receiver Wholesale Price'::text, ''::text)::numeric), 0) AS usd,
+            round(sum(COALESCE(
+                CASE
+                    WHEN (t.source_row ->> 'Weight Ship''d'::text) ~ '^[0-9.]+$'::text THEN (t.source_row ->> 'Weight Ship''d'::text)::numeric
+                    ELSE NULL::numeric
+                END, t.shipped_lb)), 1) AS lb
+           FROM metrc_rpt_package_transfers t
+          WHERE f_is_ours(COALESCE(NULLIF(t.source_row ->> 'Dest. Lic.'::text, ''::text), t.destination_licence)) AND NOT f_is_ours(COALESCE(NULLIF(t.source_row ->> 'Origin Lic.'::text, ''::text), t.licence)) AND COALESCE(t.source_row ->> 'Voided'::text, 'False'::text) <> 'True'::text AND NOT (EXISTS ( SELECT 1
+                   FROM counterparty_role cr
+                  WHERE cr.counts_as_purchase = false AND cr.facility_name = (t.source_row ->> 'Origin Facility'::text)))
+        )
+ SELECT 'Command'::text AS department,
+    20 AS ord,
+    'Third-party material on hand'::text AS kpi,
+    ( SELECT round(sum(f.lb_on_hand), 1) AS round
+           FROM f) AS value,
+    'lb'::text AS unit,
+    'info'::text AS tone,
+    ( SELECT ((('Across '::text || count(*)) || ' tags from '::text) || count(DISTINCT f.supplier)) || ' suppliers. Purchased material only — never our own.'::text
+           FROM f
+          WHERE f.lb_on_hand > 0::numeric) AS context,
+    'third_party_forensic'::text AS drill,
+    now() AS computed_at
+UNION ALL
+ SELECT 'Command'::text AS department,
+    21 AS ord,
+    'Third-party spend, all time'::text AS kpi,
+    ( SELECT paid.usd
+           FROM paid) AS value,
+    '$'::text AS unit,
+    'info'::text AS tone,
+    ( SELECT (((('For '::text || paid.lb) || ' lb at $'::text) || round(paid.usd / NULLIF(paid.lb, 0::numeric))) || '/lb. Taken from the '::text) || 'manifests'' own Receiver Wholesale Price — a DECLARED transfer price, not proof of cash paid. Excludes 3PL custody movements per counterparty_role. Floor if every untestable line is excluded too: 838,953 USD.'::text
+           FROM paid) AS context,
+    'third_party_forensic'::text AS drill,
+    now() AS computed_at
+UNION ALL
+ SELECT 'Command'::text AS department,
+    22 AS ord,
+    'Third-party UNEXPLAINED'::text AS kpi,
+    ( SELECT round(sum(f.lb_received), 1) AS round
+           FROM f
+          WHERE f.status ~~ 'UNEXPLAINED%'::text) AS value,
+    'lb'::text AS unit,
+    'bad'::text AS tone,
+    ( SELECT ((count(*) || ' tags where the record stops with no sale, no processing and no '::text) || 'destruction. Every one has a manifest and a COA — the gap is a missing Metrc entry, '::text) || 'not missing paperwork.'::text
+           FROM f
+          WHERE f.status ~~ 'UNEXPLAINED%'::text) AS context,
+    'third_party_forensic'::text AS drill,
+    now() AS computed_at
+UNION ALL
+ SELECT 'Command'::text AS department,
+    23 AS ord,
+    'Third-party cash tied up over 90 days'::text AS kpi,
+    ( SELECT round(sum(f.lb_on_hand), 1) AS round
+           FROM f
+          WHERE f.ageing_band = ANY (ARRAY['90-180 days'::text, 'OVER 180 DAYS — CASH TIED UP'::text])) AS value,
+    'lb'::text AS unit,
+    'warn'::text AS tone,
+    ( SELECT ((COALESCE(count(*), 0::bigint) || ' tags held more than 90 days since delivery. Oldest: '::text) || COALESCE(max(f.days_unsold_still_here)::text, '0'::text)) || ' days.'::text
+           FROM f
+          WHERE f.ageing_band = ANY (ARRAY['90-180 days'::text, 'OVER 180 DAYS — CASH TIED UP'::text])) AS context,
+    'third_party_forensic'::text AS drill,
+    now() AS computed_at
+UNION ALL
+ SELECT 'Command'::text AS department,
+    24 AS ord,
+    'Failed material — remediated and processed on'::text AS kpi,
+    ( SELECT round(sum(f.lb_received), 1) AS round
+           FROM f
+          WHERE f.lab_failures > 0) AS value,
+    'lb'::text AS unit,
+    'info'::text AS tone,
+    ( SELECT ((count(*) || ' third-party tags failed a lab test — almost always yeast and mould. '::text) || 'This is NOT a compliance issue: failed material is remediated and processed on. '::text) || 'The parent tag keeps TestFailed; follow the child.'::text
+           FROM f
+          WHERE f.lab_failures > 0) AS context,
+    'third_party_forensic'::text AS drill,
+    now() AS computed_at
+UNION ALL
+ SELECT 'Command'::text AS department,
+    25 AS ord,
+    'Third-party resold at markup'::text AS kpi,
+    ( SELECT round(sum(COALESCE(f.exit_lb, 0::numeric) + COALESCE(f.lb_sold, 0::numeric)), 1) AS round
+           FROM f) AS value,
+    'lb'::text AS unit,
+    'ok'::text AS tone,
+    ( SELECT (('Sold on for $'::text || round(sum(COALESCE(f.exit_sold_usd, 0::numeric)))) || '. Traced through the child tag on the outbound manifest — the parent alone '::text) || 'looks like a dead end.'::text
+           FROM f) AS context,
+    'third_party_forensic'::text AS drill,
+    now() AS computed_at;
+create or replace view public.v_document_package_link as
+ SELECT v.document_id,
+    v.metrc_id,
+    v.doc_type,
+    v.package_tag,
+    v.manifest_number,
+    v.storage_path,
+    v.link_basis,
+    v.link_depth,
+    td.coa_certificate_id,
+    td.coa_document_link,
+    td.manifest_no,
+    td.manifest_document_link,
+    td.apex_invoice_no,
+    td.apex_invoice_usd
+   FROM ( SELECT d.id AS document_id,
+            d.metrc_id,
+            d.doc_type,
+            d.package_tag,
+            d.manifest_number,
+            d.storage_path,
+            'DIRECT'::text AS link_basis,
+            0 AS link_depth
+           FROM metrc_documents d
+          WHERE d.doc_type = 'coa'::text AND d.package_tag IS NOT NULL
+        UNION ALL
+         SELECT d.id AS document_id,
+            d.metrc_id,
+            d.doc_type,
+            r.package_tag,
+            d.manifest_number,
+            d.storage_path,
+            'INHERITED from '::text || r.certificate_on_package AS link_basis,
+            r.found_at_depth AS link_depth
+           FROM v_certificate_resolved r
+             JOIN metrc_documents d ON d.doc_type = 'coa'::text AND d.package_tag = r.certificate_on_package
+          WHERE r.found_at_depth > 0
+        UNION ALL
+         SELECT d.id AS document_id,
+            d.metrc_id,
+            d.doc_type,
+            r.package_tag,
+            d.manifest_number,
+            d.storage_path,
+                CASE
+                    WHEN r.found_at_depth = 0 THEN 'LAB PAIRING'::text
+                    ELSE 'LAB PAIRING via '::text || r.certificate_on_package
+                END AS link_basis,
+            r.found_at_depth AS link_depth
+           FROM v_certificate_resolved r
+             JOIN metrc_lab_results l ON l.package_tag = r.certificate_on_package AND l.document_file_id IS NOT NULL
+             JOIN metrc_documents d ON d.doc_type = 'coa'::text AND d.metrc_id = l.document_file_id
+          WHERE NOT (EXISTS ( SELECT 1
+                   FROM metrc_documents d2
+                  WHERE d2.doc_type = 'coa'::text AND d2.package_tag = r.certificate_on_package))
+        UNION ALL
+         SELECT d.id AS document_id,
+            d.metrc_id,
+            d.doc_type,
+            t.package_tag,
+            d.manifest_number,
+            d.storage_path,
+            'ON MANIFEST'::text AS link_basis,
+            0 AS link_depth
+           FROM metrc_documents d
+             JOIN metrc_rpt_package_transfers t ON t.manifest_number = d.manifest_number
+          WHERE d.doc_type = 'manifest'::text
+        UNION ALL
+         SELECT d.id AS document_id,
+            d.metrc_id,
+            d.doc_type,
+            p.tag AS package_tag,
+            d.manifest_number,
+            d.storage_path,
+            'INBOUND on package record'::text AS link_basis,
+            0 AS link_depth
+           FROM metrc_documents d
+             JOIN ( SELECT DISTINCT ON (metrc_packages.tag) metrc_packages.tag,
+                    metrc_packages.raw
+                   FROM metrc_packages
+                  ORDER BY metrc_packages.tag, metrc_packages.license) p ON NULLIF(p.raw ->> 'ReceivedFromManifestNumber'::text, ''::text) = d.manifest_number
+          WHERE d.doc_type = 'manifest'::text) v
+     LEFT JOIN mv_tag_documents td ON td.tag = v.package_tag;
+create or replace view public.v_failed_by_maker as
+ SELECT made_by,
+    made_by_license,
+    ours_or_theirs,
+    failed_packages,
+    failed_lb,
+    earliest_created,
+    latest_created,
+    earliest_harvest,
+    latest_harvest,
+    strains,
+    categories,
+    value_at_cost,
+    earliest_created AS earliest_created_date
+   FROM ( SELECT v_failed_provenance.made_by,
+            v_failed_provenance.made_by_license,
+            v_failed_provenance.ours_or_theirs,
+            count(*) AS failed_packages,
+            round(sum(v_failed_provenance.pounds), 1) AS failed_lb,
+            min(v_failed_provenance.package_created_on) AS earliest_created,
+            max(v_failed_provenance.package_created_on) AS latest_created,
+            min(v_failed_provenance.harvest_cut_on) AS earliest_harvest,
+            max(v_failed_provenance.harvest_cut_on) AS latest_harvest,
+            string_agg(DISTINCT v_failed_provenance.strain, ', '::text) AS strains,
+            string_agg(DISTINCT v_failed_provenance.category, ', '::text) AS categories,
+            round(sum(v_failed_provenance.pounds) * (( SELECT conversion_factors.value
+                   FROM conversion_factors
+                  WHERE conversion_factors.key = 'target_cost_per_lb'::text))) AS value_at_cost
+           FROM v_failed_provenance
+          GROUP BY v_failed_provenance.made_by, v_failed_provenance.made_by_license, v_failed_provenance.ours_or_theirs
+          ORDER BY (round(sum(v_failed_provenance.pounds), 1)) DESC) q;
+create or replace view public.v_forensic_audit_panel_live as
+ WITH prod AS (
+         SELECT COALESCE(sum(f_to_pounds(COALESCE((metrc_packages.raw ->> 'CreatedQuantity'::text)::numeric, 0::numeric), COALESCE(NULLIF(metrc_packages.raw ->> 'UnitOfMeasureName'::text, ''::text), 'Grams'::text))), 0::numeric) AS lb
+           FROM metrc_packages
+          WHERE NULLIF(metrc_packages.raw ->> 'SourceHarvestNames'::text, ''::text) IS NOT NULL AND NULLIF(metrc_packages.raw ->> 'SourcePackageLabels'::text, ''::text) IS NULL AND f_is_weight(COALESCE(NULLIF(metrc_packages.raw ->> 'UnitOfMeasureName'::text, ''::text), 'Grams'::text))
+        ), xf AS (
+         SELECT COALESCE(sum(v_transfer_line.pounds) FILTER (WHERE v_transfer_line.direction = 'INBOUND'::text), 0::numeric) AS in_lb,
+            COALESCE(sum(v_transfer_line.pounds) FILTER (WHERE v_transfer_line.direction = 'OUTBOUND'::text), 0::numeric) AS out_lb,
+            COALESCE(sum(v_transfer_line.pounds) FILTER (WHERE v_transfer_line.direction = 'INTERNAL'::text), 0::numeric) AS internal_lb
+           FROM v_transfer_line
+          WHERE v_transfer_line.voided <> 'True'::text
+        ), adj AS (
+         SELECT COALESCE(sum(f_to_pounds(metrc_rpt_adjustments.quantity, metrc_rpt_adjustments.uom)), 0::numeric) AS lb
+           FROM metrc_rpt_adjustments
+          WHERE metrc_rpt_adjustments.quantity IS NOT NULL AND f_is_weight(metrc_rpt_adjustments.uom)
+        ), oh AS (
+         SELECT COALESCE(sum(f_to_pounds(COALESCE((metrc_packages.raw ->> 'Quantity'::text)::numeric, 0::numeric), COALESCE(NULLIF(metrc_packages.raw ->> 'UnitOfMeasureName'::text, ''::text), 'Grams'::text))), 0::numeric) AS lb
+           FROM metrc_packages
+          WHERE NOT COALESCE((metrc_packages.raw ->> 'IsFinished'::text)::boolean, false) AND f_is_weight(COALESCE(NULLIF(metrc_packages.raw ->> 'UnitOfMeasureName'::text, ''::text), 'Grams'::text))
+        ), tp AS (
+         SELECT COALESCE(sum(v_third_party_forensic.lb_on_hand), 0::numeric) AS on_hand,
+            COALESCE(sum(v_third_party_forensic.lb_received) FILTER (WHERE v_third_party_forensic.status ~~ 'UNEXPLAINED%'::text), 0::numeric) AS unexplained,
+            COALESCE(sum(v_third_party_forensic.lb_received) FILTER (WHERE v_third_party_forensic.lab_failures > 0), 0::numeric) AS failed,
+            COALESCE(sum(COALESCE(v_third_party_forensic.exit_lb, 0::numeric) + COALESCE(v_third_party_forensic.lb_sold, 0::numeric)), 0::numeric) AS resold,
+            COALESCE(sum(v_third_party_forensic.exit_sold_usd), 0::numeric) AS resold_usd,
+            count(*) FILTER (WHERE v_third_party_forensic.status ~~ 'UNEXPLAINED%'::text) AS unexplained_tags
+           FROM v_third_party_forensic
+        ), spend AS (
+         SELECT COALESCE(sum(NULLIF(t.source_row ->> 'Receiver Wholesale Price'::text, ''::text)::numeric), 0::numeric) AS usd
+           FROM metrc_rpt_package_transfers t
+          WHERE f_is_ours(COALESCE(NULLIF(t.source_row ->> 'Dest. Lic.'::text, ''::text), t.destination_licence)) AND NOT f_is_ours(COALESCE(NULLIF(t.source_row ->> 'Origin Lic.'::text, ''::text), t.licence)) AND COALESCE(t.source_row ->> 'Voided'::text, 'False'::text) <> 'True'::text
+        ), noinv AS (
+         SELECT count(*) AS n,
+            COALESCE(sum(v_forensic_sold_by_tag.pounds), 0::numeric) AS lb
+           FROM v_forensic_sold_by_tag
+          WHERE v_forensic_sold_by_tag.invoice_match = 'NO APEX INVOICE'::text AND v_forensic_sold_by_tag.counts_as_sale
+        ), cert AS (
+         SELECT count(*) AS n
+           FROM mv_tag_certificate
+          WHERE mv_tag_certificate.certificate_source IS NULL
+        )
+ SELECT 1 AS ord,
+    'IN'::text AS kind,
+    'Produced from our own harvests'::text AS line,
+    round(( SELECT prod.lb
+           FROM prod), 1) AS lb,
+    NULL::numeric AS usd,
+    'Packages made straight off a harvest, dated on the package''s own PackagedDate'::text AS basis,
+    'forensic_reconciliation'::text AS drill
+UNION ALL
+ SELECT 2 AS ord,
+    'IN'::text AS kind,
+    'Purchased from third parties'::text AS line,
+    round(( SELECT xf.in_lb
+           FROM xf), 1) AS lb,
+    round(( SELECT spend.usd
+           FROM spend), 0) AS usd,
+    'Inbound manifests. Cost is the manifests'' own Receiver Wholesale Price — what we actually paid'::text AS basis,
+    'third_party_forensic'::text AS drill
+UNION ALL
+ SELECT 3 AS ord,
+    'OUT'::text AS kind,
+    'Sold and shipped out'::text AS line,
+    round(- (( SELECT xf.out_lb
+           FROM xf)), 1) AS lb,
+    NULL::numeric AS usd,
+    'Outbound manifests where the destination is not one of our licences'::text AS basis,
+    'forensic_sold_by_tag'::text AS drill
+UNION ALL
+ SELECT 4 AS ord,
+    'OUT'::text AS kind,
+    'Waste, destruction and corrections'::text AS line,
+    round(( SELECT adj.lb
+           FROM adj), 1) AS lb,
+    NULL::numeric AS usd,
+    'Metrc adjustment report, weight-denominated rows only'::text AS basis,
+    'destroyed_unexplained'::text AS drill
+UNION ALL
+ SELECT 5 AS ord,
+    'RESULT'::text AS kind,
+    'Expected on hand'::text AS line,
+    round((( SELECT prod.lb
+           FROM prod)) + (( SELECT xf.in_lb
+           FROM xf)) - (( SELECT xf.out_lb
+           FROM xf)) + (( SELECT adj.lb
+           FROM adj)), 1) AS lb,
+    NULL::numeric AS usd,
+    'Everything in, less everything out'::text AS basis,
+    'forensic_reconciliation'::text AS drill
+UNION ALL
+ SELECT 6 AS ord,
+    'RESULT'::text AS kind,
+    'Counted on hand'::text AS line,
+    round(( SELECT oh.lb
+           FROM oh), 1) AS lb,
+    NULL::numeric AS usd,
+    'Every open package in the Metrc mirror'::text AS basis,
+    'forensic_position'::text AS drill
+UNION ALL
+ SELECT 7 AS ord,
+    'RESULT'::text AS kind,
+    'VARIANCE'::text AS line,
+    round((( SELECT oh.lb
+           FROM oh)) - ((( SELECT prod.lb
+           FROM prod)) + (( SELECT xf.in_lb
+           FROM xf)) - (( SELECT xf.out_lb
+           FROM xf)) + (( SELECT adj.lb
+           FROM adj))), 1) AS lb,
+    NULL::numeric AS usd,
+    'Expected NEGATIVE — manufacturing yield loss is real and Metrc never tags it'::text AS basis,
+    'forensic_reconciliation'::text AS drill
+UNION ALL
+ SELECT 8 AS ord,
+    'MEMO'::text AS kind,
+    'Internal MC ↔ MP transfers'::text AS line,
+    round(( SELECT xf.internal_lb
+           FROM xf), 1) AS lb,
+    NULL::numeric AS usd,
+    'Our own material between our own licences. Neither a sale nor a purchase'::text AS basis,
+    'forensic_sold_by_tag'::text AS drill
+UNION ALL
+ SELECT 10 AS ord,
+    'EXCEPTION'::text AS kind,
+    'Third-party UNEXPLAINED'::text AS line,
+    round(( SELECT tp.unexplained
+           FROM tp), 1) AS lb,
+    NULL::numeric AS usd,
+    ( SELECT tp.unexplained_tags || ' tags with a manifest and a COA but no recorded outcome'::text
+           FROM tp) AS basis,
+    'third_party_forensic'::text AS drill
+UNION ALL
+ SELECT 11 AS ord,
+    'EXCEPTION'::text AS kind,
+    'Shipped with no Apex invoice'::text AS line,
+    round(( SELECT noinv.lb
+           FROM noinv), 1) AS lb,
+    NULL::numeric AS usd,
+    ( SELECT noinv.n || ' outbound lines with no matching invoice. Apex is the record of truth for sales'::text
+           FROM noinv) AS basis,
+    'forensic_sold_by_tag'::text AS drill
+UNION ALL
+ SELECT 12 AS ord,
+    'EXCEPTION'::text AS kind,
+    'Tags with no certificate imported'::text AS line,
+    (( SELECT cert.n
+           FROM cert))::numeric AS lb,
+    NULL::numeric AS usd,
+    'Nothing ships without a COA — these are holes in our import, not compliance failures'::text AS basis,
+    'tag_coa_gap'::text AS drill
+UNION ALL
+ SELECT 20 AS ord,
+    'THIRD PARTY'::text AS kind,
+    'On hand'::text AS line,
+    round(( SELECT tp.on_hand
+           FROM tp), 1) AS lb,
+    NULL::numeric AS usd,
+    'Purchased material still in our rooms'::text AS basis,
+    'third_party_forensic'::text AS drill
+UNION ALL
+ SELECT 21 AS ord,
+    'THIRD PARTY'::text AS kind,
+    'Resold at markup'::text AS line,
+    round(( SELECT tp.resold
+           FROM tp), 1) AS lb,
+    round(( SELECT tp.resold_usd
+           FROM tp), 0) AS usd,
+    'Traced through the child tag on the outbound manifest'::text AS basis,
+    'third_party_forensic'::text AS drill
+UNION ALL
+ SELECT 22 AS ord,
+    'THIRD PARTY'::text AS kind,
+    'Failed then remediated'::text AS line,
+    round(( SELECT tp.failed
+           FROM tp), 1) AS lb,
+    NULL::numeric AS usd,
+    'Failed material is remediated and processed on. NOT a compliance issue'::text AS basis,
+    'third_party_forensic'::text AS drill
+  ORDER BY 1;
+create or replace view public.v_forensic_sold_by_tag_safe as
+ SELECT s.shipped_on,
+    s.manifest_number,
+    s.package_tag,
+    s.item,
+    s.category,
+    s.strain,
+    s.product_line,
+    s.pounds,
+    s.sold_by_licence,
+    s.sold_by_facility,
+    s.buyer_licence,
+    s.buyer,
+    s.internal_transfer,
+    s.status,
+    s.transfer_type,
+    m.apex_invoice_number AS invoice_number,
+    NULL::numeric AS total_usd,
+    NULL::text AS payment_status,
+    COALESCE(m.match_status, 'NO METRC WHOLESALE INVOICE'::text) AS invoice_match,
+    s.is_transport_leg,
+    s.counts_as_sale,
+    s.coa_certificate_id,
+    s.coa_document_link,
+    s.manifest_no,
+    s.manifest_document_link,
+    m.apex_invoice_number AS apex_invoice_no,
+    NULL::numeric AS apex_invoice_usd
+   FROM v_forensic_sold_by_tag s
+     LEFT JOIN v_metrc_manifest_invoice_truth m ON m.manifest_number = s.manifest_number;
+create or replace view public.v_inventory_aging as
+ SELECT v.category,
+    v.stage,
+    v.location,
+    v.license,
+    v.item,
+    v.identifier,
+    v.quantity,
+    v.uom,
+    v.days_here,
+    v.severity,
+    v.action,
+    td.coa_certificate_id,
+    td.coa_document_link,
+    td.manifest_no,
+    td.manifest_document_link,
+    td.apex_invoice_no,
+    td.apex_invoice_usd
+   FROM ( SELECT l.category,
+            l.stage,
+            l.location,
+            l.license,
+            l.item,
+            l.identifier,
+            l.quantity,
+            l.uom,
+            l.days_here,
+                CASE
+                    WHEN l.category = 'Harvest lots'::text AND l.stage ~~ 'Drying%'::text AND l.days_here > f_rule('dry_window_max_days'::text) THEN 'critical'::text
+                    WHEN l.category = 'Harvest lots'::text AND l.days_here > f_rule('harvest_open_max_days'::text) THEN 'elevated'::text
+                    WHEN l.category = 'Packages'::text AND l.stage = 'Awaiting laboratory'::text AND l.days_here > f_rule('lab_wait_alert_days'::text) THEN 'elevated'::text
+                    WHEN l.category = 'Packages'::text AND l.stage = 'FAILED TESTING'::text THEN 'critical'::text
+                    WHEN sa.tag IS NOT NULL THEN 'elevated'::text
+                    WHEN l.stage = 'ON HOLD'::text THEN 'critical'::text
+                    ELSE NULL::text
+                END AS severity,
+                CASE
+                    WHEN l.category = 'Harvest lots'::text AND l.stage ~~ 'Drying%'::text AND l.days_here > f_rule('dry_window_max_days'::text) THEN ('Past the '::text || f_rule('dry_window_max_days'::text)) || '-day dry limit - move it or record the weights'::text
+                    WHEN l.category = 'Harvest lots'::text AND l.days_here > f_rule('harvest_open_max_days'::text) THEN ('Harvest lot open more than '::text || f_rule('harvest_open_max_days'::text)) || ' days - the room turn is at risk'::text
+                    WHEN l.category = 'Packages'::text AND l.stage = 'Awaiting laboratory'::text AND l.days_here > f_rule('lab_wait_alert_days'::text) THEN ('Waiting on a laboratory result more than '::text || f_rule('lab_wait_alert_days'::text)) || ' days - chase the laboratory'::text
+                    WHEN l.category = 'Packages'::text AND l.stage = 'FAILED TESTING'::text THEN 'Failed testing - decide remediation or destruction'::text
+                    WHEN sa.tag IS NOT NULL THEN ('Past its category ageing limit ('::text || sa.stale_after) || ') under the owner policy - sell, discount or write off'::text
+                    WHEN l.stage = 'ON HOLD'::text THEN 'On hold in Metrc - resolve the hold'::text
+                    ELSE NULL::text
+                END AS action
+           FROM v_inventory_locator l
+             LEFT JOIN v_stock_ageing sa ON sa.tag = l.identifier AND sa.ageing_verdict ~~ 'STALE%'::text
+          WHERE l.days_here IS NOT NULL) v
+     LEFT JOIN mv_tag_documents td ON td.tag = v.identifier;
+create or replace view public.v_issue_aging as
+ WITH loc AS MATERIALIZED (
+         SELECT v_inventory_locator.category,
+            v_inventory_locator.stage_no,
+            v_inventory_locator.stage,
+            v_inventory_locator.location,
+            v_inventory_locator.license,
+            v_inventory_locator.item,
+            v_inventory_locator.identifier,
+            v_inventory_locator.quantity,
+            v_inventory_locator.uom,
+            v_inventory_locator.since_date,
+            v_inventory_locator.days_here,
+            v_inventory_locator.detail,
+            v_inventory_locator.lab_state,
+            v_inventory_locator.source_lineage,
+            v_inventory_locator.coa_certificate_id,
+            v_inventory_locator.coa_document_link,
+            v_inventory_locator.manifest_no,
+            v_inventory_locator.manifest_document_link,
+            v_inventory_locator.apex_invoice_no,
+            v_inventory_locator.apex_invoice_usd
+           FROM v_inventory_locator
+        )
+ SELECT v.category,
+    v.item,
+    v.identifier,
+    v.location,
+    v.stage,
+    v.license,
+    v.quantity,
+    v.uom,
+    v.pounds,
+    v.harvested_or_packaged_on,
+    v.days_sitting,
+    v.value_at_cost,
+    v.laboratory_state,
+    v.came_from,
+    v.extra_detail,
+    v.severity,
+    v.what_is_wrong,
+    v.what_to_do,
+    td.coa_certificate_id,
+    td.coa_document_link,
+    td.manifest_no,
+    td.manifest_document_link,
+    td.apex_invoice_no,
+    td.apex_invoice_usd
+   FROM ( SELECT COALESCE(l.category, 'Packages'::text) AS category,
+            COALESCE(l.item, a.item_name) AS item,
+            a.tag AS identifier,
+            a.location,
+            COALESCE(l.stage, 'On hand'::text) AS stage,
+            a.license,
+            l.quantity,
+            l.uom,
+            round(COALESCE(f_to_pounds(l.quantity, l.uom), a.lb), 3) AS pounds,
+            a.packaged_on AS harvested_or_packaged_on,
+            COALESCE(l.days_here, a.days_held::numeric) AS days_sitting,
+            round(COALESCE(f_to_pounds(l.quantity, l.uom), a.lb) * (( SELECT cost_model.cost_per_pound
+                   FROM cost_model
+                  WHERE cost_model.scope = 'cultivation'::text
+                  ORDER BY cost_model.effective_from DESC
+                 LIMIT 1)), 0) AS value_at_cost,
+            l.lab_state AS laboratory_state,
+            l.source_lineage AS came_from,
+            l.detail AS extra_detail,
+            'elevated'::text AS severity,
+            'THE ISSUE: '::text || a.ageing_verdict AS what_is_wrong,
+            ((('Sitting '::text || a.days_held) || ' days against its category limit of '::text) || a.stale_after) || '. Decide: sell, discount, or write off.'::text AS what_to_do
+           FROM v_stock_ageing a
+             LEFT JOIN loc l ON l.identifier = a.tag
+          WHERE a.ageing_verdict ~~ 'STALE%'::text
+          ORDER BY a.days_held DESC) v
+     LEFT JOIN mv_tag_documents td ON td.tag = v.identifier;
+create or replace view public.v_lab_fail_rate_by_origin as
+ SELECT COALESCE(NULLIF(supplier, ''::text),
+        CASE
+            WHEN origin = 'Grown by us'::text THEN 'Twisted Growers (our own)'::text
+            ELSE 'Supplier not recorded'::text
+        END) AS supplier,
+    origin,
+    count(*) AS packages_tested,
+    count(*) FILTER (WHERE verdict = 'FAILED'::text) AS failed,
+    count(*) FILTER (WHERE verdict = 'Passed'::text) AS passed,
+    count(*) FILTER (WHERE verdict = 'Awaiting result'::text) AS awaiting_result,
+    count(*) FILTER (WHERE verdict = 'NEVER SUBMITTED'::text) AS never_submitted,
+    round(100.0 * count(*) FILTER (WHERE verdict = 'FAILED'::text)::numeric / NULLIF(count(*) FILTER (WHERE verdict = ANY (ARRAY['FAILED'::text, 'Passed'::text])), 0)::numeric, 1) AS fail_rate_pct,
+    round(sum(pounds) FILTER (WHERE verdict = 'FAILED'::text), 1) AS failed_pounds,
+    round(sum(pounds), 1) AS total_pounds,
+    max(result_on) AS most_recent_result_on,
+        CASE
+            WHEN count(*) FILTER (WHERE verdict = ANY (ARRAY['FAILED'::text, 'Passed'::text])) = 0 THEN 'No completed tests for this supplier yet, so a fail rate cannot be calculated.'::text
+            ELSE NULL::text
+        END AS why_no_rate
+   FROM v_lab_results r
+  GROUP BY (COALESCE(NULLIF(supplier, ''::text),
+        CASE
+            WHEN origin = 'Grown by us'::text THEN 'Twisted Growers (our own)'::text
+            ELSE 'Supplier not recorded'::text
+        END)), origin;
+create or replace view public.v_manufacturing_client_stock as
+ SELECT COALESCE(mc.client_name, 'Twisted Growers'::text) AS brand_owner,
+    COALESCE(mc.client_key, 'tg'::text) AS brand_owner_key,
+        CASE
+            WHEN mc.client_key IS NULL THEN 'ours'::text
+            ELSE 'separate — '::text || mc.relationship
+        END AS ownership_basis,
+    s.package_tag,
+    s.item_name,
+    s.stream,
+    s.license,
+    s.pounds,
+    s.units,
+    s.quantity_shown,
+    s.packaged_on,
+    s.location,
+    s.evidence_source,
+    s.certificate_document,
+    s.certificate_grade,
+    mc.their_licence AS client_licence,
+        CASE
+            WHEN mc.client_key IS NOT NULL THEN ((((('Made here for '::text || mc.client_name) || ' under our own licence '::text) || mc.we_make_it_under) || ' on a LICENSING FEE arrangement — owner ruling 13 Aug 2026, tracked separately as if a third licence. Metrc counts it against us and that is correct, because Metrc tracks custody. A licensing fee is NOT cost of goods sold, and who pays whom is still '::text) || COALESCE(mc.fee_direction, 'unrecorded'::text)) || ' — no money figure may be derived from these units until the owner and the CPA settle it.'::text
+            ELSE NULL::text
+        END AS what_this_means,
+    mc.fee_direction,
+    mc.money_treatment
+   FROM v_stock_packages s
+     LEFT JOIN manufacturing_client mc ON s.item_name ~* mc.item_name_pattern;
+create or replace view public.v_missing_lab_results as
+ SELECT v.package_tag,
+    v.product,
+    v.category,
+    v.strain,
+    v.source_harvest,
+    v.pounds,
+    v.went_out_on,
+    v.days_missing,
+    v.testing_state,
+    v.value_at_risk,
+    v.where_it_is_now,
+    v.origin,
+    v.what_to_do,
+    td.coa_certificate_id,
+    td.coa_document_link,
+    td.manifest_no,
+    td.manifest_document_link,
+    td.apex_invoice_no,
+    td.apex_invoice_usd
+   FROM ( SELECT l.package_tag,
+            l.product,
+            l.category,
+            l.strain,
+            l.source_harvest,
+            l.pounds,
+            l.went_out_on,
+            CURRENT_DATE - l.went_out_on AS days_missing,
+            l.testing_state,
+            round(l.pounds * f_rate_for(s.stream)) AS value_at_risk,
+            s.location AS where_it_is_now,
+            s.origin,
+            ((((('Submitted to the laboratory on '::text || l.went_out_on) || ' and still showing '::text) || l.testing_state) || ' after '::text) || (CURRENT_DATE - l.went_out_on)) || ' days. No result has been recorded. Chase the laboratory for the certificate and enter it.'::text AS what_to_do
+           FROM lab_turnaround_log l
+             LEFT JOIN v_stock_packages s ON s.package_tag = l.package_tag
+          WHERE l.came_back_on IS NULL AND (l.testing_state = ANY (ARRAY['SubmittedForTesting'::text, 'TestingInProgress'::text]))
+          ORDER BY (CURRENT_DATE - l.went_out_on) DESC) v
+     LEFT JOIN mv_tag_documents td ON td.tag = v.package_tag;
+create or replace view public.v_never_tested_proof as
+ WITH base AS (
+         SELECT DISTINCT ON (p.tag) p.tag,
+            p.item_name,
+            p.uom,
+            p.quantity,
+            p.license,
+            p.lab_testing_state,
+            p.source_state,
+            p.packaged_on,
+            p.raw
+           FROM metrc_packages p
+          ORDER BY p.tag, p.license
+        )
+ SELECT tag AS metrc_tag,
+    license AS metrc_licence,
+    "left"(item_name, 46) AS item,
+    raw #>> '{Item,ProductCategoryName}'::text[] AS category,
+    f_quantity_text(quantity, uom) AS metrc_quantity,
+    raw ->> 'LocationName'::text AS metrc_room,
+    raw ->> 'LocationTypeName'::text AS room_type,
+    NULLIF(raw ->> 'SublocationName'::text, ''::text) AS sublocation,
+    lab_testing_state AS metrc_lab_state,
+    source_state AS metrc_status,
+    (raw ->> 'IsOnHold'::text)::boolean AS on_hold,
+    (raw ->> 'IsFinished'::text)::boolean AS finished,
+    packaged_on AS metrc_packaged_on,
+    (raw ->> 'LastModified'::text)::date AS metrc_last_modified,
+    CURRENT_DATE - packaged_on AS days_in_facility,
+    NULLIF(raw ->> 'SourceHarvestNames'::text, ''::text) AS from_harvest,
+    (raw ->> 'SourcePackageCount'::text)::integer AS made_from_n_packages,
+    "left"(NULLIF(raw ->> 'SourcePackageLabels'::text, ''::text), 120) AS made_from_packages,
+    NULLIF(raw ->> 'ProductionBatchNumber'::text, ''::text) AS production_batch,
+    NULLIF(raw ->> 'ReceivedFromManifestNumber'::text, ''::text) AS arrived_on_manifest,
+    ( SELECT string_agg(c.tag, ', '::text) AS string_agg
+           FROM metrc_packages c
+          WHERE (c.raw ->> 'SourcePackageLabels'::text) ~~ (('%'::text || b.tag) || '%'::text)) AS became_packages,
+    ( SELECT count(*) AS count
+           FROM metrc_lab_results l
+          WHERE l.package_tag = b.tag) AS lab_results,
+    ( SELECT count(*) AS count
+           FROM metrc_rpt_package_transfers t
+          WHERE t.package_tag = b.tag) AS manifest_lines,
+    ( SELECT count(*) AS count
+           FROM v_certificate_resolved r
+          WHERE r.package_tag = b.tag AND r.found_at_depth = 0) AS own_certificate,
+    ( SELECT max(r.found_at_depth) AS max
+           FROM v_certificate_resolved r
+          WHERE r.package_tag = b.tag) AS inherited_cert_depth,
+        CASE
+            WHEN (raw ->> 'LocationName'::text) IS NULL THEN 'FAILS THE RULE - Metrc holds no room for this tag'::text
+            WHEN (( SELECT count(*) AS count
+               FROM metrc_lab_results l
+              WHERE l.package_tag = b.tag)) > 0 THEN 'FAILS THE RULE - claimed untested but laboratory results exist'::text
+            WHEN (( SELECT count(*) AS count
+               FROM metrc_rpt_package_transfers t
+              WHERE t.package_tag = b.tag)) > 0 THEN 'FAILS THE RULE - claimed never shipped but it is on a manifest line'::text
+            WHEN (( SELECT count(*) AS count
+               FROM v_certificate_resolved r
+              WHERE r.package_tag = b.tag AND r.found_at_depth = 0)) > 0 THEN 'FAILS THE RULE - claimed untested but a certificate is filed against it'::text
+            ELSE ((('PROVEN - Metrc holds it in '::text || (raw ->> 'LocationName'::text)) || ', state '::text) || lab_testing_state) || ', no results, no manifest, no certificate'::text
+        END AS proof
+   FROM base b
+  WHERE (lab_testing_state = ANY (ARRAY['NotSubmitted'::text, 'NotRequired'::text])) AND (source_state = ANY (ARRAY['active'::text, 'onhold'::text]));
+create or replace view public.v_never_tested_reconciliation as
+ SELECT v.package_tag,
+    v.item_name,
+    v.category,
+    v.location,
+    v.how_much,
+    v.metrc_says,
+    v.packaged_on,
+    v.days_held,
+    v.lab_results,
+    v.manifest_lines,
+    v.direct_certificates,
+    v.inherited_at_depth,
+    v.reconciliation,
+    v.what_is_wrong,
+    td.coa_certificate_id,
+    td.coa_document_link,
+    td.manifest_no,
+    td.manifest_document_link,
+    td.apex_invoice_no,
+    td.apex_invoice_usd
+   FROM ( WITH claimed AS (
+                 SELECT p.tag,
+                    p.item_name,
+                    p.lab_testing_state,
+                    p.uom,
+                    p.quantity,
+                    p.source_state,
+                    p.raw ->> 'LocationName'::text AS location,
+                    p.raw #>> '{Item,ProductCategoryName}'::text[] AS category,
+                    p.packaged_on,
+                    CURRENT_DATE - p.packaged_on AS days_held
+                   FROM ( SELECT DISTINCT ON (metrc_packages.tag) metrc_packages.tag,
+                            metrc_packages.item_name,
+                            metrc_packages.lab_testing_state,
+                            metrc_packages.uom,
+                            metrc_packages.quantity,
+                            metrc_packages.source_state,
+                            metrc_packages.packaged_on,
+                            metrc_packages.raw
+                           FROM metrc_packages
+                          ORDER BY metrc_packages.tag, metrc_packages.license) p
+                  WHERE (p.lab_testing_state = ANY (ARRAY['NotSubmitted'::text, 'NotRequired'::text])) AND (p.source_state = ANY (ARRAY['active'::text, 'onhold'::text]))
+                )
+         SELECT c.tag AS package_tag,
+            "left"(c.item_name, 50) AS item_name,
+            c.category,
+            c.location,
+            f_quantity_text(c.quantity, c.uom) AS how_much,
+            c.lab_testing_state AS metrc_says,
+            c.packaged_on,
+            c.days_held,
+            ( SELECT count(*) AS count
+                   FROM metrc_lab_results l
+                  WHERE l.package_tag = c.tag) AS lab_results,
+            ( SELECT count(*) AS count
+                   FROM metrc_rpt_package_transfers t
+                  WHERE t.package_tag = c.tag) AS manifest_lines,
+            ( SELECT count(*) AS count
+                   FROM v_certificate_resolved r
+                  WHERE r.package_tag = c.tag AND r.found_at_depth = 0) AS direct_certificates,
+            ( SELECT max(r.found_at_depth) AS max
+                   FROM v_certificate_resolved r
+                  WHERE r.package_tag = c.tag) AS inherited_at_depth,
+                CASE
+                    WHEN (( SELECT count(*) AS count
+                       FROM metrc_lab_results l
+                      WHERE l.package_tag = c.tag)) > 0 THEN 'CONTRADICTION - Metrc says never submitted but laboratory results exist'::text
+                    WHEN (( SELECT count(*) AS count
+                       FROM v_certificate_resolved r
+                      WHERE r.package_tag = c.tag AND r.found_at_depth = 0)) > 0 THEN 'CONTRADICTION - Metrc says never submitted but a certificate is filed DIRECTLY against it'::text
+                    WHEN (( SELECT count(*) AS count
+                       FROM metrc_rpt_package_transfers t
+                      WHERE t.package_tag = c.tag)) > 0 THEN 'CONTRADICTION - Metrc says never tested but it travelled on a manifest'::text
+                    ELSE 'RECONCILED - never tested, never shipped, consistent on all four sources'::text
+                END AS reconciliation,
+            'THE RULE: a claim of never tested must reconcile against Metrc, the laboratory results, the custody export and the document store. Three of those four are outside this platform''s own reasoning.'::text AS what_is_wrong
+           FROM claimed c) v
+     LEFT JOIN mv_tag_documents td ON td.tag = v.package_tag;
+create or replace view public.v_outbound_balance as
+ SELECT 'Internal moves between our own licences'::text AS stream,
+    1 AS ord,
+    round(sum(v_forensic_sold_by_tag.pounds), 1) AS lb,
+    count(DISTINCT v_forensic_sold_by_tag.package_tag) AS tags,
+    'Not a sale. MC to MP or back — the material never left the company.'::text AS why
+   FROM v_forensic_sold_by_tag
+  WHERE v_forensic_sold_by_tag.internal_transfer
+UNION ALL
+ SELECT 'Transport legs'::text AS stream,
+    2 AS ord,
+    round(sum(v_forensic_sold_by_tag.pounds), 1) AS lb,
+    count(DISTINCT v_forensic_sold_by_tag.package_tag) AS tags,
+    ('Not a sale. A transporter is a leg of a journey, not a buyer. 75 of these tags '::text || 'also appear on a manifest to the real customer and were counted twice until '::text) || '18 Aug 2026.'::text AS why
+   FROM v_forensic_sold_by_tag
+  WHERE v_forensic_sold_by_tag.is_transport_leg
+UNION ALL
+ SELECT 'Samples to testing laboratories'::text AS stream,
+    3 AS ord,
+    round(sum(v_forensic_sold_by_tag.pounds), 1) AS lb,
+    count(DISTINCT v_forensic_sold_by_tag.package_tag) AS tags,
+    'Not a sale. $0.00 declared on every line. Tracked in v_lab_samples_out.'::text AS why
+   FROM v_forensic_sold_by_tag
+  WHERE NOT v_forensic_sold_by_tag.internal_transfer AND NOT v_forensic_sold_by_tag.is_transport_leg AND NOT v_forensic_sold_by_tag.counts_as_sale
+UNION ALL
+ SELECT 'Genuinely sold to a customer'::text AS stream,
+    4 AS ord,
+    round(sum(v_forensic_sold_by_tag.pounds), 1) AS lb,
+    count(DISTINCT v_forensic_sold_by_tag.package_tag) AS tags,
+    'The only stream that should ever appear in a revenue or pounds-sold figure.'::text AS why
+   FROM v_forensic_sold_by_tag
+  WHERE v_forensic_sold_by_tag.counts_as_sale
+UNION ALL
+ SELECT 'TOTAL — everything that left our licences'::text AS stream,
+    9 AS ord,
+    round(sum(v_forensic_sold_by_tag.pounds), 1) AS lb,
+    count(DISTINCT v_forensic_sold_by_tag.package_tag) AS tags,
+    'The four streams above sum to this with no overlap and no remainder.'::text AS why
+   FROM v_forensic_sold_by_tag;
+create or replace view public.v_ownership_by_custody as
+ SELECT v.package_tag,
+    v.item_name,
+    v.source_state,
+    v.how_much,
+    v.pounds,
+    v.units,
+    v.item_field_says,
+    v.custody_says,
+    v.manifests,
+    v.custody_events,
+    v.certificate_client,
+    v.certificate_licence,
+    v.certificate_link,
+    v.custody_verdict,
+    v.certificate_vs_custody,
+    td.coa_certificate_id,
+    td.coa_document_link,
+    td.manifest_no,
+    td.manifest_document_link,
+    td.apex_invoice_no,
+    td.apex_invoice_usd
+   FROM ( WITH pkg AS (
+                 SELECT DISTINCT ON (metrc_packages.tag) metrc_packages.tag,
+                    metrc_packages.item_name,
+                    metrc_packages.uom,
+                    metrc_packages.quantity,
+                    metrc_packages.source_state,
+                    metrc_packages.lab_testing_state,
+                    metrc_packages.raw ->> 'ItemFromFacilityLicenseNumber'::text AS item_license,
+                    metrc_packages.raw ->> 'SourcePackageCount'::text AS source_packages
+                   FROM metrc_packages
+                  ORDER BY metrc_packages.tag, metrc_packages.license
+                ), custody AS (
+                 SELECT t.package_tag,
+                    string_agg(DISTINCT t.source_row ->> 'Origin Lic.'::text, ', '::text) FILTER (WHERE (t.source_row ->> 'Origin Lic.'::text) IS NOT NULL) AS origin_licences,
+                    string_agg(DISTINCT t.manifest_number, ', '::text) AS manifests,
+                    count(*) AS custody_events
+                   FROM metrc_rpt_package_transfers t
+                  GROUP BY t.package_tag
+                )
+         SELECT p.tag AS package_tag,
+            "left"(p.item_name, 50) AS item_name,
+            p.source_state,
+            f_quantity_text(p.quantity, p.uom) AS how_much,
+                CASE
+                    WHEN f_is_weight(p.uom) THEN round(f_to_pounds(p.quantity, p.uom), 2)
+                    ELSE NULL::numeric
+                END AS pounds,
+                CASE
+                    WHEN NOT f_is_weight(p.uom) THEN p.quantity
+                    ELSE NULL::numeric
+                END AS units,
+            p.item_license AS item_field_says,
+            c.origin_licences AS custody_says,
+            c.manifests,
+            c.custody_events,
+            r.cert_client AS certificate_client,
+            r.cert_license AS certificate_licence,
+            r.certificate_link,
+                CASE
+                    WHEN c.package_tag IS NULL THEN 'NO CUSTODY RECORD - never appeared on a manifest line. Cannot judge ownership from a testing document; get the manifest.'::text
+                    WHEN c.origin_licences IS NULL THEN 'CUSTODY RECORD WITHOUT AN ORIGIN LICENCE - the export line is incomplete.'::text
+                    WHEN f_all_ours(c.origin_licences) THEN 'OURS - every custody origin on the manifests is one of our licences.'::text
+                    WHEN NOT f_any_ours(c.origin_licences) THEN 'NOT OURS - the manifests name only outside licences as origin.'::text
+                    ELSE 'MIXED - the manifests name both our licences and outside ones. Needs the line detail.'::text
+                END AS custody_verdict,
+                CASE
+                    WHEN r.cert_license IS NULL OR c.origin_licences IS NULL THEN NULL::text
+                    WHEN f_any_ours(r.cert_license) = f_any_ours(c.origin_licences) THEN 'agree'::text
+                    ELSE 'DISAGREE - certificate and manifest point different ways'::text
+                END AS certificate_vs_custody
+           FROM pkg p
+             LEFT JOIN custody c ON c.package_tag = p.tag
+             LEFT JOIN v_certificate_resolved r ON r.package_tag = p.tag
+          WHERE p.source_state = ANY (ARRAY['active'::text, 'onhold'::text])) v
+     LEFT JOIN mv_tag_documents td ON td.tag = v.package_tag;
+create or replace view public.v_pipeline_timing as
+ SELECT 'Cut to first package'::text AS stage,
+    1 AS ord,
+    round(avg(v_harvest_forensic.dry_days_to_first_package), 1) AS avg_days,
+    percentile_cont(0.5::double precision) WITHIN GROUP (ORDER BY (v_harvest_forensic.dry_days_to_first_package::double precision)) AS median_days,
+    max(v_harvest_forensic.dry_days_to_first_package) AS worst_days,
+    f_rule('dry_window_max_days'::text) AS target_days,
+    'The drying and trimming stage. This is where the time actually goes.'::text AS note
+   FROM v_harvest_forensic
+  WHERE v_harvest_forensic.dry_days_to_first_package IS NOT NULL
+UNION ALL
+ SELECT 'First to last package'::text AS stage,
+    2 AS ord,
+    round(avg(v_harvest_forensic.packaging_window_days), 1) AS avg_days,
+    percentile_cont(0.5::double precision) WITHIN GROUP (ORDER BY (v_harvest_forensic.packaging_window_days::double precision)) AS median_days,
+    max(v_harvest_forensic.packaging_window_days) AS worst_days,
+    NULL::numeric AS target_days,
+    'How long a single harvest keeps producing packages. A long window means it is being worked in pieces.'::text AS note
+   FROM v_harvest_forensic
+  WHERE v_harvest_forensic.packaging_window_days IS NOT NULL
+UNION ALL
+ SELECT 'At the laboratory'::text AS stage,
+    3 AS ord,
+    round(avg(v_lab_turnaround_packages.days_out_at_the_laboratory), 2) AS avg_days,
+    percentile_cont(0.5::double precision) WITHIN GROUP (ORDER BY (v_lab_turnaround_packages.days_out_at_the_laboratory::double precision)) AS median_days,
+    max(v_lab_turnaround_packages.days_out_at_the_laboratory) AS worst_days,
+    f_rule('lab_turnaround_max_days'::text) AS target_days,
+    'Recorded gap between submitted and result. 97 percent inside 3 days — the laboratory is not the bottleneck.'::text AS note
+   FROM v_lab_turnaround_packages
+  WHERE v_lab_turnaround_packages.days_out_at_the_laboratory IS NOT NULL
+  ORDER BY 2;
+create or replace view public.v_potency_vs_coa as
+ SELECT v.package_tag,
+    v.license,
+    v.item_name,
+    v.category,
+    v.metrc_value,
+    v.metrc_unit,
+    v.metrc_as_percent,
+    v.coa_percent,
+    v.coa_document,
+    v.coa_sample,
+    v.difference,
+    v.verdict,
+    td.coa_certificate_id,
+    td.coa_document_link,
+    td.manifest_no,
+    td.manifest_document_link,
+    td.apex_invoice_no,
+    td.apex_invoice_usd
+   FROM ( SELECT v_1.package_tag,
+            v_1.license,
+            v_1.item_name,
+            v_1.category,
+            v_1.total_thc AS metrc_value,
+            v_1.total_thc_unit AS metrc_unit,
+                CASE
+                    WHEN v_1.total_thc_unit = 'mg/g'::text THEN round(v_1.total_thc / f_rule('mg_per_g_per_percent'::text), 5)
+                    ELSE v_1.total_thc
+                END AS metrc_as_percent,
+            c.total_thc AS coa_percent,
+            c.document_id AS coa_document,
+            c.sample_id AS coa_sample,
+            round(abs(
+                CASE
+                    WHEN v_1.total_thc_unit = 'mg/g'::text THEN v_1.total_thc / f_rule('mg_per_g_per_percent'::text)
+                    ELSE v_1.total_thc
+                END - c.total_thc), 5) AS difference,
+                CASE
+                    WHEN c.total_thc IS NULL THEN 'no COA figure to check against'::text
+                    WHEN v_1.total_thc IS NULL THEN 'no Metrc figure'::text
+                    WHEN abs(
+                    CASE
+                        WHEN v_1.total_thc_unit = 'mg/g'::text THEN v_1.total_thc / f_rule('mg_per_g_per_percent'::text)
+                        ELSE v_1.total_thc
+                    END - c.total_thc) <= 0.05 THEN 'agrees with the COA'::text
+                    WHEN v_1.total_thc = 0::numeric THEN 'METRC HOLDS ZERO, THE COA DOES NOT - raise a correction'::text
+                    ELSE 'disagrees with the COA - needs a person'::text
+                END AS verdict
+           FROM v_lab_results v_1
+             JOIN coa_extract c ON c.package_tag = v_1.package_tag) v
+     LEFT JOIN mv_tag_documents td ON td.tag = v.package_tag;
+create or replace view public.v_section_narrative as
+ SELECT 'cultivation'::text AS page,
+    'dry_time'::text AS section_key,
+    ( SELECT format('%s of %s dry harvests since February missed the %s-day window. Every day past %s burns saleable weight — the owner''s own rule, zero late tolerance. The average this month is %s days to first package against a target of %s–%s. Fresh-frozen harvests are excluded: they package in about two days by design.'::text, sum(v_dry_time_discipline.dried_too_long) + sum(v_dry_time_discipline.pulled_too_fast), sum(v_dry_time_discipline.harvests_scored), max(v_dry_time_discipline.window_to_days), max(v_dry_time_discipline.window_to_days), ( SELECT v_dry_time_discipline_1.avg_dry_days
+                   FROM v_dry_time_discipline v_dry_time_discipline_1
+                  ORDER BY v_dry_time_discipline_1.month DESC
+                 LIMIT 1), max(v_dry_time_discipline.window_from_days), max(v_dry_time_discipline.window_to_days)) AS format
+           FROM v_dry_time_discipline
+          WHERE v_dry_time_discipline.month >= '2026-02'::text) AS narrative,
+    'bad'::text AS tone,
+    'dry_time_discipline'::text AS drill,
+    now() AS computed_at
+UNION ALL
+ SELECT 'finance'::text AS page,
+    'third_party'::text AS section_key,
+    ( SELECT format('Third-party spend restated to $%s on 11 Aug 2026 after the owner''s Eagle Eyes ruling was enforced — $374,346 of it was our own material returning from a 3PL warehouse, booked as purchases by a tile that read who SHIPPED rather than who MADE. The figure is declared transfer price, not evidence of cash paid: %s lb of third-party material has no price in Metrc at all.'::text, to_char(901941, 'FM9,999,999'::text), ( SELECT to_char(round(sum(v_third_party_forensic.lb_received) - sum(v_third_party_forensic.lb_received) FILTER (WHERE v_third_party_forensic.lb_sold IS NOT NULL OR v_third_party_forensic.made_lb IS NOT NULL), 0), 'FM9,999'::text) AS to_char
+                   FROM v_third_party_forensic)) AS format) AS narrative,
+    'info'::text AS tone,
+    'third_party_forensic'::text AS drill,
+    now() AS computed_at
+UNION ALL
+ SELECT 'command'::text AS page,
+    'findings'::text AS section_key,
+    ( SELECT format('%s findings are open, but they come from only %s distinct causes — and %s causes carry over 80%% of the queue. The list is not cleaned by working findings top-down; it is cleaned by fixing causes, and each fix retires dozens at once. Largest single cause: the missing allotment approval workflow, %s findings on its own.'::text, count(*), count(DISTINCT v_findings.pattern_key), 6, ( SELECT v_finding_causes.findings_that_clear_if_fixed
+                   FROM v_finding_causes
+                  ORDER BY v_finding_causes.findings_that_clear_if_fixed DESC
+                 LIMIT 1)) AS format
+           FROM v_findings
+          WHERE v_findings.resolved_at IS NULL AND NOT COALESCE(v_findings.is_duplicate, false)) AS narrative,
+    'bad'::text AS tone,
+    'finding_causes'::text AS drill,
+    now() AS computed_at
+UNION ALL
+ SELECT 'cultivation'::text AS page,
+    'moisture'::text AS section_key,
+    ( SELECT format('Two harvests cut 7 April are still open in Metrc %s days later, carrying 418.7 lb of water that evaporated months ago. They are part of %s open harvests holding %s lb of unrecorded moisture. Metrc is the legal record: until a person closes these out, the physical count can never reconcile to the state''s books.'::text, CURRENT_DATE - '2026-04-07'::date, ( SELECT count(*) AS count
+                   FROM v_moisture_loss_register
+                  WHERE v_moisture_loss_register.needs_recording AND v_moisture_loss_register.phantom_lb > 0::numeric), ( SELECT to_char(round(sum(v_moisture_loss_register.phantom_lb), 1), 'FM9,999.9'::text) AS to_char
+                   FROM v_moisture_loss_register
+                  WHERE v_moisture_loss_register.needs_recording AND v_moisture_loss_register.phantom_lb > 0::numeric)) AS format) AS narrative,
+    'bad'::text AS tone,
+    'moisture_loss_register'::text AS drill,
+    now() AS computed_at;
+create or replace view public.v_sheet_metrc_alerts as
+ SELECT source_name,
+    verdict,
+    count(*) AS rows_affected,
+    round(sum(abs(COALESCE(difference, 0::numeric))), 2) AS total_difference,
+        CASE verdict
+            WHEN 'IN THE SHEET, NOT IN METRC'::text THEN 'critical'::text
+            WHEN 'QUANTITY DISAGREES'::text THEN 'critical'::text
+            WHEN 'IN METRC, NOT IN THE SHEET'::text THEN 'elevated'::text
+            WHEN 'NO QUANTITY IN THE SHEET'::text THEN 'elevated'::text
+            ELSE 'watch'::text
+        END AS severity,
+    min(what_it_means) AS example
+   FROM v_sheet_metrc_reconciliation
+  WHERE verdict <> 'AGREES'::text
+  GROUP BY source_name, verdict
+  ORDER BY (
+        CASE verdict
+            WHEN 'QUANTITY DISAGREES'::text THEN 1
+            WHEN 'IN THE SHEET, NOT IN METRC'::text THEN 2
+            WHEN 'IN METRC, NOT IN THE SHEET'::text THEN 3
+            ELSE 4
+        END);
+create or replace view public.v_tag_coa_gap as
+ SELECT v.tag,
+    v.item,
+    v.category,
+    v.strain,
+    v.ownership,
+    v.grown_or_processed_by,
+    v.licence,
+    v.room,
+    v.tag_status,
+    v.packaged_on,
+    v.first_received,
+    v.last_shipped,
+    v.moved_on,
+    v.manifests_in,
+    v.received_from,
+    v.manifests_out,
+    v.shipped_to,
+    v.on_hand_lb,
+    v.shipped_lb,
+    v.coa_basis,
+    v.coa_found_on_tag,
+    v.coa_hops,
+    v.coa_document,
+    v.source_harvests,
+    v.source_packages,
+    v.known_from,
+    td.coa_certificate_id,
+    td.coa_document_link,
+    td.manifest_no,
+    td.manifest_document_link,
+    td.apex_invoice_no,
+    td.apex_invoice_usd
+   FROM ( SELECT m.tag,
+            m.item,
+            m.category,
+            m.strain,
+            m.ownership,
+            m.grown_or_processed_by,
+            m.licence,
+            m.room,
+            m.tag_status,
+            m.packaged_on,
+            m.first_received,
+            m.last_shipped,
+            COALESCE(m.last_shipped, m.first_received, m.packaged_on) AS moved_on,
+            m.manifests_in,
+            m.received_from,
+            m.manifests_out,
+            m.shipped_to,
+            m.on_hand_lb,
+            m.shipped_lb,
+            f.certificate_basis AS coa_basis,
+            f.certificate_on_tag AS coa_found_on_tag,
+            f.certificate_hops AS coa_hops,
+            f.certificate_document AS coa_document,
+            m.source_harvests,
+            m.source_packages,
+            m.known_from
+           FROM v_tag_master m
+             JOIN v_tag_certificate_final f ON f.tag = m.tag
+          WHERE f.certificate_source IS NULL AND f.certificate_basis !~~ 'NOT TESTED%'::text) v
+     LEFT JOIN mv_tag_documents td ON td.tag = v.tag;
+create or replace view public.v_third_party_cycle_time as
+ SELECT supplier,
+    count(*) AS packages,
+    round(sum(qty_received)) AS qty_in,
+    round(sum(qty_remaining)) AS qty_still_here,
+    round(avg(days_receipt_to_test), 1) AS avg_days_to_test,
+    round(avg(days_receipt_to_first_output), 1) AS avg_days_to_first_output,
+    round(avg(days_receipt_to_first_sale), 1) AS avg_days_receipt_to_sale,
+    max(days_since_received) AS oldest_untouched_days,
+    count(*) FILTER (WHERE "position" ~~ 'SITTING%'::text) AS sitting_untouched,
+    count(*) FILTER (WHERE "position" ~~ 'COMPLETE%'::text) AS completed,
+    round(avg(recovery_pct), 1) AS avg_recovery_pct
+   FROM v_third_party_lifecycle
+  GROUP BY supplier
+  ORDER BY (round(sum(qty_received))) DESC NULLS LAST;
+create or replace view public.v_third_party_downstream as
+ SELECT src.supplier,
+    src.tag AS source_tag,
+    src.item_name AS source_item,
+    src.strain,
+    src.received_qty,
+    src.uom AS source_uom,
+    child.tag AS made_into_tag,
+    child.item_name AS made_into,
+    child.raw #>> '{Item,ProductCategoryName}'::text[] AS made_into_category,
+    child.quantity AS made_qty,
+    child.uom AS made_uom,
+    child.packaged_on AS made_on,
+    child.raw ->> 'LabTestingState'::text AS made_lab_state,
+    child.license AS made_under
+   FROM v_third_party_chain src
+     JOIN metrc_packages child ON string_to_array(replace(COALESCE(child.raw ->> 'SourcePackageLabels'::text, ''::text), ' '::text, ''::text), ','::text) @> ARRAY[src.tag]
+  ORDER BY src.supplier, src.received_on DESC NULLS LAST;
 create or replace view public.v_third_party_remarks as
  SELECT v.tag,
     v.supplier,
@@ -54562,84 +51737,6 @@ UNION ALL
     'allocation_queue'::text AS drill
    FROM allocation_requests
   WHERE allocation_requests.status = 'pending'::text;
-create or replace view public.v_tower_inventory_grouped as
- SELECT grp AS section,
-    label,
-    value,
-    drill,
-    metric,
-        CASE grp
-            WHEN 'stock'::text THEN 'What we are holding, by product stream'::text
-            WHEN 'origin'::text THEN 'Grown by us versus bought in'::text
-            WHEN 'quality'::text THEN 'Testing position'::text
-            WHEN 'ageing'::text THEN 'How long it has been sitting'::text
-            WHEN 'control'::text THEN 'Controls and things awaiting a decision'::text
-            ELSE NULL::text
-        END AS section_note
-   FROM mv_tower_inventory
-  ORDER BY (
-        CASE grp
-            WHEN 'stock'::text THEN 1
-            WHEN 'origin'::text THEN 2
-            WHEN 'quality'::text THEN 3
-            WHEN 'ageing'::text THEN 4
-            ELSE 5
-        END), value DESC NULLS LAST;
-create or replace view public.v_unmatched_manifest_dossier as
- SELECT f.manifest_number,
-    f.diagnosis,
-    f.shipped_on,
-    t.source_row ->> 'Created'::text AS created_on,
-    t.source_row ->> 'Received'::text AS received_on_raw,
-    t.source_row ->> 'Created by User'::text AS created_by_user,
-    t.source_row ->> 'Received by User'::text AS received_by_user,
-    COALESCE(t.source_row ->> 'Type'::text, f.transfer_type) AS transfer_type,
-    t.source_row ->> 'Voided'::text AS voided,
-    t.source_row ->> 'Inv. Nbr'::text AS metrc_invoice_number,
-    f.buyer,
-    f.buyer_licence,
-    t.source_row ->> 'Dest. Facility Type'::text AS destination_facility_type,
-    COALESCE(t.source_row ->> 'Origin Facility'::text, t.licence) AS origin_facility,
-    t.source_row ->> 'Origin Lic.'::text AS origin_licence,
-    t.source_row ->> 'Origin Facility Type'::text AS origin_facility_type,
-    t.package_tag,
-    t.item,
-    t.category,
-    t.strain,
-    p.location AS room_when_last_seen,
-    p.license AS held_under_licence,
-    p.packaged_on,
-    p.lab_testing_state,
-    p.raw ->> 'SourceHarvestNames'::text AS came_from_harvest,
-    p.raw ->> 'SourcePackageLabels'::text AS came_from_packages,
-    p.raw ->> 'ProductionBatchNumber'::text AS production_batch,
-    t.shipped_qty,
-    t.shipped_uom,
-    t.received_qty,
-    round(COALESCE(t.shipped_lb, 0::numeric), 3) AS shipped_lb,
-    t.gross_weight,
-    t.source_row ->> 'Weight % Var'::text AS weight_pct_variance,
-    t.source_row ->> 'Count % Var'::text AS count_pct_variance,
-    t.shipper_wholesale_price AS metrc_declared_usd,
-    t.receiver_wholesale_price AS receiver_declared_usd,
-    t.status,
-    f.apex_candidate_buyer,
-    f.apex_candidate_invoice,
-    f.apex_candidate_date,
-    f.apex_candidate_usd,
-    f.apex_candidate_days_apart,
-    f.what_to_do
-   FROM v_unmatched_manifest_forensic f
-     JOIN metrc_rpt_package_transfers t ON t.manifest_number = f.manifest_number
-     LEFT JOIN LATERAL ( SELECT mp.location,
-            mp.license,
-            mp.packaged_on,
-            mp.lab_testing_state,
-            mp.raw
-           FROM metrc_packages mp
-          WHERE mp.tag = t.package_tag
-          ORDER BY (mp.source_state = 'active'::text) DESC, mp.synced_at DESC
-         LIMIT 1) p ON true;
 create or replace view public.v_unmatched_manifest_forensic as
  WITH unmatched_lines AS (
          SELECT s.manifest_number,
@@ -54748,6 +51845,2276 @@ create or replace view public.v_unmatched_manifest_forensic as
    FROM per_manifest p
      LEFT JOIN metrc_money mm ON mm.manifest_number = p.manifest_number
      LEFT JOIN candidate c ON c.manifest_number = p.manifest_number;
+create or replace view public.v_xq_src_never_tested_proof as
+ WITH base AS (
+         SELECT DISTINCT ON (p.tag) p.tag,
+            p.item_name,
+            p.uom,
+            p.quantity,
+            p.license,
+            p.lab_testing_state,
+            p.source_state,
+            p.packaged_on,
+            p.raw
+           FROM metrc_packages p
+          ORDER BY p.tag, p.license
+        )
+ SELECT tag AS metrc_tag,
+    license AS metrc_licence,
+    "left"(item_name, 46) AS item,
+    raw #>> '{Item,ProductCategoryName}'::text[] AS category,
+    f_quantity_text(quantity, uom) AS metrc_quantity,
+    raw ->> 'LocationName'::text AS metrc_room,
+    raw ->> 'LocationTypeName'::text AS room_type,
+    NULLIF(raw ->> 'SublocationName'::text, ''::text) AS sublocation,
+    lab_testing_state AS metrc_lab_state,
+    source_state AS metrc_status,
+    (raw ->> 'IsOnHold'::text)::boolean AS on_hold,
+    (raw ->> 'IsFinished'::text)::boolean AS finished,
+    packaged_on AS metrc_packaged_on,
+    (raw ->> 'LastModified'::text)::date AS metrc_last_modified,
+    CURRENT_DATE - packaged_on AS days_in_facility,
+    NULLIF(raw ->> 'SourceHarvestNames'::text, ''::text) AS from_harvest,
+    (raw ->> 'SourcePackageCount'::text)::integer AS made_from_n_packages,
+    "left"(NULLIF(raw ->> 'SourcePackageLabels'::text, ''::text), 120) AS made_from_packages,
+    NULLIF(raw ->> 'ProductionBatchNumber'::text, ''::text) AS production_batch,
+    NULLIF(raw ->> 'ReceivedFromManifestNumber'::text, ''::text) AS arrived_on_manifest,
+    ( SELECT string_agg(c.tag, ', '::text) AS string_agg
+           FROM metrc_packages c
+          WHERE (c.raw ->> 'SourcePackageLabels'::text) ~~ (('%'::text || b.tag) || '%'::text)) AS became_packages,
+    ( SELECT count(*) AS count
+           FROM metrc_lab_results l
+          WHERE l.package_tag = b.tag) AS lab_results,
+    ( SELECT count(*) AS count
+           FROM metrc_rpt_package_transfers t
+          WHERE t.package_tag = b.tag) AS manifest_lines,
+    ( SELECT count(*) AS count
+           FROM v_xq_src_certificate_resolved r
+          WHERE r.package_tag = b.tag AND r.found_at_depth = 0) AS own_certificate,
+    ( SELECT max(r.found_at_depth) AS max
+           FROM v_xq_src_certificate_resolved r
+          WHERE r.package_tag = b.tag) AS inherited_cert_depth,
+        CASE
+            WHEN (raw ->> 'LocationName'::text) IS NULL THEN 'FAILS THE RULE - Metrc holds no room for this tag'::text
+            WHEN (( SELECT count(*) AS count
+               FROM metrc_lab_results l
+              WHERE l.package_tag = b.tag)) > 0 THEN 'FAILS THE RULE - claimed untested but laboratory results exist'::text
+            WHEN (( SELECT count(*) AS count
+               FROM metrc_rpt_package_transfers t
+              WHERE t.package_tag = b.tag)) > 0 THEN 'FAILS THE RULE - claimed never shipped but it is on a manifest line'::text
+            WHEN (( SELECT count(*) AS count
+               FROM v_xq_src_certificate_resolved r
+              WHERE r.package_tag = b.tag AND r.found_at_depth = 0)) > 0 THEN 'FAILS THE RULE - claimed untested but a certificate is filed against it'::text
+            ELSE ((('PROVEN - Metrc holds it in '::text || (raw ->> 'LocationName'::text)) || ', state '::text) || lab_testing_state) || ', no results, no manifest, no certificate'::text
+        END AS proof
+   FROM base b
+  WHERE (lab_testing_state = ANY (ARRAY['NotSubmitted'::text, 'NotRequired'::text])) AND (source_state = ANY (ARRAY['active'::text, 'onhold'::text]));
+create materialized view if not exists public.mv_department_dashboard_base as
+ WITH r AS (
+         SELECT f_rule('ageing_stock_days'::text) AS age,
+            f_rule('harvest_open_max_days'::text) AS hopen,
+            f_rule('fresh_frozen_wet_to_dry'::text) AS ff,
+            f_rule('dry_window_max_days'::text) AS drymax,
+            f_rule('dry_window_min_days'::text) AS drymin
+        ), tot AS (
+         SELECT round(sum(v_stock_on_hand.pounds), 1) AS lb_all,
+            round(sum(v_stock_on_hand.pounds) FILTER (WHERE v_stock_on_hand.lab_state = 'TestPassed'::text), 1) AS lb_sellable,
+            round(sum(v_stock_on_hand.pounds) FILTER (WHERE v_stock_on_hand.lab_state = 'TestFailed'::text), 1) AS lb_failed,
+            round(sum(v_stock_on_hand.pounds) FILTER (WHERE v_stock_on_hand.lab_state = 'TestFailed'::text AND f_is_ours(v_stock_on_hand.origin_license)), 1) AS lb_failed_ours,
+            round(sum(v_stock_on_hand.pounds) FILTER (WHERE v_stock_on_hand.lab_state = 'TestFailed'::text AND NOT f_is_ours(v_stock_on_hand.origin_license)), 1) AS lb_failed_theirs,
+            round(sum(v_stock_on_hand.pounds) FILTER (WHERE v_stock_on_hand.lab_state = 'NotSubmitted'::text), 1) AS lb_untested,
+            round(sum(v_stock_on_hand.pounds) FILTER (WHERE v_stock_on_hand.lab_state ~~ '%ubmitted%'::text AND v_stock_on_hand.lab_state <> 'NotSubmitted'::text), 1) AS lb_out,
+            round(sum(v_stock_on_hand.pounds) FILTER (WHERE v_stock_on_hand.origin = 'Bought in'::text), 1) AS lb_bought,
+            round(sum(v_stock_on_hand.pounds) FILTER (WHERE v_stock_on_hand.oldest_days::numeric > (( SELECT r.age
+                   FROM r))), 1) AS lb_old,
+            round(sum(v_stock_on_hand.pounds) FILTER (WHERE v_stock_on_hand.stream = 'Concentrate'::text), 1) AS lb_conc,
+            round(sum(v_stock_on_hand.pounds) FILTER (WHERE v_stock_on_hand.stream = 'Fresh frozen'::text), 1) AS lb_ff,
+            round(sum(v_stock_on_hand.pounds) FILTER (WHERE v_stock_on_hand.stream = 'Shake and trim'::text), 1) AS lb_shake,
+            round(sum(v_stock_on_hand.pounds) FILTER (WHERE v_stock_on_hand.stream = 'Pre-rolls'::text), 1) AS lb_pr,
+            round(sum(v_stock_on_hand.pounds) FILTER (WHERE v_stock_on_hand.stream = 'Pre-rolls'::text AND v_stock_on_hand.lab_state = 'NotSubmitted'::text), 1) AS lb_pr_untested,
+            round(sum(v_stock_on_hand.pounds * f_rate_for(v_stock_on_hand.stream))) AS val_all,
+            round(sum(v_stock_on_hand.pounds * f_rate_for(v_stock_on_hand.stream)) FILTER (WHERE v_stock_on_hand.lab_state = 'TestFailed'::text)) AS val_failed,
+            round(sum(v_stock_on_hand.pounds * f_rate_for(v_stock_on_hand.stream)) FILTER (WHERE v_stock_on_hand.lab_state = 'NotSubmitted'::text)) AS val_untested
+           FROM v_stock_on_hand
+        ), rooms AS (
+         SELECT round(sum(v_harvest_still_in_room.really_left_lb), 1) AS lb_dry_equiv,
+            round(sum(v_harvest_still_in_room.old_figure_wet_minus_dry), 1) AS lb_metrc_wet,
+            count(*) AS open_h
+           FROM v_harvest_still_in_room
+        ), phantom AS (
+         SELECT count(*) AS n,
+            round(sum(v_moisture_loss_register.phantom_lb), 1) AS lb
+           FROM v_moisture_loss_register
+          WHERE v_moisture_loss_register.harvest_state = 'CLOSED'::text AND v_moisture_loss_register.needs_recording AND v_moisture_loss_register.phantom_lb > 0::numeric
+        ), lab AS (
+         SELECT count(*) AS n,
+            round(sum(v_missing_lab_results.pounds), 1) AS lb
+           FROM v_missing_lab_results
+        ), find AS (
+         SELECT count(DISTINCT watchdog_findings.fingerprint) AS n
+           FROM watchdog_findings
+          WHERE watchdog_findings.observed_at > (now() - '48:00:00'::interval)
+        ), h AS (
+         SELECT count(*) FILTER (WHERE v_harvest_forensic.harvest_closed IS NULL AND v_harvest_forensic.total_days_start_to_now::numeric > (( SELECT r.hopen
+                   FROM r))) AS open21,
+            round(avg(v_harvest_forensic.dry_days_to_first_package) FILTER (WHERE v_harvest_forensic.dry_days_to_first_package IS NOT NULL), 1) AS avg_dry,
+            count(*) FILTER (WHERE v_harvest_forensic.dry_days_to_first_package::numeric > (( SELECT r.drymax
+                   FROM r))) AS dried_long,
+            round(avg(v_harvest_forensic.conversion_pct) FILTER (WHERE v_harvest_forensic.harvest_closed IS NOT NULL), 1) AS conv
+           FROM v_harvest_forensic
+        )
+ SELECT department,
+    ord,
+    kpi,
+    value,
+    unit,
+    tone,
+    context,
+    drill,
+    now() AS computed_at
+   FROM ( SELECT 'Command'::text AS department,
+            1 AS ord,
+            'Total on hand, dry-equivalent'::text AS kpi,
+            ( SELECT tot.lb_all
+                   FROM tot) AS value,
+            'lb'::text AS unit,
+            'info'::text AS tone,
+            'Every package in Metrc under our licences.'::text AS context,
+            'stock_on_hand'::text AS drill
+        UNION ALL
+         SELECT 'Command'::text AS text,
+            2,
+            'In the rooms, dry-equivalent'::text AS text,
+            ( SELECT rooms.lb_dry_equiv
+                   FROM rooms) AS lb_dry_equiv,
+            'lb'::text AS text,
+            'warn'::text AS text,
+            ( SELECT ((('Metrc shows '::text || rooms.lb_metrc_wet) || ' lb wet across '::text) || rooms.open_h) || ' open harvests. This is the dry-equivalent — the rest is water.'::text
+                   FROM rooms),
+            'moisture_loss_register'::text AS text
+        UNION ALL
+         SELECT 'Command'::text AS text,
+            3,
+            'Harvests open too long'::text AS text,
+            ( SELECT h.open21
+                   FROM h) AS open21,
+            ''::text AS text,
+            'bad'::text AS text,
+            ( SELECT ('Past the '::text || r.hopen) || ' day limit from the 2026 calendar.'::text
+                   FROM r),
+            'harvest_issues'::text AS text
+        UNION ALL
+         SELECT 'Command'::text AS text,
+            4,
+            'Moisture loss not recorded'::text AS text,
+            ( SELECT phantom.lb
+                   FROM phantom) AS lb,
+            'lb'::text AS text,
+            'bad'::text AS text,
+            ( SELECT phantom.n || ' closed harvests still showing water in Metrc.'::text
+                   FROM phantom),
+            'moisture_loss_register'::text AS text
+        UNION ALL
+         SELECT 'Command'::text AS text,
+            5,
+            'Out at the laboratory, no result'::text AS text,
+            ( SELECT lab.lb
+                   FROM lab) AS lb,
+            'lb'::text AS text,
+            'bad'::text AS text,
+            ( SELECT lab.n || ' packages submitted and never reported back.'::text
+                   FROM lab),
+            'metrc_rpt_lab'::text AS text
+        UNION ALL
+         SELECT 'Command'::text AS text,
+            6,
+            'Never submitted for testing'::text AS text,
+            ( SELECT tot.lb_untested
+                   FROM tot) AS lb_untested,
+            'lb'::text AS text,
+            'bad'::text AS text,
+            'Cannot be sold until submitted.'::text AS text,
+            'lab_results'::text AS text
+        UNION ALL
+         SELECT 'Command'::text AS text,
+            7,
+            'Failed testing on hand'::text AS text,
+            ( SELECT tot.lb_failed
+                   FROM tot) AS lb_failed,
+            'lb'::text AS text,
+            'bad'::text AS text,
+            ( SELECT ((('Ours '::text || tot.lb_failed_ours) || ' lb, third party '::text) || tot.lb_failed_theirs) || ' lb.'::text
+                   FROM tot),
+            'failed_testing_by_origin'::text AS text
+        UNION ALL
+         SELECT 'Command'::text AS text,
+            8,
+            'Open watchdog findings'::text AS text,
+            ( SELECT find.n
+                   FROM find) AS n,
+            ''::text AS text,
+            'warn'::text AS text,
+            'Confirmed in the last 48 hours.'::text AS text,
+            'intelligence_briefing'::text AS text
+        UNION ALL
+         SELECT 'Cultivation'::text AS text,
+            1,
+            'In the rooms, dry-equivalent'::text AS text,
+            ( SELECT rooms.lb_dry_equiv
+                   FROM rooms) AS lb_dry_equiv,
+            'lb'::text AS text,
+            'warn'::text AS text,
+            ( SELECT ('Metrc shows '::text || rooms.lb_metrc_wet) || ' lb wet. The difference is evaporated water.'::text
+                   FROM rooms),
+            'moisture_loss_register'::text AS text
+        UNION ALL
+         SELECT 'Cultivation'::text AS text,
+            2,
+            'Harvests open too long'::text AS text,
+            ( SELECT h.open21
+                   FROM h) AS open21,
+            ''::text AS text,
+            'bad'::text AS text,
+            ( SELECT ('Past the '::text || r.hopen) || ' day limit.'::text
+                   FROM r),
+            'harvest_issues'::text AS text
+        UNION ALL
+         SELECT 'Cultivation'::text AS text,
+            3,
+            'Moisture loss not recorded'::text AS text,
+            ( SELECT phantom.lb
+                   FROM phantom) AS lb,
+            'lb'::text AS text,
+            'bad'::text AS text,
+            ( SELECT phantom.n || ' closed harvests.'::text
+                   FROM phantom),
+            'moisture_loss_register'::text AS text
+        UNION ALL
+         SELECT 'Cultivation'::text AS text,
+            4,
+            'Average dry time'::text AS text,
+            ( SELECT h.avg_dry
+                   FROM h) AS avg_dry,
+            'days'::text AS text,
+            'info'::text AS text,
+            ( SELECT ((('Target window is '::text || r.drymin) || ' to '::text) || r.drymax) || ' days.'::text
+                   FROM r),
+            'dry_room_performance'::text AS text
+        UNION ALL
+         SELECT 'Cultivation'::text AS text,
+            5,
+            'Harvests dried too long'::text AS text,
+            ( SELECT h.dried_long
+                   FROM h) AS dried_long,
+            ''::text AS text,
+            'bad'::text AS text,
+            ( SELECT ('Over '::text || r.drymax) || ' days.'::text
+                   FROM r),
+            'schedule_compliance'::text AS text
+        UNION ALL
+         SELECT 'Cultivation'::text AS text,
+            6,
+            'Conversion, dried flower only'::text AS text,
+            ( SELECT h.conv
+                   FROM h) AS conv,
+            '%'::text AS text,
+            'info'::text AS text,
+            'Closed harvests only.'::text AS text,
+            'issue_yield_gap'::text AS text
+        UNION ALL
+         SELECT 'Inventory'::text AS text,
+            1,
+            'Total on hand, dry-equivalent'::text AS text,
+            ( SELECT tot.lb_all
+                   FROM tot) AS lb_all,
+            'lb'::text AS text,
+            'info'::text AS text,
+            'All streams.'::text AS text,
+            'stock_on_hand'::text AS text
+        UNION ALL
+         SELECT 'Inventory'::text AS text,
+            2,
+            'Sellable right now'::text AS text,
+            ( SELECT tot.lb_sellable
+                   FROM tot) AS lb_sellable,
+            'lb'::text AS text,
+            'ok'::text AS text,
+            'Passed testing.'::text AS text,
+            'stock_on_hand'::text AS text
+        UNION ALL
+         SELECT 'Inventory'::text AS text,
+            3,
+            'Never submitted for testing'::text AS text,
+            ( SELECT tot.lb_untested
+                   FROM tot) AS lb_untested,
+            'lb'::text AS text,
+            'bad'::text AS text,
+            'Blocked from sale.'::text AS text,
+            'lab_results'::text AS text
+        UNION ALL
+         SELECT 'Inventory'::text AS text,
+            4,
+            'Bought in'::text AS text,
+            ( SELECT tot.lb_bought
+                   FROM tot) AS lb_bought,
+            'lb'::text AS text,
+            'info'::text AS text,
+            'Third party material.'::text AS text,
+            'third_party_stock'::text AS text
+        UNION ALL
+         SELECT 'Inventory'::text AS text,
+            5,
+            'Ageing stock'::text AS text,
+            ( SELECT tot.lb_old
+                   FROM tot) AS lb_old,
+            'lb'::text AS text,
+            'bad'::text AS text,
+            ( SELECT ('Older than the '::text || r.age) || ' day limit.'::text
+                   FROM r),
+            'issue_aging'::text AS text
+        UNION ALL
+         SELECT 'Quality'::text AS text,
+            1,
+            'Failed testing on hand'::text AS text,
+            ( SELECT tot.lb_failed
+                   FROM tot) AS lb_failed,
+            'lb'::text AS text,
+            'bad'::text AS text,
+            ( SELECT ((('Ours '::text || tot.lb_failed_ours) || ' lb, third party '::text) || tot.lb_failed_theirs) || ' lb.'::text
+                   FROM tot),
+            'failed_testing_by_origin'::text AS text
+        UNION ALL
+         SELECT 'Quality'::text AS text,
+            2,
+            'Out at the laboratory, no result'::text AS text,
+            ( SELECT lab.lb
+                   FROM lab) AS lb,
+            'lb'::text AS text,
+            'bad'::text AS text,
+            ( SELECT lab.n || ' packages, longest waiting is on the page.'::text
+                   FROM lab),
+            'metrc_rpt_lab'::text AS text
+        UNION ALL
+         SELECT 'Quality'::text AS text,
+            3,
+            'Out for testing'::text AS text,
+            ( SELECT tot.lb_out
+                   FROM tot) AS lb_out,
+            'lb'::text AS text,
+            'info'::text AS text,
+            'At the laboratory now.'::text AS text,
+            'lab_turnaround_report'::text AS text
+        UNION ALL
+         SELECT 'Quality'::text AS text,
+            4,
+            'Never submitted for testing'::text AS text,
+            ( SELECT tot.lb_untested
+                   FROM tot) AS lb_untested,
+            'lb'::text AS text,
+            'bad'::text AS text,
+            'Never sent.'::text AS text,
+            'lab_results'::text AS text
+        UNION ALL
+         SELECT 'Manufacturing'::text AS text,
+            1,
+            'Concentrate on hand'::text AS text,
+            ( SELECT tot.lb_conc
+                   FROM tot) AS lb_conc,
+            'lb'::text AS text,
+            'info'::text AS text,
+            ''::text AS text,
+            'stock_on_hand'::text AS text
+        UNION ALL
+         SELECT 'Manufacturing'::text AS text,
+            2,
+            'Fresh frozen on hand'::text AS text,
+            ( SELECT tot.lb_ff
+                   FROM tot) AS lb_ff,
+            'lb'::text AS text,
+            'info'::text AS text,
+            'Packaged wet.'::text AS text,
+            'stock_on_hand'::text AS text
+        UNION ALL
+         SELECT 'Manufacturing'::text AS text,
+            3,
+            'Fresh frozen dry-equivalent'::text AS text,
+            ( SELECT round(tot.lb_ff / (( SELECT r.ff
+                           FROM r)), 1) AS round
+                   FROM tot) AS round,
+            'lb'::text AS text,
+            'info'::text AS text,
+            ( SELECT ('Divided by the ratio of '::text || r.ff) || '.'::text
+                   FROM r),
+            'fresh_frozen_equiv'::text AS text
+        UNION ALL
+         SELECT 'Manufacturing'::text AS text,
+            4,
+            'Shake and trim on hand'::text AS text,
+            ( SELECT tot.lb_shake
+                   FROM tot) AS lb_shake,
+            'lb'::text AS text,
+            'info'::text AS text,
+            ''::text AS text,
+            'stock_on_hand'::text AS text
+        UNION ALL
+         SELECT 'Manufacturing'::text AS text,
+            5,
+            'Purchased material untouched'::text AS text,
+            ( SELECT tot.lb_bought
+                   FROM tot) AS lb_bought,
+            'lb'::text AS text,
+            'warn'::text AS text,
+            ''::text AS text,
+            'third_party_stock'::text AS text
+        UNION ALL
+         SELECT 'Infused Pre-Rolls & Flower'::text AS text,
+            1,
+            'Pre-rolls on hand'::text AS text,
+            ( SELECT tot.lb_pr
+                   FROM tot) AS lb_pr,
+            'lb'::text AS text,
+            'info'::text AS text,
+            ''::text AS text,
+            'stock_on_hand'::text AS text
+        UNION ALL
+         SELECT 'Infused Pre-Rolls & Flower'::text AS text,
+            2,
+            'Pre-rolls never tested'::text AS text,
+            ( SELECT tot.lb_pr_untested
+                   FROM tot) AS lb_pr_untested,
+            'lb'::text AS text,
+            'bad'::text AS text,
+            ''::text AS text,
+            'lab_results'::text AS text
+        UNION ALL
+         SELECT 'Infused Pre-Rolls & Flower'::text AS text,
+            3,
+            'Shake and trim available'::text AS text,
+            ( SELECT tot.lb_shake
+                   FROM tot) AS lb_shake,
+            'lb'::text AS text,
+            'info'::text AS text,
+            'Input material.'::text AS text,
+            'stock_on_hand'::text AS text
+        UNION ALL
+         SELECT 'Finance'::text AS text,
+            1,
+            'Value of stock on hand'::text AS text,
+            ( SELECT tot.val_all
+                   FROM tot) AS val_all,
+            '$'::text AS text,
+            'info'::text AS text,
+            'Each stream at its own rate.'::text AS text,
+            'valuation_rates'::text AS text
+        UNION ALL
+         SELECT 'Finance'::text AS text,
+            2,
+            'Failed testing value'::text AS text,
+            ( SELECT tot.val_failed
+                   FROM tot) AS val_failed,
+            '$'::text AS text,
+            'bad'::text AS text,
+            ''::text AS text,
+            'valuation_rates'::text AS text
+        UNION ALL
+         SELECT 'Finance'::text AS text,
+            3,
+            'Untested stock value'::text AS text,
+            ( SELECT tot.val_untested
+                   FROM tot) AS val_untested,
+            '$'::text AS text,
+            'bad'::text AS text,
+            ''::text AS text,
+            'valuation_rates'::text AS text
+        UNION ALL
+         SELECT 'Metrc'::text AS text,
+            1,
+            'Packages mirrored'::text AS text,
+            ( SELECT count(*) AS count
+                   FROM metrc_packages) AS count,
+            ''::text AS text,
+            'info'::text AS text,
+            ''::text AS text,
+            'metrc_mirror'::text AS text
+        UNION ALL
+         SELECT 'Metrc'::text AS text,
+            2,
+            'Harvests mirrored'::text AS text,
+            ( SELECT count(*) AS count
+                   FROM metrc_harvests) AS count,
+            ''::text AS text,
+            'info'::text AS text,
+            ''::text AS text,
+            'harvests'::text AS text
+        UNION ALL
+         SELECT 'Metrc'::text AS text,
+            3,
+            'Plants mirrored'::text AS text,
+            ( SELECT count(*) AS count
+                   FROM metrc_plants) AS count,
+            ''::text AS text,
+            'info'::text AS text,
+            ''::text AS text,
+            'metrc_mc'::text AS text
+        UNION ALL
+         SELECT 'Metrc'::text AS text,
+            4,
+            'Corrections outstanding'::text AS text,
+            ( SELECT count(*) AS count
+                   FROM v_metrc_corrections_open) AS count,
+            ''::text AS text,
+            'bad'::text AS text,
+            'Must be fixed in Metrc itself.'::text AS text,
+            'metrc_corrections'::text AS text
+        UNION ALL
+         SELECT 'Human Resources'::text AS text,
+            1,
+            'People on the roster'::text AS text,
+            ( SELECT count(*) AS count
+                   FROM employees) AS count,
+            ''::text AS text,
+            'info'::text AS text,
+            ''::text AS text,
+            'people'::text AS text
+        UNION ALL
+         SELECT 'Workspace'::text AS text,
+            1,
+            'Go-live items open'::text AS text,
+            ( SELECT count(*) AS count
+                   FROM golive_items
+                  WHERE golive_items.status <> 'done'::text) AS count,
+            ''::text AS text,
+            'warn'::text AS text,
+            ''::text AS text,
+            'golive'::text AS text
+        UNION ALL
+         SELECT 'Workspace'::text AS text,
+            2,
+            'Open questions'::text AS text,
+            ( SELECT count(*) AS count
+                   FROM v_open_questions) AS count,
+            ''::text AS text,
+            'warn'::text AS text,
+            ''::text AS text,
+            'open_questions'::text AS text
+        UNION ALL
+         SELECT 'Settings'::text AS text,
+            1,
+            'Pages in the platform'::text AS text,
+            ( SELECT count(*) AS count
+                   FROM nav_registry
+                  WHERE nav_registry.enabled) AS count,
+            ''::text AS text,
+            'info'::text AS text,
+            ''::text AS text,
+            'menu_manager'::text AS text
+        UNION ALL
+         SELECT 'Settings'::text AS text,
+            2,
+            'Business rules not yet set'::text AS text,
+            ( SELECT count(*) AS count
+                   FROM conversion_factors
+                  WHERE conversion_factors.set_by ~~ 'default%'::text) AS count,
+            ''::text AS text,
+            'warn'::text AS text,
+            ''::text AS text,
+            'business_rules'::text AS text) q;
+create materialized view if not exists public.mv_dept_dash_audit_tiles as
+ SELECT department,
+    ord,
+    kpi,
+    value,
+    unit,
+    tone,
+    context,
+    drill,
+    computed_at
+   FROM v_dept_dash_audit_tiles;
+create materialized view if not exists public.mv_dept_dash_supplement as
+ SELECT department,
+    ord,
+    kpi,
+    value,
+    unit,
+    tone,
+    context,
+    drill,
+    computed_at
+   FROM v_dept_dash_supplement;
+create materialized view if not exists public.mv_dept_dash_third_party as
+ SELECT department,
+    ord,
+    kpi,
+    value,
+    unit,
+    tone,
+    context,
+    drill,
+    computed_at
+   FROM v_dept_dash_third_party;
+create materialized view if not exists public.mv_forensic_audit_panel as
+ SELECT ord,
+    kind,
+    line,
+    lb,
+    usd,
+    basis,
+    drill,
+    now() AS computed_at
+   FROM v_forensic_audit_panel_live;
+create materialized view if not exists public.mv_tower_counts as
+ SELECT ( SELECT count(*) AS count
+           FROM metrc_packages
+          WHERE metrc_packages.source_state = ANY (ARRAY['active'::text, 'onhold'::text])) AS packages_active,
+    ( SELECT count(*) AS count
+           FROM metrc_packages) AS packages_all,
+    ( SELECT count(*) AS count
+           FROM metrc_plants
+          WHERE metrc_plants.source_state = ANY (ARRAY['vegetative'::text, 'flowering'::text, 'onhold'::text])) AS plants_live,
+    ( SELECT count(*) AS count
+           FROM metrc_plants) AS plants_all,
+    ( SELECT count(*) AS count
+           FROM metrc_harvests) AS harvests,
+    ( SELECT count(*) AS count
+           FROM metrc_transfers) AS transfers,
+    ( SELECT count(*) AS count
+           FROM metrc_plant_batches) AS plant_batches,
+    ( SELECT count(*) AS count
+           FROM harvest_schedule) AS harvest_events,
+    ( SELECT count(*) AS count
+           FROM employees
+          WHERE employees.terminated_on IS NULL) AS employees_active,
+    ( SELECT count(*) AS count
+           FROM actions_register
+          WHERE actions_register.status = 'open'::text) AS actions_open,
+    ( SELECT count(*) AS count
+           FROM actions_register
+          WHERE actions_register.status = 'open'::text AND actions_register.priority = 'P0'::text) AS actions_p0,
+    ( SELECT count(*) AS count
+           FROM golive_items
+          WHERE golive_items.status <> 'done'::text) AS golive_open,
+    ( SELECT count(*) AS count
+           FROM v_custody_alerts) AS custody_flags,
+    ( SELECT count(*) AS count
+           FROM v_harvest_alerts) AS harvest_alerts,
+    ( SELECT count(*) AS count
+           FROM v_inventory_aging
+          WHERE v_inventory_aging.severity = 'critical'::text) AS aging_critical,
+    ( SELECT count(*) AS count
+           FROM metrc_packages
+          WHERE metrc_packages.lab_testing_state = 'TestFailed'::text AND (metrc_packages.source_state = ANY (ARRAY['active'::text, 'onhold'::text]))) AS failed_testing_on_hand,
+    ( SELECT count(*) AS count
+           FROM metrc_transfers
+          WHERE metrc_transfers.direction = 'outgoing'::text AND (metrc_transfers.raw ->> 'ReceivedDateTime'::text) IS NULL AND metrc_transfers.created_on < (CURRENT_DATE - 3)) AS manifests_unconfirmed,
+    ( SELECT max(metrc_sync_runs.started_at) AS max
+           FROM metrc_sync_runs) AS last_sync,
+    now() AS computed_at;
+create materialized view if not exists public.mv_tower_inventory as
+ SELECT metric,
+    value,
+    label,
+    grp,
+    drill
+   FROM v_tower_inventory;
+create or replace view public.v_admin_alerts as
+ SELECT what,
+    outstanding,
+    severity,
+    drill,
+    why_it_matters,
+    what_to_do,
+    detail
+   FROM ( SELECT a.what,
+            a.outstanding,
+            a.severity,
+            a.drill,
+            a.why_it_matters,
+            a.what_to_do,
+            a.detail
+           FROM ( SELECT 'Corrections outstanding in Metrc'::text AS what,
+                    count(*) AS outstanding,
+                    'critical'::text AS severity,
+                    'metrc_corrections'::text AS drill,
+                    'Wrong in the state record itself, not just here.'::text AS why_it_matters,
+                    'Follow the steps on Metrc Corrections, then record who fixed it and what was done.'::text AS what_to_do,
+                    ((round(sum(v_metrc_corrections_open.pounds), 1) || ' lb across '::text) || count(*)) || ' corrections'::text AS detail
+                   FROM v_metrc_corrections_open
+                 HAVING count(*) > 0) a
+        UNION ALL
+         SELECT b.text,
+            b.count,
+            b.text_1 AS text,
+            b.text_2 AS text,
+            b.text_3 AS text,
+            b.text_4 AS text,
+            b."?column?"
+           FROM ( SELECT 'Out at the laboratory with no result'::text AS text,
+                    count(*) AS count,
+                    'critical'::text AS text,
+                    'missing_lab_results'::text AS text,
+                    'Submitted for testing and never reported back. Cannot be sold until a result exists.'::text AS text,
+                    'Chase the laboratory for each certificate and enter it in Metrc.'::text AS text,
+                    ((round(sum(v_missing_lab_results.pounds), 1) || ' lb, longest waiting '::text) || max(v_missing_lab_results.days_missing)) || ' days'::text AS "?column?"
+                   FROM v_missing_lab_results
+                 HAVING count(*) > 0) b(text, count, text_1, text_2, text_3, text_4, "?column?")
+        UNION ALL
+         SELECT c.text,
+            c.count,
+            c.text_1 AS text,
+            c.text_2 AS text,
+            c.text_3 AS text,
+            c.text_4 AS text,
+            c."?column?"
+           FROM ( SELECT 'Moisture loss not recorded on closed harvests'::text AS text,
+                    count(*) AS count,
+                    'critical'::text AS text,
+                    'moisture_loss_register'::text AS text,
+                    'Metrc shows biomass on finished harvests that evaporated months ago. This is the group an inspector queries first.'::text AS text,
+                    'Open Moisture Loss and record the loss against each closed harvest, then enter the adjustment in Metrc.'::text AS text,
+                    ((round(sum(v_moisture_loss_register.phantom_lb), 1) || ' lb across '::text) || count(*)) || ' closed harvests not yet recorded'::text AS "?column?"
+                   FROM v_moisture_loss_register
+                  WHERE v_moisture_loss_register.harvest_state = 'CLOSED'::text AND v_moisture_loss_register.needs_recording AND v_moisture_loss_register.phantom_lb > 0::numeric
+                 HAVING count(*) > 0) c(text, count, text_1, text_2, text_3, text_4, "?column?")
+        UNION ALL
+         SELECT d.text,
+            d.count,
+            d.text_1 AS text,
+            d.text_2 AS text,
+            d.text_3 AS text,
+            d.text_4 AS text,
+            d."?column?"
+           FROM ( SELECT 'Never submitted for testing'::text AS text,
+                    count(*) AS count,
+                    'elevated'::text AS text,
+                    'lab_results'::text AS text,
+                    'Material never sent to the laboratory at all. It cannot lawfully be sold.'::text AS text,
+                    'Submit it, or record a disposition.'::text AS text,
+                    ((round(sum(lab_turnaround_log.pounds), 1) || ' lb, oldest '::text) || max(CURRENT_DATE - lab_turnaround_log.went_out_on)) || ' days'::text AS "?column?"
+                   FROM lab_turnaround_log
+                  WHERE lab_turnaround_log.testing_state = 'NotSubmitted'::text AND lab_turnaround_log.came_back_on IS NULL
+                 HAVING count(*) > 0) d(text, count, text_1, text_2, text_3, text_4, "?column?")
+        UNION ALL
+         SELECT e.text,
+            e.count,
+            e.text_1 AS text,
+            e.text_2 AS text,
+            e.text_3 AS text,
+            e.text_4 AS text,
+            e."?column?"
+           FROM ( SELECT 'Harvests open past the limit'::text AS text,
+                    count(*) AS count,
+                    'elevated'::text AS text,
+                    'overdue_harvests'::text AS text,
+                    'Room time paid for and weight quietly drying down.'::text AS text,
+                    'Finish packaging and close them out.'::text AS text,
+                    ((('Oldest is '::text || max(v_overdue_harvests.days_open)) || ' days against a '::text) || max(v_overdue_harvests.limit_days)) || ' day limit'::text AS "?column?"
+                   FROM v_overdue_harvests
+                 HAVING count(*) > 0) e(text, count, text_1, text_2, text_3, text_4, "?column?")
+        UNION ALL
+         SELECT f.text,
+            f.count,
+            f.text_1 AS text,
+            f.text_2 AS text,
+            f.text_3 AS text,
+            f.text_4 AS text,
+            f."?column?"
+           FROM ( SELECT 'Room rotation has drifted off the calendar'::text AS text,
+                    count(*) AS count,
+                    'elevated'::text AS text,
+                    'plan_vs_actual_harvest'::text AS text,
+                    'The 14 day cadence is intact and every room turns on 56 days, but the room ORDER slipped one position in late February.'::text AS text,
+                    'Re-sync the room order to the calendar, or reissue the calendar to match how the rooms actually run.'::text AS text,
+                    count(*) || ' of 26 pulls do not match the planned room'::text AS "?column?"
+                   FROM v_plan_vs_actual_harvest
+                  WHERE v_plan_vs_actual_harvest.schedule_verdict ~~ 'LATE%'::text OR v_plan_vs_actual_harvest.schedule_verdict ~~ 'EARLY%'::text OR v_plan_vs_actual_harvest.schedule_verdict ~~ 'MISSED%'::text
+                 HAVING count(*) > 0) f(text, count, text_1, text_2, text_3, text_4, "?column?")
+        UNION ALL
+         SELECT g.text,
+            g.count,
+            g.text_1 AS text,
+            g.text_2 AS text,
+            g.text_3 AS text,
+            g.text_4 AS text,
+            g.string_agg
+           FROM ( SELECT 'Required Metrc report not uploaded this month'::text AS text,
+                    count(*) AS count,
+                    'critical'::text AS text,
+                    'metrc_report_imports'::text AS text,
+                    'Moisture loss and wholesale price exist in no API endpoint. Without these files the 380 lb per month target and the revenue figure cannot be computed at all.'::text AS text,
+                    'Export each one from Metrc and upload it on Settings > Metrc Report Imports. It maps itself.'::text AS text,
+                    string_agg(((v_report_upload_due.title || ' ('::text) || v_report_upload_due.licence) || ')'::text, ', '::text ORDER BY v_report_upload_due.upload_priority) AS string_agg
+                   FROM v_report_upload_due
+                  WHERE NOT v_report_upload_due.received AND v_report_upload_due.cadence ~~ 'Monthly%'::text
+                 HAVING count(*) > 0) g(text, count, text_1, text_2, text_3, text_4, string_agg)
+        UNION ALL
+         SELECT h.text,
+            h.count,
+            h.text_1 AS text,
+            h.text_2 AS text,
+            h.text_3 AS text,
+            h.text_4 AS text,
+            h.string_agg
+           FROM ( SELECT 'Quarterly or yearly Metrc report overdue'::text AS text,
+                    count(*) AS count,
+                    'elevated'::text AS text,
+                    'metrc_report_imports'::text AS text,
+                    'Waste, destruction, lab linkage and invoice numbers are report-only data. The gap grows until the file is uploaded.'::text AS text,
+                    'Export and upload when convenient. These are not month-end blockers.'::text AS text,
+                    string_agg(((((v_report_upload_due.title || ' ('::text) || v_report_upload_due.licence) || ', '::text) || v_report_upload_due.period_label) || ')'::text, ', '::text ORDER BY v_report_upload_due.upload_priority) AS string_agg
+                   FROM v_report_upload_due
+                  WHERE NOT v_report_upload_due.received AND v_report_upload_due.cadence !~~ 'Monthly%'::text AND CURRENT_DATE > v_report_upload_due.due_by
+                 HAVING count(*) > 0) h(text, count, text_1, text_2, text_3, text_4, string_agg)
+        UNION ALL
+         SELECT i.text,
+            i.count,
+            i.text_1 AS text,
+            i.text_2 AS text,
+            i.text_3 AS text,
+            i.text_4 AS text,
+            i.string_agg
+           FROM ( SELECT 'Gap in the report record'::text AS text,
+                    count(*) AS count,
+                    'elevated'::text AS text,
+                    'metrc_report_imports'::text AS text,
+                    'Measured from the data actually held, not from what somebody meant to export. A short export or a skipped month shows up here rather than passing unnoticed.'::text AS text,
+                    'Open Metrc Report Imports - it names the exact export and date range for each gap. Overlapping a previous upload is safe: a re-imported row corrects, it never duplicates.'::text AS text,
+                    string_agg((((v_report_coverage.title || ' ('::text) || v_report_coverage.required_for_licence) || ') '::text) ||
+                        CASE
+                            WHEN v_report_coverage.rows_held IS NULL THEN 'never uploaded'::text
+                            ELSE 'nothing since '::text || to_char(v_report_coverage.last_event::timestamp with time zone, 'DD Mon YYYY'::text)
+                        END, ', '::text ORDER BY v_report_coverage.upload_priority) AS string_agg
+                   FROM v_report_coverage
+                  WHERE v_report_coverage.coverage <> 'Covered'::text
+                 HAVING count(*) > 0) i(text, count, text_1, text_2, text_3, text_4, string_agg)) q
+  ORDER BY (
+        CASE severity
+            WHEN 'critical'::text THEN 1
+            ELSE 2
+        END), outstanding DESC;
+create or replace view public.v_ceo_dashboard as
+ SELECT 'Money at stake'::text AS line,
+    '$'::text || to_char(COALESCE(( SELECT sum(agent_findings.dollars) AS sum
+           FROM agent_findings
+          WHERE agent_findings.resolved_at IS NULL), 0::numeric), 'FM999,999,999'::text) AS headline,
+    ((( SELECT count(*) AS count
+           FROM agent_findings
+          WHERE agent_findings.resolved_at IS NULL AND agent_findings.dollars > 0::numeric))::text) || ' findings carry a dollar figure'::text AS detail,
+    1 AS sort
+UNION ALL
+ SELECT 'Critical findings'::text AS line,
+    (( SELECT count(*) AS count
+           FROM agent_findings
+          WHERE agent_findings.resolved_at IS NULL AND agent_findings.severity = 'critical'::text))::text AS headline,
+    ( SELECT string_agg(DISTINCT agent_findings.agent, ', '::text) AS string_agg
+           FROM agent_findings
+          WHERE agent_findings.resolved_at IS NULL AND agent_findings.severity = 'critical'::text) AS detail,
+    2 AS sort
+UNION ALL
+ SELECT 'Schedule violations'::text AS line,
+    (( SELECT count(*) AS count
+           FROM v_late_violations
+          WHERE v_late_violations.rule_verdict ~~ 'VIOLATION%'::text))::text AS headline,
+    ('Hard rule: a pull or dry may be early, never late. '::text || COALESCE((( SELECT count(*) AS count
+           FROM v_weekend_watch
+          WHERE v_weekend_watch.action ~~ 'PLAN A WEEKEND%'::text))::text, '0'::text)) || ' upcoming events land on a weekend and need a crew planned'::text AS detail,
+    3 AS sort
+UNION ALL
+ SELECT 'Compliance exposure'::text AS line,
+    (( SELECT count(*) AS count
+           FROM v_custody_alerts))::text AS headline,
+    ((((( SELECT count(*) AS count
+           FROM metrc_packages
+          WHERE metrc_packages.lab_testing_state = 'TestFailed'::text AND (metrc_packages.source_state = ANY (ARRAY['active'::text, 'onhold'::text]))))::text) || ' failed-testing packages still in inventory · '::text) || ((( SELECT count(*) AS count
+           FROM metrc_transfers
+          WHERE metrc_transfers.direction = 'outgoing'::text AND (metrc_transfers.raw ->> 'ReceivedDateTime'::text) IS NULL AND metrc_transfers.created_on < (CURRENT_DATE - 3)))::text)) || ' manifests never confirmed received'::text AS detail,
+    4 AS sort
+UNION ALL
+ SELECT 'Cost of waste to date'::text AS line,
+    '$'::text || to_char(COALESCE(( SELECT sum(v_cost_of_loss.cost_of_waste) AS sum
+           FROM v_cost_of_loss
+          WHERE v_cost_of_loss.scope_type = 'Room'::text), 0::numeric), 'FM999,999,999'::text) AS headline,
+    (('At $'::text || COALESCE(( SELECT cost_model.cost_per_pound
+           FROM cost_model
+          WHERE cost_model.scope = 'cultivation'::text
+          ORDER BY cost_model.effective_from DESC
+         LIMIT 1), 0::numeric)::text) || ' per pound. Worst room: '::text) || COALESCE(( SELECT v_cost_of_loss.scope
+           FROM v_cost_of_loss
+          WHERE v_cost_of_loss.scope_type = 'Room'::text
+          ORDER BY v_cost_of_loss.cost_of_waste DESC
+         LIMIT 1), 'none'::text) AS detail,
+    5 AS sort
+UNION ALL
+ SELECT 'Material without approved allocation'::text AS line,
+    (( SELECT count(*) AS count
+           FROM v_awaiting_allocation))::text AS headline,
+    'Every material grown or bought needs an approved allocation before it moves'::text AS detail,
+    6 AS sort
+UNION ALL
+ SELECT 'Capital sitting too long'::text AS line,
+    (( SELECT count(*) AS count
+           FROM v_inventory_aging
+          WHERE v_inventory_aging.severity = ANY (ARRAY['critical'::text, 'elevated'::text])))::text AS headline,
+    'Aging stock flagged critical or elevated'::text AS detail,
+    7 AS sort
+UNION ALL
+ SELECT 'Custody proof'::text AS line,
+    COALESCE(( SELECT v_custody_compliance.location_known_pct::text || '%'::text
+           FROM v_custody_compliance
+          WHERE v_custody_compliance.category = 'ALL TRACKED INVENTORY'::text), '—'::text) AS headline,
+    COALESCE(( SELECT v_custody_compliance.compliance_status
+           FROM v_custody_compliance
+          WHERE v_custody_compliance.category = 'ALL TRACKED INVENTORY'::text), ''::text) AS detail,
+    8 AS sort
+  ORDER BY 4;
+create or replace view public.v_cfo_spend_ageing as
+ SELECT COALESCE(ageing_band, 'unbanded'::text) AS ageing_band,
+    count(*) AS tags,
+    round(sum(lb_on_hand), 1) AS lb_on_hand,
+    round(sum(declared_value_on_hand_usd), 0) AS declared_cash_tied_usd,
+    round(avg(days_unsold_still_here), 0) AS avg_days_unsold,
+    max(days_unsold_still_here) AS worst_days_unsold
+   FROM v_cfo_spend_by_tag
+  WHERE COALESCE(lb_on_hand, 0::numeric) > 0::numeric
+  GROUP BY (COALESCE(ageing_band, 'unbanded'::text));
+create or replace view public.v_cfo_spend_by_supplier as
+ SELECT COALESCE(NULLIF(supplier, ''::text), 'unnamed supplier'::text) AS supplier,
+    supplier_licence,
+    count(*) AS tags,
+    min(date_received) AS first_bought,
+    max(date_received) AS last_bought,
+    round(sum(lb_received), 1) AS lb_bought,
+    round(sum(declared_usd), 0) AS declared_usd,
+    round(sum(declared_usd) / NULLIF(sum(lb_received) FILTER (WHERE cost_basis_status <> 'NONE'::text), 0::numeric), 0) AS declared_usd_per_lb,
+    round(sum(lb_on_hand), 1) AS lb_still_on_hand,
+    count(*) FILTER (WHERE cost_basis_status = 'NONE'::text) AS tags_no_figure
+   FROM v_cfo_spend_by_tag
+  GROUP BY (COALESCE(NULLIF(supplier, ''::text), 'unnamed supplier'::text)), supplier_licence;
+create or replace view public.v_cfo_spend_by_year as
+ SELECT year_received AS tax_year,
+    count(*) AS tags,
+    count(*) FILTER (WHERE cost_basis_status = 'NONE'::text) AS tags_no_figure,
+    round(sum(lb_received), 1) AS lb_bought,
+    round(sum(declared_usd), 0) AS declared_usd,
+    round(sum(declared_usd) / NULLIF(sum(lb_received) FILTER (WHERE cost_basis_status <> 'NONE'::text), 0::numeric), 0) AS declared_usd_per_lb,
+    round(sum(lb_on_hand), 1) AS lb_still_on_hand,
+    round(sum(declared_value_on_hand_usd), 0) AS declared_value_on_hand_usd,
+    round(sum(exit_sold_usd), 0) AS resold_usd
+   FROM v_cfo_spend_by_tag
+  GROUP BY year_received;
+create or replace view public.v_cfo_spend_coverage as
+ SELECT count(*) AS tags,
+    count(*) FILTER (WHERE cost_basis_status = 'DECLARED'::text) AS tags_declared,
+    count(*) FILTER (WHERE cost_basis_status = 'EVIDENCED'::text) AS tags_evidenced,
+    count(*) FILTER (WHERE cost_basis_status = 'NONE'::text) AS tags_no_figure,
+    round(sum(declared_usd), 0) AS declared_total_usd,
+    round(sum(lb_received) FILTER (WHERE cost_basis_status = 'NONE'::text), 1) AS lb_with_no_figure
+   FROM v_cfo_spend_by_tag;
+create or replace view public.v_department_board as
+ SELECT department,
+    items_needing_action,
+    open_alerts,
+    live_records,
+    what_is_wrong,
+    next_deadline,
+    next_deadline AS next_deadline_date
+   FROM ( SELECT 'Cultivation'::text AS department,
+            (( SELECT count(*) AS count
+                   FROM v_harvest_lifecycle
+                  WHERE v_harvest_lifecycle.verdict = ANY (ARRAY['BLOCKING THE ROOM'::text, 'MISSING WEIGHTS'::text, 'HARVESTED LATE'::text])))::numeric AS items_needing_action,
+            (( SELECT count(*) AS count
+                   FROM v_harvest_alerts))::numeric AS open_alerts,
+            (( SELECT count(*) AS count
+                   FROM metrc_plants
+                  WHERE metrc_plants.source_state = ANY (ARRAY['vegetative'::text, 'flowering'::text, 'onhold'::text])))::numeric AS live_records,
+            ( SELECT string_agg(DISTINCT v_harvest_lifecycle.verdict, ' · '::text) AS string_agg
+                   FROM v_harvest_lifecycle
+                  WHERE v_harvest_lifecycle.verdict <> ALL (ARRAY['Complete'::text, 'On track'::text])) AS what_is_wrong,
+            ( SELECT min(harvest_pulls.harvest_date) AS min
+                   FROM harvest_pulls
+                  WHERE harvest_pulls.harvest_date >= CURRENT_DATE) AS next_deadline
+        UNION ALL
+         SELECT 'Post-harvest (dry, cure, trim)'::text AS department,
+            (( SELECT count(*) AS count
+                   FROM v_harvest_stage_map
+                  WHERE v_harvest_stage_map.stage ~~ 'Drying%'::text AND v_harvest_stage_map.days_since_takedown > 14))::numeric AS items_needing_action,
+            (( SELECT count(*) AS count
+                   FROM v_harvest_stage_map
+                  WHERE v_harvest_stage_map.stage <> ALL (ARRAY['Finished'::text, 'Archived'::text])))::numeric AS open_alerts,
+            (( SELECT count(*) AS count
+                   FROM v_harvest_stage_map
+                  WHERE v_harvest_stage_map.stage <> ALL (ARRAY['Finished'::text, 'Archived'::text])))::numeric AS live_records,
+            ( SELECT string_agg(DISTINCT v_harvest_stage_map.stage, ' · '::text) AS string_agg
+                   FROM v_harvest_stage_map
+                  WHERE v_harvest_stage_map.stage <> ALL (ARRAY['Finished'::text, 'Archived'::text])) AS what_is_wrong,
+            ( SELECT min(v_harvest_stage_map.harvest_start + 14) AS min
+                   FROM v_harvest_stage_map
+                  WHERE v_harvest_stage_map.stage ~~ 'Drying%'::text) AS next_deadline
+        UNION ALL
+         SELECT 'Manufacturing'::text AS department,
+            (( SELECT count(*) AS count
+                   FROM v_turnaround_watch
+                  WHERE v_turnaround_watch.turnaround_violation))::numeric AS items_needing_action,
+            (( SELECT count(*) AS count
+                   FROM v_turnaround_watch
+                  WHERE v_turnaround_watch.no_policy_set))::numeric AS open_alerts,
+            (( SELECT count(*) AS count
+                   FROM pipeline_runs
+                  WHERE pipeline_runs.completed_at IS NULL))::numeric AS live_records,
+            'Open production runs and turnaround policy gaps'::text AS what_is_wrong,
+            NULL::date AS next_deadline
+        UNION ALL
+         SELECT 'Quality & compliance'::text AS department,
+            (( SELECT count(*) AS count
+                   FROM metrc_packages
+                  WHERE metrc_packages.lab_testing_state = 'TestFailed'::text AND (metrc_packages.source_state = ANY (ARRAY['active'::text, 'onhold'::text]))))::numeric AS items_needing_action,
+            (( SELECT count(*) AS count
+                   FROM v_custody_alerts))::numeric AS open_alerts,
+            (( SELECT count(*) AS count
+                   FROM metrc_packages
+                  WHERE metrc_packages.lab_testing_state = ANY (ARRAY['SubmittedForTesting'::text, 'TestingInProgress'::text])))::numeric AS live_records,
+            'Failed testing on hand and custody red flags'::text AS what_is_wrong,
+            NULL::date AS next_deadline
+        UNION ALL
+         SELECT 'Inventory & fulfilment'::text AS department,
+            (( SELECT count(*) AS count
+                   FROM v_inventory_aging
+                  WHERE v_inventory_aging.severity = 'critical'::text))::numeric AS items_needing_action,
+            (( SELECT count(*) AS count
+                   FROM v_inventory_aging
+                  WHERE v_inventory_aging.severity IS NOT NULL))::numeric AS open_alerts,
+            (( SELECT count(*) AS count
+                   FROM v_inventory_locator))::numeric AS live_records,
+            'Aging stock and unconfirmed manifests'::text AS what_is_wrong,
+            NULL::date AS next_deadline
+        UNION ALL
+         SELECT 'Human resources'::text AS department,
+            (( SELECT count(*) AS count
+                   FROM employees
+                  WHERE employees.terminated_on IS NULL AND employees.primary_role_id IS NULL))::numeric AS items_needing_action,
+            0::numeric AS open_alerts,
+            (( SELECT count(*) AS count
+                   FROM employees
+                  WHERE employees.terminated_on IS NULL))::numeric AS live_records,
+            'Roster records missing a position'::text AS what_is_wrong,
+            NULL::date AS next_deadline) q;
+create or replace view public.v_department_kpis_extra as
+ SELECT 'Human Resources'::text AS dept,
+    1 AS ord,
+    'People on the roster'::text AS kpi,
+    (( SELECT count(*) AS count
+           FROM employees))::numeric AS value,
+    'people'::text AS unit,
+    'good'::text AS tone,
+    'people'::text AS drill,
+    ''::text AS sub
+UNION ALL
+ SELECT 'Human Resources'::text AS dept,
+    2 AS ord,
+    'Shifts scheduled this week'::text AS kpi,
+    (( SELECT count(*) AS count
+           FROM employee_schedules
+          WHERE employee_schedules.work_date >= CURRENT_DATE AND employee_schedules.work_date <= (CURRENT_DATE + 7)))::numeric AS value,
+    'shifts'::text AS unit,
+    'good'::text AS tone,
+    'emp_schedule'::text AS drill,
+    'next seven days'::text AS sub
+UNION ALL
+ SELECT 'Human Resources'::text AS dept,
+    3 AS ord,
+    'Departments'::text AS kpi,
+    (( SELECT count(*) AS count
+           FROM departments))::numeric AS value,
+    'departments'::text AS unit,
+    'good'::text AS tone,
+    'people'::text AS drill,
+    ''::text AS sub
+UNION ALL
+ SELECT 'Human Resources'::text AS dept,
+    4 AS ord,
+    'Stock the payroll is carried against'::text AS kpi,
+    COALESCE(( SELECT v_tower_inventory.value
+           FROM v_tower_inventory
+          WHERE v_tower_inventory.metric = 'onhand_total_dry_equiv_lb'::text), 0::numeric) AS value,
+    'lb'::text AS unit,
+    'good'::text AS tone,
+    'plan_payroll'::text AS drill,
+    ''::text AS sub
+UNION ALL
+ SELECT 'Infused Pre-Rolls & Flower'::text AS dept,
+    1 AS ord,
+    'Pre-rolls on hand'::text AS kpi,
+    COALESCE(( SELECT round(sum(v_stock_on_hand.pounds), 1) AS round
+           FROM v_stock_on_hand
+          WHERE v_stock_on_hand.stream = 'Pre-rolls'::text), 0::numeric) AS value,
+    'lb'::text AS unit,
+    'good'::text AS tone,
+    'stock_summary'::text AS drill,
+    ''::text AS sub
+UNION ALL
+ SELECT 'Infused Pre-Rolls & Flower'::text AS dept,
+    2 AS ord,
+    'Shake and trim available'::text AS kpi,
+    COALESCE(( SELECT v_tower_inventory.value
+           FROM v_tower_inventory
+          WHERE v_tower_inventory.metric = 'onhand_shake_trim_lb'::text), 0::numeric) AS value,
+    'lb'::text AS unit,
+    'good'::text AS tone,
+    'stock_summary'::text AS drill,
+    'the input for pre-rolls'::text AS sub
+UNION ALL
+ SELECT 'Infused Pre-Rolls & Flower'::text AS dept,
+    3 AS ord,
+    'Work orders open'::text AS kpi,
+    (( SELECT count(*) AS count
+           FROM work_orders
+          WHERE work_orders.status = ANY (ARRAY['ready'::wo_status, 'released'::wo_status])))::numeric AS value,
+    'orders'::text AS unit,
+    'warn'::text AS tone,
+    'work_orders'::text AS drill,
+    ''::text AS sub
+UNION ALL
+ SELECT 'Infused Pre-Rolls & Flower'::text AS dept,
+    4 AS ord,
+    'Pre-rolls never tested'::text AS kpi,
+    COALESCE(( SELECT round(sum(v_stock_on_hand.pounds), 1) AS round
+           FROM v_stock_on_hand
+          WHERE v_stock_on_hand.stream = 'Pre-rolls'::text AND v_stock_on_hand.lab_state = 'NotSubmitted'::text), 0::numeric) AS value,
+    'lb'::text AS unit,
+    'bad'::text AS tone,
+    'lab_results'::text AS drill,
+    'cannot be sold'::text AS sub
+UNION ALL
+ SELECT 'Settings'::text AS dept,
+    1 AS ord,
+    'Pages in the platform'::text AS kpi,
+    (( SELECT count(*) AS count
+           FROM nav_registry
+          WHERE nav_registry.enabled))::numeric AS value,
+    'pages'::text AS unit,
+    'good'::text AS tone,
+    'menu_manager'::text AS drill,
+    ''::text AS sub
+UNION ALL
+ SELECT 'Settings'::text AS dept,
+    2 AS ord,
+    'Business rules not yet set'::text AS kpi,
+    (( SELECT count(*) AS count
+           FROM open_questions
+          WHERE open_questions.status = 'open'::text AND (open_questions.area = ANY (ARRAY['Measurement'::text, 'Inventory control'::text]))))::numeric AS value,
+    'rules'::text AS unit,
+    'warn'::text AS tone,
+    'open_questions'::text AS drill,
+    'defaults still in place'::text AS sub
+UNION ALL
+ SELECT 'Settings'::text AS dept,
+    3 AS ord,
+    'Suppliers not classified'::text AS kpi,
+    (( SELECT count(*) AS count
+           FROM suppliers
+          WHERE suppliers.bought_as = 'not yet set'::text))::numeric AS value,
+    'suppliers'::text AS unit,
+    'warn'::text AS tone,
+    'suppliers'::text AS drill,
+    ''::text AS sub
+UNION ALL
+ SELECT 'Settings'::text AS dept,
+    4 AS ord,
+    'Users with AI access'::text AS kpi,
+    (( SELECT count(*) AS count
+           FROM ai_user_access
+          WHERE ai_user_access.enabled))::numeric AS value,
+    'users'::text AS unit,
+    'good'::text AS tone,
+    'ai_access_status'::text AS drill,
+    ''::text AS sub;
+create or replace view public.v_inventory_report as
+ SELECT v.package_tag,
+    v.item_name,
+    v.strain,
+    v.category,
+    v.stream,
+    v.room,
+    v.sublocation,
+    v.licence,
+    v.status,
+    v.lab_state,
+    v.on_hold,
+    v.finished,
+    v.is_weighed,
+    v.unit_of_measure,
+    v.pounds,
+    v.units,
+    v.quantity_shown,
+    v.weight_basis,
+    v.pounds_wet,
+    v.pounds_dry,
+    v.pounds_dry_equivalent,
+    v.packaged_on,
+    v.days_held,
+    v.age_band,
+    v.past_age_limit,
+    v.item_defined_by,
+    v.item_defined_by_name,
+    v.custody_origin_licences,
+    v.ownership,
+    v.certificate_client,
+    v.certificate_licence,
+    v.from_harvest,
+    v.made_from_n_packages,
+    v.is_primary_production,
+    v.arrived_on_manifest,
+    v.received_from,
+    v.has_certificate,
+    v.certificate_basis,
+    v.manifests_held,
+    v.document_status,
+    v.value_at_our_cost,
+    v.cost_basis,
+    td.coa_certificate_id,
+    td.coa_document_link,
+    td.manifest_no,
+    td.manifest_document_link,
+    td.apex_invoice_no,
+    td.apex_invoice_usd
+   FROM ( WITH p AS (
+                 SELECT DISTINCT ON (metrc_packages.tag) metrc_packages.tag,
+                    metrc_packages.item_name,
+                    metrc_packages.license,
+                    metrc_packages.uom,
+                    metrc_packages.quantity,
+                    metrc_packages.source_state,
+                    metrc_packages.lab_testing_state,
+                    metrc_packages.packaged_on,
+                    metrc_packages.raw
+                   FROM metrc_packages
+                  ORDER BY metrc_packages.tag, metrc_packages.license
+                ), ff AS (
+                 SELECT f_rule('fresh_frozen_wet_to_dry'::text) AS ratio
+                )
+         SELECT p.tag AS package_tag,
+            p.item_name,
+            p.raw #>> '{Item,StrainName}'::text[] AS strain,
+            p.raw #>> '{Item,ProductCategoryName}'::text[] AS category,
+                CASE
+                    WHEN (p.raw #>> '{Item,ProductCategoryName}'::text[]) ~~* '%fresh frozen%'::text THEN 'Fresh frozen'::text
+                    WHEN (p.raw #>> '{Item,ProductCategoryName}'::text[]) ~~* '%bud%'::text THEN 'Dried flower'::text
+                    WHEN (p.raw #>> '{Item,ProductCategoryName}'::text[]) ~~* '%shake%'::text OR (p.raw #>> '{Item,ProductCategoryName}'::text[]) ~~* '%trim%'::text THEN 'Shake and trim'::text
+                    WHEN (p.raw #>> '{Item,ProductCategoryName}'::text[]) ~~* '%concentrate%'::text THEN 'Concentrate'::text
+                    WHEN (p.raw #>> '{Item,ProductCategoryName}'::text[]) ~~* '%pre-roll%'::text OR (p.raw #>> '{Item,ProductCategoryName}'::text[]) ~~* '%preroll%'::text THEN 'Pre-rolls'::text
+                    WHEN (p.raw #>> '{Item,ProductCategoryName}'::text[]) ~~* '%edible%'::text THEN 'Edibles'::text
+                    WHEN (p.raw #>> '{Item,ProductCategoryName}'::text[]) ~~* '%vape%'::text THEN 'Vapes'::text
+                    WHEN (p.raw #>> '{Item,ProductCategoryName}'::text[]) ~~* '%seed%'::text THEN 'Seeds'::text
+                    ELSE COALESCE(p.raw #>> '{Item,ProductCategoryName}'::text[], 'Other'::text)
+                END AS stream,
+            p.raw ->> 'LocationName'::text AS room,
+            NULLIF(p.raw ->> 'SublocationName'::text, ''::text) AS sublocation,
+            p.license AS licence,
+            p.source_state AS status,
+            p.lab_testing_state AS lab_state,
+            (p.raw ->> 'IsOnHold'::text)::boolean AS on_hold,
+            (p.raw ->> 'IsFinished'::text)::boolean AS finished,
+            f_is_weight(p.uom) AS is_weighed,
+            p.uom AS unit_of_measure,
+                CASE
+                    WHEN f_is_weight(p.uom) THEN round(f_to_pounds(p.quantity, p.uom), 3)
+                    ELSE NULL::numeric
+                END AS pounds,
+                CASE
+                    WHEN NOT f_is_weight(p.uom) THEN p.quantity
+                    ELSE NULL::numeric
+                END AS units,
+            f_quantity_text(p.quantity, p.uom) AS quantity_shown,
+                CASE
+                    WHEN f_is_weight(p.uom) AND (p.raw #>> '{Item,ProductCategoryName}'::text[]) ~~* '%fresh frozen%'::text THEN 'wet'::text
+                    WHEN f_is_weight(p.uom) THEN 'dry'::text
+                    ELSE NULL::text
+                END AS weight_basis,
+                CASE
+                    WHEN f_is_weight(p.uom) AND (p.raw #>> '{Item,ProductCategoryName}'::text[]) ~~* '%fresh frozen%'::text THEN round(f_to_pounds(p.quantity, p.uom), 3)
+                    ELSE NULL::numeric
+                END AS pounds_wet,
+                CASE
+                    WHEN f_is_weight(p.uom) AND (p.raw #>> '{Item,ProductCategoryName}'::text[]) !~~* '%fresh frozen%'::text THEN round(f_to_pounds(p.quantity, p.uom), 3)
+                    ELSE NULL::numeric
+                END AS pounds_dry,
+                CASE
+                    WHEN f_is_weight(p.uom) THEN round(
+                    CASE
+                        WHEN (p.raw #>> '{Item,ProductCategoryName}'::text[]) ~~* '%fresh frozen%'::text THEN f_to_pounds(p.quantity, p.uom) / (( SELECT ff.ratio
+                           FROM ff))
+                        ELSE f_to_pounds(p.quantity, p.uom)
+                    END, 3)
+                    ELSE NULL::numeric
+                END AS pounds_dry_equivalent,
+            p.packaged_on,
+            CURRENT_DATE - p.packaged_on AS days_held,
+                CASE
+                    WHEN (CURRENT_DATE - p.packaged_on) > 365 THEN 'over a year'::text
+                    WHEN (CURRENT_DATE - p.packaged_on) > 180 THEN '180-365 days'::text
+                    WHEN (CURRENT_DATE - p.packaged_on) > 90 THEN '90-180 days'::text
+                    WHEN (CURRENT_DATE - p.packaged_on) > 30 THEN '30-90 days'::text
+                    ELSE 'under 30 days'::text
+                END AS age_band,
+            (CURRENT_DATE - p.packaged_on) > 180 AS past_age_limit,
+            p.raw ->> 'ItemFromFacilityLicenseNumber'::text AS item_defined_by,
+            p.raw ->> 'ItemFromFacilityName'::text AS item_defined_by_name,
+            oc.custody_says AS custody_origin_licences,
+            COALESCE(oc.custody_verdict, 'not assessed - only active packages are judged'::text) AS ownership,
+            cr.cert_client AS certificate_client,
+            cr.cert_license AS certificate_licence,
+            NULLIF(p.raw ->> 'SourceHarvestNames'::text, ''::text) AS from_harvest,
+            (p.raw ->> 'SourcePackageCount'::text)::integer AS made_from_n_packages,
+            ((p.raw ->> 'SourcePackageCount'::text)::integer) = 0 AS is_primary_production,
+            NULLIF(p.raw ->> 'ReceivedFromManifestNumber'::text, ''::text) AS arrived_on_manifest,
+            NULLIF(p.raw ->> 'ReceivedFromFacilityName'::text, ''::text) AS received_from,
+            cr.package_tag IS NOT NULL AS has_certificate,
+            cr.certificate_link AS certificate_basis,
+            ( SELECT count(DISTINCT l.manifest_number) AS count
+                   FROM v_document_package_link l
+                  WHERE l.package_tag = p.tag AND l.doc_type = 'manifest'::text) AS manifests_held,
+                CASE
+                    WHEN cr.package_tag IS NOT NULL AND (EXISTS ( SELECT 1
+                       FROM v_document_package_link l
+                      WHERE l.package_tag = p.tag AND l.doc_type = 'manifest'::text)) THEN 'COMPLETE - certificate and manifest'::text
+                    WHEN cr.package_tag IS NOT NULL THEN 'certificate only'::text
+                    WHEN (EXISTS ( SELECT 1
+                       FROM v_document_package_link l
+                      WHERE l.package_tag = p.tag AND l.doc_type = 'manifest'::text)) THEN 'manifest only'::text
+                    ELSE 'NEITHER'::text
+                END AS document_status,
+                CASE
+                    WHEN f_is_weight(p.uom) AND f_is_ours(p.raw ->> 'ItemFromFacilityLicenseNumber'::text) THEN round(
+                    CASE
+                        WHEN (p.raw #>> '{Item,ProductCategoryName}'::text[]) ~~* '%fresh frozen%'::text THEN f_to_pounds(p.quantity, p.uom) / (( SELECT ff.ratio
+                           FROM ff))
+                        ELSE f_to_pounds(p.quantity, p.uom)
+                    END * (( SELECT cm.cost_per_pound
+                       FROM cost_model cm
+                      WHERE cm.scope = 'cultivation'::text
+                      ORDER BY cm.effective_from DESC
+                     LIMIT 1)), 0)
+                    ELSE NULL::numeric
+                END AS value_at_our_cost,
+                CASE
+                    WHEN NOT f_is_weight(p.uom) THEN 'countable - no weight, no cost per pound'::text
+                    WHEN NOT f_is_ours(p.raw ->> 'ItemFromFacilityLicenseNumber'::text) THEN 'bought in - material_purchases is EMPTY, what was paid exists nowhere'::text
+                    ELSE 'our cultivation cost per pound, dry-equivalent basis'::text
+                END AS cost_basis
+           FROM p
+             LEFT JOIN v_ownership_by_custody oc ON oc.package_tag = p.tag
+             LEFT JOIN v_certificate_resolved cr ON cr.package_tag = p.tag) v
+     LEFT JOIN mv_tag_documents td ON td.tag = v.package_tag;
+create or replace view public.v_issue_no_allocation as
+ SELECT v.material_class,
+    v.origin,
+    v.item,
+    v.strain,
+    v.identifier,
+    v.quantity,
+    v.uom,
+    v.location,
+    v.stage,
+    v.days_in_system,
+    v.vendor,
+    v.approval_state,
+    v.what_is_wrong,
+    v.what_to_do,
+    td.coa_certificate_id,
+    td.coa_document_link,
+    td.manifest_no,
+    td.manifest_document_link,
+    td.apex_invoice_no,
+    td.apex_invoice_usd
+   FROM ( SELECT v_awaiting_allocation.material_class,
+            v_awaiting_allocation.origin,
+            v_awaiting_allocation.item,
+            v_awaiting_allocation.strain,
+            v_awaiting_allocation.identifier,
+            v_awaiting_allocation.quantity,
+            v_awaiting_allocation.uom,
+            v_awaiting_allocation.location,
+            v_awaiting_allocation.stage,
+            v_awaiting_allocation.days_in_system,
+            v_awaiting_allocation.vendor,
+            v_awaiting_allocation.approval_state,
+            ('THE ISSUE: '::text || v_awaiting_allocation.approval_state) || '. Material is in the facility with no approved destination.'::text AS what_is_wrong,
+            'Raise an allocation request, or approve the pending one, before this material moves.'::text AS what_to_do
+           FROM v_awaiting_allocation
+          ORDER BY v_awaiting_allocation.days_in_system DESC NULLS LAST) v
+     LEFT JOIN mv_tag_documents td ON td.tag = v.identifier;
+create or replace view public.v_item_documents as
+ SELECT v.package_tag,
+    v.item_name,
+    v.source_state,
+    v.lab_testing_state,
+    v.pounds,
+    v.coa_count,
+    v.manifest_count,
+    v.coa_depth,
+    v.coa_is_direct,
+    v.manifests,
+    v.was_tested,
+    v.was_shipped,
+    v.document_status,
+    td.coa_certificate_id,
+    td.coa_document_link,
+    td.manifest_no,
+    td.manifest_document_link,
+    td.apex_invoice_no,
+    td.apex_invoice_usd
+   FROM ( SELECT p.tag AS package_tag,
+            "left"(p.item_name, 55) AS item_name,
+            p.source_state,
+            p.lab_testing_state,
+                CASE
+                    WHEN f_is_weight(p.uom) THEN round(f_to_pounds(p.quantity, p.uom), 2)
+                    ELSE NULL::numeric
+                END AS pounds,
+            count(*) FILTER (WHERE l.doc_type = 'coa'::text) AS coa_count,
+            count(DISTINCT l.manifest_number) AS manifest_count,
+            min(l.link_depth) FILTER (WHERE l.doc_type = 'coa'::text) AS coa_depth,
+            bool_or(l.doc_type = 'coa'::text AND l.link_depth = 0) AS coa_is_direct,
+            string_agg(DISTINCT l.manifest_number, ', '::text) FILTER (WHERE l.doc_type = 'manifest'::text) AS manifests,
+            p.lab_testing_state = ANY (ARRAY['TestPassed'::text, 'TestFailed'::text]) AS was_tested,
+            (EXISTS ( SELECT 1
+                   FROM metrc_rpt_package_transfers t
+                  WHERE t.package_tag = p.tag)) AS was_shipped,
+                CASE
+                    WHEN count(*) FILTER (WHERE l.doc_type = 'coa'::text) > 0 AND count(*) FILTER (WHERE l.doc_type = 'manifest'::text) > 0 THEN 'COMPLETE - COA and manifest'::text
+                    WHEN count(*) FILTER (WHERE l.doc_type = 'coa'::text) > 0 THEN 'COA only'::text
+                    WHEN count(*) FILTER (WHERE l.doc_type = 'manifest'::text) > 0 THEN 'MANIFEST only'::text
+                    ELSE 'NEITHER'::text
+                END AS document_status
+           FROM ( SELECT DISTINCT ON (metrc_packages.tag) metrc_packages.tag,
+                    metrc_packages.item_name,
+                    metrc_packages.uom,
+                    metrc_packages.quantity,
+                    metrc_packages.source_state,
+                    metrc_packages.lab_testing_state
+                   FROM metrc_packages
+                  ORDER BY metrc_packages.tag, metrc_packages.license) p
+             LEFT JOIN v_document_package_link l ON l.package_tag = p.tag
+          GROUP BY p.tag, ("left"(p.item_name, 55)), p.source_state, p.lab_testing_state, (
+                CASE
+                    WHEN f_is_weight(p.uom) THEN round(f_to_pounds(p.quantity, p.uom), 2)
+                    ELSE NULL::numeric
+                END), (p.lab_testing_state = ANY (ARRAY['TestPassed'::text, 'TestFailed'::text])), ((EXISTS ( SELECT 1
+                   FROM metrc_rpt_package_transfers t
+                  WHERE t.package_tag = p.tag)))) v
+     LEFT JOIN mv_tag_documents td ON td.tag = v.package_tag;
+create or replace view public.v_item_flags_all as
+ WITH raw_flags AS (
+         SELECT 'package'::text AS entity_type,
+            r.row_key AS entity_key,
+                CASE
+                    WHEN r.agent_confidence = 'needs_a_person'::text THEN 'elevated'::text
+                    ELSE 'watch'::text
+                END AS severity,
+            'Upload disagreement on '::text || r.field_name AS headline,
+            (((('The file says '::text || COALESCE(r.value_in_the_file, '(blank)'::text)) || ' where we hold '::text) || COALESCE(r.value_we_hold, '(blank)'::text)) || COALESCE(' - a difference of '::text || round(r.difference, 4), ''::text)) || COALESCE((' ('::text || round(r.pct_difference, 2)) || '%)'::text, ''::text) AS detail,
+            COALESCE(r.agent_reasoning, 'No recommendation was recorded.'::text) AS why,
+                CASE r.agent_recommendation
+                    WHEN 'accept_file'::text THEN 'AgentMapper suggests taking the file value. Confirm or reject.'::text
+                    WHEN 'keep_ours'::text THEN 'AgentMapper suggests keeping ours. Confirm or reject.'::text
+                    ELSE 'AgentMapper could not decide. Someone who knows this record must choose.'::text
+                END AS what_to_do,
+            'import_reconciliation'::text AS source,
+            r.id::text AS source_ref,
+            r.created_at::date AS raised_on,
+            r.report_key AS context,
+            run.licence
+           FROM import_reconciliation r
+             LEFT JOIN import_reconciliation_run run ON run.id = r.run_id
+          WHERE r.outcome = 'differs'::text AND r.decision IS NULL
+        UNION ALL
+         SELECT 'package'::text AS text,
+            t.tag,
+                CASE
+                    WHEN c.urgency = 'urgent'::text THEN 'critical'::text
+                    ELSE 'elevated'::text
+                END AS "case",
+            c.title,
+            c.what_is_wrong,
+            c.why_it_matters,
+            c.how_to_fix_in_metrc,
+            'metrc_corrections'::text AS text,
+            (c.id::text || ':'::text) || t.tag,
+            c.raised_on,
+            'Metrc record'::text AS text,
+            ( SELECT p.license
+                   FROM metrc_packages p
+                  WHERE p.tag = t.tag
+                 LIMIT 1) AS license
+           FROM metrc_corrections c
+             CROSS JOIN LATERAL ( SELECT btrim(x.x) AS tag
+                   FROM unnest(string_to_array(COALESCE(c.packages_affected, ''::text), ','::text)) x(x)) t
+          WHERE c.fixed_in_metrc = false AND t.tag ~ '^1A[0-9A-Z]{22}$'::text AND (EXISTS ( SELECT 1
+                   FROM metrc_packages p
+                  WHERE p.tag = t.tag))
+        UNION ALL
+         SELECT 'correction'::text AS text,
+            c.id::text AS id,
+                CASE
+                    WHEN c.urgency = 'urgent'::text THEN 'critical'::text
+                    ELSE 'elevated'::text
+                END AS "case",
+            c.title,
+            c.what_is_wrong,
+            c.why_it_matters,
+            c.how_to_fix_in_metrc,
+            'metrc_corrections'::text AS text,
+            c.id::text AS id,
+            c.raised_on,
+            COALESCE(NULLIF(btrim(c.packages_affected), ''::text), 'Company-wide'::text) AS "coalesce",
+            NULL::text AS text
+           FROM metrc_corrections c
+          WHERE c.fixed_in_metrc = false AND NOT (EXISTS ( SELECT 1
+                   FROM unnest(string_to_array(COALESCE(c.packages_affected, ''::text), ','::text)) x(x)
+                  WHERE btrim(x.x) ~ '^1A[0-9A-Z]{22}$'::text AND (EXISTS ( SELECT 1
+                           FROM metrc_packages p
+                          WHERE p.tag = btrim(x.x)))))
+        UNION ALL
+         SELECT 'package'::text AS text,
+            p.package_tag,
+                CASE
+                    WHEN p.verdict ~~ 'METRC HOLDS ZERO%'::text THEN 'critical'::text
+                    ELSE 'elevated'::text
+                END AS "case",
+            'Potency disagrees with the COA'::text AS text,
+            ((((((((('Metrc records '::text || p.metrc_value) || ' '::text) || COALESCE(p.metrc_unit, ''::text)) || '; COA '::text) || COALESCE(p.coa_document, '(no document id)'::text)) || ' reports '::text) || p.coa_percent) || '%. Difference '::text) || p.difference) || ' percentage points.'::text,
+            'The certificate of analysis is independent of Metrc, so it is the only thing that can catch a wrong figure inside Metrc.'::text AS text,
+            'Compare against the COA document and raise a Metrc correction if the state record is wrong. Do not edit the figure only here.'::text AS text,
+            'v_potency_vs_coa'::text AS text,
+            p.package_tag,
+            CURRENT_DATE AS "current_date",
+            'Lab result'::text AS text,
+            p.license
+           FROM v_potency_vs_coa p
+          WHERE p.verdict = ANY (ARRAY['disagrees with the COA - needs a person'::text, 'METRC HOLDS ZERO, THE COA DOES NOT - raise a correction'::text])
+        UNION ALL
+         SELECT 'package'::text AS text,
+            p.tag,
+            'critical'::text AS text,
+            ('OUR OWN '::text || upper(COALESCE(p.raw #>> '{Item,ProductCategoryName}'::text[], 'material'::text))) || ' FAILED TESTING - address with the team'::text AS text,
+            ((((((((round(COALESCE(p.quantity, 0::numeric) / f_rule('grams_per_pound'::text), 1) || ' lb of '::text) || COALESCE(p.item_name, '(unnamed)'::text)) || COALESCE((' (strain '::text || (p.raw #>> '{Item,StrainName}'::text[])) || ')'::text, ''::text)) || ' in '::text) || COALESCE(p.location, 'no location recorded'::text)) || '. Failed on: '::text) || COALESCE(( SELECT string_agg(DISTINCT r.test_name, '; '::text) AS string_agg
+                   FROM metrc_lab_results r
+                  WHERE r.package_tag = p.tag AND r.passed = false), 'NO FAILED TEST ON RECORD - the reason was never captured, so nobody can act on it'::text)) || '. Source harvests: '::text) || COALESCE(NULLIF(p.raw ->> 'SourceHarvestNames'::text, ''::text), 'not recorded'::text) AS text,
+            (('This is our own production failing, which is a team matter before it is a stock matter. '::text || 'The material is remediated and processed either way, so this is not a money loss - '::text) || 'it is the signal that something in growing, drying or extraction produced it. '::text) || 'Remediating it recovers the value and answers nothing about the cause.'::text AS text,
+            ('Raise it with the team responsible, trace it to the source harvest and room, and record '::text || 'what is being changed. THEN remediate and process. Where no failed test is on record, '::text) || 'get the result from the laboratory first - without it the team has nothing to act on.'::text AS text,
+            'failed_own_material'::text AS text,
+            p.tag,
+            CURRENT_DATE AS "current_date",
+            COALESCE(p.raw #>> '{Item,ProductCategoryName}'::text[], 'Failed testing'::text) AS "coalesce",
+            p.license
+           FROM metrc_packages p
+          WHERE p.lab_testing_state = 'TestFailed'::text AND (p.source_state = ANY (ARRAY['active'::text, 'onhold'::text])) AND ((p.raw ->> 'ItemFromFacilityLicenseNumber'::text) = ANY (ARRAY['MC281714'::text, 'MP281909'::text]))
+        UNION ALL
+         SELECT 'package'::text AS text,
+            a.package_tag,
+            'watch'::text AS text,
+            'Conflicting adjustment records'::text AS text,
+            ((('We hold '::text || a.rows_held) || ' adjustment rows for this package with '::text) || a.distinct_quantities) || ' different quantities.'::text,
+            COALESCE(a.reading, 'The same package was adjusted to more than one quantity.'::text) AS "coalesce",
+            'Establish which adjustment is correct and record the decision.'::text AS text,
+            'v_adjustment_conflicts'::text AS text,
+            a.package_tag,
+            COALESCE(a.adjusted_on, CURRENT_DATE) AS "coalesce",
+            'Adjustment'::text AS text,
+            a.licence
+           FROM v_adjustment_conflicts a
+          WHERE a.needs_a_decision
+        )
+ SELECT f.entity_type,
+    f.entity_key,
+        CASE
+            WHEN d.decision = 'fixed'::text THEN 'critical'::text
+            ELSE f.severity
+        END AS severity,
+    f.headline,
+    f.detail,
+    f.why,
+    f.what_to_do,
+    f.source,
+    f.source_ref,
+    f.raised_on,
+    f.context,
+        CASE
+            WHEN d.id IS NULL THEN 'open'::text
+            WHEN d.decision = 'fixed'::text THEN 'MARKED FIXED BUT STILL PRESENT'::text
+            WHEN d.decision = 'ignored'::text AND d.review_on <= CURRENT_DATE THEN 'ignore expired - back for review'::text
+            WHEN d.decision = 'ignored'::text THEN 'ignored until '::text || d.review_on
+            ELSE d.decision
+        END AS disposition,
+    d.reason AS decision_reason,
+    d.note AS decision_note,
+    d.decided_by,
+    d.decided_at,
+    d.review_on,
+    d.id IS NULL OR d.decision = 'fixed'::text OR d.decision = 'ignored'::text AND d.review_on <= CURRENT_DATE AS needs_a_decision,
+    f.licence,
+    COALESCE(lp.short_name,
+        CASE
+            WHEN f.entity_type = 'correction'::text THEN 'Company-wide'::text
+            ELSE 'Not attributed to a licence'::text
+        END) AS area,
+    lp.colour AS area_colour,
+    CURRENT_DATE - f.raised_on AS days_open
+   FROM raw_flags f
+     LEFT JOIN licence_profile lp ON lp.licence = f.licence
+     LEFT JOIN item_flag_decision d ON d.entity_type = f.entity_type AND d.entity_key = f.entity_key AND d.source = f.source AND d.source_ref = f.source_ref AND d.superseded_at IS NULL;
+create or replace view public.v_leadership_accountability as
+ WITH paid AS (
+         SELECT e.id,
+            e.full_name,
+            e.employee_code,
+            COALESCE(rc.name, 'not recorded'::text) AS "position",
+            COALESCE(d.name, 'not assigned'::text) AS department,
+            e.weekly_target_hours,
+            ( SELECT round(pf.loaded_weekly_cost, 0) AS round
+                   FROM v_payroll_forecast pf
+                  WHERE pf.full_name = e.full_name
+                 LIMIT 1) AS loaded_weekly_cost,
+            ( SELECT round(pf.loaded_weekly_cost * 52::numeric, 0) AS round
+                   FROM v_payroll_forecast pf
+                  WHERE pf.full_name = e.full_name
+                 LIMIT 1) AS loaded_annual_cost
+           FROM employees e
+             LEFT JOIN roles_catalog rc ON rc.id = e.primary_role_id
+             LEFT JOIN departments d ON d.id = e.primary_department_id
+          WHERE e.terminated_on IS NULL
+        )
+ SELECT full_name,
+    "position",
+    department,
+    employee_code,
+    loaded_weekly_cost,
+    loaded_annual_cost,
+        CASE
+            WHEN department ~~* '%cultivation%'::text THEN ( SELECT count(*) AS count
+               FROM v_late_violations
+              WHERE v_late_violations.rule_verdict ~~ 'VIOLATION%'::text)
+            WHEN department ~~* '%pre-roll%'::text OR department ~~* '%manufactur%'::text OR department ~~* '%extract%'::text OR department ~~* '%packag%'::text THEN ( SELECT count(*) AS count
+               FROM v_turnaround_watch
+              WHERE v_turnaround_watch.turnaround_violation)
+            ELSE NULL::bigint
+        END AS violations_in_their_area,
+        CASE
+            WHEN department ~~* '%cultivation%'::text THEN ( SELECT round(avg(v_true_cost_per_pound.wet_to_saleable_pct), 1) AS round
+               FROM v_true_cost_per_pound
+              WHERE v_true_cost_per_pound.month_date >= (CURRENT_DATE - 90))
+            ELSE NULL::numeric
+        END AS area_conversion_pct_90d,
+        CASE
+            WHEN department ~~* '%cultivation%'::text THEN ( SELECT count(*) AS count
+               FROM v_harvest_lifecycle
+              WHERE v_harvest_lifecycle.verdict = 'MISSING WEIGHTS'::text)
+            ELSE NULL::bigint
+        END AS missing_weight_reports,
+        CASE
+            WHEN department ~~* '%cultivation%'::text THEN ( SELECT count(*) AS count
+               FROM v_harvest_lifecycle
+              WHERE v_harvest_lifecycle.verdict = 'BLOCKING THE ROOM'::text)
+            ELSE NULL::bigint
+        END AS rooms_blocked,
+    ( SELECT count(*) AS count
+           FROM v_custody_alerts) AS company_compliance_flags,
+        CASE
+            WHEN loaded_annual_cost IS NULL THEN 'Pay rate not loaded - cannot measure cost against delivery'::text
+            WHEN department ~~* '%cultivation%'::text AND (( SELECT count(*) AS count
+               FROM v_late_violations
+              WHERE v_late_violations.rule_verdict ~~ 'VIOLATION%'::text)) > 0 THEN 'Schedule violations in their area - review directly'::text
+            WHEN department = 'not assigned'::text THEN 'No department assigned - cannot attribute accountability'::text
+            ELSE 'No open violations attributed to their area'::text
+        END AS accountability_note
+   FROM paid p
+  ORDER BY loaded_annual_cost DESC NULLS LAST;
+create or replace view public.v_metrc_apex_tag_reconciliation as
+ SELECT s.package_tag,
+    s.manifest_number,
+    s.shipped_on,
+    s.buyer,
+    s.buyer_licence,
+    round(COALESCE(s.pounds, 0::numeric), 3) AS lb,
+    s.invoice_number AS apex_invoice,
+    s.total_usd AS apex_usd,
+    s.payment_status,
+        CASE
+            WHEN s.internal_transfer THEN 'NOT A SALE — INTERNAL MOVE'::text
+            WHEN s.is_transport_leg THEN 'NOT A SALE — TRANSPORT LEG'::text
+            WHEN NOT f_can_be_a_customer(s.buyer_licence) THEN 'NOT A SALE — LABORATORY'::text
+            WHEN s.invoice_match = 'matched'::text THEN 'RECONCILED'::text
+            WHEN s.shipped_on < '2025-01-30'::date THEN 'PRE-INVOICE ERA — matching impossible'::text
+            WHEN u.manifest_number IS NOT NULL AND u.diagnosis ~~ 'LICENCE FORMAT%'::text THEN 'APEX HAS IT — JOIN BROKEN (licence format)'::text
+            ELSE 'ABSENT FROM APEX — investigate (deal-docs endpoint never synced)'::text
+        END AS verdict,
+    u.apex_candidate_invoice,
+    u.apex_candidate_usd
+   FROM v_forensic_sold_by_tag s
+     LEFT JOIN v_unmatched_manifest_forensic u ON u.manifest_number = s.manifest_number;
+create or replace view public.v_ownership_verdict as
+ SELECT v.package_tag,
+    v.item_name,
+    v.source_state,
+    v.lab_testing_state,
+    v.pounds,
+    v.platform_says,
+    v.lineage_says,
+    v.lineage_licences,
+    v.inbound_manifests,
+    v.certificate_says,
+    v.certificate_license,
+    v.certificate_link,
+    v.certificate_on_package,
+    v.verdict,
+    v.what_is_wrong,
+    v.units,
+    v.unit_of_measure,
+    v.how_much,
+    td.coa_certificate_id,
+    td.coa_document_link,
+    td.manifest_no,
+    td.manifest_document_link,
+    td.apex_invoice_no,
+    td.apex_invoice_usd
+   FROM ( SELECT mv_ownership_verdict.package_tag,
+            mv_ownership_verdict.item_name,
+            mv_ownership_verdict.source_state,
+            mv_ownership_verdict.lab_testing_state,
+            mv_ownership_verdict.pounds,
+            mv_ownership_verdict.platform_says,
+            mv_ownership_verdict.lineage_says,
+            mv_ownership_verdict.lineage_licences,
+            mv_ownership_verdict.inbound_manifests,
+            mv_ownership_verdict.certificate_says,
+            mv_ownership_verdict.certificate_license,
+            mv_ownership_verdict.certificate_link,
+            mv_ownership_verdict.certificate_on_package,
+            mv_ownership_verdict.verdict,
+            mv_ownership_verdict.what_is_wrong,
+            mv_ownership_verdict.units,
+            mv_ownership_verdict.unit_of_measure,
+            mv_ownership_verdict.how_much
+           FROM mv_ownership_verdict) v
+     LEFT JOIN mv_tag_documents td ON td.tag = v.package_tag;
+create or replace view public.v_package_dossier as
+ SELECT v.package_tag,
+    v.item_name,
+    v.strain,
+    v.category,
+    v.category_type,
+    v.department,
+    v.licence,
+    v.quantity,
+    v.status,
+    v.room,
+    v.cultivator_on_certificate,
+    v.cultivator_licence,
+    v.cultivator_address,
+    v.item_defined_by,
+    v.custody_origin_licences,
+    v.ownership_verdict,
+    v.coa_number,
+    v.lab_report_number,
+    v.coa_storage_path,
+    v.certificate_basis,
+    v.certificate_sampled_package,
+    v.laboratory,
+    v.tested_on,
+    v.coa_valid_until,
+    v.certificate_expired,
+    v.manifest_numbers,
+    v.manifest_storage_path,
+    v.arrived_on_manifest,
+    v.received_from,
+    v.batch_on_certificate,
+    v.production_batch,
+    v.source_harvest,
+    v.harvest_date,
+    v.harvest_type,
+    v.drying_room,
+    v.packaged_on,
+    v.days_held,
+    v.made_from_n_packages,
+    v.made_from_packages,
+    v.lab_state,
+    v.tests_run,
+    v.tests_failed,
+    v.failed_analytes,
+    v.total_thc,
+    v.total_cbd,
+    v.total_terpenes,
+    v.total_cannabinoids,
+    v.microbiology,
+    v.mycotoxins,
+    v.heavy_metals,
+    v.pesticides,
+    v.solvents,
+    v.pathogens,
+    v.water_activity,
+    v.proof_status,
+    v.how_to_open,
+    v.pounds,
+    v.units,
+    v.unit_of_measure,
+    v.quantity_raw,
+    v.created_quantity,
+    v.original_quantity,
+    v.received_quantity,
+    v.consumed_since_creation,
+    v.weight_basis,
+    v.item_id,
+    v.unit_weight,
+    v.unit_weight_uom,
+    v.unit_thc_percent,
+    v.serving_size,
+    v.brand,
+    v.administration_method,
+    v.quantity_type,
+    v.received_on,
+    v.lab_state_dated,
+    v.lab_result_recorded_on,
+    v.expiration_date,
+    v.sell_by_date,
+    v.use_by_date,
+    v.finished_date,
+    v.archived_date,
+    v.last_modified,
+    v.remediation_date,
+    v.decontamination_date,
+    v.on_hold,
+    v.finished,
+    v.on_recall,
+    v.trade_sample,
+    v.donation,
+    v.testing_sample,
+    v.production_batch_flag,
+    v.contains_remediated,
+    v.requires_remediation,
+    v.on_investigation,
+    v.sublocation,
+    v.room_type,
+    v.is_primary_production,
+    v.harvest_wet_lb,
+    v.harvest_waste_lb,
+    v.harvest_packaged_lb,
+    v.harvest_plants,
+    v.harvest_moisture_loss_pct,
+    v.days_cut_to_package,
+    v.shipped_to,
+    v.destination_kind,
+    v.transporter,
+    v.last_shipped_on,
+    v.manifests_held,
+    v.declared_transfer_price,
+    v.value_at_our_cost,
+    v.cost_basis,
+    v.supplier_name,
+    v.bought_as,
+    v.typical_discount_pct,
+    v.lab_licence,
+    v.first_tested_on,
+    v.coa_bytes,
+    v.coa_fetched,
+    v.coa_report_date,
+    v.coa_sample_id,
+    v.coa_source_package,
+    td.coa_certificate_id,
+    td.coa_document_link,
+    td.manifest_no,
+    td.manifest_document_link,
+    td.apex_invoice_no,
+    td.apex_invoice_usd
+   FROM ( WITH p AS (
+                 SELECT DISTINCT ON (metrc_packages.tag) metrc_packages.tag,
+                    metrc_packages.item_name,
+                    metrc_packages.license,
+                    metrc_packages.uom,
+                    metrc_packages.quantity,
+                    metrc_packages.source_state,
+                    metrc_packages.lab_testing_state,
+                    metrc_packages.packaged_on,
+                    metrc_packages.raw
+                   FROM metrc_packages
+                  ORDER BY metrc_packages.tag, metrc_packages.license
+                ), cert_doc AS (
+                 SELECT l_1.package_tag,
+                    min(d.metrc_id) AS coa_number,
+                    min(d.storage_path) AS coa_file,
+                    min(d.byte_size) AS coa_bytes,
+                    min(d.fetched_at)::date AS coa_fetched
+                   FROM v_document_package_link l_1
+                     JOIN metrc_documents d ON d.id = l_1.document_id
+                  WHERE l_1.doc_type = 'coa'::text
+                  GROUP BY l_1.package_tag
+                ), man_doc AS (
+                 SELECT l_1.package_tag,
+                    string_agg(DISTINCT l_1.manifest_number, ', '::text ORDER BY l_1.manifest_number) AS manifest_numbers,
+                    min(d.storage_path) AS manifest_file,
+                    count(DISTINCT l_1.manifest_number) AS manifest_count
+                   FROM v_document_package_link l_1
+                     JOIN metrc_documents d ON d.id = l_1.document_id
+                  WHERE l_1.doc_type = 'manifest'::text
+                  GROUP BY l_1.package_tag
+                ), labs AS (
+                 SELECT metrc_lab_results.package_tag,
+                    count(*) AS tests_run,
+                    count(*) FILTER (WHERE metrc_lab_results.passed IS FALSE) AS tests_failed,
+                    string_agg(DISTINCT metrc_lab_results.test_name, '; '::text) FILTER (WHERE metrc_lab_results.passed IS FALSE) AS failed_analytes,
+                    max(metrc_lab_results.lab_facility) AS laboratory,
+                    max(metrc_lab_results.result_date) AS tested_on,
+                    max((metrc_lab_results.raw ->> 'ExpirationDateTime'::text)::date) AS coa_valid_until,
+                    min(metrc_lab_results.result_date) AS first_tested_on,
+                    max(metrc_lab_results.raw ->> 'LabFacilityLicenseNumber'::text) AS lab_licence
+                   FROM metrc_lab_results
+                  GROUP BY metrc_lab_results.package_tag
+                ), harv AS (
+                 SELECT h_1.name,
+                    min(h_1.raw ->> 'HarvestType'::text) AS harvest_type,
+                    min((h_1.raw ->> 'HarvestStartDate'::text)::date) AS cut_on,
+                    min(h_1.raw ->> 'DryingRoomName'::text) AS drying_room,
+                    sum((h_1.raw ->> 'TotalWetWeight'::text)::numeric) AS wet_g,
+                    sum((h_1.raw ->> 'TotalWasteWeight'::text)::numeric) AS waste_g,
+                    sum((h_1.raw ->> 'TotalPackagedWeight'::text)::numeric) AS packaged_g,
+                    sum((h_1.raw ->> 'PlantCount'::text)::numeric) AS plants
+                   FROM metrc_harvests h_1
+                  GROUP BY h_1.name
+                ), ship AS (
+                 SELECT t.package_tag,
+                    string_agg(DISTINCT c.delivered_to, ', '::text) AS shipped_to,
+                    string_agg(DISTINCT c.destination_kind, ', '::text) AS destination_kind,
+                    string_agg(DISTINCT c.carried_by, ', '::text) AS transporter,
+                    max(c.date_created) AS last_shipped_on,
+                    max(NULLIF(t.source_row ->> 'Shipper Wholesale Price'::text, ''::text)::numeric) AS declared_price
+                   FROM metrc_rpt_package_transfers t
+                     JOIN v_manifest_custody c ON c.manifest_number = t.manifest_number
+                  GROUP BY t.package_tag
+                )
+         SELECT p.tag AS package_tag,
+            p.item_name,
+            p.raw #>> '{Item,StrainName}'::text[] AS strain,
+            p.raw #>> '{Item,ProductCategoryName}'::text[] AS category,
+            p.raw #>> '{Item,ProductCategoryType}'::text[] AS category_type,
+                CASE
+                    WHEN p.license = 'MC281714'::text THEN 'Cultivation'::text
+                    ELSE 'Manufacturing'::text
+                END AS department,
+            p.license AS licence,
+            f_quantity_text(p.quantity, p.uom) AS quantity,
+            p.source_state AS status,
+            p.raw ->> 'LocationName'::text AS room,
+            e.client_name AS cultivator_on_certificate,
+            e.client_license AS cultivator_licence,
+            e.client_address AS cultivator_address,
+            p.raw ->> 'ItemFromFacilityName'::text AS item_defined_by,
+            oc.custody_says AS custody_origin_licences,
+            oc.custody_verdict AS ownership_verdict,
+            cd.coa_number,
+            e.lab_report_id AS lab_report_number,
+            cd.coa_file AS coa_storage_path,
+            cr.certificate_link AS certificate_basis,
+            cr.certificate_on_package AS certificate_sampled_package,
+            l.laboratory,
+            l.tested_on,
+            l.coa_valid_until,
+            l.coa_valid_until < CURRENT_DATE AS certificate_expired,
+            md.manifest_numbers,
+            md.manifest_file AS manifest_storage_path,
+            NULLIF(p.raw ->> 'ReceivedFromManifestNumber'::text, ''::text) AS arrived_on_manifest,
+            NULLIF(p.raw ->> 'ReceivedFromFacilityName'::text, ''::text) AS received_from,
+            e.metrc_batch_id AS batch_on_certificate,
+            NULLIF(p.raw ->> 'ProductionBatchNumber'::text, ''::text) AS production_batch,
+            NULLIF(p.raw ->> 'SourceHarvestNames'::text, ''::text) AS source_harvest,
+            h.cut_on AS harvest_date,
+            h.harvest_type,
+            h.drying_room,
+            p.packaged_on,
+            CURRENT_DATE - p.packaged_on AS days_held,
+            (p.raw ->> 'SourcePackageCount'::text)::integer AS made_from_n_packages,
+            "left"(NULLIF(p.raw ->> 'SourcePackageLabels'::text, ''::text), 160) AS made_from_packages,
+            p.lab_testing_state AS lab_state,
+            l.tests_run,
+            l.tests_failed,
+            l.failed_analytes,
+            e.total_thc,
+            e.total_cbd,
+            e.total_terpenes,
+            e.total_cannabinoids,
+            e.microbiology,
+            e.mycotoxins,
+            e.heavy_metals,
+            e.pesticides,
+            e.solvents,
+            e.pathogens,
+            e.water_activity,
+                CASE
+                    WHEN cd.coa_number IS NOT NULL AND md.manifest_numbers IS NOT NULL THEN 'COMPLETE - certificate and manifest both held'::text
+                    WHEN cd.coa_number IS NOT NULL THEN 'certificate only - no manifest'::text
+                    WHEN md.manifest_numbers IS NOT NULL THEN 'manifest only - no certificate'::text
+                    ELSE 'NEITHER - no legal document held for this package'::text
+                END AS proof_status,
+            'Open either document with supabase.storage.from(''metrc-documents'').createSignedUrl(path, ttl) at click time. The file is permanent; never store the URL.'::text AS how_to_open,
+                CASE
+                    WHEN f_is_weight(p.uom) THEN round(f_to_pounds(p.quantity, p.uom), 3)
+                    ELSE NULL::numeric
+                END AS pounds,
+                CASE
+                    WHEN NOT f_is_weight(p.uom) THEN p.quantity
+                    ELSE NULL::numeric
+                END AS units,
+            p.uom AS unit_of_measure,
+            p.quantity AS quantity_raw,
+            (p.raw ->> 'CreatedQuantity'::text)::numeric AS created_quantity,
+            (p.raw ->> 'OriginalPackageQuantity'::text)::numeric AS original_quantity,
+            (p.raw ->> 'ReceivedQuantity'::text)::numeric AS received_quantity,
+            round(COALESCE((p.raw ->> 'CreatedQuantity'::text)::numeric, 0::numeric) - COALESCE(p.quantity, 0::numeric), 3) AS consumed_since_creation,
+                CASE
+                    WHEN f_is_weight(p.uom) AND (p.raw #>> '{Item,ProductCategoryName}'::text[]) ~~* '%fresh frozen%'::text THEN 'wet'::text
+                    WHEN f_is_weight(p.uom) THEN 'dry'::text
+                    ELSE NULL::text
+                END AS weight_basis,
+            p.raw #>> '{Item,Id}'::text[] AS item_id,
+            p.raw #>> '{Item,UnitWeight}'::text[] AS unit_weight,
+            p.raw #>> '{Item,UnitWeightUnitOfMeasureName}'::text[] AS unit_weight_uom,
+            p.raw #>> '{Item,UnitThcPercent}'::text[] AS unit_thc_percent,
+            p.raw #>> '{Item,ServingSize}'::text[] AS serving_size,
+            p.raw #>> '{Item,ItemBrandName}'::text[] AS brand,
+            p.raw #>> '{Item,AdministrationMethod}'::text[] AS administration_method,
+            p.raw #>> '{Item,QuantityType}'::text[] AS quantity_type,
+            (p.raw ->> 'ReceivedDateTime'::text)::date AS received_on,
+            (p.raw ->> 'LabTestingStateDate'::text)::date AS lab_state_dated,
+            (p.raw ->> 'LabTestingRecordedDate'::text)::date AS lab_result_recorded_on,
+            (p.raw ->> 'ExpirationDate'::text)::date AS expiration_date,
+            (p.raw ->> 'SellByDate'::text)::date AS sell_by_date,
+            (p.raw ->> 'UseByDate'::text)::date AS use_by_date,
+            (p.raw ->> 'FinishedDate'::text)::date AS finished_date,
+            (p.raw ->> 'ArchivedDate'::text)::date AS archived_date,
+            (p.raw ->> 'LastModified'::text)::date AS last_modified,
+            (p.raw ->> 'RemediationDate'::text)::date AS remediation_date,
+            (p.raw ->> 'DecontaminationDate'::text)::date AS decontamination_date,
+            (p.raw ->> 'IsOnHold'::text)::boolean AS on_hold,
+            (p.raw ->> 'IsFinished'::text)::boolean AS finished,
+            (p.raw ->> 'IsOnRecall'::text)::boolean AS on_recall,
+            (p.raw ->> 'IsTradeSample'::text)::boolean AS trade_sample,
+            (p.raw ->> 'IsDonation'::text)::boolean AS donation,
+            (p.raw ->> 'IsTestingSample'::text)::boolean AS testing_sample,
+            (p.raw ->> 'IsProductionBatch'::text)::boolean AS production_batch_flag,
+            (p.raw ->> 'ContainsRemediatedProduct'::text)::boolean AS contains_remediated,
+            (p.raw ->> 'ProductRequiresRemediation'::text)::boolean AS requires_remediation,
+            (p.raw ->> 'IsOnInvestigation'::text)::boolean AS on_investigation,
+            NULLIF(p.raw ->> 'SublocationName'::text, ''::text) AS sublocation,
+            p.raw ->> 'LocationTypeName'::text AS room_type,
+            ((p.raw ->> 'SourcePackageCount'::text)::integer) = 0 AS is_primary_production,
+            round(h.wet_g / 453.59237, 1) AS harvest_wet_lb,
+            round(h.waste_g / 453.59237, 1) AS harvest_waste_lb,
+            round(h.packaged_g / 453.59237, 1) AS harvest_packaged_lb,
+            h.plants AS harvest_plants,
+                CASE
+                    WHEN h.wet_g > 0::numeric THEN round((1::numeric - h.packaged_g / h.wet_g) * 100::numeric, 1)
+                    ELSE NULL::numeric
+                END AS harvest_moisture_loss_pct,
+            p.packaged_on - h.cut_on AS days_cut_to_package,
+            s.shipped_to,
+            s.destination_kind,
+            s.transporter,
+            s.last_shipped_on,
+            md.manifest_count AS manifests_held,
+            s.declared_price AS declared_transfer_price,
+                CASE
+                    WHEN f_is_weight(p.uom) AND f_is_ours(p.raw ->> 'ItemFromFacilityLicenseNumber'::text) THEN round(f_to_pounds(p.quantity, p.uom) * (( SELECT cm.cost_per_pound
+                       FROM cost_model cm
+                      WHERE cm.scope = 'cultivation'::text
+                      ORDER BY cm.effective_from DESC
+                     LIMIT 1)), 0)
+                    ELSE NULL::numeric
+                END AS value_at_our_cost,
+                CASE
+                    WHEN NOT f_is_weight(p.uom) THEN 'countable - no cost per pound'::text
+                    WHEN NOT f_is_ours(p.raw ->> 'ItemFromFacilityLicenseNumber'::text) THEN 'bought in - material_purchases is EMPTY, what was paid exists nowhere'::text
+                    ELSE 'our cultivation cost per pound'::text
+                END AS cost_basis,
+            sup.supplier_name,
+            sup.bought_as,
+            sup.typical_discount_pct,
+            l.lab_licence,
+            l.first_tested_on,
+            cd.coa_bytes,
+            cd.coa_fetched,
+            e.report_date AS coa_report_date,
+            e.metrc_sample_id AS coa_sample_id,
+            e.metrc_source_id AS coa_source_package
+           FROM p
+             LEFT JOIN cert_doc cd ON cd.package_tag = p.tag
+             LEFT JOIN man_doc md ON md.package_tag = p.tag
+             LEFT JOIN labs l ON l.package_tag = p.tag
+             LEFT JOIN v_certificate_resolved cr ON cr.package_tag = p.tag
+             LEFT JOIN coa_extract e ON e.document_id = cd.coa_number
+             LEFT JOIN v_ownership_by_custody oc ON oc.package_tag = p.tag
+             LEFT JOIN harv h ON h.name = split_part(NULLIF(p.raw ->> 'SourceHarvestNames'::text, ''::text), ','::text, 1)
+             LEFT JOIN ship s ON s.package_tag = p.tag
+             LEFT JOIN suppliers sup ON sup.origin_license = (p.raw ->> 'ItemFromFacilityLicenseNumber'::text)) v
+     LEFT JOIN mv_tag_documents td ON td.tag = v.package_tag;
+create or replace view public.v_remediation_yield as
+ SELECT supplier,
+    source_tag,
+    source_item,
+    strain,
+    received_qty AS material_in,
+    source_uom,
+    count(*) AS products_made,
+    round(sum(made_qty)) AS output_qty,
+    string_agg(DISTINCT made_into_category, ', '::text) AS became,
+    round(100.0 * sum(made_qty) / NULLIF(received_qty, 0::numeric), 1) AS recovery_pct,
+    count(*) FILTER (WHERE made_lab_state = 'TestPassed'::text) AS output_passed,
+    count(*) FILTER (WHERE made_lab_state = 'TestFailed'::text) AS output_failed
+   FROM v_third_party_downstream
+  GROUP BY supplier, source_tag, source_item, strain, received_qty, source_uom
+  ORDER BY received_qty DESC NULLS LAST;
+create or replace view public.v_stock_proof as
+ SELECT v.package_tag,
+    v.item_name,
+    v.strain,
+    v.stream,
+    v.origin,
+    v.made_by,
+    v.shipped_to_us_by,
+    v.license,
+    v.location,
+    v.days_here,
+    v.packaged_on,
+    v.quantity,
+    v.uom,
+    v.pounds,
+    v.units,
+    v.quantity_shown,
+    v.sold_by_weight,
+    v.lab_state,
+    v.band,
+    v.test_status,
+    v.went_out_for_testing_on,
+    v.came_back_on,
+    v.days_at_the_laboratory,
+    v.certificate_valid_to,
+    v.total_thc,
+    v.total_cbd,
+    v.total_terpenes,
+    v.laboratory,
+    v.coa_url,
+    v.potency_and_certificate,
+    v.inbound_manifest,
+    v.manifest_proof,
+    v.source_harvest,
+    v.harvest_cut_on,
+    v.dried_in,
+    v.harvest_closed_on,
+    v.made_from_packages,
+    v.production_batch,
+    v.traceability,
+    v.rate_per_pound_used,
+    v.value_at_our_rate,
+    td.coa_certificate_id,
+    td.coa_document_link,
+    td.manifest_no,
+    td.manifest_document_link,
+    td.apex_invoice_no,
+    td.apex_invoice_usd
+   FROM ( SELECT mv_stock_proof.package_tag,
+            mv_stock_proof.item_name,
+            mv_stock_proof.strain,
+            mv_stock_proof.stream,
+            mv_stock_proof.origin,
+            mv_stock_proof.made_by,
+            mv_stock_proof.shipped_to_us_by,
+            mv_stock_proof.license,
+            mv_stock_proof.location,
+            mv_stock_proof.days_here,
+            mv_stock_proof.packaged_on,
+            mv_stock_proof.quantity,
+            mv_stock_proof.uom,
+            mv_stock_proof.pounds,
+            mv_stock_proof.units,
+            mv_stock_proof.quantity_shown,
+            mv_stock_proof.sold_by_weight,
+            mv_stock_proof.lab_state,
+            mv_stock_proof.band,
+            mv_stock_proof.test_status,
+            mv_stock_proof.went_out_for_testing_on,
+            mv_stock_proof.came_back_on,
+            mv_stock_proof.days_at_the_laboratory,
+            mv_stock_proof.certificate_valid_to,
+            mv_stock_proof.total_thc,
+            mv_stock_proof.total_cbd,
+            mv_stock_proof.total_terpenes,
+            mv_stock_proof.laboratory,
+            mv_stock_proof.coa_url,
+            mv_stock_proof.potency_and_certificate,
+            mv_stock_proof.inbound_manifest,
+            mv_stock_proof.manifest_proof,
+            mv_stock_proof.source_harvest,
+            mv_stock_proof.harvest_cut_on,
+            mv_stock_proof.dried_in,
+            mv_stock_proof.harvest_closed_on,
+            mv_stock_proof.made_from_packages,
+            mv_stock_proof.production_batch,
+            mv_stock_proof.traceability,
+            mv_stock_proof.rate_per_pound_used,
+            mv_stock_proof.value_at_our_rate
+           FROM mv_stock_proof) v
+     LEFT JOIN mv_tag_documents td ON td.tag = v.package_tag;
+create or replace view public.v_unmatched_manifest_dossier as
+ SELECT f.manifest_number,
+    f.diagnosis,
+    f.shipped_on,
+    t.source_row ->> 'Created'::text AS created_on,
+    t.source_row ->> 'Received'::text AS received_on_raw,
+    t.source_row ->> 'Created by User'::text AS created_by_user,
+    t.source_row ->> 'Received by User'::text AS received_by_user,
+    COALESCE(t.source_row ->> 'Type'::text, f.transfer_type) AS transfer_type,
+    t.source_row ->> 'Voided'::text AS voided,
+    t.source_row ->> 'Inv. Nbr'::text AS metrc_invoice_number,
+    f.buyer,
+    f.buyer_licence,
+    t.source_row ->> 'Dest. Facility Type'::text AS destination_facility_type,
+    COALESCE(t.source_row ->> 'Origin Facility'::text, t.licence) AS origin_facility,
+    t.source_row ->> 'Origin Lic.'::text AS origin_licence,
+    t.source_row ->> 'Origin Facility Type'::text AS origin_facility_type,
+    t.package_tag,
+    t.item,
+    t.category,
+    t.strain,
+    p.location AS room_when_last_seen,
+    p.license AS held_under_licence,
+    p.packaged_on,
+    p.lab_testing_state,
+    p.raw ->> 'SourceHarvestNames'::text AS came_from_harvest,
+    p.raw ->> 'SourcePackageLabels'::text AS came_from_packages,
+    p.raw ->> 'ProductionBatchNumber'::text AS production_batch,
+    t.shipped_qty,
+    t.shipped_uom,
+    t.received_qty,
+    round(COALESCE(t.shipped_lb, 0::numeric), 3) AS shipped_lb,
+    t.gross_weight,
+    t.source_row ->> 'Weight % Var'::text AS weight_pct_variance,
+    t.source_row ->> 'Count % Var'::text AS count_pct_variance,
+    t.shipper_wholesale_price AS metrc_declared_usd,
+    t.receiver_wholesale_price AS receiver_declared_usd,
+    t.status,
+    f.apex_candidate_buyer,
+    f.apex_candidate_invoice,
+    f.apex_candidate_date,
+    f.apex_candidate_usd,
+    f.apex_candidate_days_apart,
+    f.what_to_do
+   FROM v_unmatched_manifest_forensic f
+     JOIN metrc_rpt_package_transfers t ON t.manifest_number = f.manifest_number
+     LEFT JOIN LATERAL ( SELECT mp.location,
+            mp.license,
+            mp.packaged_on,
+            mp.lab_testing_state,
+            mp.raw
+           FROM metrc_packages mp
+          WHERE mp.tag = t.package_tag
+          ORDER BY (mp.source_state = 'active'::text) DESC, mp.synced_at DESC
+         LIMIT 1) p ON true;
 create or replace view public.v_unmatched_manifest_tags as
  SELECT f.manifest_number,
     f.shipped_on,
@@ -54871,161 +54238,312 @@ create or replace view public.v_xq_never_submitted as
                     ELSE '3 NEVER SUBMITTED, IN A PRODUCTION ROOM'::text
                 END), n.days_in_facility DESC) __gated
   WHERE f_xq_reader();
-create or replace view public.v_xq_src_certificate_resolved as
- SELECT v.package_tag,
-    v.found_at_depth,
-    v.certificate_on_package,
-    v.cert_license,
-    v.cert_client,
-    v.cert_report,
-    v.certificate_link,
-    td.coa_certificate_id,
-    td.coa_document_link,
-    td.manifest_no,
-    td.manifest_document_link,
-    td.apex_invoice_no,
-    td.apex_invoice_usd
-   FROM ( WITH RECURSIVE edges AS (
-                 SELECT DISTINCT ON (p.tag) p.tag,
-                    p.raw ->> 'SourcePackageLabels'::text AS srcs
-                   FROM metrc_packages p
-                  ORDER BY p.tag, p.license
-                ), walk AS (
-                 SELECT e.tag AS package_tag,
-                    e.tag AS ancestor,
-                    0 AS depth,
-                    e.srcs
-                   FROM edges e
-                UNION
-                 SELECT w.package_tag,
-                    s.tag,
-                    w.depth + 1,
-                    s.srcs
-                   FROM walk w
-                     JOIN LATERAL ( SELECT TRIM(BOTH FROM x.x) AS lbl
-                           FROM unnest(string_to_array(COALESCE(w.srcs, ''::text), ','::text)) x(x)
-                          WHERE TRIM(BOTH FROM x.x) <> ''::text) l ON true
-                     JOIN edges s ON s.tag = l.lbl
-                  WHERE w.depth < 6
-                ), cert AS (
-                 SELECT coa_extract.package_tag,
-                    max(coa_extract.client_license) AS lic,
-                    max(coa_extract.client_name) AS nm,
-                    max(coa_extract.lab_report_id) AS rpt,
-                    count(*) AS n
-                   FROM coa_extract
-                  WHERE coa_extract.package_tag IS NOT NULL
-                  GROUP BY coa_extract.package_tag
-                UNION ALL
-                 SELECT l.package_tag,
-                    max(e.client_license) AS max,
-                    max(e.client_name) AS max,
-                    max(e.lab_report_id) AS max,
-                    count(*) AS count
-                   FROM metrc_lab_results l
-                     JOIN coa_extract e ON e.document_id = l.document_file_id
-                  WHERE l.document_file_id IS NOT NULL AND l.package_tag IS NOT NULL
-                  GROUP BY l.package_tag
-                ), cert1 AS (
-                 SELECT cert.package_tag,
-                    max(cert.lic) AS lic,
-                    max(cert.nm) AS nm,
-                    max(cert.rpt) AS rpt,
-                    sum(cert.n) AS n
-                   FROM cert
-                  GROUP BY cert.package_tag
-                ), hit AS (
-                 SELECT w.package_tag,
-                    w.depth,
-                    c.lic,
-                    c.nm,
-                    c.rpt,
-                    w.ancestor,
-                    row_number() OVER (PARTITION BY w.package_tag ORDER BY w.depth) AS rn
-                   FROM walk w
-                     JOIN cert1 c ON c.package_tag = w.ancestor
-                )
-         SELECT h.package_tag,
-            h.depth AS found_at_depth,
-            h.ancestor AS certificate_on_package,
-            h.lic AS cert_license,
-            h.nm AS cert_client,
-            h.rpt AS cert_report,
-                CASE
-                    WHEN h.depth = 0 THEN 'DIRECT'::text
-                    ELSE (('INHERITED via '::text || h.depth) || ' repack'::text) ||
-                    CASE
-                        WHEN h.depth > 1 THEN 's'::text
-                        ELSE ''::text
-                    END
-                END AS certificate_link
-           FROM hit h
-          WHERE h.rn = 1) v
-     LEFT JOIN mv_tag_documents td ON td.tag = v.package_tag;
-create or replace view public.v_xq_src_never_tested_proof as
- WITH base AS (
-         SELECT DISTINCT ON (p.tag) p.tag,
-            p.item_name,
-            p.uom,
-            p.quantity,
-            p.license,
-            p.lab_testing_state,
-            p.source_state,
-            p.packaged_on,
-            p.raw
-           FROM metrc_packages p
-          ORDER BY p.tag, p.license
-        )
- SELECT tag AS metrc_tag,
-    license AS metrc_licence,
-    "left"(item_name, 46) AS item,
-    raw #>> '{Item,ProductCategoryName}'::text[] AS category,
-    f_quantity_text(quantity, uom) AS metrc_quantity,
-    raw ->> 'LocationName'::text AS metrc_room,
-    raw ->> 'LocationTypeName'::text AS room_type,
-    NULLIF(raw ->> 'SublocationName'::text, ''::text) AS sublocation,
-    lab_testing_state AS metrc_lab_state,
-    source_state AS metrc_status,
-    (raw ->> 'IsOnHold'::text)::boolean AS on_hold,
-    (raw ->> 'IsFinished'::text)::boolean AS finished,
-    packaged_on AS metrc_packaged_on,
-    (raw ->> 'LastModified'::text)::date AS metrc_last_modified,
-    CURRENT_DATE - packaged_on AS days_in_facility,
-    NULLIF(raw ->> 'SourceHarvestNames'::text, ''::text) AS from_harvest,
-    (raw ->> 'SourcePackageCount'::text)::integer AS made_from_n_packages,
-    "left"(NULLIF(raw ->> 'SourcePackageLabels'::text, ''::text), 120) AS made_from_packages,
-    NULLIF(raw ->> 'ProductionBatchNumber'::text, ''::text) AS production_batch,
-    NULLIF(raw ->> 'ReceivedFromManifestNumber'::text, ''::text) AS arrived_on_manifest,
-    ( SELECT string_agg(c.tag, ', '::text) AS string_agg
-           FROM metrc_packages c
-          WHERE (c.raw ->> 'SourcePackageLabels'::text) ~~ (('%'::text || b.tag) || '%'::text)) AS became_packages,
-    ( SELECT count(*) AS count
-           FROM metrc_lab_results l
-          WHERE l.package_tag = b.tag) AS lab_results,
-    ( SELECT count(*) AS count
-           FROM metrc_rpt_package_transfers t
-          WHERE t.package_tag = b.tag) AS manifest_lines,
-    ( SELECT count(*) AS count
-           FROM v_xq_src_certificate_resolved r
-          WHERE r.package_tag = b.tag AND r.found_at_depth = 0) AS own_certificate,
-    ( SELECT max(r.found_at_depth) AS max
-           FROM v_xq_src_certificate_resolved r
-          WHERE r.package_tag = b.tag) AS inherited_cert_depth,
+create or replace view public.mv_department_dashboard as
+ SELECT b.department,
+    b.ord,
         CASE
-            WHEN (raw ->> 'LocationName'::text) IS NULL THEN 'FAILS THE RULE - Metrc holds no room for this tag'::text
-            WHEN (( SELECT count(*) AS count
-               FROM metrc_lab_results l
-              WHERE l.package_tag = b.tag)) > 0 THEN 'FAILS THE RULE - claimed untested but laboratory results exist'::text
-            WHEN (( SELECT count(*) AS count
-               FROM metrc_rpt_package_transfers t
-              WHERE t.package_tag = b.tag)) > 0 THEN 'FAILS THE RULE - claimed never shipped but it is on a manifest line'::text
-            WHEN (( SELECT count(*) AS count
-               FROM v_xq_src_certificate_resolved r
-              WHERE r.package_tag = b.tag AND r.found_at_depth = 0)) > 0 THEN 'FAILS THE RULE - claimed untested but a certificate is filed against it'::text
-            ELSE ((('PROVEN - Metrc holds it in '::text || (raw ->> 'LocationName'::text)) || ', state '::text) || lab_testing_state) || ', no results, no manifest, no certificate'::text
-        END AS proof
-   FROM base b
-  WHERE (lab_testing_state = ANY (ARRAY['NotSubmitted'::text, 'NotRequired'::text])) AND (source_state = ANY (ARRAY['active'::text, 'onhold'::text]));
+            WHEN b.department = 'Command'::text AND b.ord = 1 THEN 'Dried flower on hand'::text
+            ELSE b.kpi
+        END AS kpi,
+        CASE
+            WHEN b.department = 'Command'::text AND b.ord = 1 THEN ( SELECT v_stock_headline.dried_lb
+               FROM v_stock_headline)
+            WHEN b.department = 'Metrc'::text AND b.ord = 1 THEN ( SELECT count(DISTINCT mp.tag)::numeric AS count
+               FROM metrc_packages mp)
+            WHEN b.department = 'Settings'::text AND b.ord = 2 THEN ( SELECT count(*)::numeric AS count
+               FROM conversion_factors cf
+              WHERE cf.set_by !~* '(owner|vinny)'::text)
+            WHEN b.department = 'Inventory'::text AND b.ord = 1 THEN ( SELECT round(sum(
+                    CASE
+                        WHEN v.stream = 'Fresh frozen'::text THEN v.grams / f_rule('fresh_frozen_wet_to_dry'::text)
+                        ELSE v.grams
+                    END) / 453.59237, 1) AS round
+               FROM v_stock_on_hand v)
+            WHEN b.department = 'Inventory'::text AND b.ord = 2 THEN ( SELECT round(sum(v.grams) FILTER (WHERE v.lab_state = 'TestPassed'::text) / 453.59237, 1) AS round
+               FROM v_stock_on_hand v)
+            WHEN b.department = 'Inventory'::text AND b.ord = 3 THEN ( SELECT round(sum(v.grams) FILTER (WHERE v.lab_state = 'NotSubmitted'::text) / 453.59237, 1) AS round
+               FROM v_stock_on_hand v)
+            WHEN b.department = 'Inventory'::text AND b.ord = 4 THEN ( SELECT round(sum(v.grams) FILTER (WHERE v.origin = 'Bought in'::text) / 453.59237, 1) AS round
+               FROM v_stock_on_hand v)
+            WHEN b.department = 'Inventory'::text AND b.ord = 5 THEN ( SELECT round(sum(a.lb), 1) AS round
+               FROM v_stock_ageing a
+              WHERE a.ageing_verdict ~~ 'STALE%'::text)
+            WHEN b.kpi = 'Moisture loss not recorded'::text THEN COALESCE(b.value, 0::numeric)
+            ELSE b.value
+        END AS value,
+    b.unit,
+    b.tone,
+        CASE
+            WHEN b.department = 'Command'::text AND b.ord = 1 THEN ('Dried only. Fresh frozen '::text || (( SELECT to_char(v_stock_headline.fresh_frozen_wet_lb, 'FM999999.0'::text) AS to_char
+               FROM v_stock_headline))) || ' lb is held separately at wet weight and is never added to this.'::text
+            WHEN b.department = 'Metrc'::text AND b.ord = 1 THEN 'Distinct tags. 715 tags appear twice because the package moved between our two licences — that is one package, not two.'::text
+            WHEN b.department = 'Settings'::text AND b.ord = 2 THEN 'Conversion factors not set by the owner. Each one is a number the platform is using that he has not confirmed.'::text
+            WHEN b.department = 'Inventory'::text AND b.ord = 1 THEN ( SELECT ((('Fresh frozen counted at dry-equivalent (wet ÷ '::text || f_rule('fresh_frozen_wet_to_dry'::text)) || ', owner-set). Wet-basis total: '::text) || to_char(sum(v.grams) / 453.59237, 'FM999999.0'::text)) || ' lb.'::text
+               FROM v_stock_on_hand v)
+            WHEN b.department = 'Inventory'::text AND b.ord = 5 THEN ( SELECT ('Per the owner ageing policy: categories that age, past their own limit, holding rooms suspend. '::text || count(*)) || ' packages. A raw 180-day age with no policy would say far more — that is not the ruling.'::text
+               FROM v_stock_ageing a
+              WHERE a.ageing_verdict ~~ 'STALE%'::text)
+            ELSE b.context
+        END AS context,
+    b.drill,
+    b.computed_at
+   FROM mv_department_dashboard_base b
+UNION ALL
+ SELECT s.department,
+    s.ord,
+    s.kpi,
+    s.value,
+    s.unit,
+    s.tone,
+    s.context,
+    s.drill,
+    s.computed_at
+   FROM mv_dept_dash_supplement s;
+create or replace view public.v_forensic_audit_panel as
+ SELECT ord,
+    kind,
+    line,
+    lb,
+    usd,
+    basis,
+    drill
+   FROM mv_forensic_audit_panel
+  ORDER BY ord;
+create or replace view public.v_forensic_panel_freshness as
+ SELECT 'mv_forensic_audit_panel'::text AS matview,
+    computed_at,
+    now() - computed_at AS computation_age,
+    '00:30:00'::interval AS computation_slo,
+    f_matview_freshness_verdict(computed_at, now(), '00:30:00'::interval) AS verdict,
+    row_count,
+    'refresh-forensic-panel, every 10 min at :04'::text AS refreshed_by,
+    ARRAY['mv_tag_certificate'::text, 'mv_forensic_sales'::text] AS inputs_without_a_clock,
+    'Lines 11 and 12 derive from matviews that carry no computed_at and are refreshed only by snapshot-dashboards (05:05 daily). Their age is UNMEASURABLE, so the age above is the age of the COMPUTATION, not of the DATA.'::text AS honesty_note
+   FROM ( SELECT max(mv_forensic_audit_panel.computed_at) AS computed_at,
+            count(*)::integer AS row_count
+           FROM mv_forensic_audit_panel) m;
+create or replace view public.v_item_flags as
+ SELECT entity_type,
+    entity_key,
+    severity,
+    headline,
+    detail,
+    why,
+    what_to_do,
+    source,
+    source_ref,
+    raised_on,
+    context,
+    disposition,
+    decision_reason,
+    decision_note,
+    decided_by,
+    decided_at,
+    review_on,
+    needs_a_decision,
+    licence,
+    area,
+    area_colour,
+    days_open
+   FROM v_item_flags_all
+  WHERE needs_a_decision;
+create or replace view public.v_tag_gap as
+ WITH led AS (
+         SELECT p.tag,
+            p.item_name,
+            p.license,
+            p.location,
+            p.quantity,
+            p.uom,
+            p.packaged_on,
+            p.lab_testing_state,
+            p.finished,
+            p.raw,
+            COALESCE(p.raw #>> '{Item,ProductCategoryName}'::text[], '(uncategorised)'::text) AS category,
+            COALESCE(p.finished, false) OR NULLIF(p.raw ->> 'FinishedDate'::text, ''::text) IS NOT NULL OR NULLIF(p.raw ->> 'ArchivedDate'::text, ''::text) IS NOT NULL AS is_closed,
+            COALESCE(p.quantity, 0::numeric) > 0::numeric AND NOT COALESCE(p.finished, false) AS is_live
+           FROM ( SELECT DISTINCT ON (d.tag) d.id,
+                    d.license,
+                    d.tag,
+                    d.item_name,
+                    d.quantity,
+                    d.uom,
+                    d.location,
+                    d.packaged_on,
+                    d.lab_testing_state,
+                    d.finished,
+                    d.raw,
+                    d.synced_at,
+                    d.source_state,
+                    d.provenance,
+                    d.report_as_of
+                   FROM metrc_packages d
+                  ORDER BY d.tag, (COALESCE(d.quantity, 0::numeric) > 0::numeric AND NOT COALESCE((d.raw ->> 'IsFinished'::text)::boolean, false)) DESC, (d.source_state = 'active'::text) DESC NULLS LAST, d.synced_at DESC NULLS LAST) p
+        ), ev AS (
+         SELECT tag_event.tag,
+            count(*) AS n_events,
+            count(*) FILTER (WHERE tag_event.event_type = 'packaged'::text) AS n_packaged,
+            count(*) FILTER (WHERE tag_event.event_type = 'received'::text) AS n_received,
+            count(*) FILTER (WHERE tag_event.event_type = 'location_change'::text) AS n_moves
+           FROM tag_event
+          GROUP BY tag_event.tag
+        ), stay_bad AS (
+         SELECT v_tag_stay.tag,
+            count(*) FILTER (WHERE v_tag_stay.duration_hours < 0::numeric) AS negative_stays,
+            count(*) FILTER (WHERE v_tag_stay.duration_hours = 0::numeric AND NOT v_tag_stay.is_current) AS zero_stays
+           FROM v_tag_stay
+          GROUP BY v_tag_stay.tag
+        )
+ SELECT l.tag,
+    'A'::text AS rule_code,
+    'COA MISSING'::text AS gap_type,
+        CASE
+            WHEN l.lab_testing_state = 'TestPassed'::text THEN 'critical'::text
+            ELSE 'elevated'::text
+        END AS severity,
+    'Package is at package stage with no certificate in its lineage'::text AS what_is_wrong,
+        CASE
+            WHEN l.lab_testing_state = 'TestPassed'::text THEN 'PASSED testing but no COA document is held — it cannot be evidenced as sellable. Locate the certificate and attach it, or re-submit.'::text
+            ELSE 'No COA document held. Submit for testing or attach the certificate before this can be sold.'::text
+        END AS required_action,
+    l.location AS room,
+    l.license AS licence,
+    round(f_to_pounds(l.quantity, l.uom), 3) AS lb,
+    td.coa_document_link,
+    td.manifest_document_link,
+    td.apex_invoice_no
+   FROM led l
+     LEFT JOIN mv_tag_documents td ON td.tag = l.tag
+  WHERE l.is_live AND td.coa_document_link IS NULL
+UNION ALL
+ SELECT s.package_tag AS tag,
+    'B'::text AS rule_code,
+    'MANIFEST MISSING'::text AS gap_type,
+    'critical'::text AS severity,
+    'This tag left the facility with no manifest recorded'::text AS what_is_wrong,
+    'A transfer without a manifest is a compliance breach. Locate the Metrc manifest for this shipment and attach it.'::text AS required_action,
+    NULL::text AS room,
+    NULL::text AS licence,
+    s.pounds AS lb,
+    td.coa_document_link,
+    td.manifest_document_link,
+    td.apex_invoice_no
+   FROM v_forensic_sold_by_tag s
+     LEFT JOIN mv_tag_documents td ON td.tag = s.package_tag
+  WHERE s.manifest_number IS NULL
+UNION ALL
+ SELECT s.package_tag AS tag,
+    'C'::text AS rule_code,
+    'INVOICE MISSING'::text AS gap_type,
+    'elevated'::text AS severity,
+    'Shipped as a sale with no Apex invoice matched'::text AS what_is_wrong,
+    'Find the Apex invoice for this shipment and link it, or record why no invoice exists (sample, return, internal).'::text AS required_action,
+    NULL::text AS room,
+    NULL::text AS licence,
+    s.pounds AS lb,
+    td.coa_document_link,
+    td.manifest_document_link,
+    NULL::text AS apex_invoice_no
+   FROM v_forensic_sold_by_tag s
+     LEFT JOIN mv_tag_documents td ON td.tag = s.package_tag
+  WHERE s.invoice_match = 'NO APEX INVOICE'::text AND NOT s.internal_transfer
+UNION ALL
+ SELECT l.tag,
+    'D'::text AS rule_code,
+    'BROKEN TAG CHAIN'::text AS gap_type,
+    'critical'::text AS severity,
+        CASE
+            WHEN e.tag IS NULL THEN 'This package has NO event history at all — it exists in the mirror with no recorded life'::text
+            ELSE ('Metrc records a packaged date of '::text || l.packaged_on) || ' but the ledger holds no creation event'::text
+        END AS what_is_wrong,
+    'Re-run the ledger build for this tag and compare against Metrc. A tag with no chain cannot be defended in an audit.'::text AS required_action,
+    l.location AS room,
+    l.license AS licence,
+    round(f_to_pounds(l.quantity, l.uom), 3) AS lb,
+    td.coa_document_link,
+    td.manifest_document_link,
+    td.apex_invoice_no
+   FROM led l
+     LEFT JOIN ev e ON e.tag = l.tag
+     LEFT JOIN mv_tag_documents td ON td.tag = l.tag
+  WHERE e.tag IS NULL OR l.packaged_on IS NOT NULL AND e.n_packaged = 0
+UNION ALL
+ SELECT l.tag,
+    'E'::text AS rule_code,
+    'LOCATION GAP'::text AS gap_type,
+    'elevated'::text AS severity,
+    ('Metrc shows this package in '::text || l.location) || ' but no movement event records it arriving there'::text AS what_is_wrong,
+    'A missing movement breaks the room history. Re-sync locations for this tag; if Metrc has no move either, the physical move was never recorded.'::text AS required_action,
+    l.location AS room,
+    l.license AS licence,
+    round(f_to_pounds(l.quantity, l.uom), 3) AS lb,
+    td.coa_document_link,
+    td.manifest_document_link,
+    td.apex_invoice_no
+   FROM led l
+     LEFT JOIN ev e ON e.tag = l.tag
+     LEFT JOIN mv_tag_documents td ON td.tag = l.tag
+  WHERE l.is_live AND COALESCE(l.location, ''::text) <> ''::text AND COALESCE(e.n_moves, 0::bigint) = 0 AND NOT (EXISTS ( SELECT 1
+           FROM v_tag_stay st
+          WHERE st.tag = l.tag AND st.room = l.location))
+UNION ALL
+ SELECT b.tag,
+    'F'::text AS rule_code,
+    'TIMESTAMP GAP'::text AS gap_type,
+    'elevated'::text AS severity,
+        CASE
+            WHEN b.negative_stays > 0 THEN b.negative_stays || ' stay(s) end BEFORE they begin'::text
+            ELSE b.zero_stays || ' closed stay(s) of zero hours'::text
+        END AS what_is_wrong,
+    'Event timestamps are out of order or duplicated. Re-import the movement events for this tag from the source report.'::text AS required_action,
+    NULL::text AS room,
+    NULL::text AS licence,
+    NULL::numeric AS lb,
+    td.coa_document_link,
+    td.manifest_document_link,
+    td.apex_invoice_no
+   FROM stay_bad b
+     LEFT JOIN mv_tag_documents td ON td.tag = b.tag
+  WHERE b.negative_stays > 0 OR b.zero_stays > 0
+UNION ALL
+ SELECT v.package_tag AS tag,
+    'G'::text AS rule_code,
+    'DOCUMENT MISMATCH'::text AS gap_type,
+    'critical'::text AS severity,
+    'Certificate and lineage disagree on whose material this is: '::text || "left"(v.verdict, 90) AS what_is_wrong,
+    'The certificate is the independent source and wins. Re-attribute the package or explain the disagreement in writing.'::text AS required_action,
+    NULL::text AS room,
+    NULL::text AS licence,
+    v.pounds AS lb,
+    td.coa_document_link,
+    td.manifest_document_link,
+    td.apex_invoice_no
+   FROM v_ownership_verdict v
+     LEFT JOIN mv_tag_documents td ON td.tag = v.package_tag
+  WHERE v.verdict ~~* 'CONFIRMED NOT OURS%'::text;
+create or replace view public.v_tower_inventory_grouped as
+ SELECT grp AS section,
+    label,
+    value,
+    drill,
+    metric,
+        CASE grp
+            WHEN 'stock'::text THEN 'What we are holding, by product stream'::text
+            WHEN 'origin'::text THEN 'Grown by us versus bought in'::text
+            WHEN 'quality'::text THEN 'Testing position'::text
+            WHEN 'ageing'::text THEN 'How long it has been sitting'::text
+            WHEN 'control'::text THEN 'Controls and things awaiting a decision'::text
+            ELSE NULL::text
+        END AS section_note
+   FROM mv_tower_inventory
+  ORDER BY (
+        CASE grp
+            WHEN 'stock'::text THEN 1
+            WHEN 'origin'::text THEN 2
+            WHEN 'quality'::text THEN 3
+            WHEN 'ageing'::text THEN 4
+            ELSE 5
+        END), value DESC NULLS LAST;
 create or replace view public.v_xq_summary as
  SELECT ord,
     queue,
@@ -55118,6 +54636,488 @@ create or replace view public.v_xq_summary as
   ORDER BY 1) __gated
   WHERE f_xq_reader()
   ORDER BY ord;
+create or replace view public.v_cfo_inventory_audit as
+ SELECT v_forensic_audit_panel.ord,
+    v_forensic_audit_panel.kind,
+    v_forensic_audit_panel.line,
+    v_forensic_audit_panel.lb,
+    v_forensic_audit_panel.usd,
+    v_forensic_audit_panel.basis,
+    v_forensic_audit_panel.drill
+   FROM v_forensic_audit_panel
+UNION ALL
+ SELECT 900 AS ord,
+    'materiality'::text AS kind,
+    'Materiality applied to this audit (owner-set 11 Aug 2026)'::text AS line,
+    NULL::numeric AS lb,
+    ( SELECT conversion_factors.value
+           FROM conversion_factors
+          WHERE conversion_factors.key = 'materiality_inventory_usd'::text) AS usd,
+    'Inventory/COGS threshold $500; planning $1,000; trivial $100 (accumulates). NO threshold on diversion-class items: one untagged plant, unmanifested transfer or undocumented destruction is a finding regardless of value.'::text AS basis,
+    'conversion_factors'::text AS drill
+UNION ALL
+ SELECT 901 AS ord,
+    'basis-warning'::text AS kind,
+    'Third-party cost basis'::text AS line,
+    ( SELECT round(sum(v_third_party_forensic.lb_received), 1) AS round
+           FROM v_third_party_forensic) AS lb,
+    901941 AS usd,
+    'Restated 11 Aug 2026: $901,941 declared transfer price (was $1,276,288 before the owner''s Eagle Eyes 3PL ruling was enforced; $374,346 was our own material returning from storage). DECLARED price, not evidence of cash paid — 1,691.2 lb has no price in Metrc at all. Floor if every untestable line excluded: $838,953.'::text AS basis,
+    'third_party_forensic'::text AS drill
+UNION ALL
+ SELECT 902 AS ord,
+    'open-question'::text AS kind,
+    'Third-party on hand — under reconciliation'::text AS line,
+    ( SELECT round(sum(v_third_party_forensic.lb_on_hand), 1) AS round
+           FROM v_third_party_forensic) AS lb,
+    NULL::numeric AS usd,
+    'In-transit counts as ours until the destination accepts (owner ruling). REMAINING: view computes 72 lb less than Metrc raw quantities on the same 100 active tags — Agent V owns it; check third-party-on-hand-two-ways fires until settled. Do not certify this figure yet.'::text AS basis,
+    'third_party_forensic'::text AS drill;
+create or replace view public.v_dept_dash_cfo as
+ SELECT 'Finance'::text AS department,
+    10 AS ord,
+    mv_department_dashboard.kpi,
+    mv_department_dashboard.value,
+    mv_department_dashboard.unit,
+    mv_department_dashboard.tone,
+    mv_department_dashboard.context,
+    mv_department_dashboard.drill,
+    mv_department_dashboard.computed_at
+   FROM mv_department_dashboard
+  WHERE mv_department_dashboard.department = 'Command'::text AND (mv_department_dashboard.kpi = ANY (ARRAY['Value of stock on hand'::text, 'Untested stock value'::text, 'Failed testing value'::text, 'Genuine loss to date'::text]))
+UNION ALL
+ SELECT 'Finance'::text AS department,
+    20 + v_dept_dash_third_party.ord AS ord,
+    v_dept_dash_third_party.kpi,
+    v_dept_dash_third_party.value,
+    v_dept_dash_third_party.unit,
+    v_dept_dash_third_party.tone,
+    v_dept_dash_third_party.context,
+    v_dept_dash_third_party.drill,
+    v_dept_dash_third_party.computed_at
+   FROM v_dept_dash_third_party
+  WHERE v_dept_dash_third_party.kpi = ANY (ARRAY['Third-party spend, all time'::text, 'Third-party material on hand'::text, 'Third-party UNEXPLAINED'::text])
+UNION ALL
+ SELECT 'Finance'::text AS department,
+    40 AS ord,
+    'Revenue — TWO ANSWERS'::text AS kpi,
+    ( SELECT round(abs(r.value_a - r.value_b)) AS round
+           FROM ( SELECT verification_runs.value_a,
+                    verification_runs.value_b
+                   FROM verification_runs
+                  WHERE verification_runs.check_key = 'revenue-two-reports'::text
+                  ORDER BY verification_runs.ran_at DESC
+                 LIMIT 1) r) AS value,
+    '$'::text AS unit,
+    'bad'::text AS tone,
+    ( SELECT format('Two reports disagree: $%s vs $%s. DO NOT QUOTE REVENUE until settled — the disagreement is larger than planning materiality. Check: revenue-two-reports.'::text, to_char(r.value_a, 'FM9,999,999'::text), to_char(r.value_b, 'FM9,999,999'::text)) AS format
+           FROM ( SELECT verification_runs.value_a,
+                    verification_runs.value_b
+                   FROM verification_runs
+                  WHERE verification_runs.check_key = 'revenue-two-reports'::text
+                  ORDER BY verification_runs.ran_at DESC
+                 LIMIT 1) r) AS context,
+    'verification_runs'::text AS drill,
+    now() AS computed_at
+UNION ALL
+ SELECT 'Finance'::text AS department,
+    41 AS ord,
+    'Examination readiness'::text AS kpi,
+    ( SELECT count(*) FILTER (WHERE examination_standard.where_it_lives IS NOT NULL) AS count
+           FROM examination_standard) AS value,
+    'of '::text || ((( SELECT count(*) AS count
+           FROM examination_standard))::text) AS unit,
+        CASE
+            WHEN (( SELECT count(*) FILTER (WHERE examination_standard.where_it_lives IS NULL) AS count
+               FROM examination_standard)) > 0 THEN 'bad'::text
+            ELSE 'good'::text
+        END AS tone,
+    ( SELECT format('%s of %s IRS/CCC examiner tests producible. CANNOT PRODUCE: %s — worst is the year-end physical inventory count, the first thing an examiner asks on a 280E file.'::text, count(*) FILTER (WHERE examination_standard.where_it_lives IS NOT NULL), count(*), count(*) FILTER (WHERE examination_standard.where_it_lives IS NULL)) AS format
+           FROM examination_standard) AS context,
+    'examination_readiness'::text AS drill,
+    now() AS computed_at
+UNION ALL
+ SELECT 'Finance'::text AS department,
+    42 AS ord,
+    'COGS substantiation'::text AS kpi,
+    (( SELECT count(*) AS count
+           FROM time_entries)) + (( SELECT count(*) AS count
+           FROM material_purchases)) AS value,
+    'records'::text AS unit,
+    'bad'::text AS tone,
+    ((('Direct labour records: '::text || ((( SELECT count(*) AS count
+           FROM time_entries))::text)) || '. Purchase records: '::text) || ((( SELECT count(*) AS count
+           FROM material_purchases))::text)) || '. Under IRC 280E only substantiated COGS survives — zero records means zero substantiated deductions today. cost_classes covers labour only; materials have no classifier yet.'::text AS context,
+    'cost_inputs'::text AS drill,
+    now() AS computed_at
+UNION ALL
+ SELECT 'Finance'::text AS department,
+    43 AS ord,
+    'Materiality — owner set'::text AS kpi,
+    ( SELECT conversion_factors.value
+           FROM conversion_factors
+          WHERE conversion_factors.key = 'materiality_planning_usd'::text) AS value,
+    '$'::text AS unit,
+    'info'::text AS tone,
+    ( SELECT format('Planning $%s · inventory/COGS $%s · trivial $%s. OPERATIONAL thresholds (investigate everything); NOT reporting materiality for a return — that needs the signing CPA. No floor on diversion-class findings.'::text, to_char(( SELECT conversion_factors.value
+                   FROM conversion_factors
+                  WHERE conversion_factors.key = 'materiality_planning_usd'::text), 'FM9,999'::text), to_char(( SELECT conversion_factors.value
+                   FROM conversion_factors
+                  WHERE conversion_factors.key = 'materiality_inventory_usd'::text), 'FM9,999'::text), to_char(( SELECT conversion_factors.value
+                   FROM conversion_factors
+                  WHERE conversion_factors.key = 'materiality_trivial_usd'::text), 'FM9,999'::text)) AS format) AS context,
+    'conversion_factors'::text AS drill,
+    now() AS computed_at
+UNION ALL
+ SELECT 'Finance'::text AS department,
+    44 AS ord,
+    'Findings carrying money'::text AS kpi,
+    ( SELECT count(*) AS count
+           FROM v_findings
+          WHERE v_findings.resolved_at IS NULL AND v_findings.dollars > 0::numeric AND NOT COALESCE(v_findings.is_duplicate, false)) AS value,
+    'findings'::text AS unit,
+    'bad'::text AS tone,
+    'Open findings with a dollar figure attached. TOTAL DELIBERATELY NOT SHOWN: check findings-money-deduplicated is DISAGREEING, so the same dollars appear in more than one finding and any sum is overstated by an unknown amount. Work v_finding_causes — 6 causes carry 83% of the queue.'::text AS context,
+    'finding_causes'::text AS drill,
+    now() AS computed_at
+UNION ALL
+ SELECT 'Finance'::text AS department,
+    45 AS ord,
+    'Checks in disagreement'::text AS kpi,
+    ( SELECT count(*) AS count
+           FROM ( SELECT DISTINCT ON (verification_runs.check_key) verification_runs.verdict
+                   FROM verification_runs
+                  ORDER BY verification_runs.check_key, verification_runs.ran_at DESC) t
+          WHERE upper(t.verdict) <> 'AGREE'::text) AS value,
+    'of '::text || ((( SELECT count(*) AS count
+           FROM verification_checks
+          WHERE verification_checks.enabled))::text) AS unit,
+        CASE
+            WHEN (( SELECT count(*) AS count
+               FROM ( SELECT DISTINCT ON (verification_runs.check_key) verification_runs.verdict
+                       FROM verification_runs
+                      ORDER BY verification_runs.check_key, verification_runs.ran_at DESC) t
+              WHERE upper(t.verdict) <> 'AGREE'::text)) > 0 THEN 'bad'::text
+            ELSE 'good'::text
+        END AS tone,
+    'Hourly verification suite. Every disagreement is a named, owned finding within the hour. A figure whose check disagrees must not be quoted externally.'::text AS context,
+    'verification_runs'::text AS drill,
+    now() AS computed_at;
+create or replace view public.v_figure_disagreement as
+ SELECT min(kpi) AS kpi,
+    count(*) AS published_on_surfaces,
+    string_agg(DISTINCT department, ' | '::text) AS where_it_appears,
+    count(DISTINCT value) AS distinct_values,
+    min(value) AS lowest,
+    max(value) AS highest,
+    round(max(value) - min(value), 3) AS spread,
+    string_agg(DISTINCT value::text, ' vs '::text) AS values_shown,
+        CASE
+            WHEN count(DISTINCT value) > 1 THEN 'DISAGREES — the same figure shows different totals'::text
+            WHEN count(DISTINCT kpi) > 1 THEN ('agrees, but published under '::text || count(DISTINCT kpi)) || ' different labels'::text
+            ELSE 'agrees'::text
+        END AS verdict,
+    f_metric_slug(kpi) AS figure_slug,
+    count(DISTINCT kpi) AS distinct_labels_used,
+    string_agg(DISTINCT kpi, '  ||  '::text) AS the_labels
+   FROM mv_department_dashboard
+  WHERE value IS NOT NULL
+  GROUP BY (f_metric_slug(kpi))
+ HAVING count(*) > 1
+  ORDER BY (count(DISTINCT value)) DESC, (count(DISTINCT kpi)) DESC;
+create or replace view public.v_gap_system as
+ WITH required_types AS (
+         SELECT unnest(ARRAY['planting'::text, 'move'::text, 'harvest'::text, 'package_create'::text, 'lab_test'::text, 'transfer_out'::text, 'transfer_in'::text, 'sale'::text, 'adjustment'::text, 'destruction'::text]) AS spec_type
+        ), mapped AS (
+         SELECT r.spec_type,
+                CASE r.spec_type
+                    WHEN 'move'::text THEN 'location_change'::text
+                    WHEN 'package_create'::text THEN 'packaged'::text
+                    WHEN 'lab_test'::text THEN 'tested'::text
+                    WHEN 'transfer_in'::text THEN 'received'::text
+                    WHEN 'transfer_out'::text THEN 'shipped'::text
+                    WHEN 'sale'::text THEN 'sold'::text
+                    WHEN 'adjustment'::text THEN 'adjusted'::text
+                    ELSE r.spec_type
+                END AS ledger_type
+           FROM required_types r
+        )
+ SELECT 'missing_event_types'::text AS gap_type,
+    'critical'::text AS severity,
+    m.spec_type AS subject,
+    (((('The specification requires a '::text || m.spec_type) || ' event; the ledger has recorded none '::text) || '(this schema calls it "'::text) || m.ledger_type) || '").'::text AS description,
+    'Promote this fact from the mirror into tag_event so the tag timeline is complete. Every '::text || 'gate that depends on it stays blind until then.'::text AS required_action
+   FROM mapped m
+  WHERE NOT (EXISTS ( SELECT 1
+           FROM tag_event p
+          WHERE p.event_type = m.ledger_type))
+UNION ALL
+ SELECT 'source_sync_stale'::text AS gap_type,
+    'critical'::text AS severity,
+    f.source AS subject,
+    f.verdict AS description,
+    'Run the sync, read its error, and fix the cause. Do not clear this by hand — it clears itself on the next successful run.'::text AS required_action
+   FROM v_source_freshness f
+  WHERE f.is_stale
+UNION ALL
+ SELECT 'import_failure'::text AS gap_type,
+    'critical'::text AS severity,
+    i.source_key AS subject,
+    (((((((((('Import run '::text || i.id) || ' on '::text) || COALESCE(i.started_at::date::text, '?'::text)) || ' from '::text) || i.source_key) || ' read '::text) || COALESCE(i.rows_read, 0)) || ' rows and accepted '::text) || COALESCE(i.rows_accepted, 0)) || COALESCE(' — outcome '::text || i.outcome, ''::text)) || '.'::text AS description,
+    'Re-run the import and read its error. An import that accepts nothing is a silent data outage.'::text AS required_action
+   FROM import_run i
+  WHERE i.started_at > (now() - '30 days'::interval) AND COALESCE(i.rows_read, 0) > 0 AND COALESCE(i.rows_accepted, 0) = 0
+UNION ALL
+ SELECT 'date_range_not_applied'::text AS gap_type,
+    'critical'::text AS severity,
+    (b.department || ' ord '::text) || b.ord AS subject,
+    ('Dashboard figure "'::text || b.kpi) || '" has no dated recomputation path, so it cannot honour a selected range.'::text AS description,
+    'Add it to f_department_dashboard as a FLOW or an as-of POSITION, or state on the tile why it cannot move.'::text AS required_action
+   FROM mv_department_dashboard b
+  WHERE NOT (EXISTS ( SELECT 1
+           FROM f_department_dashboard(b.department, CURRENT_DATE - 30, CURRENT_DATE) d(department, ord, kpi, value, unit, tone, context, drill, computed_at, tile_kind, honours_range, range_note)
+          WHERE d.ord = b.ord AND d.honours_range))
+UNION ALL
+ SELECT 'quickbooks_not_connected'::text AS gap_type,
+    'critical'::text AS severity,
+    'QuickBooks'::text AS subject,
+    'No QuickBooks connection exists, so inventory_mismatch_os_quickbooks, the OS-to-QuickBooks '::text || 'revenue tie-out and invoice ageing cannot run.'::text AS description,
+    'Build the connector, write every run to quickbooks_import_log, and reconcile OS sales to Apex to QuickBooks.'::text AS required_action
+  WHERE NOT (EXISTS ( SELECT 1
+           FROM information_schema.tables
+          WHERE tables.table_name::name = 'quickbooks_import_log'::name))
+UNION ALL
+ SELECT 'apex_inventory_not_synced'::text AS gap_type,
+    'critical'::text AS severity,
+    'Apex inventory'::text AS subject,
+    'Apex sends sales only. Inventory adjustments, counts and package-level inventory are not '::text || 'synced, so OS-to-Apex inventory cannot be reconciled.'::text AS description,
+    'Extend apex-sync to the inventory endpoints per docs/vendor/APEX_API_MANUAL.md and log to apex_import_log.'::text AS required_action
+  WHERE NOT (EXISTS ( SELECT 1
+           FROM information_schema.tables
+          WHERE tables.table_name::name = 'apex_import_log'::name))
+UNION ALL
+ SELECT 'documents_not_consolidated'::text AS gap_type,
+    'warning'::text AS severity,
+    'document tables'::text AS subject,
+    'Documents live in metrc_documents, coa_extract and manifest_extract with no single '::text || 'document_id, so no one row identifies a document across the OS.'::text AS description,
+    'Consolidate to one document table with a stable id and repoint the parsers.'::text AS required_action
+  WHERE NOT (EXISTS ( SELECT 1
+           FROM information_schema.tables
+          WHERE tables.table_name::name = 'document'::name));
+create or replace view public.v_global_management as
+ WITH mapped AS (
+         SELECT COALESCE(o.department, f.lane) AS department,
+            o.department IS NULL AS lane_unmapped,
+            f.open_findings,
+            f.critical_findings,
+            f.oldest_finding
+           FROM ( SELECT COALESCE(NULLIF(vf.department, ''::text), 'Unassigned'::text) AS lane,
+                    count(*) AS open_findings,
+                    count(*) FILTER (WHERE vf.severity = 'critical'::text) AS critical_findings,
+                    min(vf.first_raised)::date AS oldest_finding
+                   FROM v_findings vf
+                  WHERE vf.resolved_at IS NULL AND NOT COALESCE(vf.is_duplicate, false)
+                  GROUP BY (COALESCE(NULLIF(vf.department, ''::text), 'Unassigned'::text))) f
+             LEFT JOIN finding_lane_owner o ON o.lane = f.lane
+        ), rolled AS (
+         SELECT mapped.department,
+            bool_or(mapped.lane_unmapped) AS any_unmapped,
+            sum(mapped.open_findings)::bigint AS open_findings,
+            sum(mapped.critical_findings)::bigint AS critical_findings,
+            min(mapped.oldest_finding) AS oldest_finding
+           FROM mapped
+          GROUP BY mapped.department
+        ), depts AS (
+         SELECT mv_department_dashboard.department,
+            count(*) AS tiles,
+            count(*) FILTER (WHERE mv_department_dashboard.tone = 'bad'::text) AS tiles_bad,
+            count(*) FILTER (WHERE mv_department_dashboard.value IS NULL) AS tiles_null
+           FROM mv_department_dashboard
+          GROUP BY mv_department_dashboard.department
+        ), t AS (
+         SELECT COALESCE(NULLIF(tasks.department, ''::text), 'Unassigned'::text) AS department,
+            count(*) AS open_orders,
+            count(*) FILTER (WHERE tasks.due_on < CURRENT_DATE) AS orders_overdue
+           FROM tasks
+          WHERE tasks.status <> ALL (ARRAY['done'::text, 'completed'::text])
+          GROUP BY (COALESCE(NULLIF(tasks.department, ''::text), 'Unassigned'::text))
+        )
+ SELECT COALESCE(d.department, r.department, t.department) AS department,
+    COALESCE(d.department, r.department, t.department) = 'Unassigned'::text AS is_the_unrouted_pile,
+    COALESCE(d.tiles, 0::bigint) AS tiles,
+    COALESCE(d.tiles_bad, 0::bigint) AS tiles_bad,
+    COALESCE(d.tiles_null, 0::bigint) AS tiles_null,
+    COALESCE(r.open_findings, 0::bigint) AS open_findings,
+    COALESCE(r.critical_findings, 0::bigint) AS critical_findings,
+    r.oldest_finding,
+    COALESCE(t.open_orders, 0::bigint) AS open_orders,
+    COALESCE(t.orders_overdue, 0::bigint) AS orders_overdue,
+        CASE
+            WHEN COALESCE(r.critical_findings, 0::bigint) > 0 THEN 'bad'::text
+            WHEN COALESCE(d.tiles_bad, 0::bigint) > 0 OR COALESCE(t.orders_overdue, 0::bigint) > 0 THEN 'watch'::text
+            WHEN COALESCE(d.tiles, 0::bigint) = 0 THEN 'bad'::text
+            ELSE 'good'::text
+        END AS tone,
+        CASE
+            WHEN COALESCE(d.tiles, 0::bigint) = 0 AND COALESCE(d.department, ''::text) <> ''::text THEN 'PUBLISHES NO TILES — a required category with nothing replicating up (rule 1/4)'::text
+            WHEN COALESCE(r.any_unmapped, false) THEN 'LANE NOT MAPPED — findings arrive under a lane name with no owning department; add a row to finding_lane_owner'::text
+            ELSE NULL::text
+        END AS gap_note
+   FROM depts d
+     FULL JOIN rolled r ON r.department = d.department
+     FULL JOIN t ON t.department = COALESCE(d.department, r.department);
+create or replace view public.v_glossary_conflicts as
+ WITH corpus AS (
+         SELECT nav_registry.label AS phrase,
+            'nav label'::text AS surface
+           FROM nav_registry
+          WHERE nav_registry.label IS NOT NULL
+        UNION ALL
+         SELECT mv_department_dashboard.kpi,
+            'dashboard kpi'::text AS text
+           FROM mv_department_dashboard
+        UNION ALL
+         SELECT columns.column_name,
+            'column'::text AS text
+           FROM information_schema.columns
+          WHERE columns.table_schema::name = 'public'::name
+        UNION ALL
+         SELECT tables.table_name,
+            'relation'::text AS text
+           FROM information_schema.tables
+          WHERE tables.table_schema::name = 'public'::name
+        )
+ SELECT v.term,
+    t.preferred_form,
+    v.variant,
+    v.variant_kind,
+    t.settled,
+    count(c.phrase) AS live_uses,
+    string_agg(DISTINCT c.surface, ', '::text) AS appears_in,
+        CASE
+            WHEN v.variant_kind = 'accepted'::text THEN 'fine'::text
+            WHEN count(c.phrase) = 0 THEN 'clean'::text
+            ELSE ((((('INCONSISTENT — '::text || count(c.phrase)) || ' uses of "'::text) || v.variant) || '" where the preferred form is "'::text) || t.preferred_form) || '"'::text
+        END AS verdict
+   FROM glossary_variant v
+     JOIN glossary_term t ON t.term = v.term
+     LEFT JOIN corpus c ON lower(c.phrase) ~ (('(^|[^a-z])'::text || lower(v.variant)) || '([^a-z]|$)'::text)
+  GROUP BY v.term, t.preferred_form, v.variant, v.variant_kind, t.settled
+  ORDER BY (v.variant_kind <> 'accepted'::text) DESC, (count(c.phrase)) DESC;
+create or replace view public.v_item_flag_summary as
+ SELECT v_item_flags.area,
+    v_item_flags.area_colour,
+    count(*) AS open_issues,
+    count(*) FILTER (WHERE v_item_flags.severity = 'critical'::text) AS critical,
+    count(*) FILTER (WHERE v_item_flags.severity = 'elevated'::text) AS elevated,
+    count(*) FILTER (WHERE v_item_flags.severity = 'watch'::text) AS watch,
+    count(*) FILTER (WHERE v_item_flags.disposition = 'MARKED FIXED BUT STILL PRESENT'::text) AS claimed_fixed_but_not,
+    count(*) FILTER (WHERE v_item_flags.days_open > 7) AS open_over_a_week,
+    max(v_item_flags.days_open) AS oldest_days_open,
+    count(DISTINCT v_item_flags.entity_key) AS items_affected
+   FROM v_item_flags
+  GROUP BY v_item_flags.area, v_item_flags.area_colour
+UNION ALL
+ SELECT 'ALL AREAS TOGETHER'::text AS area,
+    NULL::text AS area_colour,
+    count(*) AS open_issues,
+    count(*) FILTER (WHERE v_item_flags.severity = 'critical'::text) AS critical,
+    count(*) FILTER (WHERE v_item_flags.severity = 'elevated'::text) AS elevated,
+    count(*) FILTER (WHERE v_item_flags.severity = 'watch'::text) AS watch,
+    count(*) FILTER (WHERE v_item_flags.disposition = 'MARKED FIXED BUT STILL PRESENT'::text) AS claimed_fixed_but_not,
+    count(*) FILTER (WHERE v_item_flags.days_open > 7) AS open_over_a_week,
+    max(v_item_flags.days_open) AS oldest_days_open,
+    count(DISTINCT v_item_flags.entity_key) AS items_affected
+   FROM v_item_flags;
+create or replace view public.v_kpi_staleness as
+ WITH live AS (
+         SELECT mv_department_dashboard.department,
+            mv_department_dashboard.kpi,
+            mv_department_dashboard.value AS live_value,
+            mv_department_dashboard.unit
+           FROM mv_department_dashboard
+        ), latest_snap AS (
+         SELECT DISTINCT ON (dashboard_snapshots.department, dashboard_snapshots.kpi) dashboard_snapshots.department,
+            dashboard_snapshots.kpi,
+            dashboard_snapshots.value AS last_snap_value,
+            dashboard_snapshots.taken_on
+           FROM dashboard_snapshots
+          ORDER BY dashboard_snapshots.department, dashboard_snapshots.kpi, dashboard_snapshots.taken_on DESC
+        ), hist AS (
+         SELECT dashboard_snapshots.department,
+            dashboard_snapshots.kpi,
+            dashboard_snapshots.taken_on,
+            dashboard_snapshots.value,
+            lag(dashboard_snapshots.value) OVER (PARTITION BY dashboard_snapshots.department, dashboard_snapshots.kpi ORDER BY dashboard_snapshots.taken_on) AS prev_value
+           FROM dashboard_snapshots
+        ), changed AS (
+         SELECT hist.department,
+            hist.kpi,
+            max(hist.taken_on) FILTER (WHERE hist.prev_value IS DISTINCT FROM hist.value) AS last_changed_on,
+            count(*) AS snapshots_held
+           FROM hist
+          GROUP BY hist.department, hist.kpi
+        ), resolved AS (
+         SELECT l.department,
+            l.kpi,
+            l.live_value,
+            l.unit,
+            c.snapshots_held,
+                CASE
+                    WHEN s.last_snap_value IS DISTINCT FROM l.live_value THEN CURRENT_DATE
+                    ELSE c.last_changed_on
+                END AS last_changed_on,
+            s.last_snap_value IS DISTINCT FROM l.live_value AS moved_since_last_snapshot
+           FROM live l
+             LEFT JOIN changed c ON c.department = l.department AND c.kpi = l.kpi
+             LEFT JOIN latest_snap s ON s.department = l.department AND s.kpi = l.kpi
+        )
+ SELECT r.department,
+    r.kpi,
+    r.live_value,
+    r.unit,
+    r.last_changed_on,
+    r.snapshots_held,
+    CURRENT_DATE - r.last_changed_on AS days_unchanged,
+    p.must_move_within,
+    p.exempt,
+    p.why AS policy_reason,
+        CASE
+            WHEN r.live_value IS NULL THEN 'NULL VALUE — the tile shows nothing and asks nobody a question'::text
+            WHEN p.department IS NULL THEN 'UNPOLICED — no freshness policy declared for this KPI'::text
+            WHEN p.exempt THEN 'EXEMPT — '::text || p.why
+            WHEN r.last_changed_on IS NULL THEN 'NO HISTORY — never seen to change; snapshots begin 6 Aug 2026'::text
+            WHEN ((CURRENT_DATE - r.last_changed_on)::double precision * '1 day'::interval) > p.must_move_within THEN (('STALE — unchanged for '::text || (CURRENT_DATE - r.last_changed_on)) || ' days against a policy of '::text) || p.must_move_within
+            ELSE 'FRESH'::text
+        END AS verdict,
+    r.moved_since_last_snapshot
+   FROM resolved r
+     LEFT JOIN kpi_freshness_policy p ON p.department = r.department AND p.kpi = r.kpi;
+create or replace view public.v_tag_gap_summary as
+ SELECT rule_code,
+    gap_type,
+    severity,
+    count(*) AS gaps,
+    count(DISTINCT tag) AS tags,
+    round(sum(COALESCE(lb, 0::numeric)), 1) AS lb_at_stake,
+    max(required_action) AS required_action
+   FROM v_tag_gap
+  GROUP BY rule_code, gap_type, severity
+  ORDER BY rule_code;
+create materialized view if not exists public.mv_global_management as
+ SELECT department,
+    is_the_unrouted_pile,
+    tiles,
+    tiles_bad,
+    tiles_null,
+    open_findings,
+    critical_findings,
+    oldest_finding,
+    open_orders,
+    orders_overdue,
+    tone,
+    gap_note
+   FROM v_global_management;
 
 -- ==========================================================================
 -- ROW LEVEL SECURITY
@@ -57326,11 +57326,2715 @@ create policy zones_read on public.zones as permissive for select to authenticat
 -- GRANTS — application roles only
 -- ==========================================================================
 
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public._mv_dept_backup to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public._mv_dept_backup to service_role;
+grant REFERENCES, TRIGGER on public._pi3_dict to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public._pi3_dict to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public._pi3_dict to service_role;
+grant REFERENCES, TRIGGER on public._pi3_rows to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public._pi3_rows to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public._pi3_rows to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.actions_register to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.actions_register to service_role;
+grant REFERENCES, TRIGGER on public.agent_claims to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.agent_claims to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.agent_claims to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.agent_departments to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.agent_departments to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.agent_findings to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.agent_findings to service_role;
+grant REFERENCES, TRIGGER on public.agent_lane to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.agent_lane to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.agent_lane to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.agent_registry to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.agent_registry to service_role;
+grant REFERENCES, TRIGGER on public.ai_action_log to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.ai_action_log to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.ai_action_log to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.ai_bridge_heartbeat to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.ai_bridge_heartbeat to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.ai_bridge_jobs to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.ai_bridge_jobs to service_role;
+grant REFERENCES, TRIGGER on public.ai_models to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.ai_models to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.ai_models to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.ai_settings to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.ai_settings to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.ai_usage_log to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.ai_usage_log to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.ai_user_access to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.ai_user_access to service_role;
+grant REFERENCES, TRIGGER on public.ai_write_approval to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.ai_write_approval to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.ai_write_approval to service_role;
+grant REFERENCES, TRIGGER on public.ai_write_policy to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.ai_write_policy to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.ai_write_policy to service_role;
+grant REFERENCES, TRIGGER on public.alert_deferral to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.alert_deferral to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.alert_deferral to service_role;
+grant REFERENCES, TRIGGER on public.alert_destination to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.alert_destination to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.alert_destination to service_role;
+grant REFERENCES, TRIGGER on public.alert_note to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.alert_note to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.alert_note to service_role;
+grant REFERENCES, TRIGGER on public.alert_outbox to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.alert_outbox to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.alert_outbox to service_role;
+grant REFERENCES, TRIGGER on public.alert_recipient to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.alert_recipient to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.alert_recipient to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.allocation_requests to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.allocation_requests to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.allocations to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.allocations to service_role;
+grant SELECT on public.apex_empty_history_proof to service_role;
+grant REFERENCES, TRIGGER on public.apex_entity to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.apex_entity to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.apex_entity to service_role;
+grant REFERENCES, TRIGGER on public.apex_field_map to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.apex_field_map to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.apex_field_map to service_role;
+grant SELECT on public.apex_raw to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.apex_raw to service_role;
+grant INSERT, SELECT on public.apex_record_verification to service_role;
+grant REFERENCES, TRIGGER on public.apex_scan_log to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.apex_scan_log to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.apex_scan_log to service_role;
+grant REFERENCES, SELECT, TRIGGER on public.apex_stated_invoices_20260830 to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.apex_stated_invoices_20260830 to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.apex_stated_invoices_20260830 to service_role;
+grant REFERENCES, TRIGGER on public.apex_stated_orders_20260909 to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.apex_stated_orders_20260909 to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.apex_stated_orders_20260909 to service_role;
+grant REFERENCES, TRIGGER on public.apex_stated_payments_20260909 to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.apex_stated_payments_20260909 to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.apex_stated_payments_20260909 to service_role;
+grant REFERENCES, SELECT, TRIGGER on public.apex_stated_sales_20260830 to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.apex_stated_sales_20260830 to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.apex_stated_sales_20260830 to service_role;
+grant INSERT, SELECT on public.apex_sync_page_receipt to service_role;
+grant REFERENCES, TRIGGER on public.apex_sync_run to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.apex_sync_run to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.apex_sync_run to service_role;
+grant INSERT, SELECT, UPDATE on public.apex_sync_verification to service_role;
+grant REFERENCES, TRIGGER on public.apex_watermark to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.apex_watermark to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.apex_watermark to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.app_roles to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.app_roles to service_role;
+grant DELETE, INSERT, REFERENCES, TRIGGER, UPDATE on public.app_secrets to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.app_secrets to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.app_users to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.app_users to service_role;
+grant REFERENCES, TRIGGER on public.approval_witness to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.approval_witness to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.approval_witness to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.assistant_avatars to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.assistant_avatars to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.assistant_profile to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.assistant_profile to service_role;
+grant REFERENCES, TRIGGER on public.assistant_uploads to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.assistant_uploads to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.assistant_uploads to service_role;
+grant REFERENCES, TRIGGER on public.attendance_occurrences to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.attendance_occurrences to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.attendance_occurrences to service_role;
+grant REFERENCES, TRIGGER on public.attendance_policy to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.attendance_policy to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.attendance_policy to service_role;
+grant REFERENCES, TRIGGER on public.audit_assertion to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.audit_assertion to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.audit_assertion to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.audit_events to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.audit_events to service_role;
+grant REFERENCES, TRIGGER on public.audit_journal to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.audit_journal to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.audit_journal to service_role;
+grant REFERENCES, TRIGGER on public.backfill_reading to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.backfill_reading to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.backfill_reading to service_role;
+grant REFERENCES, TRIGGER on public.backfill_watch to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.backfill_watch to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.backfill_watch to service_role;
+grant REFERENCES, TRIGGER on public.basis_claim to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.basis_claim to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.basis_claim to service_role;
+grant REFERENCES, TRIGGER on public.brain_claims to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.brain_claims to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.brain_claims to service_role;
+grant REFERENCES, TRIGGER on public.brain_conversation to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.brain_conversation to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.brain_conversation to service_role;
+grant REFERENCES, TRIGGER on public.brain_correction to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.brain_correction to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.brain_correction to service_role;
+grant REFERENCES, TRIGGER on public.brain_fact to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.brain_fact to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.brain_fact to service_role;
+grant REFERENCES, TRIGGER on public.break_windows to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.break_windows to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.break_windows to service_role;
+grant REFERENCES, TRIGGER on public.bridge_manifest to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.bridge_manifest to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.bridge_manifest to service_role;
+grant REFERENCES, TRIGGER on public.bridge_manifest_package to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.bridge_manifest_package to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.bridge_manifest_package to service_role;
+grant REFERENCES, TRIGGER on public.bridge_manual_link to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.bridge_manual_link to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.bridge_manual_link to service_role;
+grant REFERENCES, TRIGGER on public.bridge_stated_packages_20260909 to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.bridge_stated_packages_20260909 to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.bridge_stated_packages_20260909 to service_role;
+grant SELECT on public.business_rule_surface to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.business_rule_surface to service_role;
+grant REFERENCES, TRIGGER on public.callouts to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.callouts to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.callouts to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.canary_runs to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.canary_runs to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.cash_snapshots to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.cash_snapshots to service_role;
+grant REFERENCES, TRIGGER on public.certification_note to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.certification_note to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.certification_note to service_role;
+grant REFERENCES, TRIGGER on public.certification_receipt to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.certification_receipt to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.certification_receipt to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.channels to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.channels to service_role;
+grant REFERENCES, TRIGGER on public.check_defect to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.check_defect to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.check_defect to service_role;
+grant REFERENCES, TRIGGER on public.checker_registry to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.checker_registry to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.checker_registry to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.clickup_lists to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.clickup_lists to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.clickup_spaces to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.clickup_spaces to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.clickup_tasks to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.clickup_tasks to service_role;
+grant REFERENCES, TRIGGER on public.client_fee to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.client_fee to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.client_fee to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.coa_documents to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.coa_documents to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.coa_extract to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.coa_extract to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.coas to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.coas to service_role;
+grant REFERENCES, TRIGGER on public.column_semantics to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.column_semantics to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.column_semantics to service_role;
+grant REFERENCES, TRIGGER on public.commission_ledger to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.commission_ledger to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.commission_ledger to service_role;
+grant REFERENCES, TRIGGER on public.commission_plan to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.commission_plan to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.commission_plan to service_role;
+grant REFERENCES, TRIGGER on public.commission_rule to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.commission_rule to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.commission_rule to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.company_licenses to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.company_licenses to service_role;
+grant REFERENCES, TRIGGER on public.compliance_requirements to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.compliance_requirements to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.compliance_requirements to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.concentrate_rate_map to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.concentrate_rate_map to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.configurations to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.configurations to service_role;
+grant REFERENCES, TRIGGER on public.conformance_ledger to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.conformance_ledger to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.conformance_ledger to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.conversion_factor_history to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.conversion_factor_history to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.conversion_factors to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.conversion_factors to service_role;
+grant REFERENCES, TRIGGER on public.correction_proposal to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.correction_proposal to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.correction_proposal to service_role;
+grant REFERENCES, TRIGGER on public.cost_classes to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.cost_classes to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.cost_classes to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.cost_input_history to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.cost_input_history to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.cost_inputs to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.cost_inputs to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.cost_model to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.cost_model to service_role;
+grant REFERENCES, TRIGGER on public.cost_tracking_policy to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.cost_tracking_policy to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.cost_tracking_policy to service_role;
+grant REFERENCES, TRIGGER on public.counterparty_role to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.counterparty_role to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.counterparty_role to service_role;
+grant REFERENCES, TRIGGER on public.cult_cycle_policy to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.cult_cycle_policy to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.cult_cycle_policy to service_role;
+grant REFERENCES, TRIGGER on public.cult_room_plant_snapshot to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.cult_room_plant_snapshot to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.cult_room_plant_snapshot to service_role;
+grant REFERENCES, TRIGGER on public.cult_schedule_snapshot to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.cult_schedule_snapshot to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.cult_schedule_snapshot to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.cultivars to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.cultivars to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.cultivation_goals to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.cultivation_goals to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.custody_alert_log to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.custody_alert_log to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.customer_notes to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.customer_notes to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.customers to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.customers to service_role;
+grant REFERENCES, TRIGGER on public.dashboard_commentary to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.dashboard_commentary to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.dashboard_commentary to service_role;
+grant REFERENCES, TRIGGER on public.dashboard_layout to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.dashboard_layout to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.dashboard_layout to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.dashboard_snapshots to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.dashboard_snapshots to service_role;
+grant REFERENCES, TRIGGER on public.dashboard_template to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.dashboard_template to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.dashboard_template to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.dashboard_widgets to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.dashboard_widgets to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.dashboards to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.dashboards to service_role;
+grant REFERENCES, SELECT, TRIGGER on public.data_assertion to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.data_assertion to service_role;
+grant REFERENCES, SELECT, TRIGGER on public.data_assertion_run to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.data_assertion_run to service_role;
+grant REFERENCES, TRIGGER on public.data_quirk to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.data_quirk to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.data_quirk to service_role;
+grant SELECT on public.date_range_presets to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.date_range_presets to service_role;
+grant REFERENCES, TRIGGER on public.db_change_review to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.db_change_review to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.db_change_review to service_role;
+grant REFERENCES, TRIGGER on public.db_domain_owner to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.db_domain_owner to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.db_domain_owner to service_role;
+grant REFERENCES, TRIGGER on public.db_policy to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.db_policy to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.db_policy to service_role;
+grant REFERENCES, TRIGGER on public.ddl_guard_log to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.ddl_guard_log to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.ddl_guard_log to service_role;
+grant REFERENCES, TRIGGER on public.deduction_codes to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.deduction_codes to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.deduction_codes to service_role;
+grant REFERENCES, TRIGGER on public.delivery to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.delivery to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.delivery to service_role;
+grant REFERENCES, TRIGGER on public.delivery_verification to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.delivery_verification to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.delivery_verification to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.demand_forecasts to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.demand_forecasts to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.demand_signals to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.demand_signals to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.departments to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.departments to service_role;
+grant REFERENCES, TRIGGER on public.deployment_check to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.deployment_check to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.deployment_check to service_role;
+grant REFERENCES, TRIGGER on public.deployment_check_run to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.deployment_check_run to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.deployment_check_run to service_role;
+grant REFERENCES, TRIGGER on public.disagreement_class to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.disagreement_class to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.disagreement_class to service_role;
+grant REFERENCES, TRIGGER on public.discrepancy_investigation to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.discrepancy_investigation to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.discrepancy_investigation to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.discrepancy_register to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.discrepancy_register to service_role;
+grant REFERENCES, TRIGGER on public.discrepancy_source to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.discrepancy_source to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.discrepancy_source to service_role;
+grant REFERENCES, TRIGGER on public.document_search to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.document_search to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.document_search to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.document_sends to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.document_sends to service_role;
+grant REFERENCES, TRIGGER on public.drill_latency_run to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.drill_latency_run to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.drill_latency_run to service_role;
+grant REFERENCES, TRIGGER on public.duplicate_key to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.duplicate_key to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.duplicate_key to service_role;
+grant REFERENCES, TRIGGER on public.earning_codes to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.earning_codes to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.earning_codes to service_role;
+grant REFERENCES, TRIGGER on public.employee_availability to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.employee_availability to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.employee_availability to service_role;
+grant REFERENCES, TRIGGER on public.employee_compensation to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.employee_compensation to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.employee_compensation to service_role;
+grant REFERENCES, TRIGGER on public.employee_compliance to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.employee_compliance to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.employee_compliance to service_role;
+grant REFERENCES, TRIGGER on public.employee_deductions to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.employee_deductions to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.employee_deductions to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.employee_notes to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.employee_notes to service_role;
+grant REFERENCES, TRIGGER on public.employee_pto to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.employee_pto to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.employee_pto to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.employee_rates to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.employee_rates to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.employee_schedules to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.employee_schedules to service_role;
+grant REFERENCES, TRIGGER on public.employee_tax_profile to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.employee_tax_profile to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.employee_tax_profile to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.employee_work_schedules to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.employee_work_schedules to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.employees to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.employees to service_role;
+grant REFERENCES, TRIGGER on public.entity_note to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.entity_note to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.entity_note to service_role;
+grant REFERENCES, TRIGGER on public.examination_standard to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.examination_standard to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.examination_standard to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.facility_contacts to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.facility_contacts to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.facility_profile to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.facility_profile to service_role;
+grant REFERENCES, TRIGGER on public.failed_material_disposition to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.failed_material_disposition to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.failed_material_disposition to service_role;
+grant REFERENCES, TRIGGER on public.field_gap to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.field_gap to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.field_gap to service_role;
+grant REFERENCES, TRIGGER on public.field_help to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.field_help to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.field_help to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.figure_of_record to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.figure_of_record to service_role;
+grant REFERENCES, TRIGGER on public.finding_closure to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.finding_closure to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.finding_closure to service_role;
+grant REFERENCES, TRIGGER on public.finding_lane_owner to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.finding_lane_owner to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.finding_lane_owner to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.finding_owners to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.finding_owners to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.finding_plans to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.finding_plans to service_role;
+grant REFERENCES, TRIGGER on public.finding_remediation to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.finding_remediation to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.finding_remediation to service_role;
+grant REFERENCES, TRIGGER on public.finding_route to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.finding_route to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.finding_route to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.finding_state to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.finding_state to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.finding_state_history to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.finding_state_history to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.forensic_audits to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.forensic_audits to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.form_responses to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.form_responses to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.forms to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.forms to service_role;
+grant REFERENCES, TRIGGER on public.gap_alert to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.gap_alert to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.gap_alert to service_role;
+grant REFERENCES, TRIGGER on public.gap_routing to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.gap_routing to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.gap_routing to service_role;
+grant REFERENCES, TRIGGER on public.gap_rule to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.gap_rule to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.gap_rule to service_role;
+grant REFERENCES, TRIGGER on public.genetics_intake to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.genetics_intake to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.genetics_intake to service_role;
+grant REFERENCES, TRIGGER on public.glossary_term to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.glossary_term to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.glossary_term to service_role;
+grant REFERENCES, TRIGGER on public.glossary_variant to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.glossary_variant to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.glossary_variant to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.golive_items to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.golive_items to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.grow_rooms to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.grow_rooms to service_role;
+grant REFERENCES, TRIGGER on public.guard_repair_log to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.guard_repair_log to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.guard_repair_log to service_role;
+grant REFERENCES, TRIGGER on public.guard_selftest to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.guard_selftest to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.guard_selftest to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.harvest_alert_rules to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.harvest_alert_rules to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.harvest_calendar_original to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.harvest_calendar_original to service_role;
+grant REFERENCES, TRIGGER on public.harvest_close_draft to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.harvest_close_draft to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.harvest_close_draft to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.harvest_grades to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.harvest_grades to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.harvest_labor_calc to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.harvest_labor_calc to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.harvest_labor_inputs to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.harvest_labor_inputs to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.harvest_pace_scenarios to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.harvest_pace_scenarios to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.harvest_plan_2026 to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.harvest_plan_2026 to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.harvest_pull_details to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.harvest_pull_details to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.harvest_pulls to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.harvest_pulls to service_role;
+grant REFERENCES, TRIGGER on public.harvest_responsibility to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.harvest_responsibility to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.harvest_responsibility to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.harvest_schedule to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.harvest_schedule to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.harvest_sop_steps to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.harvest_sop_steps to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.harvest_weights to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.harvest_weights to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.harvests to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.harvests to service_role;
+grant REFERENCES, TRIGGER on public.harvests_stated_20260908 to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.harvests_stated_20260908 to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.harvests_stated_20260908 to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.hiring_plan to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.hiring_plan to service_role;
+grant REFERENCES, TRIGGER on public.holding_room to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.holding_room to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.holding_room to service_role;
+grant REFERENCES, TRIGGER on public.holidays to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.holidays to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.holidays to service_role;
+grant REFERENCES, TRIGGER on public.hr_attachment to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.hr_attachment to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.hr_attachment to service_role;
+grant REFERENCES, TRIGGER on public.hr_document_acknowledgements to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.hr_document_acknowledgements to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.hr_document_acknowledgements to service_role;
+grant REFERENCES, TRIGGER on public.hr_document_assignments to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.hr_document_assignments to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.hr_document_assignments to service_role;
+grant REFERENCES, TRIGGER on public.hr_document_progress to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.hr_document_progress to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.hr_document_progress to service_role;
+grant REFERENCES, TRIGGER on public.hr_document_sections to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.hr_document_sections to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.hr_document_sections to service_role;
+grant REFERENCES, TRIGGER on public.hr_documents to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.hr_documents to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.hr_documents to service_role;
+grant REFERENCES, TRIGGER on public.hr_external_task to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.hr_external_task to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.hr_external_task to service_role;
+grant REFERENCES, TRIGGER on public.hr_form_field to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.hr_form_field to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.hr_form_field to service_role;
+grant REFERENCES, TRIGGER on public.hr_form_response to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.hr_form_response to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.hr_form_response to service_role;
+grant REFERENCES, TRIGGER on public.hr_incidents to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.hr_incidents to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.hr_incidents to service_role;
+grant REFERENCES, TRIGGER on public.hr_message to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.hr_message to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.hr_message to service_role;
+grant REFERENCES, TRIGGER on public.hr_message_recipient to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.hr_message_recipient to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.hr_message_recipient to service_role;
+grant REFERENCES, TRIGGER on public.hr_review_queue to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.hr_review_queue to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.hr_review_queue to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.import_check to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.import_check to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.import_check_run to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.import_check_run to service_role;
+grant REFERENCES, TRIGGER on public.import_field_map to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.import_field_map to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.import_field_map to service_role;
+grant REFERENCES, TRIGGER on public.import_reconciliation to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.import_reconciliation to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.import_reconciliation to service_role;
+grant REFERENCES, TRIGGER on public.import_reconciliation_run to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.import_reconciliation_run to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.import_reconciliation_run to service_role;
+grant REFERENCES, TRIGGER on public.import_rejects to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.import_rejects to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.import_rejects to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.import_review to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.import_review to service_role;
+grant REFERENCES, TRIGGER on public.import_run to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.import_run to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.import_run to service_role;
+grant REFERENCES, TRIGGER on public.import_skipped to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.import_skipped to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.import_skipped to service_role;
+grant REFERENCES, TRIGGER on public.import_source to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.import_source to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.import_source to service_role;
+grant REFERENCES, TRIGGER on public.import_stage_row to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.import_stage_row to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.import_stage_row to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.industry_benchmarks to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.industry_benchmarks to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.integration_mappings to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.integration_mappings to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.integration_secrets to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.inventory_alerts to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.inventory_alerts to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.inventory_config to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.inventory_config to service_role;
+grant REFERENCES, TRIGGER on public.inventory_cost_rate to anon;
+grant DELETE, INSERT, SELECT, UPDATE on public.inventory_cost_rate to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.inventory_cost_rate to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.inventory_snapshot to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.inventory_snapshot to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.inventory_values to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.inventory_values to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.invoices to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.invoices to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.issue_decisions to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.issue_decisions to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.issue_reports to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.issue_reports to service_role;
+grant REFERENCES, TRIGGER on public.item_alert_route to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.item_alert_route to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.item_alert_route to service_role;
+grant REFERENCES, TRIGGER on public.item_flag_decision to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.item_flag_decision to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.item_flag_decision to service_role;
+grant REFERENCES, TRIGGER on public.kpi_definitions to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.kpi_definitions to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.kpi_definitions to service_role;
+grant REFERENCES, TRIGGER on public.kpi_freshness_policy to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.kpi_freshness_policy to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.kpi_freshness_policy to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.kpi_snapshots to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.kpi_snapshots to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.kpi_targets to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.kpi_targets to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.lab_result_values to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.lab_result_values to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.lab_turnaround_log to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.lab_turnaround_log to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.labor_budgets to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.labor_budgets to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.labs to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.labs to service_role;
+grant REFERENCES, TRIGGER on public.ledger_label_correction to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.ledger_label_correction to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.ledger_label_correction to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.licence_profile to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.licence_profile to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.licence_type_prefix to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.licence_type_prefix to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.licenses to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.licenses to service_role;
+grant REFERENCES, TRIGGER on public.lifecycle_progress to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.lifecycle_progress to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.lifecycle_progress to service_role;
+grant REFERENCES, TRIGGER on public.lifecycle_steps to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.lifecycle_steps to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.lifecycle_steps to service_role;
+grant REFERENCES, TRIGGER on public.location_note to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.location_note to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.location_note to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.lots to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.lots to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.machine_qualifications to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.machine_qualifications to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.machines to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.machines to service_role;
+grant REFERENCES, TRIGGER on public.manifest_extract to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.manifest_extract to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.manifest_extract to service_role;
+grant REFERENCES, TRIGGER on public.manufacturing_client to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.manufacturing_client to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.manufacturing_client to service_role;
+grant REFERENCES, TRIGGER on public.manufacturing_cost_figure to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.manufacturing_cost_figure to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.manufacturing_cost_figure to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.material_purchases to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.material_purchases to service_role;
+grant REFERENCES, TRIGGER on public.matview_heal_policy to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.matview_heal_policy to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.matview_heal_policy to service_role;
+grant REFERENCES, TRIGGER on public.matview_refresh_run to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.matview_refresh_run to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.matview_refresh_run to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.measure_semantic_registry to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.measure_semantic_registry to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.messages to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.messages to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.metrc_backfill_attempt to service_role;
+grant REFERENCES, TRIGGER on public.metrc_backfill_window to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.metrc_backfill_window to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.metrc_backfill_window to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.metrc_corrections to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.metrc_corrections to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.metrc_documents to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.metrc_documents to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.metrc_employees to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.metrc_employees to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.metrc_endpoint_capability to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.metrc_endpoint_capability to service_role;
+grant REFERENCES, TRIGGER on public.metrc_export_digest to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.metrc_export_digest to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.metrc_export_digest to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.metrc_harvests to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.metrc_harvests to service_role;
+grant REFERENCES, TRIGGER on public.metrc_identity_gap to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.metrc_identity_gap to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.metrc_identity_gap to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.metrc_import_backup to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.metrc_import_backup to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.metrc_item_categories to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.metrc_item_categories to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.metrc_items to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.metrc_items to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.metrc_lab_backfill to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.metrc_lab_backfill to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.metrc_lab_results to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.metrc_lab_results to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.metrc_lab_test_types to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.metrc_lab_test_types to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.metrc_locations to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.metrc_locations to service_role;
+grant REFERENCES, TRIGGER on public.metrc_package_retire_log to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.metrc_package_retire_log to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.metrc_package_retire_log to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.metrc_packages to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.metrc_packages to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.metrc_plant_batches to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.metrc_plant_batches to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.metrc_plants to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.metrc_plants to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.metrc_record_verification to service_role;
+grant REFERENCES, TRIGGER on public.metrc_report_catalog to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.metrc_report_catalog to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.metrc_report_catalog to service_role;
+grant REFERENCES, TRIGGER on public.metrc_report_field_map to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.metrc_report_field_map to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.metrc_report_field_map to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.metrc_report_imports to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.metrc_report_imports to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.metrc_report_rows to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.metrc_report_rows to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.metrc_report_types to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.metrc_report_types to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.metrc_report_unmapped to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.metrc_report_unmapped to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.metrc_rpt_adjustments to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.metrc_rpt_adjustments to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.metrc_rpt_harvest_moisture to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.metrc_rpt_harvest_moisture to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.metrc_rpt_harvests to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.metrc_rpt_harvests to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.metrc_rpt_lab_results to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.metrc_rpt_lab_results to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.metrc_rpt_package_transfers to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.metrc_rpt_package_transfers to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.metrc_rpt_packages_inventory to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.metrc_rpt_packages_inventory to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.metrc_rpt_plant_waste to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.metrc_rpt_plant_waste to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.metrc_rpt_plants_destroyed to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.metrc_rpt_plants_destroyed to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.metrc_rpt_point_in_time to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.metrc_rpt_point_in_time to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.metrc_rpt_test_batches to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.metrc_rpt_test_batches to service_role;
+grant REFERENCES, TRIGGER on public.metrc_rpt_transfer_manifests to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.metrc_rpt_transfer_manifests to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.metrc_rpt_transfer_manifests to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.metrc_rpt_wholesale to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.metrc_rpt_wholesale to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.metrc_sales to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.metrc_sales to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.metrc_scan_log to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.metrc_scan_log to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.metrc_scan_schedule to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.metrc_scan_schedule to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.metrc_strains to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.metrc_strains to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.metrc_sync_page_receipt to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.metrc_sync_runs to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.metrc_sync_runs to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.metrc_sync_verification to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.metrc_transfers to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.metrc_transfers to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.metrc_units_of_measure to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.metrc_units_of_measure to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.metrc_waste_types to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.metrc_waste_types to service_role;
+grant REFERENCES, TRIGGER on public.metric_alias to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.metric_alias to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.metric_alias to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.metric_challenges to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.metric_challenges to service_role;
+grant REFERENCES, TRIGGER on public.metric_definition to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.metric_definition to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.metric_definition to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.metric_provenance to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.metric_provenance to service_role;
+grant REFERENCES, TRIGGER on public.metric_registry to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.metric_registry to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.metric_registry to service_role;
+grant REFERENCES, TRIGGER on public.metric_synonym to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.metric_synonym to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.metric_synonym to service_role;
+grant REFERENCES, TRIGGER on public.metric_usage to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.metric_usage to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.metric_usage to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.moisture_loss_entries to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.moisture_loss_entries to service_role;
+grant REFERENCES, TRIGGER on public.mv_department_dashboard to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.mv_department_dashboard to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.mv_department_dashboard to service_role;
+grant REFERENCES, TRIGGER on public.name_authority to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.name_authority to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.name_authority to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.nav_registry to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.nav_registry to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.nav_role_visibility to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.nav_role_visibility to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.non_working_days to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.non_working_days to service_role;
+grant REFERENCES, TRIGGER on public.notify_rule_offset to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.notify_rule_offset to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.notify_rule_offset to service_role;
+grant REFERENCES, TRIGGER on public.notify_rule_recipient to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.notify_rule_recipient to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.notify_rule_recipient to service_role;
+grant REFERENCES, TRIGGER on public.notify_rules to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.notify_rules to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.notify_rules to service_role;
+grant REFERENCES, TRIGGER on public.offboarding to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.offboarding to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.offboarding to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.open_questions to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.open_questions to service_role;
+grant REFERENCES, TRIGGER on public.open_shifts to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.open_shifts to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.open_shifts to service_role;
+grant REFERENCES, TRIGGER on public.os_change_log to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.os_change_log to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.os_change_log to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.overhead_items to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.overhead_items to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.owner_requests to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.owner_requests to service_role;
+grant REFERENCES, TRIGGER on public.page_archetype to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.page_archetype to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.page_archetype to service_role;
+grant REFERENCES, TRIGGER on public.page_category_policy to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.page_category_policy to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.page_category_policy to service_role;
+grant REFERENCES, TRIGGER on public.page_enhancement to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.page_enhancement to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.page_enhancement to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.page_explainers to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.page_explainers to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.page_help to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.page_help to service_role;
+grant REFERENCES, TRIGGER on public.page_permissions to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.page_permissions to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.page_permissions to service_role;
+grant REFERENCES, TRIGGER on public.pay_periods to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.pay_periods to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.pay_periods to service_role;
+grant REFERENCES, TRIGGER on public.pay_run_lines to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.pay_run_lines to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.pay_run_lines to service_role;
+grant REFERENCES, TRIGGER on public.pay_runs to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.pay_runs to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.pay_runs to service_role;
+grant REFERENCES, TRIGGER on public.payroll_imports to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.payroll_imports to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.payroll_imports to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.permission_catalog to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.permission_catalog to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.pipeline_runs to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.pipeline_runs to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.pipeline_stage_events to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.pipeline_stage_events to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.pipeline_stages to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.pipeline_stages to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.pipelines to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.pipelines to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.planners to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.planners to service_role;
+grant REFERENCES, TRIGGER on public.platform_state to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.platform_state to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.platform_state to service_role;
+grant REFERENCES, TRIGGER on public.policy_registry to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.policy_registry to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.policy_registry to service_role;
+grant REFERENCES, TRIGGER on public.policy_wrap_log to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.policy_wrap_log to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.policy_wrap_log to service_role;
+grant REFERENCES, SELECT, TRIGGER on public.population_snapshot_receipt to anon;
+grant INSERT, REFERENCES, SELECT, TRIGGER on public.population_snapshot_receipt to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.population_snapshot_receipt to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.portfolio_targets to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.portfolio_targets to service_role;
+grant REFERENCES, TRIGGER on public.potency_target to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.potency_target to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.potency_target to service_role;
+grant REFERENCES, TRIGGER on public.preroll_formulation to anon;
+grant DELETE, INSERT, SELECT, UPDATE on public.preroll_formulation to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.preroll_formulation to service_role;
+grant REFERENCES, SELECT, TRIGGER on public.primitive_definition to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.primitive_definition to service_role;
+grant REFERENCES, TRIGGER on public.product_brand_tier to anon;
+grant DELETE, INSERT, SELECT, UPDATE on public.product_brand_tier to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.product_brand_tier to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.product_economics to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.product_economics to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.product_families to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.product_families to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.product_inventory to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.product_inventory to service_role;
+grant REFERENCES, TRIGGER on public.production_standard_override to anon;
+grant DELETE, INSERT, SELECT, UPDATE on public.production_standard_override to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.production_standard_override to service_role;
+grant REFERENCES, TRIGGER on public.production_yield_standard to anon;
+grant DELETE, INSERT, SELECT, UPDATE on public.production_yield_standard to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.production_yield_standard to service_role;
+grant REFERENCES, TRIGGER on public.pto_ledger to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.pto_ledger to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.pto_ledger to service_role;
+grant REFERENCES, TRIGGER on public.pto_policies to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.pto_policies to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.pto_policies to service_role;
+grant REFERENCES, TRIGGER on public.punch_devices to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.punch_devices to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.punch_devices to service_role;
+grant REFERENCES, TRIGGER on public.punch_queue to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.punch_queue to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.punch_queue to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.purchase_intent to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.purchase_intent to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.purchase_order_lines to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.purchase_order_lines to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.purchase_orders to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.purchase_orders to service_role;
+grant REFERENCES, TRIGGER on public.qbo_account_map to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.qbo_account_map to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.qbo_account_map to service_role;
+grant REFERENCES, TRIGGER on public.qbo_employee_map to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.qbo_employee_map to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.qbo_employee_map to service_role;
+grant REFERENCES, TRIGGER on public.ratchet_baseline to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.ratchet_baseline to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.ratchet_baseline to service_role;
+grant REFERENCES, TRIGGER on public.ratchet_exception to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.ratchet_exception to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.ratchet_exception to service_role;
+grant REFERENCES, TRIGGER on public.reason_code_catalog to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.reason_code_catalog to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.reason_code_catalog to service_role;
+grant REFERENCES, TRIGGER on public.reason_policy to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.reason_policy to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.reason_policy to service_role;
+grant REFERENCES, TRIGGER on public.reconciliation_exception to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.reconciliation_exception to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.reconciliation_exception to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.reconciliation_exceptions to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.reconciliation_exceptions to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.report_alert_recipients to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.report_alert_recipients to service_role;
+grant REFERENCES, TRIGGER on public.report_registry to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.report_registry to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.report_registry to service_role;
+grant REFERENCES, TRIGGER on public.report_vault to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.report_vault to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.report_vault to service_role;
+grant REFERENCES, TRIGGER on public.report_vault_need to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.report_vault_need to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.report_vault_need to service_role;
+grant REFERENCES, TRIGGER on public.rls_intent to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.rls_intent to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.rls_intent to service_role;
+grant REFERENCES, TRIGGER on public.role_capability to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.role_capability to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.role_capability to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.role_permissions to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.role_permissions to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.roles_catalog to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.roles_catalog to service_role;
+grant REFERENCES, TRIGGER on public.room_alias to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.room_alias to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.room_alias to service_role;
+grant REFERENCES, TRIGGER on public.room_department to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.room_department to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.room_department to service_role;
+grant REFERENCES, TRIGGER on public.room_roles to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.room_roles to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.room_roles to service_role;
+grant REFERENCES, TRIGGER on public.room_stage to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.room_stage to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.room_stage to service_role;
+grant REFERENCES, TRIGGER on public.root_cause_ledger to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.root_cause_ledger to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.root_cause_ledger to service_role;
+grant REFERENCES, TRIGGER on public.sales_gap_exclusion to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.sales_gap_exclusion to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.sales_gap_exclusion to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.sales_order_lines to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.sales_order_lines to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.sales_orders to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.sales_orders to service_role;
+grant REFERENCES, TRIGGER on public.sales_rep to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.sales_rep to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.sales_rep to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.saved_views to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.saved_views to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.schedule_assignments to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.schedule_assignments to service_role;
+grant REFERENCES, TRIGGER on public.schedule_draft_lines to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.schedule_draft_lines to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.schedule_draft_lines to service_role;
+grant REFERENCES, TRIGGER on public.schedule_drafts to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.schedule_drafts to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.schedule_drafts to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.schedule_proposal_lines to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.schedule_proposal_lines to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.schedule_proposals to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.schedule_proposals to service_role;
+grant REFERENCES, TRIGGER on public.schedule_revision to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.schedule_revision to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.schedule_revision to service_role;
+grant REFERENCES, TRIGGER on public.schedule_variance to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.schedule_variance to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.schedule_variance to service_role;
+grant REFERENCES, TRIGGER on public.section_help to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.section_help to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.section_help to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.security_anon_allowlist to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.security_anon_allowlist to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.security_grant_snapshot to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.security_grant_snapshot to service_role;
+grant REFERENCES, TRIGGER on public.sensitive_access_log to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.sensitive_access_log to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.sensitive_access_log to service_role;
+grant REFERENCES, TRIGGER on public.sensitive_page_policy to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.sensitive_page_policy to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.sensitive_page_policy to service_role;
+grant REFERENCES, TRIGGER on public.sentinel_expectation to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.sentinel_expectation to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.sentinel_expectation to service_role;
+grant REFERENCES, TRIGGER on public.session_policy to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.session_policy to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.session_policy to service_role;
+grant REFERENCES, TRIGGER on public.settings to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.settings to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.settings to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.sheet_column_map to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.sheet_column_map to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.sheet_push_log to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.sheet_push_log to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.sheet_rows to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.sheet_rows to service_role;
+grant REFERENCES, TRIGGER on public.sheet_source to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.sheet_source to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.sheet_source to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.sheet_sources to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.sheet_sources to service_role;
+grant REFERENCES, TRIGGER on public.shift_claims to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.shift_claims to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.shift_claims to service_role;
+grant REFERENCES, TRIGGER on public.shift_swaps to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.shift_swaps to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.shift_swaps to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.shift_templates to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.shift_templates to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.shipment_lines to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.shipment_lines to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.shipments to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.shipments to service_role;
+grant REFERENCES, TRIGGER on public.site_deploy_probe to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.site_deploy_probe to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.site_deploy_probe to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.sku_pack_sizes to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.sku_pack_sizes to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.skus to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.skus to service_role;
+grant REFERENCES, TRIGGER on public.source_export to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.source_export to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.source_export to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.source_precedence to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.source_precedence to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.spaces to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.spaces to service_role;
+grant REFERENCES, TRIGGER on public.stock_ageing_policy to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.stock_ageing_policy to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.stock_ageing_policy to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.storage_limits to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.storage_limits to service_role;
+grant REFERENCES, TRIGGER on public.strain to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.strain to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.strain to service_role;
+grant REFERENCES, TRIGGER on public.strain_image to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.strain_image to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.strain_image to service_role;
+grant REFERENCES, TRIGGER on public.strain_library to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.strain_library to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.strain_library to service_role;
+grant REFERENCES, TRIGGER on public.strain_name_ruling to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.strain_name_ruling to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.strain_name_ruling to service_role;
+grant REFERENCES, TRIGGER on public.strain_research to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.strain_research to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.strain_research to service_role;
+grant REFERENCES, TRIGGER on public.strain_review to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.strain_review to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.strain_review to service_role;
+grant REFERENCES, TRIGGER on public.strain_rule_history to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.strain_rule_history to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.strain_rule_history to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.strain_scorecard to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.strain_scorecard to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.suppliers to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.suppliers to service_role;
+grant REFERENCES, TRIGGER on public.supply_consumption_rule to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.supply_consumption_rule to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.supply_consumption_rule to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.supply_items to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.supply_items to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.sync_conflicts to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.sync_conflicts to service_role;
+grant REFERENCES, TRIGGER on public.sync_item to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.sync_item to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.sync_item to service_role;
+grant REFERENCES, TRIGGER on public.sync_system_map to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.sync_system_map to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.sync_system_map to service_role;
+grant REFERENCES, TRIGGER on public.tag_event to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.tag_event to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.tag_event to service_role;
+grant REFERENCES, TRIGGER on public.tag_reconciliation_baseline to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.tag_reconciliation_baseline to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.tag_reconciliation_baseline to service_role;
+grant REFERENCES, TRIGGER on public.task_activity to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.task_activity to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.task_activity to service_role;
+grant REFERENCES, TRIGGER on public.task_attachment to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.task_attachment to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.task_attachment to service_role;
+grant REFERENCES, TRIGGER on public.task_checklist_item to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.task_checklist_item to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.task_checklist_item to service_role;
+grant REFERENCES, TRIGGER on public.task_comment to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.task_comment to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.task_comment to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.task_dependencies to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.task_dependencies to service_role;
+grant REFERENCES, TRIGGER on public.task_list to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.task_list to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.task_list to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.task_standards to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.task_standards to service_role;
+grant REFERENCES, TRIGGER on public.task_time_log to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.task_time_log to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.task_time_log to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.tasks to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.tasks to service_role;
+grant REFERENCES, TRIGGER on public.tax_280e_doctrine to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.tax_280e_doctrine to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.tax_280e_doctrine to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.team_members to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.team_members to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.teams to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.teams to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.templates to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.templates to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.test_requests to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.test_requests to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.testing_slas to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.testing_slas to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.tg_overrides to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.tg_overrides to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.third_party_material to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.third_party_material to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.third_party_purchases to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.third_party_purchases to service_role;
+grant REFERENCES, TRIGGER on public.threshold_column_map to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.threshold_column_map to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.threshold_column_map to service_role;
+grant REFERENCES, TRIGGER on public.tile_drill_contract to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.tile_drill_contract to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.tile_drill_contract to service_role;
+grant REFERENCES, TRIGGER on public.tile_drill_result to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.tile_drill_result to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.tile_drill_result to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.time_entries to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.time_entries to service_role;
+grant REFERENCES, TRIGGER on public.time_off_requests to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.time_off_requests to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.time_off_requests to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.time_tracks to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.time_tracks to service_role;
+grant REFERENCES, TRIGGER on public.trinity_append_log to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.trinity_append_log to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.trinity_append_log to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.turnaround_policies to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.turnaround_policies to service_role;
+grant REFERENCES, TRIGGER on public.turnaround_target to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.turnaround_target to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.turnaround_target to service_role;
+grant REFERENCES, TRIGGER on public.ui_labels to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.ui_labels to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.ui_labels to service_role;
+grant REFERENCES, TRIGGER on public.user_dashboard to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.user_dashboard to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.user_dashboard to service_role;
+grant REFERENCES, TRIGGER on public.user_department_access to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.user_department_access to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.user_department_access to service_role;
+grant REFERENCES, TRIGGER on public.user_page_date_default to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.user_page_date_default to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.user_page_date_default to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.user_settings to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.user_settings to service_role;
+grant REFERENCES, TRIGGER on public.v_accepted_debt to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_accepted_debt to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_accepted_debt to service_role;
+grant REFERENCES, TRIGGER on public.v_access_preview to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_access_preview to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_access_preview to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_actual_cost_per_pound to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_actual_cost_per_pound to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_adjustment_conflicts to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_adjustment_conflicts to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_admin_alerts to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_admin_alerts to service_role;
+grant REFERENCES, TRIGGER on public.v_admin_permissions to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_admin_permissions to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_admin_permissions to service_role;
+grant REFERENCES, TRIGGER on public.v_admin_settings to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_admin_settings to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_admin_settings to service_role;
+grant REFERENCES, TRIGGER on public.v_agent_agreement to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_agent_agreement to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_agent_agreement to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_agent_health to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_agent_health to service_role;
+grant REFERENCES, TRIGGER on public.v_agent_writes to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_agent_writes to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_agent_writes to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_agentmapper_queue to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_agentmapper_queue to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_ai_access_status to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_ai_access_status to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_ai_cost_position to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_ai_cost_position to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_ai_spend to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_ai_spend to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_ai_spend_today to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_ai_spend_today to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_ai_usage_summary to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_ai_usage_summary to service_role;
+grant REFERENCES, TRIGGER on public.v_alert_center to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_alert_center to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_alert_center to service_role;
+grant REFERENCES, TRIGGER on public.v_alert_destroyed_unexplained to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_alert_destroyed_unexplained to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_alert_destroyed_unexplained to service_role;
+grant REFERENCES, TRIGGER on public.v_alert_email_recipients to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_alert_email_recipients to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_alert_email_recipients to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_alert_email_recipients_internal to service_role;
+grant REFERENCES, TRIGGER on public.v_alert_email_status to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_alert_email_status to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_alert_email_status to service_role;
+grant REFERENCES, TRIGGER on public.v_all_sync_runs to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_all_sync_runs to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_all_sync_runs to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_allocation_queue to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_allocation_queue to service_role;
+grant REFERENCES, TRIGGER on public.v_apex_entity_status to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_apex_entity_status to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_apex_entity_status to service_role;
+grant REFERENCES, TRIGGER on public.v_apex_field_coverage to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_apex_field_coverage to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_apex_field_coverage to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_apex_invoice_truth to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_apex_invoice_truth to service_role;
+grant REFERENCES, TRIGGER on public.v_apex_metrc_coverage to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_apex_metrc_coverage to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_apex_metrc_coverage to service_role;
+grant REFERENCES, TRIGGER on public.v_apex_order_metrc_link to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_apex_order_metrc_link to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_apex_order_metrc_link to service_role;
+grant REFERENCES, TRIGGER on public.v_assertion_coverage to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_assertion_coverage to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_assertion_coverage to service_role;
+grant REFERENCES, TRIGGER on public.v_auditor_heartbeat to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_auditor_heartbeat to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_auditor_heartbeat to service_role;
+grant REFERENCES, TRIGGER on public.v_auditor_verdict to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_auditor_verdict to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_auditor_verdict to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_awaiting_allocation to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_awaiting_allocation to service_role;
+grant REFERENCES, TRIGGER on public.v_basis_claim_audit to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_basis_claim_audit to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_basis_claim_audit to service_role;
+grant REFERENCES, TRIGGER on public.v_bridge_performance to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_bridge_performance to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_bridge_performance to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_bridge_status to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_bridge_status to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_business_rules to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_business_rules to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_c3a_document_coverage to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_c3a_document_coverage to service_role;
+grant REFERENCES, TRIGGER on public.v_canopy_two_size to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_canopy_two_size to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_canopy_two_size to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_catalogue_items to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_catalogue_items to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_catalogue_locations to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_catalogue_locations to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_catalogue_strains to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_catalogue_strains to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_ceo_dashboard to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_ceo_dashboard to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_ceo_recommendations to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_ceo_recommendations to service_role;
+grant REFERENCES, TRIGGER on public.v_certificate_disagreement to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_certificate_disagreement to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_certificate_disagreement to service_role;
+grant REFERENCES, TRIGGER on public.v_certificate_gap to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_certificate_gap to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_certificate_gap to service_role;
+grant REFERENCES, TRIGGER on public.v_certificate_resolved to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_certificate_resolved to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_certificate_resolved to service_role;
+grant REFERENCES, TRIGGER on public.v_certification_board to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_certification_board to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_certification_board to service_role;
+grant REFERENCES, TRIGGER on public.v_cfo_inventory_audit to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_cfo_inventory_audit to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_cfo_inventory_audit to service_role;
+grant REFERENCES, TRIGGER on public.v_cfo_spend_ageing to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_cfo_spend_ageing to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_cfo_spend_ageing to service_role;
+grant REFERENCES, TRIGGER on public.v_cfo_spend_by_supplier to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_cfo_spend_by_supplier to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_cfo_spend_by_supplier to service_role;
+grant REFERENCES, TRIGGER on public.v_cfo_spend_by_tag to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_cfo_spend_by_tag to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_cfo_spend_by_tag to service_role;
+grant REFERENCES, TRIGGER on public.v_cfo_spend_by_year to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_cfo_spend_by_year to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_cfo_spend_by_year to service_role;
+grant REFERENCES, TRIGGER on public.v_cfo_spend_coverage to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_cfo_spend_coverage to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_cfo_spend_coverage to service_role;
+grant REFERENCES, TRIGGER on public.v_challenge_overdue to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_challenge_overdue to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_challenge_overdue to service_role;
+grant REFERENCES, TRIGGER on public.v_check_trust to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_check_trust to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_check_trust to service_role;
+grant REFERENCES, TRIGGER on public.v_checks_missing_in_flight to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_checks_missing_in_flight to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_checks_missing_in_flight to service_role;
+grant REFERENCES, TRIGGER on public.v_client_fees_due to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_client_fees_due to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_client_fees_due to service_role;
+grant REFERENCES, TRIGGER on public.v_clock_readiness to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_clock_readiness to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_clock_readiness to service_role;
+grant REFERENCES, TRIGGER on public.v_coa_document_kind to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_coa_document_kind to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_coa_document_kind to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_coa_register to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_coa_register to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_coa_unparsed to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_coa_unparsed to service_role;
+grant REFERENCES, TRIGGER on public.v_column_semantics to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_column_semantics to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_column_semantics to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_concentrate_valuation to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_concentrate_valuation to service_role;
+grant REFERENCES, TRIGGER on public.v_conformance_coverage to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_conformance_coverage to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_conformance_coverage to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_control_tower to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_control_tower to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_cost_of_goods to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_cost_of_goods to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_cost_of_loss to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_cost_of_loss to service_role;
+grant REFERENCES, TRIGGER on public.v_cost_per_pound to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_cost_per_pound to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_cost_per_pound to service_role;
+grant REFERENCES, TRIGGER on public.v_countable_inventory to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_countable_inventory to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_countable_inventory to service_role;
+grant REFERENCES, TRIGGER on public.v_credential_reminder_due to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_credential_reminder_due to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_credential_reminder_due to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_cron_health to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_cron_health to service_role;
+grant REFERENCES, TRIGGER on public.v_cross_license_tags to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_cross_license_tags to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_cross_license_tags to service_role;
+grant REFERENCES, TRIGGER on public.v_cross_source_reconciliation to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_cross_source_reconciliation to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_cross_source_reconciliation to service_role;
+grant REFERENCES, TRIGGER on public.v_cult_harvest_calendar to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_cult_harvest_calendar to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_cult_harvest_calendar to service_role;
+grant REFERENCES, TRIGGER on public.v_cult_plant_balance_daily to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_cult_plant_balance_daily to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_cult_plant_balance_daily to service_role;
+grant REFERENCES, TRIGGER on public.v_cult_schedule_tamper to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_cult_schedule_tamper to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_cult_schedule_tamper to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_cultivation_meeting_pack to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_cultivation_meeting_pack to service_role;
+grant REFERENCES, TRIGGER on public.v_cultivation_scoreboard to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_cultivation_scoreboard to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_cultivation_scoreboard to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_custody_alerts to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_custody_alerts to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_custody_compliance to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_custody_compliance to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_customer_directory to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_customer_directory to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_customer_history to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_customer_history to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_customer_manifests to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_customer_manifests to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_customers to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_customers to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_dashboard_tasks to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_dashboard_tasks to service_role;
+grant REFERENCES, TRIGGER on public.v_dashboard_templates to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_dashboard_templates to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_dashboard_templates to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_dashboard_trend to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_dashboard_trend to service_role;
+grant REFERENCES, TRIGGER on public.v_data_inventory to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_data_inventory to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_data_inventory to service_role;
+grant REFERENCES, TRIGGER on public.v_db_change_status to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_db_change_status to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_db_change_status to service_role;
+grant REFERENCES, TRIGGER on public.v_deferral_pressure to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_deferral_pressure to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_deferral_pressure to service_role;
+grant REFERENCES, TRIGGER on public.v_delivery_board to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_delivery_board to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_delivery_board to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_department_board to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_department_board to service_role;
+grant REFERENCES, TRIGGER on public.v_department_coverage_week to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_department_coverage_week to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_department_coverage_week to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_department_kpis_extra to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_department_kpis_extra to service_role;
+grant REFERENCES, TRIGGER on public.v_department_labour to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_department_labour to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_department_labour to service_role;
+grant REFERENCES, TRIGGER on public.v_department_staffing_average to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_department_staffing_average to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_department_staffing_average to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_department_task_kpis to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_department_task_kpis to service_role;
+grant REFERENCES, TRIGGER on public.v_deployment_tracker to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_deployment_tracker to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_deployment_tracker to service_role;
+grant REFERENCES, TRIGGER on public.v_dept_dash_audit_tiles to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_dept_dash_audit_tiles to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_dept_dash_audit_tiles to service_role;
+grant REFERENCES, TRIGGER on public.v_dept_dash_cfo to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_dept_dash_cfo to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_dept_dash_cfo to service_role;
+grant REFERENCES, TRIGGER on public.v_dept_dash_cultivation to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_dept_dash_cultivation to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_dept_dash_cultivation to service_role;
+grant REFERENCES, TRIGGER on public.v_dept_dash_supplement to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_dept_dash_supplement to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_dept_dash_supplement to service_role;
+grant REFERENCES, TRIGGER on public.v_dept_dash_third_party to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_dept_dash_third_party to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_dept_dash_third_party to service_role;
+grant REFERENCES, TRIGGER on public.v_destruction_ledger to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_destruction_ledger to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_destruction_ledger to service_role;
+grant REFERENCES, TRIGGER on public.v_disagreement_triage to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_disagreement_triage to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_disagreement_triage to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_discrepancy_clock to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_discrepancy_clock to service_role;
+grant REFERENCES, TRIGGER on public.v_discrepancy_readiness to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_discrepancy_readiness to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_discrepancy_readiness to service_role;
+grant REFERENCES, TRIGGER on public.v_document_compliance to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_document_compliance to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_document_compliance to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_document_library to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_document_library to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_document_links to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_document_links to service_role;
+grant REFERENCES, TRIGGER on public.v_document_package_link to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_document_package_link to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_document_package_link to service_role;
+grant REFERENCES, TRIGGER on public.v_drill_latency_health to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_drill_latency_health to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_drill_latency_health to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_dry_room_performance to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_dry_room_performance to service_role;
+grant REFERENCES, TRIGGER on public.v_dry_time_discipline to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_dry_time_discipline to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_dry_time_discipline to service_role;
+grant REFERENCES, TRIGGER on public.v_duplicate_audit to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_duplicate_audit to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_duplicate_audit to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_employee_capacity to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_employee_capacity to service_role;
+grant REFERENCES, TRIGGER on public.v_employee_lifecycle_gap to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_employee_lifecycle_gap to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_employee_lifecycle_gap to service_role;
+grant REFERENCES, TRIGGER on public.v_enhancements_for_owner to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_enhancements_for_owner to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_enhancements_for_owner to service_role;
+grant REFERENCES, TRIGGER on public.v_entity_note_active to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_entity_note_active to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_entity_note_active to service_role;
+grant REFERENCES, TRIGGER on public.v_examination_readiness to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_examination_readiness to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_examination_readiness to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_exposure to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_exposure to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_facility_live_map to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_facility_live_map to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_facility_registry to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_facility_registry to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_facility_s2s_rooms to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_facility_s2s_rooms to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_failed_by_maker to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_failed_by_maker to service_role;
+grant REFERENCES, TRIGGER on public.v_failed_by_strain to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_failed_by_strain to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_failed_by_strain to service_role;
+grant REFERENCES, TRIGGER on public.v_failed_product_lineage to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_failed_product_lineage to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_failed_product_lineage to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_failed_provenance to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_failed_provenance to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_failed_testing_by_origin to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_failed_testing_by_origin to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_fg_metrc_check to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_fg_metrc_check to service_role;
+grant REFERENCES, TRIGGER on public.v_field_help_lookup to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_field_help_lookup to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_field_help_lookup to service_role;
+grant REFERENCES, TRIGGER on public.v_figure_disagreement to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_figure_disagreement to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_figure_disagreement to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_finding_accountability to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_finding_accountability to service_role;
+grant REFERENCES, TRIGGER on public.v_finding_alert_ready to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_finding_alert_ready to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_finding_alert_ready to service_role;
+grant REFERENCES, TRIGGER on public.v_finding_causes to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_finding_causes to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_finding_causes to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_finding_history to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_finding_history to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_findings to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_findings to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_findings_live to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_findings_live to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_findings_priced to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_findings_priced to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_findings_rolled to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_findings_rolled to service_role;
+grant REFERENCES, TRIGGER on public.v_finished_goods_metrc_reconciliation to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_finished_goods_metrc_reconciliation to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_finished_goods_metrc_reconciliation to service_role;
+grant REFERENCES, TRIGGER on public.v_finished_goods_onhand to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_finished_goods_onhand to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_finished_goods_onhand to service_role;
+grant REFERENCES, TRIGGER on public.v_five_alarm to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_five_alarm to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_five_alarm to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_flow_failed_split to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_flow_failed_split to service_role;
+grant REFERENCES, TRIGGER on public.v_flow_in_transit to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_flow_in_transit to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_flow_in_transit to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_flow_stages to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_flow_stages to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_forensic_audit_history to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_forensic_audit_history to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_forensic_audit_latest to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_forensic_audit_latest to service_role;
+grant REFERENCES, TRIGGER on public.v_forensic_audit_panel to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_forensic_audit_panel to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_forensic_audit_panel to service_role;
+grant REFERENCES, TRIGGER on public.v_forensic_audit_panel_live to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_forensic_audit_panel_live to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_forensic_audit_panel_live to service_role;
+grant REFERENCES, TRIGGER on public.v_forensic_inventory to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_forensic_inventory to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_forensic_inventory to service_role;
+grant REFERENCES, TRIGGER on public.v_forensic_onhand_by_location to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_forensic_onhand_by_location to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_forensic_onhand_by_location to service_role;
+grant REFERENCES, TRIGGER on public.v_forensic_panel_freshness to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_forensic_panel_freshness to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_forensic_panel_freshness to service_role;
+grant REFERENCES, SELECT, TRIGGER on public.v_forensic_room_census to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_forensic_room_census to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_forensic_room_census to service_role;
+grant REFERENCES, TRIGGER on public.v_forensic_sales to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_forensic_sales to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_forensic_sales to service_role;
+grant REFERENCES, TRIGGER on public.v_forensic_sold_by_tag to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_forensic_sold_by_tag to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_forensic_sold_by_tag to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_forensic_sold_by_tag_safe to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_forensic_sold_by_tag_safe to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_fresh_frozen_equiv to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_fresh_frozen_equiv to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_full_accountability to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_full_accountability to service_role;
+grant REFERENCES, TRIGGER on public.v_gap_system to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_gap_system to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_gap_system to service_role;
+grant REFERENCES, TRIGGER on public.v_genetics_intake_review to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_genetics_intake_review to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_genetics_intake_review to service_role;
+grant REFERENCES, TRIGGER on public.v_global_management to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_global_management to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_global_management to service_role;
+grant REFERENCES, TRIGGER on public.v_glossary_conflicts to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_glossary_conflicts to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_glossary_conflicts to service_role;
+grant REFERENCES, TRIGGER on public.v_goal_status to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_goal_status to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_goal_status to service_role;
+grant REFERENCES, TRIGGER on public.v_guard_queue to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_guard_queue to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_guard_queue to service_role;
+grant REFERENCES, TRIGGER on public.v_hardcoded_thresholds to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_hardcoded_thresholds to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_hardcoded_thresholds to service_role;
+grant REFERENCES, TRIGGER on public.v_harvest_accountability to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_harvest_accountability to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_harvest_accountability to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_harvest_alerts to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_harvest_alerts to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_harvest_benchmark_note to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_harvest_benchmark_note to service_role;
+grant REFERENCES, TRIGGER on public.v_harvest_contract_vs_metrc to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_harvest_contract_vs_metrc to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_harvest_contract_vs_metrc to service_role;
+grant REFERENCES, TRIGGER on public.v_harvest_control_banner to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_harvest_control_banner to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_harvest_control_banner to service_role;
+grant REFERENCES, TRIGGER on public.v_harvest_cycle_by_room to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_harvest_cycle_by_room to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_harvest_cycle_by_room to service_role;
+grant REFERENCES, TRIGGER on public.v_harvest_cycle_compliance to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_harvest_cycle_compliance to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_harvest_cycle_compliance to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_harvest_economics to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_harvest_economics to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_harvest_enforcement to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_harvest_enforcement to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_harvest_forensic to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_harvest_forensic to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_harvest_issues to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_harvest_issues to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_harvest_lifecycle to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_harvest_lifecycle to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_harvest_lineage_summary to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_harvest_lineage_summary to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_harvest_mass_balance to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_harvest_mass_balance to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_harvest_mass_ledger to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_harvest_mass_ledger to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_harvest_plan_vs_actual to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_harvest_plan_vs_actual to service_role;
+grant REFERENCES, TRIGGER on public.v_harvest_pull_link to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_harvest_pull_link to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_harvest_pull_link to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_harvest_reconciliation to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_harvest_reconciliation to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_harvest_report to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_harvest_report to service_role;
+grant REFERENCES, TRIGGER on public.v_harvest_schedule_vs_metrc to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_harvest_schedule_vs_metrc to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_harvest_schedule_vs_metrc to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_harvest_stage_map to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_harvest_stage_map to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_harvest_still_in_room to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_harvest_still_in_room to service_role;
+grant REFERENCES, TRIGGER on public.v_harvest_tag_index to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_harvest_tag_index to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_harvest_tag_index to service_role;
+grant REFERENCES, TRIGGER on public.v_harvest_takedown to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_harvest_takedown to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_harvest_takedown to service_role;
+grant REFERENCES, TRIGGER on public.v_harvest_water_and_yield to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_harvest_water_and_yield to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_harvest_water_and_yield to service_role;
+grant REFERENCES, TRIGGER on public.v_harvest_yield_audit to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_harvest_yield_audit to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_harvest_yield_audit to service_role;
+grant REFERENCES, TRIGGER on public.v_held_unpackaged_flower to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_held_unpackaged_flower to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_held_unpackaged_flower to service_role;
+grant REFERENCES, TRIGGER on public.v_house_rules to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_house_rules to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_house_rules to service_role;
+grant REFERENCES, TRIGGER on public.v_hr_activity to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_hr_activity to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_hr_activity to service_role;
+grant REFERENCES, TRIGGER on public.v_hr_delivery_backlog to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_hr_delivery_backlog to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_hr_delivery_backlog to service_role;
+grant REFERENCES, TRIGGER on public.v_hr_delivery_open to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_hr_delivery_open to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_hr_delivery_open to service_role;
+grant REFERENCES, TRIGGER on public.v_hr_document_standing to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_hr_document_standing to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_hr_document_standing to service_role;
+grant REFERENCES, TRIGGER on public.v_hr_waiting_on_a_person to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_hr_waiting_on_a_person to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_hr_waiting_on_a_person to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_import_outliers to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_import_outliers to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_intelligence_briefing to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_intelligence_briefing to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_inventory_aging to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_inventory_aging to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_inventory_alert_history to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_inventory_alert_history to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_inventory_alerts to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_inventory_alerts to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_inventory_locator to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_inventory_locator to service_role;
+grant REFERENCES, TRIGGER on public.v_inventory_position_by_room to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_inventory_position_by_room to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_inventory_position_by_room to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_inventory_reconciliation to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_inventory_reconciliation to service_role;
+grant REFERENCES, TRIGGER on public.v_inventory_report to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_inventory_report to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_inventory_report to service_role;
+grant REFERENCES, TRIGGER on public.v_inventory_room_proof to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_inventory_room_proof to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_inventory_room_proof to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_inventory_summary to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_inventory_summary to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_inventory_valuation to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_inventory_valuation to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_inventory_value to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_inventory_value to service_role;
+grant REFERENCES, TRIGGER on public.v_invoice_manifest_match to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_invoice_manifest_match to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_invoice_manifest_match to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_issue_aging to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_issue_aging to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_issue_attribution to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_issue_attribution to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_issue_attribution_summary to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_issue_attribution_summary to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_issue_failed_testing to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_issue_failed_testing to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_issue_late to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_issue_late to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_issue_no_allocation to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_issue_no_allocation to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_issue_real_loss to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_issue_real_loss to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_issue_unconfirmed_manifests to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_issue_unconfirmed_manifests to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_issue_yield_by_harvest to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_issue_yield_by_harvest to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_issue_yield_gap to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_issue_yield_gap to service_role;
+grant REFERENCES, TRIGGER on public.v_item_documents to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_item_documents to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_item_documents to service_role;
+grant REFERENCES, TRIGGER on public.v_item_flag_summary to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_item_flag_summary to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_item_flag_summary to service_role;
+grant REFERENCES, TRIGGER on public.v_item_flags to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_item_flags to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_item_flags to service_role;
+grant REFERENCES, TRIGGER on public.v_item_flags_all to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_item_flags_all to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_item_flags_all to service_role;
+grant REFERENCES, TRIGGER on public.v_kpi_staleness to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_kpi_staleness to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_kpi_staleness to service_role;
+grant REFERENCES, TRIGGER on public.v_lab_analytes to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_lab_analytes to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_lab_analytes to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_lab_fail_rate_by_origin to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_lab_fail_rate_by_origin to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_lab_report_only_packages to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_lab_report_only_packages to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_lab_results to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_lab_results to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_lab_sample_link to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_lab_sample_link to service_role;
+grant REFERENCES, TRIGGER on public.v_lab_samples_out to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_lab_samples_out to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_lab_samples_out to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_lab_turnaround_breaches to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_lab_turnaround_breaches to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_lab_turnaround_packages to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_lab_turnaround_packages to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_lab_turnaround_report to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_lab_turnaround_report to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_lab_turnaround_summary to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_lab_turnaround_summary to service_role;
+grant REFERENCES, TRIGGER on public.v_labour_forecast to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_labour_forecast to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_labour_forecast to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_late_violations to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_late_violations to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_leadership_accountability to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_leadership_accountability to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_leadership_cost_vs_output to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_leadership_cost_vs_output to service_role;
+grant REFERENCES, TRIGGER on public.v_ledger_validation to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_ledger_validation to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_ledger_validation to service_role;
+grant REFERENCES, TRIGGER on public.v_legal_entity to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_legal_entity to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_legal_entity to service_role;
+grant REFERENCES, TRIGGER on public.v_licence_directory to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_licence_directory to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_licence_directory to service_role;
+grant REFERENCES, TRIGGER on public.v_lifecycle_open to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_lifecycle_open to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_lifecycle_open to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_location_history to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_location_history to service_role;
+grant REFERENCES, TRIGGER on public.v_location_notes to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_location_notes to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_location_notes to service_role;
+grant REFERENCES, TRIGGER on public.v_location_notes_orphaned to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_location_notes_orphaned to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_location_notes_orphaned to service_role;
+grant REFERENCES, TRIGGER on public.v_loop_health to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_loop_health to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_loop_health to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_loss_analysis to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_loss_analysis to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_loss_ledger to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_loss_ledger to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_loss_ranking to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_loss_ranking to service_role;
+grant REFERENCES, TRIGGER on public.v_manifest_custody to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_manifest_custody to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_manifest_custody to service_role;
+grant REFERENCES, TRIGGER on public.v_manifest_discrepancy_audit to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_manifest_discrepancy_audit to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_manifest_discrepancy_audit to service_role;
+grant REFERENCES, TRIGGER on public.v_manifest_discrepancy_summary to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_manifest_discrepancy_summary to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_manifest_discrepancy_summary to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_manifest_ledger to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_manifest_ledger to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_manifest_line_gaps to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_manifest_line_gaps to service_role;
+grant REFERENCES, TRIGGER on public.v_manifest_reconciliation to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_manifest_reconciliation to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_manifest_reconciliation to service_role;
+grant REFERENCES, TRIGGER on public.v_manifest_unparsed to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_manifest_unparsed to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_manifest_unparsed to service_role;
+grant REFERENCES, TRIGGER on public.v_manufacturing_client_stock to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_manufacturing_client_stock to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_manufacturing_client_stock to service_role;
+grant REFERENCES, TRIGGER on public.v_master_balance to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_master_balance to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_master_balance to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_material_aging to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_material_aging to service_role;
+grant REFERENCES, TRIGGER on public.v_material_forensic_dossier to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_material_forensic_dossier to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_material_forensic_dossier to service_role;
+grant REFERENCES, TRIGGER on public.v_material_ownership_conflict to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_material_ownership_conflict to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_material_ownership_conflict to service_role;
+grant REFERENCES, TRIGGER on public.v_material_requirement to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_material_requirement to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_material_requirement to service_role;
+grant REFERENCES, TRIGGER on public.v_material_sourcing to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_material_sourcing to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_material_sourcing to service_role;
+grant REFERENCES, TRIGGER on public.v_matview_freshness to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_matview_freshness to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_matview_freshness to service_role;
+grant REFERENCES, TRIGGER on public.v_matview_health to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_matview_health to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_matview_health to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_mesh_duty to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_mesh_duty to service_role;
+grant REFERENCES, TRIGGER on public.v_metrc_apex_tag_reconciliation to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_metrc_apex_tag_reconciliation to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_metrc_apex_tag_reconciliation to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_metrc_corrections_open to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_metrc_corrections_open to service_role;
+grant REFERENCES, TRIGGER on public.v_metrc_credential_risk to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_metrc_credential_risk to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_metrc_credential_risk to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_metrc_facility_names to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_metrc_facility_names to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_metrc_harvest_yields to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_metrc_harvest_yields to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_metrc_lab_status to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_metrc_lab_status to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_metrc_manifest_invoice_truth to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_metrc_manifest_invoice_truth to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_metrc_package_inventory to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_metrc_package_inventory to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_metrc_plant_census to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_metrc_plant_census to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_metrc_scan_settings to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_metrc_scan_settings to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_metrc_seed_to_sale to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_metrc_seed_to_sale to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_metrc_strain_census to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_metrc_strain_census to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_metrc_transfer_ledger to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_metrc_transfer_ledger to service_role;
+grant REFERENCES, TRIGGER on public.v_metrc_vs_os to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_metrc_vs_os to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_metrc_vs_os to service_role;
+grant REFERENCES, TRIGGER on public.v_metric_conformance to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_metric_conformance to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_metric_conformance to service_role;
+grant REFERENCES, TRIGGER on public.v_metric_registry_gaps to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_metric_registry_gaps to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_metric_registry_gaps to service_role;
+grant REFERENCES, TRIGGER on public.v_migration_history to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_migration_history to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_migration_history to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_missing_lab_results to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_missing_lab_results to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_moisture_accounting to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_moisture_accounting to service_role;
+grant SELECT on public.v_moisture_business_rules to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_moisture_business_rules to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_moisture_loss_progress to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_moisture_loss_progress to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_moisture_loss_register to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_moisture_loss_register to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_moisture_summary to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_moisture_summary to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_money_position to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_money_position to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_money_provenance to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_money_provenance to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_monthly_conversion_truth to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_monthly_conversion_truth to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_monthly_yield to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_monthly_yield to service_role;
+grant REFERENCES, TRIGGER on public.v_my_alerts to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_my_alerts to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_my_alerts to service_role;
+grant REFERENCES, TRIGGER on public.v_my_dashboard_layout to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_my_dashboard_layout to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_my_dashboard_layout to service_role;
+grant REFERENCES, TRIGGER on public.v_my_dashboards to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_my_dashboards to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_my_dashboards to service_role;
+grant REFERENCES, TRIGGER on public.v_my_layout to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_my_layout to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_my_layout to service_role;
+grant REFERENCES, TRIGGER on public.v_nav_broken_pages to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_nav_broken_pages to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_nav_broken_pages to service_role;
+grant REFERENCES, TRIGGER on public.v_never_tested_proof to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_never_tested_proof to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_never_tested_proof to service_role;
+grant REFERENCES, TRIGGER on public.v_never_tested_reconciliation to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_never_tested_reconciliation to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_never_tested_reconciliation to service_role;
+grant REFERENCES, TRIGGER on public.v_offboarding_open to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_offboarding_open to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_offboarding_open to service_role;
+grant REFERENCES, TRIGGER on public.v_on_the_floor to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_on_the_floor to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_on_the_floor to service_role;
+grant REFERENCES, TRIGGER on public.v_onhand_by_room_stage to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_onhand_by_room_stage to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_onhand_by_room_stage to service_role;
+grant REFERENCES, TRIGGER on public.v_onhand_certified to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_onhand_certified to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_onhand_certified to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_open_issues to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_open_issues to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_open_questions to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_open_questions to service_role;
+grant REFERENCES, TRIGGER on public.v_ot_watch to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_ot_watch to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_ot_watch to service_role;
+grant REFERENCES, TRIGGER on public.v_outbound_balance to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_outbound_balance to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_outbound_balance to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_overdue_harvests to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_overdue_harvests to service_role;
+grant REFERENCES, TRIGGER on public.v_override_divergence to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_override_divergence to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_override_divergence to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_overrides_active to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_overrides_active to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_own_vs_bought to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_own_vs_bought to service_role;
+grant REFERENCES, TRIGGER on public.v_owner_issue_queue to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_owner_issue_queue to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_owner_issue_queue to service_role;
+grant REFERENCES, TRIGGER on public.v_ownership_by_custody to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_ownership_by_custody to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_ownership_by_custody to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_ownership_evidence to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_ownership_evidence to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_ownership_misattribution to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_ownership_misattribution to service_role;
+grant REFERENCES, TRIGGER on public.v_ownership_verdict to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_ownership_verdict to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_ownership_verdict to service_role;
+grant REFERENCES, TRIGGER on public.v_ownership_vs_certificate to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_ownership_vs_certificate to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_ownership_vs_certificate to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_package_documents to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_package_documents to service_role;
+grant REFERENCES, TRIGGER on public.v_package_dossier to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_package_dossier to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_package_dossier to service_role;
+grant REFERENCES, TRIGGER on public.v_package_event_class to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_package_event_class to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_package_event_class to service_role;
+grant REFERENCES, TRIGGER on public.v_package_events to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_package_events to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_package_events to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_package_forensic to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_package_forensic to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_package_manifest to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_package_manifest to service_role;
+grant REFERENCES, TRIGGER on public.v_packages_inventory_truth to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_packages_inventory_truth to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_packages_inventory_truth to service_role;
+grant REFERENCES, TRIGGER on public.v_packages_missing_coa to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_packages_missing_coa to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_packages_missing_coa to service_role;
+grant REFERENCES, TRIGGER on public.v_page_design_queue to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_page_design_queue to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_page_design_queue to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_page_drilldown_coverage to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_page_drilldown_coverage to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_page_filter_coverage to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_page_filter_coverage to service_role;
+grant REFERENCES, TRIGGER on public.v_page_wiring to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_page_wiring to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_page_wiring to service_role;
+grant REFERENCES, TRIGGER on public.v_pay_rate_confidence to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_pay_rate_confidence to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_pay_rate_confidence to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_payroll_forecast to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_payroll_forecast to service_role;
+grant REFERENCES, TRIGGER on public.v_payroll_journal to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_payroll_journal to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_payroll_journal to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_payroll_week to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_payroll_week to service_role;
+grant REFERENCES, TRIGGER on public.v_payroll_ytd to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_payroll_ytd to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_payroll_ytd to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_pipeline_run_status to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_pipeline_run_status to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_pipeline_stage_aging to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_pipeline_stage_aging to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_pipeline_timing to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_pipeline_timing to service_role;
+grant REFERENCES, TRIGGER on public.v_pit_as_of to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_pit_as_of to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_pit_as_of to service_role;
+grant REFERENCES, TRIGGER on public.v_plan_room_floor to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_plan_room_floor to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_plan_room_floor to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_plan_vs_actual_harvest to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_plan_vs_actual_harvest to service_role;
+grant REFERENCES, TRIGGER on public.v_plant_census to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_plant_census to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_plant_census to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_plant_history to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_plant_history to service_role;
+grant REFERENCES, TRIGGER on public.v_plant_loss_by_batch to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_plant_loss_by_batch to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_plant_loss_by_batch to service_role;
+grant REFERENCES, TRIGGER on public.v_plant_mirror_balance to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_plant_mirror_balance to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_plant_mirror_balance to service_role;
+grant REFERENCES, TRIGGER on public.v_plants_destroyed_truth to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_plants_destroyed_truth to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_plants_destroyed_truth to service_role;
+grant REFERENCES, TRIGGER on public.v_platform_it to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_platform_it to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_platform_it to service_role;
+grant REFERENCES, TRIGGER on public.v_policy_conformance to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_policy_conformance to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_policy_conformance to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_position_by_ownership to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_position_by_ownership to service_role;
+grant REFERENCES, TRIGGER on public.v_potency_analytes to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_potency_analytes to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_potency_analytes to service_role;
+grant REFERENCES, TRIGGER on public.v_potency_by_strain to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_potency_by_strain to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_potency_by_strain to service_role;
+grant REFERENCES, TRIGGER on public.v_potency_by_strain_analyte to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_potency_by_strain_analyte to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_potency_by_strain_analyte to service_role;
+grant REFERENCES, TRIGGER on public.v_potency_results to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_potency_results to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_potency_results to service_role;
+grant REFERENCES, TRIGGER on public.v_potency_tac to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_potency_tac to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_potency_tac to service_role;
+grant REFERENCES, TRIGGER on public.v_potency_vs_coa to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_potency_vs_coa to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_potency_vs_coa to service_role;
+grant REFERENCES, TRIGGER on public.v_potency_vs_target to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_potency_vs_target to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_potency_vs_target to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_product_identity to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_product_identity to service_role;
+grant REFERENCES, TRIGGER on public.v_product_listing to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_product_listing to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_product_listing to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_production_forecast to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_production_forecast to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_production_tracker to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_production_tracker to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_production_true_position to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_production_true_position to service_role;
+grant REFERENCES, TRIGGER on public.v_proposals_for_owner to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_proposals_for_owner to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_proposals_for_owner to service_role;
+grant REFERENCES, TRIGGER on public.v_provisional_standards to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_provisional_standards to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_provisional_standards to service_role;
+grant REFERENCES, TRIGGER on public.v_pull_yield to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_pull_yield to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_pull_yield to service_role;
+grant REFERENCES, TRIGGER on public.v_rate_confidence to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_rate_confidence to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_rate_confidence to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_real_loss to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_real_loss to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_real_loss_summary to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_real_loss_summary to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_real_loss_v2 to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_real_loss_v2 to service_role;
+grant REFERENCES, TRIGGER on public.v_reason_settings to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_reason_settings to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_reason_settings to service_role;
+grant REFERENCES, TRIGGER on public.v_reconciliation_status to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_reconciliation_status to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_reconciliation_status to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_reconciliation_unresolved to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_reconciliation_unresolved to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_recurring_tasks to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_recurring_tasks to service_role;
+grant REFERENCES, TRIGGER on public.v_remediation_owed to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_remediation_owed to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_remediation_owed to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_remediation_yield to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_remediation_yield to service_role;
+grant REFERENCES, TRIGGER on public.v_report_catalogue to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_report_catalogue to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_report_catalogue to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_report_coverage to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_report_coverage to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_report_mapping_status to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_report_mapping_status to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_report_measure_governance to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_report_measure_governance to service_role;
+grant REFERENCES, TRIGGER on public.v_report_provenance to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_report_provenance to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_report_provenance to service_role;
+grant REFERENCES, TRIGGER on public.v_report_pull_status to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_report_pull_status to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_report_pull_status to service_role;
+grant REFERENCES, TRIGGER on public.v_report_retention_risk to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_report_retention_risk to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_report_retention_risk to service_role;
+grant REFERENCES, TRIGGER on public.v_report_standard to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_report_standard to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_report_standard to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_report_upload_alerts to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_report_upload_alerts to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_report_upload_due to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_report_upload_due to service_role;
+grant REFERENCES, TRIGGER on public.v_report_vault_board to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_report_vault_board to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_report_vault_board to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_request_scorecard to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_request_scorecard to service_role;
+grant REFERENCES, TRIGGER on public.v_role_clearance_breaches to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_role_clearance_breaches to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_role_clearance_breaches to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_role_menu_matrix to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_role_menu_matrix to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_room_best_vs_worst to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_room_best_vs_worst to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_room_board to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_room_board to service_role;
+grant REFERENCES, TRIGGER on public.v_room_board_complete to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_room_board_complete to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_room_board_complete to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_room_canopy_status to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_room_canopy_status to service_role;
+grant REFERENCES, TRIGGER on public.v_room_contents to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_room_contents to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_room_contents to service_role;
+grant REFERENCES, TRIGGER on public.v_room_history to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_room_history to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_room_history to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_room_month_comparison to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_room_month_comparison to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_room_plant_counts to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_room_plant_counts to service_role;
+grant REFERENCES, TRIGGER on public.v_room_plants_drill to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_room_plants_drill to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_room_plants_drill to service_role;
+grant REFERENCES, TRIGGER on public.v_room_position_over_time to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_room_position_over_time to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_room_position_over_time to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_room_turn_audit to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_room_turn_audit to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_room_yield to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_room_yield to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_room_yield_per_sqft to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_room_yield_per_sqft to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_route_margin to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_route_margin to service_role;
+grant REFERENCES, TRIGGER on public.v_rpt_2024_grown to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_rpt_2024_grown to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_rpt_2024_grown to service_role;
+grant REFERENCES, TRIGGER on public.v_rpt_2024_onhand to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_rpt_2024_onhand to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_rpt_2024_onhand to service_role;
+grant REFERENCES, TRIGGER on public.v_rpt_2024_sold to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_rpt_2024_sold to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_rpt_2024_sold to service_role;
+grant REFERENCES, TRIGGER on public.v_rpt_coa_compliance to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_rpt_coa_compliance to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_rpt_coa_compliance to service_role;
+grant REFERENCES, TRIGGER on public.v_rpt_discrepancies to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_rpt_discrepancies to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_rpt_discrepancies to service_role;
+grant REFERENCES, TRIGGER on public.v_rpt_inventory_reconciliation to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_rpt_inventory_reconciliation to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_rpt_inventory_reconciliation to service_role;
+grant REFERENCES, TRIGGER on public.v_rpt_plantings to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_rpt_plantings to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_rpt_plantings to service_role;
+grant REFERENCES, TRIGGER on public.v_rpt_plants_flowering to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_rpt_plants_flowering to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_rpt_plants_flowering to service_role;
+grant REFERENCES, TRIGGER on public.v_rpt_plants_vegetative to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_rpt_plants_vegetative to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_rpt_plants_vegetative to service_role;
+grant REFERENCES, TRIGGER on public.v_rpt_testing_reconciliation to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_rpt_testing_reconciliation to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_rpt_testing_reconciliation to service_role;
+grant REFERENCES, SELECT, TRIGGER on public.v_s2s_rooms to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_s2s_rooms to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_s2s_rooms to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_sales_history to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_sales_history to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_sales_history_monthly to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_sales_history_monthly to service_role;
+grant REFERENCES, TRIGGER on public.v_schedulable to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_schedulable to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_schedulable to service_role;
+grant REFERENCES, TRIGGER on public.v_schedule_adherence to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_schedule_adherence to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_schedule_adherence to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_schedule_compliance to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_schedule_compliance to service_role;
+grant REFERENCES, TRIGGER on public.v_schedule_cost_by_period to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_schedule_cost_by_period to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_schedule_cost_by_period to service_role;
+grant REFERENCES, TRIGGER on public.v_schedule_cost_detail to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_schedule_cost_detail to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_schedule_cost_detail to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_schedule_discipline to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_schedule_discipline to service_role;
+grant REFERENCES, TRIGGER on public.v_schedule_revisions to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_schedule_revisions to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_schedule_revisions to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_schedule_scorecard to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_schedule_scorecard to service_role;
+grant REFERENCES, TRIGGER on public.v_schedule_variance to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_schedule_variance to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_schedule_variance to service_role;
+grant REFERENCES, TRIGGER on public.v_schedule_vs_worked to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_schedule_vs_worked to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_schedule_vs_worked to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_schema_object_source to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_schema_object_source to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_secret_status to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_secret_status to service_role;
+grant REFERENCES, TRIGGER on public.v_section_help_coverage to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_section_help_coverage to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_section_help_coverage to service_role;
+grant REFERENCES, TRIGGER on public.v_section_narrative to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_section_narrative to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_section_narrative to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_seed_to_sale_chain to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_seed_to_sale_chain to service_role;
+grant REFERENCES, TRIGGER on public.v_sentinel_coverage to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_sentinel_coverage to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_sentinel_coverage to service_role;
+grant REFERENCES, TRIGGER on public.v_sentinel_cron_silence to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_sentinel_cron_silence to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_sentinel_cron_silence to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_sheet_metrc_alerts to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_sheet_metrc_alerts to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_sheet_metrc_reconciliation to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_sheet_metrc_reconciliation to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_sheet_sync_status to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_sheet_sync_status to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_shipped_full to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_shipped_full to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_source_conflicts to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_source_conflicts to service_role;
+grant REFERENCES, TRIGGER on public.v_source_coverage to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_source_coverage to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_source_coverage to service_role;
+grant REFERENCES, TRIGGER on public.v_source_freshness to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_source_freshness to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_source_freshness to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_standard_history to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_standard_history to service_role;
+grant REFERENCES, TRIGGER on public.v_stock_ageing to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_stock_ageing to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_stock_ageing to service_role;
+grant REFERENCES, TRIGGER on public.v_stock_by_department to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_stock_by_department to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_stock_by_department to service_role;
+grant REFERENCES, TRIGGER on public.v_stock_headline to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_stock_headline to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_stock_headline to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_stock_on_hand to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_stock_on_hand to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_stock_packages to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_stock_packages to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_stock_proof to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_stock_proof to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_stock_summary to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_stock_summary to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_storage_limit_status to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_storage_limit_status to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_strain_conflicts to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_strain_conflicts to service_role;
+grant REFERENCES, TRIGGER on public.v_strain_desk to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_strain_desk to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_strain_desk to service_role;
+grant REFERENCES, TRIGGER on public.v_strain_gate to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_strain_gate to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_strain_gate to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_strain_name_proposal to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_strain_name_proposal to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_strain_performance to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_strain_performance to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_strain_register_reconciliation to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_strain_register_reconciliation to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_supplier_costs to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_supplier_costs to service_role;
+grant REFERENCES, TRIGGER on public.v_supply_consumption to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_supply_consumption to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_supply_consumption to service_role;
+grant REFERENCES, TRIGGER on public.v_supply_demand to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_supply_demand to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_supply_demand to service_role;
+grant REFERENCES, TRIGGER on public.v_supply_position to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_supply_position to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_supply_position to service_role;
+grant REFERENCES, TRIGGER on public.v_supply_reorder to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_supply_reorder to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_supply_reorder to service_role;
+grant REFERENCES, TRIGGER on public.v_supply_reorder_board to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_supply_reorder_board to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_supply_reorder_board to service_role;
+grant REFERENCES, TRIGGER on public.v_supply_restock_due to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_supply_restock_due to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_supply_restock_due to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_sync_digest to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_sync_digest to service_role;
+grant REFERENCES, TRIGGER on public.v_sync_failures_pending to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_sync_failures_pending to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_sync_failures_pending to service_role;
+grant REFERENCES, TRIGGER on public.v_sync_item to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_sync_item to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_sync_item to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_sync_report to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_sync_report to service_role;
+grant REFERENCES, TRIGGER on public.v_tag_attribution to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_tag_attribution to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_tag_attribution to service_role;
+grant REFERENCES, TRIGGER on public.v_tag_certificate_final to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_tag_certificate_final to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_tag_certificate_final to service_role;
+grant REFERENCES, TRIGGER on public.v_tag_coa_gap to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_tag_coa_gap to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_tag_coa_gap to service_role;
+grant REFERENCES, TRIGGER on public.v_tag_dwell to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_tag_dwell to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_tag_dwell to service_role;
+grant REFERENCES, TRIGGER on public.v_tag_dwell_coverage to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_tag_dwell_coverage to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_tag_dwell_coverage to service_role;
+grant REFERENCES, TRIGGER on public.v_tag_evidence to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_tag_evidence to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_tag_evidence to service_role;
+grant REFERENCES, TRIGGER on public.v_tag_gap to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_tag_gap to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_tag_gap to service_role;
+grant REFERENCES, TRIGGER on public.v_tag_gap_summary to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_tag_gap_summary to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_tag_gap_summary to service_role;
+grant REFERENCES, TRIGGER on public.v_tag_ledger to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_tag_ledger to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_tag_ledger to service_role;
+grant REFERENCES, TRIGGER on public.v_tag_lifecycle to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_tag_lifecycle to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_tag_lifecycle to service_role;
+grant REFERENCES, TRIGGER on public.v_tag_master to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_tag_master to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_tag_master to service_role;
+grant REFERENCES, TRIGGER on public.v_tag_movement_forensic to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_tag_movement_forensic to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_tag_movement_forensic to service_role;
+grant REFERENCES, TRIGGER on public.v_tag_provenance to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_tag_provenance to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_tag_provenance to service_role;
+grant REFERENCES, TRIGGER on public.v_tag_resolver to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_tag_resolver to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_tag_resolver to service_role;
+grant REFERENCES, TRIGGER on public.v_tag_stay to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_tag_stay to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_tag_stay to service_role;
+grant REFERENCES, TRIGGER on public.v_tag_turnaround to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_tag_turnaround to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_tag_turnaround to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_task_timeline to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_task_timeline to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_task_workload to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_task_workload to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_testing_sla_matrix to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_testing_sla_matrix to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_third_party_chain to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_third_party_chain to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_third_party_cycle_time to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_third_party_cycle_time to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_third_party_downstream to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_third_party_downstream to service_role;
+grant REFERENCES, TRIGGER on public.v_third_party_forensic to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_third_party_forensic to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_third_party_forensic to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_third_party_lifecycle to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_third_party_lifecycle to service_role;
+grant REFERENCES, TRIGGER on public.v_third_party_remarks to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_third_party_remarks to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_third_party_remarks to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_third_party_stock to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_third_party_stock to service_role;
+grant REFERENCES, TRIGGER on public.v_tile_drill_freshness to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_tile_drill_freshness to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_tile_drill_freshness to service_role;
+grant REFERENCES, TRIGGER on public.v_tile_drill_status to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_tile_drill_status to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_tile_drill_status to service_role;
+grant REFERENCES, TRIGGER on public.v_tile_drill_status_live to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_tile_drill_status_live to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_tile_drill_status_live to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_tower_inventory to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_tower_inventory to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_tower_inventory_grouped to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_tower_inventory_grouped to service_role;
+grant REFERENCES, TRIGGER on public.v_trace_breaks to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_trace_breaks to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_trace_breaks to service_role;
+grant REFERENCES, TRIGGER on public.v_trace_completeness to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_trace_completeness to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_trace_completeness to service_role;
+grant REFERENCES, TRIGGER on public.v_transfer_line to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_transfer_line to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_transfer_line to service_role;
+grant REFERENCES, TRIGGER on public.v_trap_scan to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_trap_scan to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_trap_scan to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_true_cost_per_pound to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_true_cost_per_pound to service_role;
+grant REFERENCES, TRIGGER on public.v_truncate_exposure to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_truncate_exposure to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_truncate_exposure to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_turnaround_watch to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_turnaround_watch to service_role;
+grant REFERENCES, TRIGGER on public.v_unchallenged_findings to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_unchallenged_findings to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_unchallenged_findings to service_role;
+grant REFERENCES, TRIGGER on public.v_under_utilised to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_under_utilised to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_under_utilised to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_unit_costs to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_unit_costs to service_role;
+grant REFERENCES, TRIGGER on public.v_unmatched_manifest_dossier to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_unmatched_manifest_dossier to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_unmatched_manifest_dossier to service_role;
+grant REFERENCES, TRIGGER on public.v_unmatched_manifest_forensic to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_unmatched_manifest_forensic to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_unmatched_manifest_forensic to service_role;
+grant REFERENCES, TRIGGER on public.v_unmatched_manifest_tags to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_unmatched_manifest_tags to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_unmatched_manifest_tags to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_unrequested_material to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_unrequested_material to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_unresolved_register to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_unresolved_register to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_valuation_basis to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_valuation_basis to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_waste_qty_truth to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_waste_qty_truth to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_watchdog_current to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_watchdog_current to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_watchdog_log to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_watchdog_log to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_watchdog_runs to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_watchdog_runs to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_watchdog_timeline to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_watchdog_timeline to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_weekend_watch to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_weekend_watch to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_weight_audit to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_weight_audit to service_role;
+grant REFERENCES, TRIGGER on public.v_weight_basis_collisions to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_weight_basis_collisions to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_weight_basis_collisions to service_role;
+grant REFERENCES, TRIGGER on public.v_weight_basis_gaps to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_weight_basis_gaps to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_weight_basis_gaps to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_wholesale_reconciliation to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_wholesale_reconciliation to service_role;
+grant REFERENCES, TRIGGER on public.v_widget_catalog_available to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_widget_catalog_available to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_widget_catalog_available to service_role;
+grant REFERENCES, TRIGGER on public.v_xq_failed_no_disposition to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_xq_failed_no_disposition to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_xq_failed_no_disposition to service_role;
+grant REFERENCES, TRIGGER on public.v_xq_harvest_cycle to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_xq_harvest_cycle to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_xq_harvest_cycle to service_role;
+grant REFERENCES, TRIGGER on public.v_xq_harvest_moisture to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_xq_harvest_moisture to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_xq_harvest_moisture to service_role;
+grant REFERENCES, TRIGGER on public.v_xq_harvest_open_past_limit to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_xq_harvest_open_past_limit to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_xq_harvest_open_past_limit to service_role;
+grant REFERENCES, TRIGGER on public.v_xq_hidden_destroy to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_xq_hidden_destroy to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_xq_hidden_destroy to service_role;
+grant REFERENCES, TRIGGER on public.v_xq_never_submitted to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_xq_never_submitted to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_xq_never_submitted to service_role;
+grant REFERENCES, TRIGGER on public.v_xq_room_short to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_xq_room_short to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_xq_room_short to service_role;
+grant REFERENCES, TRIGGER on public.v_xq_schedule_tamper to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_xq_schedule_tamper to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_xq_schedule_tamper to service_role;
+grant REFERENCES, TRIGGER on public.v_xq_summary to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_xq_summary to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_xq_summary to service_role;
+grant REFERENCES, TRIGGER on public.v_xq_yield_miss to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_xq_yield_miss to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_xq_yield_miss to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_year_end_2025 to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_year_end_2025 to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_year_end_2025_coverage to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_year_end_2025_coverage to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_year_end_2025_summary to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_year_end_2025_summary to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_yield_by_harvest to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_yield_by_harvest to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_yield_versus_industry to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_yield_versus_industry to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_yield_vs_target to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_yield_vs_target to service_role;
+grant REFERENCES, TRIGGER on public.v_zone_board to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_zone_board to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_zone_board to service_role;
+grant REFERENCES, TRIGGER on public.v_zone_now to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_zone_now to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_zone_now to service_role;
+grant REFERENCES, TRIGGER on public.v_zone_staffing to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_zone_staffing to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_zone_staffing to service_role;
+grant REFERENCES, TRIGGER on public.v_zone_vocabulary_drift to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.v_zone_vocabulary_drift to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.v_zone_vocabulary_drift to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.valuation_overrides to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.valuation_overrides to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.valuation_rates to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.valuation_rates to service_role;
+grant REFERENCES, TRIGGER on public.vault_harvest_parse to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.vault_harvest_parse to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.vault_harvest_parse to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.vendor_notes to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.vendor_notes to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.vendors to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.vendors to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.verification_checks to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.verification_checks to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.verification_runs to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.verification_runs to service_role;
+grant REFERENCES, TRIGGER on public.view_rls_flip_log to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.view_rls_flip_log to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.view_rls_flip_log to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.watchdog_findings to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.watchdog_findings to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.watchdog_runs to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.watchdog_runs to service_role;
+grant REFERENCES, TRIGGER on public.weight_basis_registry to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.weight_basis_registry to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.weight_basis_registry to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.whiteboards to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.whiteboards to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.widget_catalog to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.widget_catalog to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.wip_snapshots to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.wip_snapshots to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.work_order_stages to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.work_order_stages to service_role;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.work_orders to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.work_orders to service_role;
+grant REFERENCES, TRIGGER on public.workspace_view to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.workspace_view to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.workspace_view to service_role;
+grant REFERENCES, TRIGGER on public.zone to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.zone to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.zone to service_role;
+grant REFERENCES, TRIGGER on public.zone_staffing_requirements to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.zone_staffing_requirements to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.zone_staffing_requirements to service_role;
+grant REFERENCES, TRIGGER on public.zones to anon;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, UPDATE on public.zones to authenticated;
+grant DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on public.zones to service_role;
 
 -- ==========================================================================
 -- SCHEDULED JOBS — cron. Review before running anywhere but production.
 -- ==========================================================================
 
--- NOT CAPTURED: permission denied for schema cron
--- The dumping role cannot read the cron schema. Re-run with a role that can, or
--- recreate schedules by hand. Absence recorded rather than left silent (rule A3).
+-- select cron.schedule('custody-monitor', '*/20 * * * *', ' select tg_custody_monitor() ');
+-- select cron.schedule('refresh-reports', '5,35 * * * *', 'set statement_timeout = ''10min''; select tg_refresh_reports()');
+-- select cron.schedule('refresh-tower', '4-59/5 * * * *', ' select tg_refresh_tower() ');
+-- select cron.schedule('materialize-recurring', '0 5 * * *', 'select public.tg_materialize_recurring()');
+-- select cron.schedule('forensic-audit', '0 6 * * 1', ' select tg_forensic_audit(''scheduled'') ');
+-- select cron.schedule('refresh-harvest-links', '*/10 * * * *', 'select tg_refresh_harvest_links();');
+-- select cron.schedule('sweep-unknowns', '0 */4 * * *', 'select tg_sweep_unknowns();');
+-- select cron.schedule('watchdog-am', '17 6 * * *', 'select tg_watchdog_forensic();');
+-- select cron.schedule('watchdog-pm', '17 13 * * *', 'select tg_watchdog_forensic();');
+-- select cron.schedule('refresh-dashboards', '11-59/10 * * * *', 'select tg_refresh_dashboards(''cron'')');
+-- select cron.schedule('snapshot-dashboards', '5 5 * * *', 'set statement_timeout = ''540s''; select tg_snapshot_dashboards();');
+-- select cron.schedule('sheet-reconciliation', '7 * * * *', 'select agent_sheet_reconciliation()');
+-- select cron.schedule('record-lab-turnarounds', '23 */2 * * *', 'select f_record_lab_turnarounds()');
+-- select cron.schedule('metrc-dispatcher', '*/5 * * * *', 'select tg_metrc_dispatch()');
+-- select cron.schedule('page-canary', '*/20 * * * *', 'select tg_canary_record()');
+-- select cron.schedule('sync-review', '25 * * * *', 'select tg_sync_review()');
+-- select cron.schedule('metrc-nightly-full', '10 7 * * *', 'select tg_metrc_nightly()');
+-- select cron.schedule('metrc-document-links', '30 5 * * *', 'select tg_call_function(''metrc-documents?mode=urls'')');
+-- select cron.schedule('metrc-documents-backfill', '*/15 0-8 * * *', 'select tg_call_function(''metrc-documents?mode=both&limit=200'')');
+-- select cron.schedule('metrc-reference', '20 7 * * *', 'select tg_call_function(''metrc-reference-sync?mode=reference'')');
+-- select cron.schedule('item-flag-alerts', '40 * * * *', 'select tg_raise_item_alerts()');
+-- select cron.schedule('nightly-platform-check', '40 6 * * *', 'select tg_nightly_platform_check()');
+-- select cron.schedule('alert-email-send', '45 * * * *', 'select tg_send_alert_emails()');
+-- select cron.schedule('alert-email-confirm', '50 * * * *', 'select tg_confirm_alert_emails()');
+-- select cron.schedule('nightly-integrity-check', '50 6 * * *', 'select tg_nightly_integrity_check()');
+-- select cron.schedule('close-stuck-sync-runs', '*/20 * * * *', 'select tg_close_stuck_sync_runs()');
+-- select cron.schedule('nightly-role-clearance', '55 6 * * *', 'select tg_check_role_clearance()');
+-- select cron.schedule('parse-documents-backfill', '* 1-7 * * *', 'select tg_call_function(''parse-documents?kind=both&limit=80&offset=''||(floor(random()*6)*80)::int)');
+-- select cron.schedule('parse-documents-daily', '45 8 * * *', 'select tg_call_function(''parse-documents?kind=both&limit=200'')');
+-- select cron.schedule('brain-claims-check', '35 6 * * *', 'select count(*) from tg_check_brain_claims()');
+-- select cron.schedule('refresh-document-search', '17 * * * *', 'select f_refresh_document_search()');
+-- select cron.schedule('sentinel-sweep', '*/15 * * * *', 'select public.tg_sentinel_sweep()');
+-- select cron.schedule('requeue-stalled-bridge-jobs', '* * * * *', 'select f_requeue_stalled_bridge_jobs()');
+-- select cron.schedule('forensic-auditor', '52 * * * *', 'select public.tg_auditor_pass()');
+-- select cron.schedule('hr-clickup-push', '*/10 * * * *', 'select tg_call_function(''hr-clickup-push'')');
+-- select cron.schedule('coverage-watch', '38 6 * * *', 'select public.tg_coverage_check()');
+-- select cron.schedule('route-findings', '12 * * * *', 'select count(*) from tg_route_findings(''cron:route-findings'')');
+-- select cron.schedule('guard-selftest', '5 6 * * *', 'select (select count(*) from tg_selftest_double_check(''cron:guard-selftest''))
+                    + (select count(*) from tg_selftest_report_upload_nag(''cron:guard-selftest''))
+                    + (select count(*) from tg_selftest_backfill_sweep(''cron:guard-selftest''))
+                    + (select count(*) from tg_selftest_fixture_gate(''cron:guard-selftest''))');
+-- select cron.schedule('discrepancy-sweep', '12 * * * *', 'select tg_sweep_discrepancies()');
+-- select cron.schedule('report-upload-nag', '45 6 * * *', 'select count(*) from tg_raise_report_upload_findings(''cron:report-upload-nag'')');
+-- select cron.schedule('backfill-sweep', '40 6 * * *', 'select count(*) from tg_backfill_sweep(''cron:backfill-sweep'')');
+-- select cron.schedule('hr-drain-punch-queue', '*/5 * * * *', 'select public.f_drain_punch_queue(500)');
+-- select cron.schedule('guard-naming', '35 6 * * *', 'select count(*) from tg_guard_naming(''cron:guard-naming'')');
+-- select cron.schedule('audit-the-checks', '50 6 * * *', 'select public.tg_audit_the_checks()');
+-- select cron.schedule('fixture-ratchet', '30 6 * * *', 'select count(*) from tg_check_fixture_ratchet(''cron:fixture-ratchet'')');
+-- select cron.schedule('escalate-unchallenged', '55 6 * * *', 'select public.tg_escalate_unchallenged()');
+-- select cron.schedule('refresh-package-origin', '18 * * * *', 'refresh materialized view concurrently mv_package_origin');
+-- select cron.schedule('view-rls-ratchet', '34 6 * * *', 'select public.tg_view_rls_ratchet();');
+-- select cron.schedule('guard-findings-named', '0 7 * * *', 'select public.tg_guard_findings_name_a_guard()');
+-- select cron.schedule('all-clear-falsifier', '46 6 * * *', 'select public.tg_all_clear_falsifier();');
+-- select cron.schedule('metrc-backfill', '*/3 * * * *', 'select tg_metrc_backfill_next()');
+-- select cron.schedule('verification-suite', '20 * * * *', 'set statement_timeout = ''10min''; select count(*) from tg_verify()');
+-- select cron.schedule('verification-escalate', '30 * * * *', 'select count(*) from tg_verification_escalate()');
+-- select cron.schedule('refresh-forensic-panel', '13-59/10 * * * *', 'refresh materialized view concurrently mv_forensic_audit_panel');
+-- select cron.schedule('forensic-panel-freshness', '9-59/30 * * * *', 'select count(*) from tg_check_forensic_panel_freshness(''cron:forensic-panel-freshness'')');
+-- select cron.schedule('assert-run', '25 * * * *', 'select count(*) from tg_run_data_assertions(null,''cron:assert-run'')');
+-- select cron.schedule('assert-prove', '40 6 * * *', 'select count(*) from f_prove_all_data_assertions(''cron:assert-prove'')');
+-- select cron.schedule('refresh-tag-evidence', '45 * * * *', 'set statement_timeout = ''15min''; select tg_refresh_tag_evidence(''cron'')');
+-- select cron.schedule('heal-stale-matviews', '3-59/5 * * * *', 'select f_heal_stale_matviews(''watcher'')');
+-- select cron.schedule('snapshot-tile-drill', '7-59/30 * * * *', 'set statement_timeout = ''5min''; select tg_snapshot_tile_drill(''cron'')');
+-- select cron.schedule('stock-ageing-watch', '35 6 * * *', 'select f_check_stock_ageing(''watcher'')');
+-- select cron.schedule('tag-reconciliation-watch', '40 6 * * *', 'select f_check_tag_reconciliation(''watcher'')');
+-- select cron.schedule('site-deploy-watch', '6-59/10 * * * *', 'select public.tg_check_site_deploy()');
+-- select cron.schedule('gap-alert-loop', '22-59/15 * * * *', 'set statement_timeout = ''10min''; select public.f_raise_gap_alerts(''loop'')');
+-- select cron.schedule('gap-route-escalate', '38 * * * *', 'set statement_timeout = ''5min''; select public.f_route_gap_alerts(''loop'')');
+-- select cron.schedule('guard-autofix', '48 * * * *', 'set statement_timeout = ''10min''; select public.f_guard_autofix(''guard'')');
+-- select cron.schedule('apex-sync-daily', '* * * * *', 'set statement_timeout = ''20min''; select public.tg_apex_delta_all()');
+-- select cron.schedule('sheet-sync-daily', '25 6 * * *', 'set statement_timeout = ''20min''; select tg_call_function(''sheet-sync'')');
+-- select cron.schedule('credential-reminders', '20 7 * * *', 'select public.f_raise_credential_reminders()');
+-- select cron.schedule('deployment-tracker', '7 * * * *', 'select public.f_deployment_checks_run()');
+-- select cron.schedule('retire-untouched-packages', '7,37 * * * *', 'select public.f_metrc_retire_untouched_after_full_sweep()');
+-- select cron.schedule('intelligence-sweep', '*/15 * * * *', 'set statement_timeout = ''10min''; select tg_intelligence_sweep()');
+-- select cron.schedule('refresh-tower-inventory', '*/30 * * * *', 'set statement_timeout = ''5min''; refresh materialized view concurrently mv_tower_inventory');
+-- select cron.schedule('drill-latency-sweep', '23 */6 * * *', 'select tg_drill_latency_sweep();');
+-- select cron.schedule('refresh-certificate-resolved', '9-59/15 * * * *', 'set statement_timeout = ''5min''; refresh materialized view concurrently public.mv_certificate_resolved;');
+-- select cron.schedule('deployment-tracker-certification', '9 * * * *', 'select * from f_deployment_checks_run_certification();');
+-- select cron.schedule('refresh-manifest-invoice-truth', '4-59/15 * * * *', 'set statement_timeout = ''5min''; refresh materialized view concurrently public.mv_metrc_manifest_invoice_truth;');
