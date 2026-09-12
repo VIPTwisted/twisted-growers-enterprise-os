@@ -610,7 +610,12 @@ export async function budzAnswer(question) {
   const num = (n) => Number(n || 0).toLocaleString();
   const has = (...k) => k.some((x) => t.includes(x));
   const sel = async (view, cols) => {
-    const { data, error } = await supabase.from(view).select(cols || "*").limit(400);
+    const q = supabase.from(view).select(cols || "*").limit(400);
+    const out = await Promise.race([
+      q,
+      new Promise((r) => setTimeout(() => r({ data: null, error: { message: "timed out" } }), 4000)),
+    ]);
+    const { data, error } = out || {};
     if (error) return { err: error.message, rows: [] };
     return { rows: data ?? [] };
   };
@@ -1904,11 +1909,12 @@ async function searchLiveViews(question) {
   const words = q.split(/[^a-z0-9]+/).filter((w) => w.length > 2 && !stop.has(w));
   if (!words.length) return null;
   if (!_navCache.rows || Date.now() - _navCache.at > 60000) {
-    const { data: nav, error } = await supabase
-      .from("nav_registry")
-      .select("view_key,label,table_ref,description")
-      .eq("enabled", true)
-      .limit(200);
+    const got = await Promise.race([
+      supabase.from("nav_registry").select("view_key,label,table_ref,description").eq("enabled", true).limit(200),
+      new Promise((r) => setTimeout(() => r({ data: null, error: { message: "timed out" } }), 2500)),
+    ]);
+    const nav = got?.data;
+    const error = got?.error;
     _navCache = { at: Date.now(), rows: Array.isArray(nav) ? nav : [], error };
   }
   if (_navCache.error) return { headline: "The live page list could not be read: " + _navCache.error.message, rows: [] };
@@ -1924,7 +1930,12 @@ async function searchLiveViews(question) {
     .sort((a, b) => b.s - a.s);
   const hit = scored[0];
   if (!hit) return null;
-  const { data, error: qErr } = await supabase.from(hit.table_ref).select("*").limit(40);
+  const hitQ = await Promise.race([
+    supabase.from(hit.table_ref).select("*").limit(40),
+    new Promise((r) => setTimeout(() => r({ data: null, error: { message: "timed out" } }), 2500)),
+  ]);
+  const data = hitQ?.data;
+  const qErr = hitQ?.error;
   if (qErr) return { headline: `${hit.label} could not be read: ${qErr.message}`, rows: [{ label: hit.view_key, detail: qErr.message, meta: hit.table_ref, drill: hit.view_key }] };
   const rows = Array.isArray(data) ? data : [];
   if (!rows.length) {
@@ -2009,7 +2020,12 @@ export async function askBudzFull(question, history = [], { onFacts, surface = "
   const needsRecords = /\b(harvest|metrc|package|plant|invoice|apex|coa|cultiv|inventory|strain|batch|tag|lab|license|payroll|employee|dutchie|weight|room|clone|flower|trim|waste|manifest|sales|cfo|vendor|po\b|pull this|past week|last week|\bpull\b|last \d+ days?|past \d+ days?)\b/i.test(question)
     || !!readHumanIntent(question).lastN;
 
-  const a = needsRecords ? await budzAnswer(question) : { rows: [], headline: "" };
+  const a = needsRecords
+    ? await Promise.race([
+      budzAnswer(question),
+      new Promise((r) => setTimeout(() => r({ rows: [], headline: "Live records took too long. Ask again." }), 5000)),
+    ])
+    : { rows: [], headline: "" };
   const facts = a.rows ?? [];
   onFacts?.(a, facts);
   const fromRecords = !a.askClaude && facts.length
@@ -2087,7 +2103,10 @@ export async function askBudzFull(question, history = [], { onFacts, surface = "
   }
 
   if (!composed) {
-    const cfg = _aiCfg || await getAiCfg();
+    const cfg = _aiCfg || await Promise.race([
+      getAiCfg(),
+      new Promise((r) => setTimeout(() => r({ paid_model_enabled: false, local_model_enabled: false }), 1500)),
+    ]);
     if (cfg.local_model_enabled && cfg.local_model_url) {
       try {
         const hist = [...log, { who: "me", text: question }]
@@ -2637,11 +2656,12 @@ export function BudzPet({ go, onClose, view }) {
 
   const ask = async (text) => {
     const question = (text ?? q).trim();
-    if ((!question && !bag.files.length) || busy) return;
+    if (!question && !bag.files.length) return;
     const sending = bag.files.map((f) => f.name);
     setLog((l) => [...l, { who: "me", text: question || "(sent files)", files: sending }]);
     setQ("");
     setBusy(true);
+    try {
     if (sending.length) {
       const up = await bag.upload(question);
       const good = up.filter((u) => !u.error);
@@ -2658,12 +2678,15 @@ export function BudzPet({ go, onClose, view }) {
            used to stop at the database lookup, so anything nobody had written a
            branch for came back empty here and was answered there. */
         const stamp = Date.now();
-        const { composed, via, askErr } = await askBudzFull(question, log, {
-          surface: "pet-" + (view || "os"),
-          desk: deskForView(view),
-          onFacts: (a, rows) =>
-            setLog((l) => [...l, { who: "budz", text: a.headline, rows, stamp, pending: true }]),
-        });
+        const { composed, via, askErr } = await Promise.race([
+          askBudzFull(question, log, {
+            surface: "pet-" + (view || "os"),
+            desk: deskForView(view),
+            onFacts: (a, rows) =>
+              setLog((l) => [...l, { who: "budz", text: a.headline, rows, stamp, pending: true }]),
+          }),
+          new Promise((r) => setTimeout(() => r({ composed: "Still working — send it again. I did not freeze.", facts: [], via: "Top G", askErr: null }), 9000)),
+        ]);
         setLog((l) =>
           l.map((m) =>
             m.stamp === stamp
@@ -2677,7 +2700,9 @@ export function BudzPet({ go, onClose, view }) {
         setLog((l) => [...l, { who: "budz", text: "Could not pull that: " + String(e).slice(0, 120) }]);
       }
     }
-    setBusy(false);
+    } finally {
+      setBusy(false);
+    }
   };
 
   const name = prof?.name ?? "Budz";
@@ -2763,7 +2788,7 @@ export function BudzPet({ go, onClose, view }) {
               onChange={(e) => setQ(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && ask()}
             />
-            <button className="btn primary" disabled={busy} onClick={() => ask()}>Ask</button>
+            <button className="btn primary" onClick={() => ask()}>Ask</button>
           </div>
         </div>
       )}
@@ -3338,11 +3363,12 @@ export function BudzScreen({ go }) {
 
   const ask = async (text) => {
     const question = (text ?? q).trim();
-    if ((!question && !bag.files.length) || busy) return;
+    if (!question && !bag.files.length) return;
     const sending = bag.files.map((f) => f.name);
     setLog((l) => [...l, { who: "me", text: question || "(sent files)", files: sending }]);
     setQ("");
     setBusy(true);
+    try {
     if (sending.length) {
       const up = await bag.upload(question);
       const good = up.filter((u) => !u.error);
@@ -3352,13 +3378,16 @@ export function BudzScreen({ go }) {
          simply lower. Name it, or somebody believes it arrived. */
       if (bad.length) setLog((l) => [...l, { who: "budz", text: `Could not take ${bad.map((b) => b.name).join(", ")}: ${bad[0].error}` }]);
     }
-    if (!question) { setBusy(false); return; }
+    if (!question) { return; }
     try {
       const stamp = Date.now();
-      const { facts, composed, via, askErr } = await askBudzFull(question, log, {
-        onFacts: (a, rows) =>
-          setLog((l) => [...l, { who: "budz", text: a.headline, rows, stamp, pending: true }]),
-      });
+      const { facts, composed, via, askErr } = await Promise.race([
+        askBudzFull(question, log, {
+          onFacts: (a, rows) =>
+            setLog((l) => [...l, { who: "budz", text: a.headline, rows, stamp, pending: true }]),
+        }),
+        new Promise((r) => setTimeout(() => r({ composed: "Still working — send it again. I did not freeze.", facts: [], via: "Top G", askErr: null }), 9000)),
+      ]);
       setLog((l) =>
         l.map((m) =>
           m.stamp === stamp
@@ -3372,7 +3401,9 @@ export function BudzScreen({ go }) {
     } catch (e) {
       setLog((l) => [...l, { who: "budz", text: `Couldn't pull that: ${String(e).slice(0, 140)}` }]);
     }
-    setBusy(false);
+    } finally {
+      setBusy(false);
+    }
   };
   return (
     <>
@@ -3474,7 +3505,7 @@ export function BudzScreen({ go }) {
               </div>
               <div className="bdchips">
                 {(BUDZ_DEPTS.find((d) => d.dept === dept) ?? BUDZ_DEPTS[0]).qs.map((c) => (
-                  <button key={c} className="budzchip" onClick={() => ask(c)} disabled={busy}>
+                  <button key={c} className="budzchip" onClick={() => ask(c)}>
                     {c}
                   </button>
                 ))}
@@ -3513,7 +3544,7 @@ export function BudzScreen({ go }) {
               onChange={(e) => setQ(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && ask()}
             />
-            <button className="btn" onClick={() => ask()} disabled={busy}>
+            <button className="btn" onClick={() => ask()}>
               Ask
             </button>
           </div>
