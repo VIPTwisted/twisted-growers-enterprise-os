@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { supabase, FUNCTIONS_URL, ANON_KEY } from "./lib/supabase.js";
-import { viaLine, askTgBotsNow, extModelNow, extProviderNow } from "./lib/topg-connect.js";
+import { viaLine, askTgBotsNow, extModelNow, extProviderNow, pushButtonSetup } from "./lib/topg-connect.js";
 import { CORE_BOTS } from "./lib/os-bots.js";
 
 import TgBotsPanel from "./lib/tg-bots-panel.jsx";
@@ -1593,10 +1593,39 @@ export async function budzAnswer(question) {
     };
   }
 
+  if (/\b(hr|roster|employee|staff|who missed|callout|timesheet|payroll|attendance|no.?show)\b/.test(t)) {
+    const wait = await sel("v_hr_waiting_on_a_person");
+    const cap = await sel("v_employee_capacity");
+    const rows = [];
+    (wait.rows || []).slice(0, 25).forEach((r) => {
+      rows.push({
+        label: r.headline || r.name || "HR item",
+        detail: [r.severity, r.detail, r.plain_english].filter(Boolean).join(" · "),
+        meta: r.agent_confidence != null ? String(r.agent_confidence) : "",
+        drill: "dept_dash_hr",
+      });
+    });
+    (cap.rows || []).slice(0, 15).forEach((r) => {
+      const keys = Object.keys(r).filter((k) => k !== "raw").slice(0, 6);
+      rows.push({
+        label: String(r.full_name || r.name || r.employee || (keys[0] != null ? r[keys[0]] : "") || "capacity"),
+        detail: keys.slice(1, 4).map((k) => (r[k] != null && r[k] !== "" ? `${k} ${r[k]}` : "")).filter(Boolean).join(" · "),
+        meta: keys.slice(4).map((k) => (r[k] != null && r[k] !== "" ? `${k} ${r[k]}` : "")).filter(Boolean).join(" · "),
+        drill: "dept_dash_hr",
+      });
+    });
+    if (rows.length) {
+      return {
+        headline: `${rows.length} live HR row${rows.length === 1 ? "" : "s"} from v_hr_waiting_on_a_person and v_employee_capacity. Not a certified payroll figure.`,
+        rows,
+      };
+    }
+  }
+
   const found = await searchLiveViews(question);
   if (found && (found.rows?.length || found.headline)) return found;
   return {
-    headline: "No live OS view matched that wording. I still answer here — this company, weather, code, stocks, writing, anything. Ask it another way, or tap Grok so the signed-in tab talks like grok.com.",
+    headline: "No live OS view matched that wording.",
     rows: [],
     askClaude: false,
   };
@@ -2017,7 +2046,7 @@ export async function askBudzFull(question, history = [], { onFacts, surface = "
     return { headline: "", facts: [], composed: wx, via: "National Weather Service", askErr: null };
   }
 
-  const needsRecords = /\b(harvest|metrc|package|plant|invoice|apex|coa|cultiv|inventory|strain|batch|tag|lab|license|payroll|employee|dutchie|weight|room|clone|flower|trim|waste|manifest|sales|cfo|vendor|po\b|pull this|past week|last week|\bpull\b|last \d+ days?|past \d+ days?)\b/i.test(question)
+  const needsRecords = /\b(harvest|metrc|package|plant|invoice|apex|coa|cultiv|inventory|strain|batch|tag|lab|license|payroll|employee|dutchie|weight|room|clone|flower|trim|waste|manifest|sales|cfo|vendor|po\b|pull this|past week|last week|\bpull\b|last \d+ days?|past \d+ days?|hr\b|roster|staff|callout|timesheet|attendance|who missed|permission|admin)\b/i.test(question)
     || !!readHumanIntent(question).lastN;
 
   const a = needsRecords
@@ -2033,6 +2062,9 @@ export async function askBudzFull(question, history = [], { onFacts, surface = "
     : null;
   if (fromRecords) {
     return { headline: a.headline || "", facts, composed: fromRecords, via: "Live OS records", askErr: null };
+  }
+  if (needsRecords && /took too long/i.test(a.headline || "")) {
+    return { headline: a.headline, facts: [], composed: a.headline, via: "Live OS records", askErr: null };
   }
 
   let composed = null;
@@ -2069,14 +2101,18 @@ export async function askBudzFull(question, history = [], { onFacts, surface = "
      the status timeout and skip ASK_NOW. Provider is this computer's last tap. */
   const extProv = extProviderNow();
   const pickModel = extModelNow();
-  const live = await askTgBotsNow(extQuestion, { provider: extProv, model: pickModel });
+  const canExt = typeof globalThis !== "undefined" && !!(globalThis.chrome && globalThis.chrome.runtime && globalThis.chrome.runtime.sendMessage);
+  let live = { installed: false, ok: false, error: "" };
+  if (canExt) {
+    live = await askTgBotsNow(extQuestion, { provider: extProv, model: pickModel });
+    if (!live.ok && live.installed && /tap grok/i.test(String(live.error || ""))) {
+      await pushButtonSetup({ provider: extProv, model: pickModel }).catch(() => {});
+      live = await askTgBotsNow(extQuestion, { provider: extProv, model: pickModel });
+    }
+  }
   if (live.installed && live.ok && realModelReply(live.reply) && !/interrupted by the user|I DO NOT HAVE A BUILT-IN REPORT/i.test(live.reply)) {
     composed = live.reply;
     via = viaLine(live.provider || extProv, pickModel || live.model);
-  }
-  if (!composed && /tap grok/i.test(String(live.error || ""))) {
-    composed = "Tap Grok, Claude, or ChatGPT above until that pill is green. Stay signed in on that site. No key. Then type here. Press the question mark if you want the steps.";
-    via = "TG Bots";
   }
 
   /* 1.2.0 has no ASK_NOW. Queue for the desktop without waiting — the UI
@@ -2183,9 +2219,27 @@ export async function askBudzFull(question, history = [], { onFacts, surface = "
     }).then(() => {}).catch(() => {});
   }
 
+  if (!composed && !facts.length && !needsRecords) {
+    const extra = await Promise.race([
+      budzAnswer(question),
+      new Promise((r) => setTimeout(() => r({ rows: [], headline: "" }), 4000)),
+    ]);
+    const extraRows = extra.rows || [];
+    if (extraRows.length) {
+      composed = [extra.headline, ...extraRows.map((r) => [r.label, r.detail, r.meta].filter(Boolean).join(" — "))].filter(Boolean).join("\n");
+      via = "Live OS records";
+    } else if (extra.headline) {
+      a.headline = extra.headline;
+    }
+  }
+
   if (!composed) {
-    composed = "I heard you. I work this OS from chat. Tap Grok until the pill is green for grok.com on stocks, code, and long writing. For this company, ask the question again in ordinary language and I pull the live records.";
-    via = via || "Top G";
+    composed = fromRecords
+      || a.headline
+      || (canExt
+        ? "Grok tab did not answer. Stay signed in on grok.com and send it again."
+        : "Company records answer here on the phone. Stocks, code, and long writing use the computer that has the Grok tab.");
+    via = fromRecords || facts.length ? "Live OS records" : (via || "Top G");
     askErr = null;
   }
 
