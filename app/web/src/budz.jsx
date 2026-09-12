@@ -680,32 +680,87 @@ export async function budzAnswer(question) {
     };
   }
 
-  if (has("harvest") && (has("this week") || has("harvest schedule") || has("as a spreadsheet"))) {
-    const start = new Date().toISOString().slice(0, 10);
-    const end = new Date(Date.now() + 7 * 864e5).toISOString().slice(0, 10);
-    const { data, error } = await supabase
-      .from("harvest_schedule")
-      .select("harvest_date,cultivar,flower_room,projected_weight_lbs,room_cycle_flag")
-      .gte("harvest_date", start)
-      .lte("harvest_date", end)
-      .order("harvest_date")
-      .limit(80);
-    if (error) return { headline: "Harvest schedule could not be read: " + error.message, rows: [] };
-    const rows = data ?? [];
-    if (!rows.length) return none(`No harvest events on the schedule from ${start} through ${end}.`, "harvest_schedule");
+  if (
+    (has("harvest") && (has("this week") || has("past week") || has("last week") || has("harvest schedule") || has("as a spreadsheet") || has("pull")))
+    || (has("pull") && (has("past week") || has("last week") || has("this week")))
+  ) {
+    const iso = (d) => d.toISOString().slice(0, 10);
+    const now = new Date();
+    const monday = (d) => {
+      const x = new Date(d);
+      const day = x.getDay();
+      x.setDate(x.getDate() + (day === 0 ? -6 : 1 - day));
+      x.setHours(0, 0, 0, 0);
+      return x;
+    };
+    const past = has("past week") || has("last week") || has("this past") || (has("pull") && !has("schedule") && !has("upcoming"));
+    let start;
+    let end;
+    if (past) {
+      const thisMon = monday(now);
+      const prevMon = new Date(thisMon);
+      prevMon.setDate(prevMon.getDate() - 7);
+      const prevSun = new Date(thisMon);
+      prevSun.setDate(prevSun.getDate() - 1);
+      start = iso(prevMon);
+      end = iso(prevSun);
+    } else {
+      const thisMon = monday(now);
+      const sun = new Date(thisMon);
+      sun.setDate(sun.getDate() + 6);
+      start = iso(thisMon);
+      end = iso(sun);
+    }
+    const [{ data: cuts, error: cutErr }, { data: planned, error: planErr }] = await Promise.all([
+      supabase.from("v_harvest_forensic")
+        .select("harvest_name,strain,harvest_started,finished_date,drying_room,plants,wet_lb,packaged_lb,harvest_state,harvest_closed")
+        .gte("harvest_started", start)
+        .lte("harvest_started", end)
+        .order("harvest_started")
+        .limit(80),
+      supabase.from("harvest_schedule")
+        .select("harvest_date,cultivar,flower_room,projected_weight_lbs,room_cycle_flag")
+        .gte("harvest_date", start)
+        .lte("harvest_date", end)
+        .order("harvest_date")
+        .limit(80),
+    ]);
+    if (cutErr && planErr) return { headline: "Harvest records could not be read: " + (cutErr.message || planErr.message), rows: [] };
+    const pulled = (cuts ?? []).map((r) => ({
+      source: "cut",
+      harvest_date: r.harvest_started ? String(r.harvest_started).slice(0, 10) : "",
+      name: r.harvest_name ?? "",
+      strain: r.strain ?? "",
+      room: r.drying_room ?? "",
+      plants: r.plants ?? "",
+      wet_lb: r.wet_lb ?? "",
+      packaged_lb: r.packaged_lb ?? "",
+      state: r.harvest_state ?? "",
+      label: `${r.harvest_started ? String(r.harvest_started).slice(0, 10) : "date not recorded"} · ${r.harvest_name || "harvest not named"}`,
+      detail: [r.strain, r.drying_room, r.harvest_state].filter(Boolean).join(" · "),
+      meta: [r.plants != null && r.plants !== "" ? r.plants + " plants" : null, r.wet_lb != null && r.wet_lb !== "" ? r.wet_lb + " lb wet" : null, r.packaged_lb != null && r.packaged_lb !== "" ? r.packaged_lb + " lb packaged" : null].filter(Boolean).join(" · "),
+      drill: "harvest_forensic",
+    }));
+    const plan = (planned ?? []).map((r) => ({
+      source: "planned",
+      harvest_date: r.harvest_date,
+      name: r.cultivar ?? "",
+      strain: r.cultivar ?? "",
+      room: r.flower_room ?? "",
+      plants: "",
+      wet_lb: "",
+      packaged_lb: r.projected_weight_lbs ?? "",
+      state: r.room_cycle_flag ?? "planned",
+      label: `${r.harvest_date} · planned · ${r.cultivar || "cultivar not named"}`,
+      detail: r.flower_room || "room not named",
+      meta: r.projected_weight_lbs != null && r.projected_weight_lbs !== "" ? `${r.projected_weight_lbs} lb projected` : "planner — not a Metrc cut",
+      drill: "harvest_schedule",
+    }));
+    const rows = [...pulled, ...plan];
+    if (!rows.length) return none(`No cuts on v_harvest_forensic and no planner events on harvest_schedule from ${start} through ${end}.`, past ? "harvest_forensic" : "harvest_schedule");
     return {
-      headline: `${rows.length} harvest event${rows.length === 1 ? "" : "s"} on the schedule from ${start} through ${end}. Planner table harvest_schedule — not a Metrc write.`,
-      rows: rows.map((r) => ({
-        harvest_date: r.harvest_date,
-        cultivar: r.cultivar ?? "",
-        flower_room: r.flower_room ?? "",
-        projected_weight_lbs: r.projected_weight_lbs ?? "",
-        room_cycle_flag: r.room_cycle_flag ?? "",
-        label: `${r.harvest_date} · ${r.cultivar || "cultivar not named"}`,
-        detail: r.flower_room || "room not named",
-        meta: r.projected_weight_lbs != null && r.projected_weight_lbs !== "" ? `${r.projected_weight_lbs} lb projected` : "",
-        drill: "harvest_schedule",
-      })),
+      headline: `${pulled.length} cut${pulled.length === 1 ? "" : "s"} on the forensic record, ${plan.length} planner event${plan.length === 1 ? "" : "s"}, ${start} through ${end}. Cuts are v_harvest_forensic. Planner is harvest_schedule — not a Metrc write.`,
+      rows,
     };
   }
 
@@ -1634,7 +1689,7 @@ export async function askBudzFull(question, history = [], { onFacts, surface = "
      Failure is silent on purpose. Memory makes a good answer better; it must
      never be the reason there is no answer at all. */
   let memory = null;
-  const needsRecords = /\b(harvest|metrc|package|plant|invoice|apex|coa|cultiv|inventory|strain|batch|tag|lab|license|payroll|employee|dutchie|weight|room|clone|flower|trim|waste|manifest|sales|cfo|vendor|po\b)\b/i.test(question);
+  const needsRecords = /\b(harvest|metrc|package|plant|invoice|apex|coa|cultiv|inventory|strain|batch|tag|lab|license|payroll|employee|dutchie|weight|room|clone|flower|trim|waste|manifest|sales|cfo|vendor|po\b|pull this|past week|last week)\b/i.test(question);
   if (needsRecords) {
     try {
       const { data } = await supabase.rpc("f_brain_memory_for");
@@ -1668,7 +1723,7 @@ export async function askBudzFull(question, history = [], { onFacts, surface = "
     }
     return lines.filter(Boolean).join("\n") || null;
   })();
-  if (wantedFormats(question).length && fromRecords) {
+  if (fromRecords && !a.askClaude && (facts.length || wantedFormats(question).length)) {
     return { headline: a.headline || "", facts, composed: fromRecords, via: "Live OS records", askErr: null };
   }
 
