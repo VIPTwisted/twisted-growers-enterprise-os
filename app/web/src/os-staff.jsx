@@ -162,10 +162,7 @@ export default function OsStaff({ go }) {
       .slice(-8)
       .map((m) => ({ who: m.role === "user" ? "me" : "bot", text: m.text }));
     try {
-      const out = await Promise.race([
-        askBudzFull(asked, history, { surface: "staff-" + desk.id, desk }),
-        new Promise((r) => setTimeout(() => r({ composed: "Still working — send it again. I did not freeze.", facts: [], headline: "", via: "Top G", askErr: null }), 9000)),
-      ]);
+      const out = await askBudzFull(asked, history, { surface: "staff-" + desk.id, desk });
       const fromLive = (out.headline && out.facts && out.facts.length)
         ? [out.headline, ...out.facts.map((r) => [r.label, r.detail, r.meta].filter(Boolean).join(" — "))].join("\n")
         : "";
@@ -354,6 +351,20 @@ export default function OsStaff({ go }) {
           {bot.open && go ? (
             <button type="button" className="osstaff-go" onClick={() => go(bot.open)}>Open desk</button>
           ) : null}
+          <button
+            type="button"
+            className="osstaff-go"
+            onClick={() => {
+              setThread([]);
+              setBusy(false);
+              busyRef.current = false;
+              setText("");
+              try { localStorage.removeItem(threadKey(sel)); } catch { /* private */ }
+              try { window.dispatchEvent(new Event("tg-bots-new-chat")); } catch { /* no window */ }
+            }}
+          >
+            New conversation
+          </button>
         </header>
         <TgBotsPanel compact onReady={() => setTopg(true)} />
         {skillsFor(bot.id).length ? (

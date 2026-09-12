@@ -646,26 +646,17 @@ export async function budzAnswer(question) {
      and the room. Destroyed plants name DestroyedByUserName. */
   if (/\btags?\b/.test(t) && /\b(chang|moved|adjust|created|yesterday|who)\b/.test(t)) {
     const yest = osYesterdayNy();
-    const [{ data: events, error: evErr }, dest] = await Promise.all([
+    const got = await Promise.race([
       supabase.from("v_package_events").select("package_tag,event_date,event,lb_delta,licence,room,counterparty").eq("event_date", yest).limit(400),
-      supabase.from("metrc_plants").select("raw").gte("raw->>DestroyedDate", yest).lt("raw->>DestroyedDate", osTodayNy()).limit(80),
+      new Promise((r) => setTimeout(() => r({ data: null, error: { message: "timed out" } }), 3000)),
     ]);
+    const events = got?.data;
+    const evErr = got?.error;
     if (evErr) {
       return { headline: "Tag changes could not be read: " + evErr.message, rows: [] };
     }
     const ev = Array.isArray(events) ? events : [];
     const dead = [];
-    if (!dest.error && Array.isArray(dest.data)) {
-      for (const row of dest.data) {
-        const raw = row.raw || {};
-        dead.push({
-          tag: raw.Label || "",
-          who: raw.DestroyedByUserName || "",
-          room: raw.LocationName || "",
-          note: raw.DestroyedNote || "",
-        });
-      }
-    }
     const rows = [];
     const byEvent = {};
     ev.forEach((r) => { byEvent[r.event || "event"] = (byEvent[r.event || "event"] || 0) + 1; });
@@ -697,7 +688,7 @@ export async function budzAnswer(question) {
       return none("No package event or destroyed plant is on the record for " + yest + " (America/New_York).", "plant_history");
     }
     return {
-      headline: `${yest} (America/New_York): ${ev.length} package event${ev.length === 1 ? "" : "s"} on v_package_events, ${dead.length} plant${dead.length === 1 ? "" : "s"} destroyed. Metrc does not name the employee who moved or adjusted a tag. Destroyed plants name DestroyedByUserName when Metrc has it.`,
+      headline: `${yest} (America/New_York): ${ev.length} package event${ev.length === 1 ? "" : "s"} on v_package_events. Metrc does not name the employee who moved or adjusted a tag.`,
       rows,
     };
   }
@@ -2060,11 +2051,9 @@ export async function askBudzFull(question, history = [], { onFacts, surface = "
   const fromRecords = !a.askClaude && facts.length
     ? [a.headline, ...facts.map((r) => [r.label, r.detail, r.meta].filter(Boolean).join(" — "))].filter(Boolean).join("\n")
     : null;
-  if (fromRecords) {
-    return { headline: a.headline || "", facts, composed: fromRecords, via: "Live OS records", askErr: null };
-  }
-  if (needsRecords && /took too long/i.test(a.headline || "")) {
-    return { headline: a.headline, facts: [], composed: a.headline, via: "Live OS records", askErr: null };
+  if (needsRecords) {
+    const composed = fromRecords || a.headline || "No live rows for that.";
+    return { headline: a.headline || "", facts, composed, via: "Live OS records", askErr: null };
   }
 
   let composed = null;
@@ -2732,15 +2721,12 @@ export function BudzPet({ go, onClose, view }) {
            used to stop at the database lookup, so anything nobody had written a
            branch for came back empty here and was answered there. */
         const stamp = Date.now();
-        const { composed, via, askErr } = await Promise.race([
-          askBudzFull(question, log, {
-            surface: "pet-" + (view || "os"),
-            desk: deskForView(view),
-            onFacts: (a, rows) =>
-              setLog((l) => [...l, { who: "budz", text: a.headline, rows, stamp, pending: true }]),
-          }),
-          new Promise((r) => setTimeout(() => r({ composed: "Still working — send it again. I did not freeze.", facts: [], via: "Top G", askErr: null }), 9000)),
-        ]);
+        const { composed, via, askErr } = await askBudzFull(question, log, {
+          surface: "pet-" + (view || "os"),
+          desk: deskForView(view),
+          onFacts: (a, rows) =>
+            setLog((l) => [...l, { who: "budz", text: a.headline, rows, stamp, pending: true }]),
+        });
         setLog((l) =>
           l.map((m) =>
             m.stamp === stamp
@@ -3435,13 +3421,10 @@ export function BudzScreen({ go }) {
     if (!question) { return; }
     try {
       const stamp = Date.now();
-      const { facts, composed, via, askErr } = await Promise.race([
-        askBudzFull(question, log, {
-          onFacts: (a, rows) =>
-            setLog((l) => [...l, { who: "budz", text: a.headline, rows, stamp, pending: true }]),
-        }),
-        new Promise((r) => setTimeout(() => r({ composed: "Still working — send it again. I did not freeze.", facts: [], via: "Top G", askErr: null }), 9000)),
-      ]);
+      const { facts, composed, via, askErr } = await askBudzFull(question, log, {
+        onFacts: (a, rows) =>
+          setLog((l) => [...l, { who: "budz", text: a.headline, rows, stamp, pending: true }]),
+      });
       setLog((l) =>
         l.map((m) =>
           m.stamp === stamp

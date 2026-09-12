@@ -196,9 +196,9 @@ export default function TgBotsPanel({ compact = false, onReady }) {
             ))}
           </div>
           <button type="button" className="ghost" disabled={busy} onClick={loadVersions}>Load my versions</button>
-          <button type="button" className="ghost" onClick={startNew}>New conversation</button>
         </div>
       )}
+      <button type="button" className="ghost" onClick={startNew}>New conversation</button>
       {msg ? <p className="tgbots-msg">{msg}</p> : null}
     </div>
   );

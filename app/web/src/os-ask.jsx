@@ -46,13 +46,10 @@ export default function OsAsk({ view, go }) {
         .filter((m) => m.text && !m.thinking)
         .slice(-8)
         .map((m) => ({ who: m.role === "user" ? "me" : "bot", text: m.text }));
-      const out = await Promise.race([
-        askBudzFull(value, history, {
-          surface: "os-" + (view || "page"),
-          desk: deskNow,
-        }),
-        new Promise((r) => setTimeout(() => r({ composed: "Still working — send it again. I did not freeze.", facts: [], headline: "", via: "Top G", askErr: null }), 9000)),
-      ]);
+      const out = await askBudzFull(value, history, {
+        surface: "os-" + (view || "page"),
+        desk: deskNow,
+      });
       const body = out.composed
         || out.askErr
         || out.headline
