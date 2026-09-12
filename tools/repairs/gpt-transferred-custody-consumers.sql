@@ -55,8 +55,7 @@ begin
          p.quantity, p.uom,
          case when f_is_weight(p.uom) then f_to_pounds(p.quantity, p.uom) end,
          p.location, p.lab_testing_state, p.packaged_on,
-         case when coalesce(p.raw->>'ItemFromFacilityLicenseNumber','')
-                   = any (array['MC281714','MP281909']) then 'Grown by us' else 'Bought in' end,
+         case when f_is_ours(coalesce(p.raw->>'ItemFromFacilityLicenseNumber','')) then 'Grown by us' else 'Bought in' end,
          f_stock_status(p.source_state, p.finished), p.source_state
   from metrc_packages p
   where p.source_state in ('active', 'onhold', 'intransit'); -- current inventory plus explicitly identified transit; transferred excluded

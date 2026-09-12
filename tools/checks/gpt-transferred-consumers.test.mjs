@@ -29,6 +29,7 @@ const q=s=>db.exec(adapt(s)); const rows=async s=>(await db.query(adapt(s))).row
 try {
 await q(`
 create table metrc_packages(id bigint,license text,tag text,item_name text,quantity numeric,uom text,location text,packaged_on date,lab_testing_state text,finished boolean,raw jsonb,synced_at timestamptz,source_state text,provenance text,report_as_of date);
+create function f_is_ours(text) returns boolean language sql immutable as 'select $1 in (''MC'',''MP'')';
 create table inventory_snapshot(taken_on date,license text,tag text,item_name text,category text,strain text,quantity numeric,uom text,pounds numeric,location text,lab_state text,packaged_on date,origin text,stock_status text,source_state text);
 create function f_is_weight(text) returns boolean language sql immutable as 'select $1 = ''g''';
 create function f_to_pounds(numeric,text) returns numeric language sql immutable as 'select $1/453.59237';
