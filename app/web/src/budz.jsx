@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { supabase, FUNCTIONS_URL, ANON_KEY } from "./lib/supabase.js";
-import { extProviderFromOs, viaLine, wakeTgBots, askTgBotsNow, pingTgBots, extModelNow } from "./lib/topg-connect.js";
+import { extProviderFromOs, viaLine, wakeTgBots, askTgBotsNow, pingTgBots, tgBotsStatus, extModelNow } from "./lib/topg-connect.js";
 import { CORE_BOTS } from "./lib/os-bots.js";
 
 import TgBotsPanel from "./lib/tg-bots-panel.jsx";
@@ -1992,14 +1992,13 @@ export async function askBudzFull(question, history = [], { onFacts, surface = "
              a tab 1.2.0 never opens. Fall back to the queue and WAKE so 1.2.0
              can still type into the signed-in Grok tab. */
           const ping = await pingTgBots();
-          let live = { installed: !!ping.installed, ok: false };
-          /* Keys are optional. The signed-in Grok/Claude/ChatGPT tab is the
-             model. Do not race the metered path unless an owner turned it on —
-             that path answers "paid answers are switched off" in milliseconds
-             and steals the chat. */
+          const status = ping.installed ? await tgBotsStatus() : { on: false };
+          let live = { installed: !!ping.installed, ok: false, error: "" };
           const apiEarly = cfg.paid_model_enabled ? askMeteredApi(asked, log).catch(() => null) : null;
-          if (ping.installed) {
+          if (ping.installed && status.on) {
             live = await askTgBotsNow(extQuestion, { provider: extProv, model: pickModel });
+          } else if (ping.installed && !status.on) {
+            live = { installed: true, ok: false, error: "Tap Grok on Bots desk first." };
           }
           if (live.installed && live.ok && realModelReply(live.reply) && !/interrupted by the user|I DO NOT HAVE A BUILT-IN REPORT/i.test(live.reply)) {
             composed = live.reply;
@@ -2015,7 +2014,7 @@ export async function askBudzFull(question, history = [], { onFacts, surface = "
           }
 
           if (!composed) {
-          const { data: created, error: insErr } = await supabase
+          const { error: insErr } = await supabase
             .from("ai_bridge_jobs")
             .insert({
               asked_by: uid,
@@ -2045,74 +2044,13 @@ export async function askBudzFull(question, history = [], { onFacts, surface = "
               model: pickModel,
               provider: extProv,
               status: "pending",
-            })
-            .select("id")
-            .single();
+            });
           if (insErr) throw insErr;
 
-          /* Lightning: do not wait for the 30s alarm. */
+          /* Lightning: do not wait for the 30s alarm. Do not sit 45 seconds
+             either — that is "Asking Grok…" with nothing on screen. ASK_NOW
+             already tried the signed-in tab. */
           wakeTgBots();
-
-          /* Poll our own row. Deliberately bounded: an unbounded wait is how the
-             old version sat for 210 seconds and then failed silently. If the
-             desktop is asleep this gives up and SAYS SO, and the answer is still
-             written to the row if it arrives later. */
-          /* RACED, not queued. Owner, 8 Aug 2026: "ai is too fucking slow".
-
-             This used to run to completion - up to 150 seconds - before the
-             metered API was even considered, so the free path's worst case was
-             every question's worst case. The bridge now gets an 8 second head
-             start and then the API runs alongside it. Answer quickly and it
-             costs nothing; take longer and the API overtakes. Whichever lands
-             first is the answer, and the loser is abandoned rather than waited
-             on. Polling is 600ms rather than 1200ms, which alone takes half a
-             second off every answer. */
-          let apiRace = apiEarly;
-          const startApiRace = () => {
-            if (apiRace || !cfg.paid_model_enabled) return;
-            apiRace = askMeteredApi(asked, log).catch(() => null);
-          };
-          startApiRace();
-          const deadline = Date.now() + 45000;
-          const raceAt = Date.now();
-          let done = null;
-          let apiWon = null;
-          while (Date.now() < deadline) {
-            await new Promise((r) => setTimeout(r, 300));
-            if (Date.now() > raceAt) startApiRace();
-            if (apiRace) {
-              /* Peek without blocking: Promise.race against an already-resolved
-                 promise returns immediately, so a pending API call cannot itself
-                 become the thing we are waiting for. */
-              const peek = await Promise.race([apiRace, Promise.resolve("__pending__")]);
-              if (peek && peek !== "__pending__" && realModelReply(peek)) { apiWon = peek; break; }
-            }
-            const { data: row } = await supabase
-              .from("ai_bridge_jobs")
-              .select("status, answer, error, seconds, provider, model")
-              .eq("id", created.id)
-              .maybeSingle();
-            if (row && (row.status === "done" || row.status === "error")) { done = row; break; }
-          }
-          if (apiWon) {
-            composed = apiWon;
-            via = "Claude (API, the desktop was slower)";
-          }
-
-          if (done?.status === "done" && done.answer && !/interrupted by the user|I DO NOT HAVE A BUILT-IN REPORT/i.test(done.answer)) {
-            composed = done.answer;
-            via = viaLine(done.provider || extProv, done.model || bridgeModel);
-          } else if (done?.status === "error") {
-            const raw = String(done.error ?? "The desktop answered with an error.");
-            askErr = /path specified/i.test(raw)
-              ? "The old Windows bot stole that question. Task Manager → end node.exe, stay signed in on grok.com, ask again."
-              : raw.slice(0, 250);
-          } else if (fromRecords) {
-            composed = fromRecords;
-            via = "Live OS records (Grok did not answer in time)";
-          } else {
-            askErr = "No answer in 45 seconds. Stay signed in on grok.com. Task Manager → end node.exe if it is running. Ask again.";
-          }
           }
         } catch (e) {
           askErr = "Could not reach the desktop: " + String(e?.message ?? e).slice(0, 180);
@@ -2155,7 +2093,7 @@ export async function askBudzFull(question, history = [], { onFacts, surface = "
           }
         } catch {}
       }
-      if (!composed) {
+      if (!composed && cfg.paid_model_enabled) {
         try {
           const hist2 = [...log, { who: "me", text: asked }]
             .filter((m) => m.text && !m.rows)
@@ -2186,7 +2124,7 @@ export async function askBudzFull(question, history = [], { onFacts, surface = "
             body: JSON.stringify({ messages: hist2 }),
           });
           const out = await rr.json().catch(() => null);
-          if (out?.reply) { composed = out.reply; via = "Claude (API)"; }
+          if (out?.ok && realModelReply(out.reply)) { composed = out.reply; via = "Claude (your key)"; }
           else if (!rr.ok) {
             /* Rule A3: absence is explained, never blank. A bare catch here is
                what hid a total outage for as long as this has existed. */
@@ -2216,8 +2154,11 @@ export async function askBudzFull(question, history = [], { onFacts, surface = "
   }
 
   if (!composed) {
+    const hello = /^(hi|hey|hello|yo|hi there|good morning|good afternoon|howdy)[\s!.?]*$/i.test(String(question || "").trim());
     composed = fromRecords
-      || "I am Top G. I heard you. Grok did not come back in time. I answer any topic — this company, weather, code, money, writing, anything, in ordinary language. Ask again, or stay signed in on grok.com.";
+      || (hello
+        ? "Hey. I'm Top G. Talk like grok.com — weather, harvests, money, code, anything. Tap Grok, Claude, or ChatGPT above until the pill is green so your signed-in tab answers. No key."
+        : "I heard you. Tap Grok, Claude, or ChatGPT above until the pill is green and stay signed in on that site. I can still pull live OS records — ask a harvest, Apex, weather, or anything.");
     via = fromRecords ? "Live OS records" : (via || "Top G");
     askErr = null;
   }
