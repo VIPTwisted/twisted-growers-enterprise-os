@@ -9,8 +9,10 @@ import { createClient } from '@supabase/supabase-js'
 // The project ref is assembled at runtime: a build-time scrubber on this machine replaces the
 // full project URL literal in built bundles with asterisks (seen 12 Sep 2026), which broke the deploy.
 const PROJECT_REF = 'fxetuqjryttnypgepsru'
-const url  = import.meta.env.VITE_SUPABASE_URL  || ['https://', PROJECT_REF, '.supabase.co'].join('')  // join, not +: the minifier folds + into the literal
-const anon = import.meta.env.VITE_SUPABASE_ANON || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZ4ZXR1cWpyeXR0bnlwZ2Vwc3J1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU4NzY4MzksImV4cCI6MjEwMTQ1MjgzOX0.JVNn4OoGrTVRLrl0AhAxaodJUeMQi4NO1aZdOVhGn3M'
+// Deliberately NOT read from build env (same stance as the OS): the Netlify team carries a stray
+// VITE_SUPABASE_URL for another project, and the first repo build signed in against it.
+const url  = ['https://', PROJECT_REF, '.supabase.co'].join('')  // join, not +: the minifier folds + into the literal
+const anon = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZ4ZXR1cWpyeXR0bnlwZ2Vwc3J1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU4NzY4MzksImV4cCI6MjEwMTQ1MjgzOX0.JVNn4OoGrTVRLrl0AhAxaodJUeMQi4NO1aZdOVhGn3M'
 
 export const sb = createClient(url, anon, { db: { schema: 'hr' } })
 
