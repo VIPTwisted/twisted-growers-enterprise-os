@@ -16,6 +16,7 @@ export default function TgBotsPanel({ compact = false, onReady }) {
   const [provider, setProvider] = useState(() => extProviderNow());
   const [models, setModels] = useState([]);
   const [model, setModel] = useState(() => extModelNow());
+  const [help, setHelp] = useState(false);
   const [botsUrl, setBotsUrl] = useState("");
 
   async function refresh() {
@@ -107,10 +108,35 @@ export default function TgBotsPanel({ compact = false, onReady }) {
     <div className={`tgbots${compact ? " compact" : ""}`}>
       <div className="tgbots-head">
         <strong>Talk with the plan you already pay for</strong>
-        <span className={`tgbots-pill ${on ? "on" : installed ? "off" : "miss"}`}>
-          {st == null ? "checking…" : old ? "old add-on" : on ? `${providerLabel(st.provider || provider)} on` : installed ? "add-on idle" : "not installed"}
+        <span className="tgbots-head-right">
+          <button
+            type="button"
+            className="tgbots-q"
+            aria-expanded={help}
+            aria-controls="tgbots-howto"
+            title="How to set up Grok, Claude, or ChatGPT"
+            onClick={() => setHelp((v) => !v)}
+          >
+            ?
+          </button>
+          <span className={`tgbots-pill ${on ? "on" : installed ? "off" : "miss"}`}>
+            {st == null ? "checking…" : old ? "old add-on" : on ? `${providerLabel(st.provider || provider)} on` : installed ? "add-on idle" : "not installed"}
+          </span>
         </span>
       </div>
+      {help ? (
+        <div className="tgbots-howto" id="tgbots-howto">
+          <p className="tgbots-k">How to set up whichever one you want</p>
+          <ol>
+            <li><a href={TG_BOTS_ZIP} download="tg-ai-ext.zip">Download TG Bots</a> and unzip it. Chrome → Extensions → turn on Developer mode → Load unpacked → pick that folder. Reload the card if it is already there so it reads 1.3.3.</li>
+            <li>Stay signed in on the site you already pay for: grok.com, claude.ai, or chatgpt.com. Leave that tab open.</li>
+            <li>Come back to this OS page. Tap <b>Grok</b>, <b>Claude</b>, or <b>ChatGPT</b> once. The pill turns green. Do not tap it again.</li>
+            <li>Type in the chat below the same way you would on that site. Weather, harvests, code, anything. No key. No extra bill.</li>
+            <li>Pick a version with the chips if you want Grok 4, Claude Opus, or a ChatGPT model. Tab default uses whatever that site already has selected.</li>
+            <li>A key under Settings → Keys and Connections is optional. You do not need one.</li>
+          </ol>
+        </div>
+      ) : null}
       <p className="tgbots-why">
         Grok, Claude, or ChatGPT on this computer. No API key. No extra bill.
         Every staff desk uses the same tap. Metrc stays read-only.

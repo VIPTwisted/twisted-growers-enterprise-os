@@ -15,7 +15,7 @@
       HTTPS on an allowed host, and if inject still fails we say Site access
       in English instead of leaking Chrome's own sentence. */
 const QUEUE = "https://fxetuqjryttnypgepsru.supabase.co/functions/v1/bridge-queue";
-const VERSION = "1.3.2";
+const VERSION = "1.3.3";
 const ALLOWED_HOSTS = new Set([
   "grok.com", "grok.x.ai", "x.ai", "accounts.x.ai", "x.com",
   "claude.ai",

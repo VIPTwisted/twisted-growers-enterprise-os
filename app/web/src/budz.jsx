@@ -1789,21 +1789,20 @@ async function askMeteredApi(question, history) {
       body: JSON.stringify({ messages: hist }),
     });
     const out = await rr.json().catch(() => null);
-    /* A RACER MUST ONLY WIN WITH A REAL ANSWER. This returned out.reply
-       unconditionally, and budz-chat puts its FAILURES in that same field - "No
-       artificial intelligence key has been set yet" is a reply. So the moment
-       the race was introduced, a path with no key beat the desktop bridge in
-       milliseconds and the owner watched a working answer get replaced by an
-       excuse. The race did not cause the missing key; it promoted it over a
-       bridge that was answering correctly.
-
-       ok:false, needs_key and an http error all mean "I did not answer", and
-       none of them may beat a slower path that did. */
-    if (!rr.ok || out?.ok === false || out?.needs_key) return null;
-    return out?.reply ?? null;
+    if (!rr.ok || out?.ok === false || out?.needs_key || out?.blocked) return null;
+    const reply = out?.reply ?? null;
+    if (!realModelReply(reply)) return null;
+    return reply;
   } catch {
     return null;
   }
+}
+
+function realModelReply(text) {
+  const t = String(text || "").trim();
+  if (!t) return false;
+  if (/paid answers are switched off|the switch is simply off|no artificial intelligence key has been set|i cannot check who is asking|tap grok on bots desk first/i.test(t)) return false;
+  return true;
 }
 
 /* THE ONE WAY A QUESTION GETS ANSWERED. Owner, 8 August 2026: "make sure
@@ -1994,20 +1993,25 @@ export async function askBudzFull(question, history = [], { onFacts, surface = "
              can still type into the signed-in Grok tab. */
           const ping = await pingTgBots();
           let live = { installed: !!ping.installed, ok: false };
-          /* Token path and grok.com run together. A key in Settings, Keys and
-             Connections answers like the desktop API. No key: this returns
-             empty fast and grok.com still answers. */
-          const apiEarly = askMeteredApi(asked, log).catch(() => null);
+          /* Keys are optional. The signed-in Grok/Claude/ChatGPT tab is the
+             model. Do not race the metered path unless an owner turned it on —
+             that path answers "paid answers are switched off" in milliseconds
+             and steals the chat. */
+          const apiEarly = cfg.paid_model_enabled ? askMeteredApi(asked, log).catch(() => null) : null;
           if (ping.installed) {
             live = await askTgBotsNow(extQuestion, { provider: extProv, model: pickModel });
           }
-          if (live.installed && live.ok && live.reply && !/interrupted by the user|I DO NOT HAVE A BUILT-IN REPORT/i.test(live.reply)) {
+          if (live.installed && live.ok && realModelReply(live.reply) && !/interrupted by the user|I DO NOT HAVE A BUILT-IN REPORT/i.test(live.reply)) {
             composed = live.reply;
             via = viaLine(live.provider || extProv, picked || live.model || bridgeModel);
           }
+          if (!composed && /tap grok/i.test(String(live.error || ""))) {
+            composed = "Tap Grok, Claude, or ChatGPT above until that pill is green. Stay signed in on that site. No key. Then type here. Press the question mark if you want the steps.";
+            via = "TG Bots";
+          }
           if (!composed && apiEarly) {
             const peek = await Promise.race([apiEarly, new Promise((r) => setTimeout(() => r(null), 50))]);
-            if (peek) { composed = peek; via = "Claude (API)"; }
+            if (realModelReply(peek)) { composed = peek; via = "Claude (your key)"; }
           }
 
           if (!composed) {
@@ -2065,7 +2069,7 @@ export async function askBudzFull(question, history = [], { onFacts, surface = "
              second off every answer. */
           let apiRace = apiEarly;
           const startApiRace = () => {
-            if (apiRace) return;
+            if (apiRace || !cfg.paid_model_enabled) return;
             apiRace = askMeteredApi(asked, log).catch(() => null);
           };
           startApiRace();
@@ -2081,7 +2085,7 @@ export async function askBudzFull(question, history = [], { onFacts, surface = "
                  promise returns immediately, so a pending API call cannot itself
                  become the thing we are waiting for. */
               const peek = await Promise.race([apiRace, Promise.resolve("__pending__")]);
-              if (peek && peek !== "__pending__") { apiWon = peek; break; }
+              if (peek && peek !== "__pending__" && realModelReply(peek)) { apiWon = peek; break; }
             }
             const { data: row } = await supabase
               .from("ai_bridge_jobs")
