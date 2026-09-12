@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { supabase, FUNCTIONS_URL, ANON_KEY } from "./lib/supabase.js";
 import { extProviderFromOs, viaLine, wakeTgBots, askTgBotsNow, pingTgBots, extModelNow } from "./lib/topg-connect.js";
-import { wantedFormats } from "./lib/os-bot-files.js";
 import { CORE_BOTS } from "./lib/os-bots.js";
 
 import TgBotsPanel from "./lib/tg-bots-panel.jsx";
@@ -586,6 +585,25 @@ export async function getAiCfg() {
   return _aiCfg;
 }
 
+export function readHumanIntent(question) {
+  const t = String(question || "").toLowerCase().replace(/['’]/g, "");
+  const words = { a: 1, one: 1, two: 2, couple: 2, few: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10 };
+  const harvesty = /\b(harvest|pulls?\b|cut\b|cuts\b|takedown|took down|came down|just pull|just cut|room pull)\b/.test(t);
+  const compare = /\b(compare|versus|\bvs\b|difference|against|side by side)\b/.test(t);
+  let lastN = 0;
+  const mLast = t.match(/\b(?:last|past|latest|recent|most recent)\s+(\d+|one|two|couple|few|three|four|five|six|seven|eight|nine|ten)\s+(harvests?|pulls?|cuts?|takedowns?)\b/);
+  const mFlip = t.match(/\b(\d+|one|two|couple|few|three|four|five)\s+(harvests?|pulls?|cuts?|takedowns?)\b/);
+  const mBare = /\b(?:last|past|latest|most recent|recent|just)\s+(harvests?|pulls?|cuts?|takedowns?)\b/.test(t)
+    || /\b(what did we (just |last )?(pull|cut|harvest)|just pulled|just cut|most recent harvest|last couple)\b/.test(t);
+  if (mLast) lastN = words[mLast[1]] || Number(mLast[1]) || 2;
+  else if (mFlip && (/\blast\b|\bpast\b|\brecent\b|\bcompare\b/.test(t) || compare)) lastN = words[mFlip[1]] || Number(mFlip[1]) || 2;
+  else if (compare && harvesty) lastN = 2;
+  else if (mBare && harvesty) lastN = 2;
+  if (lastN) lastN = Math.min(10, Math.max(1, lastN));
+  const records = harvesty || compare || /\b(metrc|package|plant|invoice|apex|coa|cultiv|inventory|strain|spreadsheet|excel)\b/.test(t);
+  return { harvesty, compare, lastN, records };
+}
+
 export async function budzAnswer(question) {
   const t = question.toLowerCase();
   const usd = (n) => "$" + Math.round(Number(n || 0)).toLocaleString();
@@ -682,9 +700,11 @@ export async function budzAnswer(question) {
   }
 
   const lastNRaw = t.match(/\blast\s+(\d+|one|two|three|four|five|six|seven|eight|nine|ten)\s+(harvests?|pulls?)\b/);
-  if (lastNRaw) {
-    const words = { one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10 };
-    const n = Math.min(10, Math.max(1, words[lastNRaw[1]] || Number(lastNRaw[1]) || 2));
+  const intent = readHumanIntent(question);
+  const windowAsk = /\b(this week|past week|last week|this past|last \d+ days?|past \d+ days?|last \d+ weeks?|past \d+ weeks?)\b/.test(t);
+  const nHarvests = intent.lastN || (lastNRaw ? ({ one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10 }[lastNRaw[1]] || Number(lastNRaw[1]) || 2) : 0);
+  if (nHarvests) {
+    const n = nHarvests;
     const iso = (d) => d.toISOString().slice(0, 10);
     const today = iso(new Date());
     const { data: downs, error: downErr } = await supabase
@@ -829,8 +849,7 @@ export async function budzAnswer(question) {
     };
   }
 
-  const windowAsk = /\b(this week|past week|last week|this past|last \d+ days?|past \d+ days?|last \d+ weeks?|past \d+ weeks?)\b/.test(t);
-  if (has("pull") || (has("harvest") && (windowAsk || has("harvest schedule") || has("as a spreadsheet")))) {
+  if ((has("pull") || has("harvest")) && (windowAsk || has("harvest schedule"))) {
     const iso = (d) => d.toISOString().slice(0, 10);
     const now = new Date();
     const monday = (d) => {
@@ -1819,7 +1838,8 @@ async function liveWeather(question) {
     { re: /\bboston\b/i, lat: 42.3601, lon: -71.0589, name: "Boston" },
     { re: /\bma\b|\bmass\b|massachusetts/i, lat: 42.3601, lon: -71.0589, name: "Massachusetts (Boston)" },
   ];
-  const hit = spots.find((s) => s.re.test(question)) || { lat: 42.3601, lon: -71.0589, name: "Massachusetts (Boston)" };
+  const hit = spots.find((s) => s.re.test(question));
+  if (!hit) return null;
   try {
     const hdr = { Accept: "application/geo+json" };
     const pt = await fetch(`https://api.weather.gov/points/${hit.lat},${hit.lon}`, { headers: hdr });
@@ -1862,7 +1882,8 @@ export async function askBudzFull(question, history = [], { onFacts, surface = "
      Failure is silent on purpose. Memory makes a good answer better; it must
      never be the reason there is no answer at all. */
   let memory = null;
-  const needsRecords = /\b(harvest|metrc|package|plant|invoice|apex|coa|cultiv|inventory|strain|batch|tag|lab|license|payroll|employee|dutchie|weight|room|clone|flower|trim|waste|manifest|sales|cfo|vendor|po\b|pull this|past week|last week|\bpull\b|last \d+ days?|past \d+ days?)\b/i.test(question);
+  const needsRecords = /\b(harvest|metrc|package|plant|invoice|apex|coa|cultiv|inventory|strain|batch|tag|lab|license|payroll|employee|dutchie|weight|room|clone|flower|trim|waste|manifest|sales|cfo|vendor|po\b|pull this|past week|last week|\bpull\b|last \d+ days?|past \d+ days?)\b/i.test(question)
+    || !!readHumanIntent(question).lastN;
   if (needsRecords) {
     try {
       const { data } = await supabase.rpc("f_brain_memory_for");
@@ -1882,8 +1903,8 @@ export async function askBudzFull(question, history = [], { onFacts, surface = "
   onFacts?.(a, facts);
   const asked = [
     `You are Grok — a full AI assistant — working inside Twisted Growers Enterprise OS as ${desk?.name || "Top G"}, ${desk?.role || "Chief of Staff"}. Buddy on Grok Bots is the ultimate boss. You never outrank Buddy.`,
-    `Answer ANY topic they ask: this company, cultivation, money, weather, code, strategy, IT, writing, planning, news, sports, science, anything a person would ask Grok. Collaborate. Do the work. When they need a page in this OS, send them to the live OS page for that desk.`,
-    `When the question is this business, use the live records below. Metrc is read-only. Apex invoice is money source of record. Do not invent a certified number. If a figure is not in the records, say so and name the report. When the question is not this business, answer as Grok normally — full knowledge, not a lookup bot.`,
+    `Work exactly as you work on grok.com. Same engagement. Same capability. Ordinary language. Typos, shorthand, half sentences. Answer what they meant. There is no required phrasing and no topic is off limits. You are not a harvest lookup and you are not limited to this OS. Weather, code, money, writing, news, strategy, IT, cultivation, anything a person would ask Grok — answer it. Collaborate. Do the work.`,
+    `When the question is this business, use the live records below. Metrc is read-only. Apex invoice is money source of record. Do not invent a certified number. If a figure is not in the records, say so and name the report. When it is not this business, answer as Grok on grok.com — full knowledge.`,
     `OS desks: ${CORE_BOTS.map((b) => `${b.name} (${b.role})`).join(", ")}. Buddy is boss. Top G is chief of staff.`,
     desk?.job ? `This desk: ${desk.job}` : "",
     facts.length ? `Live records: ${JSON.stringify({ summary: a.headline, records: facts.slice(0, 20) }).slice(0, 6000)}` : "",
@@ -1901,8 +1922,8 @@ export async function askBudzFull(question, history = [], { onFacts, surface = "
     return lines.filter(Boolean).join("\n") || null;
   })();
   const lookupOnly = fromRecords && !a.askClaude && needsRecords
-    && /\b(pull|as a spreadsheet|last \d+ days|past \d+ days|past week|last week|harvest schedule|last (two|three|\d+) harvest)\b/i.test(question)
-    && !/\b(why|should|explain|write|draft|tell me|what should|how do we|strategy|plan a)\b/i.test(question);
+    && /\b(as a spreadsheet|spreadsheet|xlsx|excel|pdf|docx|word document|\bas html\b)\b/i.test(question)
+    && /\b(last \d+ days|past \d+ days|past week|last week|last (two|three|\d+) harvest|harvest schedule)\b/i.test(question);
   if (lookupOnly) {
     return { headline: a.headline || "", facts, composed: fromRecords, via: "Live OS records", askErr: null };
   }
@@ -1946,7 +1967,7 @@ export async function askBudzFull(question, history = [], { onFacts, surface = "
           ]);
           const extProv = extProviderFromOs(pick?.provider);
           const picked = extModelNow();
-          const pickModel = "";
+          const pickModel = picked || "";
 
           /* 1.3+ talks straight to the add-on. 1.2.0 does not know ASK_NOW, so
              that call returns empty and we used to stop with "Press Allow" —
@@ -1954,15 +1975,19 @@ export async function askBudzFull(question, history = [], { onFacts, surface = "
              can still type into the signed-in Grok tab. */
           const ping = await pingTgBots();
           let live = { installed: !!ping.installed, ok: false };
-          /* Always ASK_NOW. 1.2.0 refuses that message instantly. 1.3 types
-             into the signed-in tab. Never open a new Grok thread first — that
-             stole the add-on and the question sat in the queue for minutes. */
+          /* Grok and the metered API run together. Waiting on grok.com alone is
+             how a 40-second silence looked like a dead bot. First real answer wins. */
+          const apiEarly = cfg.paid_model_enabled ? askMeteredApi(asked, log).catch(() => null) : null;
           if (ping.installed) {
             live = await askTgBotsNow(asked, { provider: extProv, model: pickModel });
           }
           if (live.installed && live.ok && live.reply && !/interrupted by the user|I DO NOT HAVE A BUILT-IN REPORT/i.test(live.reply)) {
             composed = live.reply;
             via = viaLine(live.provider || extProv, picked || live.model || bridgeModel);
+          }
+          if (!composed && apiEarly) {
+            const peek = await Promise.race([apiEarly, new Promise((r) => setTimeout(() => r(null), 50))]);
+            if (peek) { composed = peek; via = "Claude (API)"; }
           }
 
           if (!composed) {
@@ -2018,7 +2043,7 @@ export async function askBudzFull(question, history = [], { onFacts, surface = "
              first is the answer, and the loser is abandoned rather than waited
              on. Polling is 600ms rather than 1200ms, which alone takes half a
              second off every answer. */
-          let apiRace = null;
+          let apiRace = apiEarly;
           const startApiRace = () => {
             if (apiRace || !cfg.paid_model_enabled) return;
             apiRace = askMeteredApi(asked, log).catch(() => null);
@@ -2166,7 +2191,14 @@ export async function askBudzFull(question, history = [], { onFacts, surface = "
     } catch { /* a memory that fails to save must never break the answer */ }
   }
 
-  return { headline: a.headline, facts, composed, via, askErr };
+  if (!composed) {
+    composed = fromRecords
+      || "I am Top G. I heard you. Grok did not come back in time. I answer any topic — this company, weather, code, money, writing, anything, in ordinary language. Ask again, or stay signed in on grok.com.";
+    via = fromRecords ? "Live OS records" : (via || "Top G");
+    askErr = null;
+  }
+
+  return { headline: a.headline, facts, composed, via, askErr: null };
 }
 
 export function useAssistantProfile() {

@@ -3,7 +3,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { askBudzFull, useChatFiles, ChatFiles } from "./budz.jsx";
 import TgBotsPanel from "./lib/tg-bots-panel.jsx";
-import { topGConnected } from "./lib/topg-connect.js";
+import { topGConnected, providerLabel, extProviderNow } from "./lib/topg-connect.js";
 import { allBots, addCustomBot, removeCustomBot, chainOf, BUDDY } from "./lib/os-bots.js";
 import { skillsFor, dueThisMinute, dayKey, loadRuns, recordRun } from "./lib/os-bot-runtime.js";
 import { makeDocuments, wantedFormats } from "./lib/os-bot-files.js";
@@ -385,7 +385,7 @@ export default function OsStaff({ go }) {
               </div>
             ))
           )}
-          {busy ? <div className="osstaff-bubble"><p>Asking Grok…</p></div> : null}
+          {busy ? <div className="osstaff-bubble"><p>Asking {providerLabel(extProviderNow())}…</p></div> : null}
           <div ref={end} />
         </div>
         <ChatFiles bag={bag} />
