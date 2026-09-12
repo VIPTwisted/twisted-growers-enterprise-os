@@ -8,6 +8,12 @@ keeps it growing. Plain English throughout.
 
 ## The files that outrank this one
 
+Operational repair: [Metrc quantity precision](../docs/METRC_QUANTITY_PRECISION.md)
+maps migration `20260912121116_gpt_queue_metrc_quantity_precision_repair.sql`,
+its one-time execution receipt, dependency preservation and certification limits.
+`tools/tests/metrc-precision-job.integration.mjs` exercises the deployed runner
+in disposable PostgreSQL; full dependency rehearsal evidence remains private.
+
 Operational repair: [Apex empty-history initialization](../docs/APEX_EMPTY_HISTORY.md)
 maps the administrative proof, ordinary-sync continuity, acceptance limits and
 recovery. Its executable repair is `tools/repairs/gpt-apex-empty-history.sql`;

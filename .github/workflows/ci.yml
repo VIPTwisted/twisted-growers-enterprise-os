@@ -93,6 +93,11 @@ jobs:
           METRC_TEST_PGURL: ${{ env.MONEY_TEST_PGURL }}
         run: node --test tools/tests/metrc-cursor.integration.mjs tools/tests/metrc-cursor-worker.test.mjs
 
+      - name: Metrc precision maintenance transaction and receipt (isolated Postgres)
+        env:
+          PRECISION_TEST_PGURL: ${{ env.MONEY_TEST_PGURL }}
+        run: node --test tools/tests/metrc-precision-job.integration.mjs
+
       - name: Metrc source record verification (isolated Postgres)
         env:
           METRC_TEST_PGURL: ${{ env.MONEY_TEST_PGURL }}
