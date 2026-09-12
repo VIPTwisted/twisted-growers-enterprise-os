@@ -397,6 +397,7 @@ export default function OsStaff({ go }) {
             ref={fileRef}
             type="file"
             multiple
+            aria-label="Attach any file"
             style={{ display: "none" }}
             onChange={(e) => { bag.add(e.target.files); e.target.value = ""; }}
           />
