@@ -694,7 +694,7 @@ export async function budzAnswer(question) {
       .order("takedown_start", { ascending: false })
       .limit(n);
     if (downErr) return { headline: "Last harvests could not be read: " + downErr.message, rows: [] };
-    const takedowns = downs ?? [];
+    const takedowns = Array.isArray(downs) ? downs : [];
     if (!takedowns.length) return none("No takedown has been recorded yet.", "harvest_forensic");
     const oldest = takedowns[takedowns.length - 1].takedown_start;
     const newest = takedowns[0].takedown_start;
@@ -725,7 +725,7 @@ export async function budzAnswer(question) {
     };
     const rows = [];
     takedowns.forEach((d, i) => {
-      const lines = (cuts ?? []).filter((c) => inWindow(c.harvest_started, d));
+      const lines = (Array.isArray(cuts) ? cuts : []).filter((c) => inWindow(c.harvest_started, d));
       const pkg = lines.reduce((a, r) => a + (nnum(r.packaged_lb) || 0), 0);
       rows.push({
         source: "takedown",
@@ -798,7 +798,7 @@ export async function budzAnswer(question) {
         drill: "harvest_forensic",
       });
     }
-    (pulls ?? []).forEach((r) => {
+    (Array.isArray(pulls) ? pulls : []).forEach((r) => {
       rows.push({
         source: "pull calendar",
         compare_slot: "",
