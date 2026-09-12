@@ -8898,6 +8898,9 @@ function Integrations({ session }) {
           <div className="sub">Credentials are configuration — stored server-side in your own database, write-only from here, rotatable anytime. Values are never shown back.</div>
         </div>
       </div>
+      <div style={{ marginBottom: 16 }}>
+        <BotsPaidKey role={role} />
+      </div>
       <div className="cols2">
         <div>
           <QrDecode onDecoded={(v) => setForm((f) => ({ ...f, METRC_VENDOR_KEYS: v }))} />
@@ -8988,9 +8991,6 @@ function Integrations({ session }) {
               SYNC ALL BUTTON" / "LIST ALL SPREADSHEETS WITH A BUTTON". Its own file
               because App.jsx is already 9,700 lines and the owner has ruled against
               files big enough that one break takes everything down. */}
-          <div style={{ marginTop: 16 }}>
-            <BotsPaidKey role={role} />
-          </div>
           <SyncItems session={session} licences={metrcLicences} />
         </div>
         <div>

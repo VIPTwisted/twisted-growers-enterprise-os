@@ -5,7 +5,8 @@ import React, { useEffect, useState } from "react";
 import { supabase } from "./lib/supabase.js";
 
 export default function BotsPaidKey({ role }) {
-  const can = ["owner", "executive"].includes(role);
+  const [ownRole, setOwnRole] = useState(role ?? null);
+  const can = ["owner", "executive"].includes(ownRole);
   const [keySet, setKeySet] = useState(false);
   const [paidOn, setPaidOn] = useState(false);
   const [draft, setDraft] = useState("");
@@ -13,18 +14,29 @@ export default function BotsPaidKey({ role }) {
   const [msg, setMsg] = useState("");
 
   useEffect(() => {
+    if (role) setOwnRole(role);
+  }, [role]);
+
+  useEffect(() => {
     let live = true;
     (async () => {
-      const [{ data: present }, { data: cfg }] = await Promise.all([
+      const jobs = [
         supabase.rpc("f_ai_key_present"),
         supabase.from("ai_settings").select("id, paid_model_enabled").limit(1).maybeSingle(),
-      ]);
+      ];
+      if (!role) jobs.push(supabase.auth.getUser().then(async ({ data }) => {
+        const uid = data?.user?.id;
+        if (!uid) return { data: null };
+        return supabase.from("app_users").select("role").eq("user_id", uid).maybeSingle();
+      }));
+      const [{ data: present }, { data: cfg }, me] = await Promise.all(jobs);
       if (!live) return;
       setKeySet(!!present);
       setPaidOn(!!cfg?.paid_model_enabled);
+      if (!role && me?.data?.role) setOwnRole(me.data.role);
     })();
     return () => { live = false; };
-  }, []);
+  }, [role]);
 
   async function saveKey() {
     const key = draft.trim();
@@ -83,7 +95,7 @@ export default function BotsPaidKey({ role }) {
         One key for the company. Never shown again. Does not touch Metrc or Apex.
       </div>
       {!can ? (
-        <div className="note">Owner or executive pastes this key. Your role is <b>{role || "unknown"}</b>.</div>
+        <div className="note">Owner or executive pastes this key. Your role is <b>{ownRole || "unknown"}</b>.</div>
       ) : (
         <>
           <label htmlFor="bots-paid-key">Anthropic API key</label>

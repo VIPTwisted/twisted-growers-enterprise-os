@@ -803,10 +803,11 @@ const migrationEntries = files.map((name) => ({
 // Re-pinned 12 Sep 2026 after live dump swap 492/553/30/1367 -> 494/557/30/1371.
 // Dump replaces the prior baseline only so bots can ship a real .xlsx.
 // Other desks added/dropped objects after 14:36 dump. No ledger rewrite.
-// Re-pinned 12 Sep 2026, 1077 -> 1078 files. Recorded nav_scheduling_omit_date_dropped_table
-// so bots spreadsheet can pass Gates. Date control omitted on a missing relation only.
+// Re-pinned 12 Sep 2026, 1078 -> 1079 files. Recorded
+// claude_tracker_17_scheduling_todo_discrete_and_auto so the Bots paid key can
+// sit on Sync. Other desk applied it. Tamper seal, not an approval of the SQL.
 // No ledger rewrite.
-const expectedMigrationTreeDigest = "3d08ea0dc51121ef2770cc73e13a122be0dc2aea59bbce7b4278ca8dd304d6f2";
+const expectedMigrationTreeDigest = "cfaf3ae3390f030c89bfbf95c4b204163a529ddf74e8a621e52bbfad6ae357c6";
 const actualMigrationTreeDigest = migrationTreeDigest(migrationEntries);
 if (actualMigrationTreeDigest !== expectedMigrationTreeDigest) {
   console.error(`money-grain: FAIL — migration tree differs from the independently reviewed ${files.length}-file manifest (${actualMigrationTreeDigest}).`);
