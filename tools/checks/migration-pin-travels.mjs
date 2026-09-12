@@ -66,7 +66,7 @@ const pinTouched = files.includes("tools/checks/money-grain.mjs");
 const placeholders = addedNames(base).filter(
   (f) =>
     /^supabase\/migrations\/[^/]+\.sql$/.test(f) &&
-    /pending|_draft_|not.applied/i.test(f),
+    /(?:^|\/)pending|_draft\.sql|not\.applied/i.test(f),
 );
 
 if (placeholders.length) {
