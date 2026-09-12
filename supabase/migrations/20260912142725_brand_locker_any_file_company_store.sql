@@ -1,3 +1,7 @@
+-- GROK-WHY: Brand locker. Company marketing and brand files. Any type. Not Metrc.
+-- Logos, ads, packaging, photos, video, gifs, zips, docs. Signed-in people can read.
+-- No size cap on the bucket. Chat attach is separate. Ledger not rewritten.
+
 insert into storage.buckets (id, name, public, file_size_limit)
 values ('brand', 'brand', false, null)
 on conflict (id) do update set public = false, file_size_limit = null;

@@ -199,7 +199,7 @@ export function wakeTgBots() {
 /* Direct path. The OS talks to the add-on in this browser. No queue, so the
    old Windows Claude CLI cannot steal the question. Used when the add-on is on. */
 export function askTgBotsNow(question, extra = {}) {
-  return sendExt({ type: "TG_BOTS_ASK_NOW", question, ...extra }, 90000);
+  return sendExt({ type: "TG_BOTS_ASK_NOW", question, ...extra }, 15000);
 }
 
 

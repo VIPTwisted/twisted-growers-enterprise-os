@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { supabase, FUNCTIONS_URL, ANON_KEY } from "./lib/supabase.js";
-import { extProviderFromOs, viaLine, wakeTgBots, askTgBotsNow, pingTgBots, extModelNow } from "./lib/topg-connect.js";
+import { extProviderFromOs, viaLine, wakeTgBots, askTgBotsNow, pingTgBots, tgBotsStatus, extModelNow } from "./lib/topg-connect.js";
 import { CORE_BOTS } from "./lib/os-bots.js";
 
 import TgBotsPanel from "./lib/tg-bots-panel.jsx";
@@ -634,6 +634,91 @@ export async function budzAnswer(question) {
      Deliberately specific keywords. `has()` is first-match-wins in source
      order, so a loose keyword here would silently steal a question that
      already routes correctly somewhere below. */
+
+  /* ── TAGS THAT CHANGED ───────────────────────────────────────────
+     Daily floor question. Metrc does not name the employee who moved a
+     plant. Package events and room snapshots do name the tag, the event,
+     and the room. Destroyed plants name DestroyedByUserName. */
+  if (/\btags?\b/.test(t) && /\b(chang|moved|adjust|created|yesterday|who)\b/.test(t)) {
+    const yest = osYesterdayNy();
+    const prior = osDayNy(-2);
+    const [{ data: events, error: evErr }, { data: yRooms, error: yErr }, { data: pRooms }, dest] = await Promise.all([
+      supabase.from("v_package_events").select("package_tag,event_date,event,lb_delta,licence,room,counterparty").eq("event_date", yest).limit(400),
+      supabase.from("v_room_history").select("package_tag,room,record_type,strain,licence").eq("observed_on", yest).limit(8000),
+      supabase.from("v_room_history").select("package_tag,room").eq("observed_on", prior).limit(8000),
+      supabase.from("metrc_plants").select("raw").gte("raw->>DestroyedDate", yest).lt("raw->>DestroyedDate", osTodayNy()).limit(200),
+    ]);
+    if (evErr && yErr) {
+      return { headline: "Tag changes could not be read: " + (evErr.message || yErr.message), rows: [] };
+    }
+    const ev = Array.isArray(events) ? events : [];
+    const yesterdayRooms = Array.isArray(yRooms) ? yRooms : [];
+    const priorMap = new Map((Array.isArray(pRooms) ? pRooms : []).map((r) => [r.package_tag, r.room]));
+    const moved = [];
+    for (const r of yesterdayRooms) {
+      const was = priorMap.get(r.package_tag);
+      if (was !== undefined && was !== r.room) moved.push({ ...r, was });
+    }
+    const dead = [];
+    if (!dest.error && Array.isArray(dest.data)) {
+      for (const row of dest.data) {
+        const raw = row.raw || {};
+        dead.push({
+          tag: raw.Label || "",
+          who: raw.DestroyedByUserName || "",
+          room: raw.LocationName || "",
+          note: raw.DestroyedNote || "",
+        });
+      }
+    }
+    const rows = [];
+    const byEvent = {};
+    ev.forEach((r) => { byEvent[r.event || "event"] = (byEvent[r.event || "event"] || 0) + 1; });
+    Object.entries(byEvent).forEach(([k, n]) => {
+      rows.push({
+        label: `${n} package tag${n === 1 ? "" : "s"} ${k.toLowerCase()}`,
+        detail: "v_package_events · yesterday America/New_York",
+        meta: yest,
+        drill: "metrc_rpt_packages",
+      });
+    });
+    ev.slice(0, 20).forEach((r) => {
+      rows.push({
+        label: r.package_tag,
+        detail: `${r.event}${r.counterparty ? " · " + r.counterparty : ""}${r.room ? " · " + r.room : ""}${r.licence ? " · " + r.licence : ""}`,
+        meta: r.lb_delta != null ? String(r.lb_delta) + " lb" : "",
+        drill: "metrc_rpt_packages",
+      });
+    });
+    const byMove = {};
+    moved.forEach((r) => {
+      const k = (r.was || "none") + " → " + (r.room || "none");
+      byMove[k] = (byMove[k] || 0) + 1;
+    });
+    Object.entries(byMove).slice(0, 12).forEach(([k, n]) => {
+      rows.push({
+        label: `${n} tag${n === 1 ? "" : "s"} changed room`,
+        detail: k,
+        meta: "v_room_history snapshot " + prior + " vs " + yest,
+        drill: "plant_history",
+      });
+    });
+    dead.slice(0, 20).forEach((r) => {
+      rows.push({
+        label: r.tag || "destroyed plant",
+        detail: r.who ? ("Destroyed by " + r.who) : "Destroyed. Metrc did not name who.",
+        meta: [r.room, r.note].filter(Boolean).join(" · "),
+        drill: "metrc_rpt_plants_destroyed",
+      });
+    });
+    if (!rows.length) {
+      return none("No package event, room change, or destroyed plant is on the record for " + yest + " (America/New_York).", "plant_history");
+    }
+    return {
+      headline: `${yest} (America/New_York): ${ev.length} package event${ev.length === 1 ? "" : "s"} on v_package_events, ${moved.length} tag${moved.length === 1 ? "" : "s"} changed room vs ${prior} on v_room_history, ${dead.length} plant${dead.length === 1 ? "" : "s"} destroyed. Metrc does not name the employee who moved or adjusted a tag. Destroyed plants name DestroyedByUserName when Metrc has it.`,
+      rows,
+    };
+  }
 
   if (has("inventory issues", "inventory issue")) {
     const { rows } = await sel("v_inventory_alerts");
@@ -1529,11 +1614,12 @@ export async function budzAnswer(question) {
     };
   }
 
+  const found = await searchLiveViews(question);
+  if (found && (found.rows?.length || found.headline)) return found;
   return {
-    headline:
-      "I do not have a built-in report for that one. Send it to Claude Desktop with the button below — it reads this same database live, over the subscription the company already pays for, and it can answer anything. Nothing is billed.",
+    headline: "No live OS view matched that wording. I still answer here — this company, weather, code, stocks, writing, anything. Ask it another way, or tap Grok so the signed-in tab talks like grok.com.",
     rows: [],
-    askClaude: true,
+    askClaude: false,
   };
 }
 
@@ -1568,8 +1654,8 @@ const readProfileCache = () => {
    device. This is a person handing over one file. An assistant that confuses
    the two will refuse an upload while quoting a privacy rule that does not
    apply to it. */
-const CHAT_MAX_FILES = 10;
-const CHAT_MAX_BYTES = 100 * 1024 * 1024;
+const CHAT_MAX_FILES = 100;
+const CHAT_MAX_BYTES = Number.POSITIVE_INFINITY;
 
 export function useChatFiles(surface) {
   const [files, setFiles] = useState([]);
@@ -1585,8 +1671,8 @@ export function useChatFiles(surface) {
     /* Say what was dropped and why. Silently taking four of nine files is how
        somebody sends a partial set and believes all of it arrived. */
     const notes = [];
-    if (tooBig.length) notes.push(`${tooBig.map((f) => f.name).join(", ")} — over 100 MB, not attached.`);
-    if (incoming.length - tooBig.length > ok.length) notes.push(`Ten files at a time; the rest were not attached.`);
+    if (tooBig.length) notes.push(`${tooBig.map((f) => f.name).join(", ")} — this browser could not hold those bytes. Split the drop.`);
+    if (incoming.length - tooBig.length > ok.length) notes.push(`A hundred files at a time; drop the rest next.`);
     setWarn(notes.join(" "));
     if (ok.length) setFiles((cur) => [...cur, ...ok.map((f) => ({ name: f.name, type: f.type, size: f.size, file: f }))]);
   };
@@ -1828,6 +1914,56 @@ function realModelReply(text) {
    called, so both surfaces show what is known immediately and fill in the
    composed answer when it lands. Nobody waits on a model to see a number that
    was already sitting in a view. */
+function osTodayNy() {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York" }).format(new Date());
+}
+function osDayNy(daysBack) {
+  const [y, m, d] = osTodayNy().split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d + daysBack)).toISOString().slice(0, 10);
+}
+function osYesterdayNy() { return osDayNy(-1); }
+
+async function searchLiveViews(question) {
+  const q = String(question || "").toLowerCase();
+  const stop = new Set(["tell","what","who","the","and","for","our","you","are","was","were","this","that","they","them","then","with","from","have","been","does","did","just","like","about","please","need","want","show","list","give","full","into","over","under","than","also","some","any","all","can","could","would","should","come","came","here","there","your","mine"]);
+  const words = q.split(/[^a-z0-9]+/).filter((w) => w.length > 2 && !stop.has(w));
+  if (!words.length) return null;
+  const { data: nav, error } = await supabase
+    .from("nav_registry")
+    .select("view_key,label,table_ref,description")
+    .eq("enabled", true)
+    .limit(800);
+  if (error) return { headline: "The live page list could not be read: " + error.message, rows: [] };
+  const scored = (Array.isArray(nav) ? nav : [])
+    .filter((r) => r.table_ref && /^[a-z][a-z0-9_]*$/i.test(r.table_ref) && !r.table_ref.startsWith("f_"))
+    .map((r) => {
+      const hay = `${r.view_key} ${r.label} ${r.table_ref} ${r.description || ""}`.toLowerCase();
+      let s = 0;
+      for (const w of words) if (hay.includes(w)) s += (w.length > 4 ? 2 : 1);
+      return { ...r, s };
+    })
+    .filter((r) => r.s >= 2)
+    .sort((a, b) => b.s - a.s);
+  const hit = scored[0];
+  if (!hit) return null;
+  const { data, error: qErr } = await supabase.from(hit.table_ref).select("*").limit(40);
+  if (qErr) return { headline: `${hit.label} could not be read: ${qErr.message}`, rows: [{ label: hit.view_key, detail: qErr.message, meta: hit.table_ref, drill: hit.view_key }] };
+  const rows = Array.isArray(data) ? data : [];
+  if (!rows.length) {
+    return { headline: `No rows on ${hit.label} (${hit.table_ref}) right now.`, rows: [{ label: hit.view_key, detail: "Open that desk if you want the empty report.", meta: "", drill: hit.view_key }] };
+  }
+  const keys = Object.keys(rows[0] || {}).filter((k) => k !== "raw").slice(0, 8);
+  return {
+    headline: `${rows.length} live row${rows.length === 1 ? "" : "s"} from ${hit.label} (${hit.table_ref}). These are OS records. Not a certified number unless that desk says so.`,
+    rows: rows.slice(0, 30).map((r) => ({
+      label: String(r[keys[0]] ?? r[keys[1]] ?? hit.label),
+      detail: keys.slice(1, 4).map((k) => (r[k] != null && r[k] !== "" ? `${k} ${r[k]}` : "")).filter(Boolean).join(" · "),
+      meta: keys.slice(4, 8).map((k) => (r[k] != null && r[k] !== "" ? `${k} ${r[k]}` : "")).filter(Boolean).join(" · "),
+      drill: hit.view_key,
+    })),
+  };
+}
+
 async function liveWeather(question) {
   if (!/\bweather\b|\bforecast\b|\btemperature\b|\btonight\b.*\b(ma|mass|boston)\b/i.test(question)) return null;
   const spots = [
@@ -1930,7 +2066,7 @@ export async function askBudzFull(question, history = [], { onFacts, surface = "
   })();
 
   /* A file request with live rows does not wait on Grok. Spreadsheet now. */
-  const fromRecords = (() => {
+  const fromRecords = a.askClaude ? null : (() => {
     const lines = [];
     if (a.headline) lines.push(a.headline);
     for (const r of facts) {
@@ -1939,10 +2075,10 @@ export async function askBudzFull(question, history = [], { onFacts, surface = "
     }
     return lines.filter(Boolean).join("\n") || null;
   })();
-  const lookupOnly = fromRecords && !a.askClaude && needsRecords
-    && /\b(as a spreadsheet|spreadsheet|xlsx|excel|pdf|docx|word document|\bas html\b)\b/i.test(question)
-    && /\b(last \d+ days|past \d+ days|past week|last week|last (two|three|\d+) harvest|harvest schedule)\b/i.test(question);
-  if (lookupOnly) {
+  /* Daily OS work stays in this chat. Do not wait on grok.com and do not
+     send them to a page. Records now. Grok still answers weather, stocks,
+     code, and anything that is not already in a view. */
+  if (fromRecords && !a.askClaude && facts.length) {
     return { headline: a.headline || "", facts, composed: fromRecords, via: "Live OS records", askErr: null };
   }
 
@@ -1992,20 +2128,19 @@ export async function askBudzFull(question, history = [], { onFacts, surface = "
              a tab 1.2.0 never opens. Fall back to the queue and WAKE so 1.2.0
              can still type into the signed-in Grok tab. */
           const ping = await pingTgBots();
-          let live = { installed: !!ping.installed, ok: false };
-          /* Keys are optional. The signed-in Grok/Claude/ChatGPT tab is the
-             model. Do not race the metered path unless an owner turned it on —
-             that path answers "paid answers are switched off" in milliseconds
-             and steals the chat. */
+          const status = ping.installed ? await tgBotsStatus() : { on: false };
+          let live = { installed: !!ping.installed, ok: false, error: "" };
           const apiEarly = cfg.paid_model_enabled ? askMeteredApi(asked, log).catch(() => null) : null;
-          if (ping.installed) {
+          if (ping.installed && status.on) {
             live = await askTgBotsNow(extQuestion, { provider: extProv, model: pickModel });
+          } else if (ping.installed && !status.on) {
+            live = { installed: true, ok: false, error: "Tap Grok on Bots desk first." };
           }
           if (live.installed && live.ok && realModelReply(live.reply) && !/interrupted by the user|I DO NOT HAVE A BUILT-IN REPORT/i.test(live.reply)) {
             composed = live.reply;
             via = viaLine(live.provider || extProv, picked || live.model || bridgeModel);
           }
-          if (!composed && /tap grok/i.test(String(live.error || ""))) {
+          if (!composed && /tap grok/i.test(String(live.error || "")) && !needsRecords) {
             composed = "Tap Grok, Claude, or ChatGPT above until that pill is green. Stay signed in on that site. No key. Then type here. Press the question mark if you want the steps.";
             via = "TG Bots";
           }
@@ -2015,7 +2150,7 @@ export async function askBudzFull(question, history = [], { onFacts, surface = "
           }
 
           if (!composed) {
-          const { data: created, error: insErr } = await supabase
+          const { error: insErr } = await supabase
             .from("ai_bridge_jobs")
             .insert({
               asked_by: uid,
@@ -2045,74 +2180,13 @@ export async function askBudzFull(question, history = [], { onFacts, surface = "
               model: pickModel,
               provider: extProv,
               status: "pending",
-            })
-            .select("id")
-            .single();
+            });
           if (insErr) throw insErr;
 
-          /* Lightning: do not wait for the 30s alarm. */
+          /* Lightning: do not wait for the 30s alarm. Do not sit 45 seconds
+             either — that is "Asking Grok…" with nothing on screen. ASK_NOW
+             already tried the signed-in tab. */
           wakeTgBots();
-
-          /* Poll our own row. Deliberately bounded: an unbounded wait is how the
-             old version sat for 210 seconds and then failed silently. If the
-             desktop is asleep this gives up and SAYS SO, and the answer is still
-             written to the row if it arrives later. */
-          /* RACED, not queued. Owner, 8 Aug 2026: "ai is too fucking slow".
-
-             This used to run to completion - up to 150 seconds - before the
-             metered API was even considered, so the free path's worst case was
-             every question's worst case. The bridge now gets an 8 second head
-             start and then the API runs alongside it. Answer quickly and it
-             costs nothing; take longer and the API overtakes. Whichever lands
-             first is the answer, and the loser is abandoned rather than waited
-             on. Polling is 600ms rather than 1200ms, which alone takes half a
-             second off every answer. */
-          let apiRace = apiEarly;
-          const startApiRace = () => {
-            if (apiRace || !cfg.paid_model_enabled) return;
-            apiRace = askMeteredApi(asked, log).catch(() => null);
-          };
-          startApiRace();
-          const deadline = Date.now() + 45000;
-          const raceAt = Date.now();
-          let done = null;
-          let apiWon = null;
-          while (Date.now() < deadline) {
-            await new Promise((r) => setTimeout(r, 300));
-            if (Date.now() > raceAt) startApiRace();
-            if (apiRace) {
-              /* Peek without blocking: Promise.race against an already-resolved
-                 promise returns immediately, so a pending API call cannot itself
-                 become the thing we are waiting for. */
-              const peek = await Promise.race([apiRace, Promise.resolve("__pending__")]);
-              if (peek && peek !== "__pending__" && realModelReply(peek)) { apiWon = peek; break; }
-            }
-            const { data: row } = await supabase
-              .from("ai_bridge_jobs")
-              .select("status, answer, error, seconds, provider, model")
-              .eq("id", created.id)
-              .maybeSingle();
-            if (row && (row.status === "done" || row.status === "error")) { done = row; break; }
-          }
-          if (apiWon) {
-            composed = apiWon;
-            via = "Claude (API, the desktop was slower)";
-          }
-
-          if (done?.status === "done" && done.answer && !/interrupted by the user|I DO NOT HAVE A BUILT-IN REPORT/i.test(done.answer)) {
-            composed = done.answer;
-            via = viaLine(done.provider || extProv, done.model || bridgeModel);
-          } else if (done?.status === "error") {
-            const raw = String(done.error ?? "The desktop answered with an error.");
-            askErr = /path specified/i.test(raw)
-              ? "The old Windows bot stole that question. Task Manager → end node.exe, stay signed in on grok.com, ask again."
-              : raw.slice(0, 250);
-          } else if (fromRecords) {
-            composed = fromRecords;
-            via = "Live OS records (Grok did not answer in time)";
-          } else {
-            askErr = "No answer in 45 seconds. Stay signed in on grok.com. Task Manager → end node.exe if it is running. Ask again.";
-          }
           }
         } catch (e) {
           askErr = "Could not reach the desktop: " + String(e?.message ?? e).slice(0, 180);
@@ -2155,7 +2229,7 @@ export async function askBudzFull(question, history = [], { onFacts, surface = "
           }
         } catch {}
       }
-      if (!composed) {
+      if (!composed && cfg.paid_model_enabled) {
         try {
           const hist2 = [...log, { who: "me", text: asked }]
             .filter((m) => m.text && !m.rows)
@@ -2186,7 +2260,7 @@ export async function askBudzFull(question, history = [], { onFacts, surface = "
             body: JSON.stringify({ messages: hist2 }),
           });
           const out = await rr.json().catch(() => null);
-          if (out?.reply) { composed = out.reply; via = "Claude (API)"; }
+          if (out?.ok && realModelReply(out.reply)) { composed = out.reply; via = "Claude (your key)"; }
           else if (!rr.ok) {
             /* Rule A3: absence is explained, never blank. A bare catch here is
                what hid a total outage for as long as this has existed. */
@@ -2216,8 +2290,11 @@ export async function askBudzFull(question, history = [], { onFacts, surface = "
   }
 
   if (!composed) {
+    const hello = /^(hi|hey|hello|yo|hi there|good morning|good afternoon|howdy)[\s!.?]*$/i.test(String(question || "").trim());
     composed = fromRecords
-      || "I am Top G. I heard you. Grok did not come back in time. I answer any topic — this company, weather, code, money, writing, anything, in ordinary language. Ask again, or stay signed in on grok.com.";
+      || (hello
+        ? "Hey. I'm Top G. I handle this OS from chat — harvests, tags, Apex, HR, weather, code, stocks, anything. Tap Grok until the pill is green if you want grok.com in the same thread. No key."
+        : "I heard you. I work this OS from chat. Tap Grok until the pill is green for grok.com on stocks, code, and long writing. For this company, ask the question again in ordinary language and I pull the live records.");
     via = fromRecords ? "Live OS records" : (via || "Top G");
     askErr = null;
   }
