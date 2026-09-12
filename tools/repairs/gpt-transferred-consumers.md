@@ -45,3 +45,11 @@ The companion state correction must bind current membership, accepted-transfer e
 The earlier direct catalog row-lock candidate was rejected in production with 42501. Root independently confirmed full rollback and unchanged package fingerprint; no privilege grant was attempted. This replacement uses only owner-authorized ALTER FUNCTION RENAME and must pass the ordinary-owner native fixture before another apply.
 
 Root inspected live DDL event triggers: ALTER FUNCTION reaches the generic PostgREST schema-reload NOTIFY trigger, whose notifications deliver at commit; no additional rename mutation was identified. Recheck this assumption if event triggers change. Outside sessions should observe only the committed original names. Rename locking protects this transaction, not later deployments after commit.
+
+## Applied outcome
+
+Applied as20260912145800 after Gates791 passed exact head7416036. Native tests
+run as a non-superuser owner, including real two-session contention. Independent
+post-apply read at14:58:30UTC confirmed unchanged package fingerprint and security
+metadata, expected transferred label, zero leftover temporary names. The exact
+applied SQL is retained in the matching migration file. Retirement is unapplied.
