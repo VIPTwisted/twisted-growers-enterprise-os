@@ -122,7 +122,7 @@ export default function OsAsk({ view, go }) {
               {m.via ? <p className="osask-via">{m.via}</p> : null}
             </div>
           ))}
-          {busy ? <div className="osask-bubble"><p>Asking Grok…</p></div> : null}
+          {busy ? <div className="osask-bubble"><p>Asking {providerLabel(extProviderNow())}…</p></div> : null}
           <div className="osask-actions">
             {desk.open && go ? (
               <button type="button" onClick={() => go(desk.open)}>Open {desk.name} desk</button>
