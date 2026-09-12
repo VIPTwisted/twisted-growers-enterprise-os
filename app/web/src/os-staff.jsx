@@ -348,23 +348,25 @@ export default function OsStaff({ go }) {
             <h1>{bot.name}</h1>
             <p>{bot.role} · {line.map((n) => n.name).join(" → ")}</p>
           </div>
-          {bot.open && go ? (
-            <button type="button" className="osstaff-go" onClick={() => go(bot.open)}>Open desk</button>
-          ) : null}
-          <button
-            type="button"
-            className="osstaff-go"
-            onClick={() => {
-              setThread([]);
-              setBusy(false);
-              busyRef.current = false;
-              setText("");
-              try { localStorage.removeItem(threadKey(sel)); } catch { /* private */ }
-              try { window.dispatchEvent(new Event("tg-bots-new-chat")); } catch { /* no window */ }
-            }}
-          >
-            New conversation
-          </button>
+          <div className="osstaff-actions">
+            {bot.open && go ? (
+              <button type="button" className="osstaff-go" onClick={() => go(bot.open)}>Open desk</button>
+            ) : null}
+            <button
+              type="button"
+              className="osstaff-go"
+              onClick={() => {
+                setThread([]);
+                setBusy(false);
+                busyRef.current = false;
+                setText("");
+                try { localStorage.removeItem(threadKey(sel)); } catch { /* private */ }
+                try { window.dispatchEvent(new Event("tg-bots-new-chat")); } catch { /* no window */ }
+              }}
+            >
+              New conversation
+            </button>
+          </div>
         </header>
         <TgBotsPanel compact onReady={() => setTopg(true)} />
         {skillsFor(bot.id).length ? (

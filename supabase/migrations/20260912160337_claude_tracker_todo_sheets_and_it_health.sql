@@ -1,3 +1,7 @@
+-- GROK-WHY: Already applied in production as 20260912160337 claude_tracker_todo_sheets_and_it_health.
+-- Another desk ran this. Filed here so migration-drift can pass and Top G chrome can ship.
+-- Exact SQL from supabase_migrations.schema_migrations.statements. No ledger rewrite. Metrc read-only.
+
 -- Owner, 12 Sep 2026: "put on to do list deployment tracker these items".
 -- The spreadsheet certification programme and the IT health page, as pending rows on
 -- the board so they age, block, and cannot be forgotten. Section 16 is new. Lane is

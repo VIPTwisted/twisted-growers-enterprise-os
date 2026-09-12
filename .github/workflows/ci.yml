@@ -75,10 +75,16 @@ jobs:
         working-directory: app/web
         run: npm install --no-audit --no-fund
 
-      - name: Permission changes are atomic and reject stale revisions
+      - name: Approved permissions are atomic and reject stale edits
         run: node --test tools/tests/permission-matrix.integration.mjs
+
       - name: Saves require matching returned rows
         run: node --test tools/tests/save-receipt.test.mjs tools/tests/date-range.test.mjs tools/tests/permission-matrix.test.mjs tools/tests/config-refresh.test.mjs
+
+      - name: Package precision dependency rebuild and rollback (isolated Postgres 17)
+        env:
+          PRECISION_TEST_PGURL: ${{ env.MONEY_TEST_PGURL }}
+        run: node tools/tests/package-precision.integration.mjs
 
       - name: Deployment proof rejects stale evidence and missing protections
         run: node --test tools/tests/deployment-proof.test.mjs

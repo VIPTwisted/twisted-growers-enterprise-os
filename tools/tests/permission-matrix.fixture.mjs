@@ -25,8 +25,9 @@ export async function permissionMatrixFixture(query) {
     insert into nav_registry values(1,'alpha',true,1,1),(2,'beta',true,1,2);
     create publication supabase_realtime;
   `);
-  const sql = readFileSync(new URL('../../supabase/migrations/20260912160141_gpt_atomic_permission_matrix.sql', import.meta.url), 'utf8');
-  await query('begin'); await query(sql); await query('commit');
+  const sql = readFileSync(new URL('../../supabase/migrations/20260912195558_gpt_atomic_permission_matrix.sql', import.meta.url), 'utf8');
+  await query('begin'); await query(sql); await query(readFileSync(new URL('../../supabase/migrations/20260912205727_gpt_bound_permission_lock_wait.sql', import.meta.url), 'utf8')); await query('commit');
+  assert.ok((await query("select proconfig from pg_proc where proname='f_save_permission_matrix'")).rows[0].proconfig.includes('lock_timeout=5s'));
   assert.equal((await query(`select count(*)::int as n from pg_publication_tables where pubname='supabase_realtime'`)).rows[0].n,4);
   await query(`set role authenticated; set test.user_id='11111111-1111-4111-8111-111111111111'; set test.admin='yes';`);
   const read = async () => (await query(`select f_permission_matrix('staff') as result`)).rows[0].result;
