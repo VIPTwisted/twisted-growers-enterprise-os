@@ -815,7 +815,8 @@ const migrationEntries = files.map((name) => ({
 // Re-pinned 12 Sep 2026, 1086 -> 1088 files. Recorded hr_05 document
 // functions and hr_import_bridge_removed. Other desk. Tamper seal. No ledger rewrite.
 // Approved settings transaction and bounded lock wait; no financial definition change.
-const expectedMigrationTreeDigest = "d4ab074d994095761e4210e5edfe50d0fbc28b05472a4471c2a1f5412029704a";
+// Records five concurrently applied HR/navigation migrations without reapplying them.
+const expectedMigrationTreeDigest = "a4e85ac9e7a9abe60b6641a49a67015f5fe63227245af36c8a6f779ae6777304";
 const actualMigrationTreeDigest = migrationTreeDigest(migrationEntries);
 if (actualMigrationTreeDigest !== expectedMigrationTreeDigest) {
   console.error(`money-grain: FAIL — migration tree differs from the independently reviewed ${files.length}-file manifest (${actualMigrationTreeDigest}).`);
