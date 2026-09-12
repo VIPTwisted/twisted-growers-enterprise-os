@@ -45,6 +45,15 @@ const Roster = lazy(() => import("./roster.jsx"));
 const HrDashboard = lazy(() => import("./hrdash.jsx"));
 const EmployeeFile = lazy(() => import("./empfile.jsx"));
 const ScheduleBuilder = lazy(() => import("./schedbuild.jsx"));
+
+/* The Human Resources door. The HR platform lives at /hr on this origin (app/hr, same Supabase
+   project, schema hr, same sign-in). Landing on this view — from the rail, a search hit, or a
+   ?view= link — goes straight to its Dashboard. Nothing renders here on purpose. */
+function HrPlatformDoor() {
+  useEffect(() => { window.location.assign("/hr/"); }, []);
+  return <div className="note" style={{ padding: 24 }}>Opening the HR platform…</div>;
+}
+
 const Timesheets = lazy(() => import("./timesheets.jsx"));
 const HrQueue = lazy(() => import("./hrqueue.jsx"));
 const Terminals = lazy(() => import("./terminals.jsx"));
@@ -11951,6 +11960,7 @@ export default function App() {
     dept_dash_hr: <HrDashboard go={setView} session={session} />,
     employee_file: <EmployeeFile go={setView} session={session} />,
     schedule_builder: <ScheduleBuilder go={setView} session={session} />,
+    hr_platform: <HrPlatformDoor />,
     timesheets: <Timesheets go={setView} session={session} />,
     hr_review_queue: <HrQueue go={setView} session={session} />,
     terminals: <Terminals go={setView} session={session} />,
