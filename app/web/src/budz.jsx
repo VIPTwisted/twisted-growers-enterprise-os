@@ -1197,20 +1197,124 @@ export async function budzAnswer(question) {
     };
   }
 
-  /* ── TODAY ────────────────────────────────────────────────────── */
-  if (has("shipping out today", "shipped today", "shipping today")) {
-    const { rows } = await sel("v_metrc_transfer_ledger");
-    const out = rows.filter((r) => /out/i.test(r.direction || "") && (r.created_on === today || r.departed === today));
-    if (!out.length) return none(`No outbound manifests are dated ${today}. The transfer ledger holds the full shipping history.`, "metrc_rpt_transfers");
-    return {
-      headline: `${out.length} outbound shipments today.`,
-      rows: out.map((r) => ({
-        label: `Manifest ${r.manifest_number} → ${r.recipient}`,
-        detail: `${r.packages} packages${r.transporter ? " · " + r.transporter : ""}${r.driver ? " · " + r.driver : ""}`,
-        meta: `${r.departed ?? r.created_on}${r.arrival_estimate ? " · ETA " + r.arrival_estimate : ""}`,
+  /* ── SHIPPED / ORDERS OUT ───────────────────────────────────────
+     v_shipped_full is THE answer, but it is heavy. Read the two desks
+     the order book and the transfer ledger actually sit on, date-filtered
+     on the server, and never fall through to searchLiveViews — that path
+     scored "shipped last week" onto Material Forensic Dossier (the word
+     "shipped" in its blurb) and Cost Versus Output ("week"/"out"/"last"). */
+  if (has("shipping out today", "shipped today", "shipping today", "what shipped", "shipped out", "order shipped", "what left", "outbound", "went out", "shipment", "shipped", "shipping")) {
+    const win = osDateWindow(question);
+    const wantOrder = /\borders?\b/.test(t);
+    const timeout = (ms) => new Promise((r) => setTimeout(() => r({ data: null, error: { message: "timed out" } }), ms));
+    const until = osYmdAdd(win.to, 1);
+    const [xferGot, apexGot, saleGot] = await Promise.all([
+      Promise.race([
+        supabase.from("v_metrc_transfer_ledger")
+          .select("manifest_number,direction,created_on,received_on,shipper,recipient,packages,transporter,driver,departed,shipment_type,license")
+          .gte("created_on", win.from)
+          .lt("created_on", until)
+          .order("created_on", { ascending: false })
+          .limit(120),
+        timeout(3000),
+      ]),
+      Promise.race([
+        supabase.from("v_apex_order_metrc_link")
+          .select("invoice_number,order_date,delivery_date,total_dollars,cancelled,link_status,metrc_manifests,last_metrc_date,first_metrc_date,package_tags,buyer_state_license,apex_order_id")
+          .eq("link_status", "MATCHED")
+          .gte("last_metrc_date", win.from)
+          .lt("last_metrc_date", until)
+          .order("last_metrc_date", { ascending: false })
+          .limit(80),
+        timeout(3000),
+      ]),
+      Promise.race([
+        supabase.from("metrc_rpt_wholesale")
+          .select("invoice_number,manifest_number,destination_facility,created_on,item,shipped_qty,shipped_uom,amount,voided")
+          .gte("created_on", win.from)
+          .lt("created_on", until)
+          .limit(120),
+        timeout(3000),
+      ]),
+    ]);
+    const xferErr = xferGot?.error;
+    const apexErr = apexGot?.error;
+    const saleErr = saleGot?.error;
+    const xfer = (Array.isArray(xferGot?.data) ? xferGot.data : [])
+      .filter((r) => /out/i.test(r.direction || "") && (osInWindow(r.created_on, win.from, win.to) || osInWindow(r.departed, win.from, win.to)));
+    const apex = (Array.isArray(apexGot?.data) ? apexGot.data : [])
+      .filter((r) => osInWindow(r.last_metrc_date, win.from, win.to) && !r.cancelled);
+    const sale = (Array.isArray(saleGot?.data) ? saleGot.data : [])
+      .filter((r) => !r.voided && osInWindow(r.created_on, win.from, win.to));
+    const byInvoice = {};
+    sale.forEach((r) => {
+      const k = String(r.invoice_number || r.manifest_number || "").trim() || "no invoice";
+      (byInvoice[k] ||= { n: 0, dest: r.destination_facility, amount: 0, manifests: new Set(), items: [] }).n += 1;
+      byInvoice[k].amount += Number(r.amount || 0);
+      if (r.manifest_number) byInvoice[k].manifests.add(r.manifest_number);
+      if (r.item && byInvoice[k].items.length < 3) byInvoice[k].items.push(r.item);
+    });
+    const invoices = Object.keys(byInvoice);
+    const saleByDigits = {};
+    invoices.forEach((inv) => {
+      const d = String(inv).replace(/\D/g, "");
+      if (d) saleByDigits[d] = byInvoice[inv];
+    });
+    const apexSum = apex.reduce((a, r) => a + Number(r.total_dollars || 0), 0);
+    const saleSum = sale.reduce((a, r) => a + Number(r.amount || 0), 0);
+    const bits = [];
+    bits.push(`${win.label} (America/New_York).`);
+    if (apex.length) bits.push(`${apex.length} Apex order${apex.length === 1 ? "" : "s"} MATCHED on Metrc · ${usd(apexSum)} Apex.`);
+    else if (apexErr) bits.push("Apex order book could not be read: " + apexErr.message);
+    else bits.push("No MATCHED Apex orders in that window.");
+    if (xfer.length) bits.push(`${xfer.length} outbound manifest${xfer.length === 1 ? "" : "s"}.`);
+    else if (xferErr) bits.push("Transfer ledger could not be read: " + xferErr.message);
+    else bits.push("No outbound manifests in that window.");
+    if (invoices.length) bits.push(`${invoices.length} invoice${invoices.length === 1 ? "" : "s"} on Metrc wholesale · ${usd(saleSum)} shipper amount.`);
+    else if (saleErr) bits.push("Wholesale report could not be read: " + saleErr.message);
+    if (apex.length && invoices.length) bits.push("Apex dollars and Metrc wholesale dollars are not the same figure and are not added.");
+    const rows = [];
+    const orderFirst = wantOrder || apex.length;
+    if (orderFirst) {
+      apex.slice(0, 20).forEach((r) => {
+        rows.push({
+          label: `Invoice ${r.invoice_number || r.apex_order_id} → ${(saleByDigits[String(r.invoice_number || "").replace(/\D/g, "")] || {}).dest || r.buyer_state_license || "buyer not on the row"}`,
+          detail: `MATCHED · ${r.metrc_manifests || 0} manifest${Number(r.metrc_manifests) === 1 ? "" : "s"} · ${r.package_tags || 0} package${Number(r.package_tags) === 1 ? "" : "s"} · ${usd(r.total_dollars)} Apex`,
+          meta: `shipped ${String(r.last_metrc_date || "").slice(0, 10)}${r.order_date ? " · ordered " + String(r.order_date).slice(0, 10) : ""}`,
+          drill: "sales_history",
+        });
+      });
+      invoices.slice(0, 8).forEach((inv) => {
+        if (apex.some((r) => String(r.invoice_number || "").replace(/\D/g, "") === String(inv).replace(/\D/g, ""))) return;
+        const g = byInvoice[inv];
+        rows.push({
+          label: `Metrc invoice ${inv} → ${g.dest || "destination not recorded"}`,
+          detail: `${g.n} line${g.n === 1 ? "" : "s"} · ${[...g.manifests].slice(0, 3).join(" · ") || "no manifest"} · ${usd(g.amount)} wholesale shipper`,
+          meta: (g.items || []).join(" · "),
+          drill: "sales_history",
+        });
+      });
+    }
+    xfer.slice(0, orderFirst ? 12 : 25).forEach((r) => {
+      rows.push({
+        label: `Manifest ${r.manifest_number} → ${r.recipient || "recipient not recorded"}`,
+        detail: `${r.packages || 0} packages${r.transporter ? " · " + r.transporter : ""}${r.driver ? " · " + r.driver : ""}`,
+        meta: `${String(r.departed || r.created_on || "").slice(0, 10)}${r.shipment_type ? " · " + r.shipment_type : ""}`,
         drill: "metrc_rpt_transfers",
-      })),
-    };
+      });
+    });
+    if (!rows.length) {
+      return {
+        headline: bits.join(" "),
+        rows: [{
+          label: "Nothing shipped in that window",
+          detail: "Read v_metrc_transfer_ledger (outbound), v_apex_order_metrc_link (MATCHED), and metrc_rpt_wholesale. Not a certified number.",
+          meta: win.label,
+          drill: "sales_history",
+        }],
+      };
+    }
+    return { headline: bits.join(" "), rows };
   }
   if (has("added to inventory today", "got added")) {
     const { rows } = await sel("v_coa_register");
@@ -1986,13 +2090,63 @@ function osDayNy(daysBack) {
   return new Date(Date.UTC(y, m - 1, d + daysBack)).toISOString().slice(0, 10);
 }
 function osYesterdayNy() { return osDayNy(-1); }
+function osYmdAdd(ymd, days) {
+  const [y, m, d] = String(ymd).split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d + days)).toISOString().slice(0, 10);
+}
+/* last week / yesterday / today / last N days. Named dates, America/New_York. */
+function osDateWindow(question) {
+  const t = String(question || "").toLowerCase();
+  const today = osTodayNy();
+  if (/\byesterday\b/.test(t)) {
+    const y = osYesterdayNy();
+    return { from: y, to: y, label: y };
+  }
+  if (/\btoday\b/.test(t) && !/\b(last|past|yesterday)\b/.test(t)) {
+    return { from: today, to: today, label: today };
+  }
+  const mDays = t.match(/\b(?:last|past)\s+(\d+)\s+days?\b/);
+  if (mDays) {
+    const n = Math.min(90, Math.max(1, Number(mDays[1]) || 7));
+    const from = osYmdAdd(today, -n);
+    return { from, to: today, label: `${from} to ${today}` };
+  }
+  if (/\b(last|past|this past)\s+week\b/.test(t) || /\ba week ago\b/.test(t)) {
+    const from = osYmdAdd(today, -7);
+    return { from, to: today, label: `${from} to ${today}` };
+  }
+  if (/\bthis week\b/.test(t)) {
+    const [y, mo, d] = today.split("-").map(Number);
+    const dow = new Date(Date.UTC(y, mo - 1, d)).getUTCDay();
+    const from = osYmdAdd(today, dow === 0 ? -6 : 1 - dow);
+    return { from, to: today, label: `${from} to ${today}` };
+  }
+  const from = osYmdAdd(today, -7);
+  return { from, to: today, label: `${from} to ${today}` };
+}
+function osInWindow(value, from, to) {
+  const day = String(value || "").slice(0, 10);
+  return day >= from && day <= to;
+}
 
 let _navCache = { at: 0, rows: null, error: null };
 async function searchLiveViews(question) {
   const q = String(question || "").toLowerCase();
-  const stop = new Set(["tell","what","who","the","and","for","our","you","are","was","were","this","that","they","them","then","with","from","have","been","does","did","just","like","about","please","need","want","show","list","give","full","into","over","under","than","also","some","any","all","can","could","would","should","come","came","here","there","your","mine"]);
-  const words = q.split(/[^a-z0-9]+/).filter((w) => w.length > 2 && !stop.has(w));
+  /* Time words and short stems used to match the WRONG desk:
+     "week" hit "weekly", "out" hit "output", "last" hit "last ninety days",
+     "shipped" hit Material Forensic Dossier's blurb. Word boundaries + stop
+     those stems. If the question names a job (ship, harvest, tag, invoice),
+     the winning view has to be about that job. */
+  const stop = new Set(["tell","what","who","the","and","for","our","you","are","was","were","this","that","they","them","then","with","from","have","been","does","did","just","like","about","please","need","want","show","list","give","full","into","over","under","than","also","some","any","all","can","could","would","should","come","came","here","there","your","mine","last","week","weeks","past","days","today","yesterday","asked","wtf","out","into","live","rows","versus","cost","open","desk"]);
+  const words = q.split(/[^a-z0-9]+/).filter((w) => w.length > 3 && !stop.has(w));
   if (!words.length) return null;
+  const intent = [
+    { re: /\b(shipped|shipping|shipment|outbound|went out|manifest)\b/i, must: /ship|manifest|transfer|wholesale|order/i },
+    { re: /\b(harvest|takedown|pulls?\b)\b/i, must: /harvest/i },
+    { re: /\b(tags?\b|adjust)\b/i, must: /tag|adjust|package_event/i },
+    { re: /\b(invoice|apex)\b/i, must: /apex|invoice|order|wholesale|sales/i },
+    { re: /\b(payroll|headcount|labour|labor cost)\b/i, must: /payroll|cost|hr|employee|leadership/i },
+  ].find((i) => i.re.test(q));
   if (!_navCache.rows || Date.now() - _navCache.at > 60000) {
     const got = await Promise.race([
       supabase.from("nav_registry").select("view_key,label,table_ref,description").eq("enabled", true).limit(200),
@@ -2007,35 +2161,41 @@ async function searchLiveViews(question) {
     .filter((r) => r.table_ref && /^[a-z][a-z0-9_]*$/i.test(r.table_ref) && !r.table_ref.startsWith("f_"))
     .map((r) => {
       const hay = `${r.view_key} ${r.label} ${r.table_ref} ${r.description || ""}`.toLowerCase();
+      if (intent && !intent.must.test(hay)) return { ...r, s: 0 };
       let s = 0;
-      for (const w of words) if (hay.includes(w)) s += (w.length > 4 ? 2 : 1);
+      for (const w of words) {
+        const re = new RegExp(`(?:^|[^a-z0-9_])${w}(?:$|[^a-z0-9_])`);
+        if (re.test(hay)) s += (w.length > 5 ? 2 : 1);
+      }
       return { ...r, s };
     })
-    .filter((r) => r.s >= 2)
+    .filter((r) => r.s >= 3)
     .sort((a, b) => b.s - a.s);
-  const hit = scored[0];
-  if (!hit) return null;
-  const hitQ = await Promise.race([
-    supabase.from(hit.table_ref).select("*").limit(40),
-    new Promise((r) => setTimeout(() => r({ data: null, error: { message: "timed out" } }), 2500)),
-  ]);
-  const data = hitQ?.data;
-  const qErr = hitQ?.error;
-  if (qErr) return { headline: `${hit.label} could not be read: ${qErr.message}`, rows: [{ label: hit.view_key, detail: qErr.message, meta: hit.table_ref, drill: hit.view_key }] };
-  const rows = Array.isArray(data) ? data : [];
-  if (!rows.length) {
-    return { headline: `No rows on ${hit.label} (${hit.table_ref}) right now.`, rows: [{ label: hit.view_key, detail: "Open that desk if you want the empty report.", meta: "", drill: hit.view_key }] };
+  if (!scored.length) return null;
+  for (const hit of scored.slice(0, 3)) {
+    const hitQ = await Promise.race([
+      supabase.from(hit.table_ref).select("*").limit(40),
+      new Promise((r) => setTimeout(() => r({ data: null, error: { message: "timed out" } }), 2500)),
+    ]);
+    const qErr = hitQ?.error;
+    if (qErr) {
+      if (/timed out/i.test(qErr.message)) continue;
+      return { headline: `${hit.label} could not be read: ${qErr.message}`, rows: [{ label: hit.view_key, detail: qErr.message, meta: hit.table_ref, drill: hit.view_key }] };
+    }
+    const rows = Array.isArray(hitQ?.data) ? hitQ.data : [];
+    if (!rows.length) continue;
+    const keys = Object.keys(rows[0] || {}).filter((k) => k !== "raw").slice(0, 8);
+    return {
+      headline: `${rows.length} live row${rows.length === 1 ? "" : "s"} from ${hit.label} (${hit.table_ref}). These are OS records. Not a certified number unless that desk says so.`,
+      rows: rows.slice(0, 30).map((r) => ({
+        label: String(r[keys[0]] ?? r[keys[1]] ?? hit.label),
+        detail: keys.slice(1, 4).map((k) => (r[k] != null && r[k] !== "" ? `${k} ${r[k]}` : "")).filter(Boolean).join(" · "),
+        meta: keys.slice(4, 8).map((k) => (r[k] != null && r[k] !== "" ? `${k} ${r[k]}` : "")).filter(Boolean).join(" · "),
+        drill: hit.view_key,
+      })),
+    };
   }
-  const keys = Object.keys(rows[0] || {}).filter((k) => k !== "raw").slice(0, 8);
-  return {
-    headline: `${rows.length} live row${rows.length === 1 ? "" : "s"} from ${hit.label} (${hit.table_ref}). These are OS records. Not a certified number unless that desk says so.`,
-    rows: rows.slice(0, 30).map((r) => ({
-      label: String(r[keys[0]] ?? r[keys[1]] ?? hit.label),
-      detail: keys.slice(1, 4).map((k) => (r[k] != null && r[k] !== "" ? `${k} ${r[k]}` : "")).filter(Boolean).join(" · "),
-      meta: keys.slice(4, 8).map((k) => (r[k] != null && r[k] !== "" ? `${k} ${r[k]}` : "")).filter(Boolean).join(" · "),
-      drill: hit.view_key,
-    })),
-  };
+  return null;
 }
 
 const _wxUrl = {};
@@ -2104,12 +2264,14 @@ export async function askBudzFull(question, history = [], { onFacts, surface = "
 
   const lastBot = [...history].reverse().find((m) => m.who === "bot")?.text || "";
   const lastMe = [...history].reverse().find((m) => m.who === "me")?.text || "";
-  const followRecords = /\b(who|why did you not|i need to know)\b/i.test(question)
+  const restates = /\b(i asked you|wtf i asked|not what i asked|you (did not|didn't) (answer|tell))\b/i.test(question);
+  const followWho = /\b(who|why did you not|i need to know)\b/i.test(question)
     && /\b(tag|package|harvest|adjust|v_package)\b/i.test(`${lastBot} ${lastMe}`);
-  const needsRecords = /\b(harvest|metrc|package|plant|invoice|apex|coa|cultiv|inventory|strain|batch|tag|lab|license|payroll|employee|dutchie|weight|room|clone|flower|trim|waste|manifest|sales|cfo|vendor|po\b|pull this|past week|last week|\bpull\b|last \d+ days?|past \d+ days?|hr\b|roster|staff|callout|timesheet|attendance|who missed|permission|admin)\b/i.test(question)
+  const followRecords = followWho || restates;
+  const needsRecords = /\b(harvest|metrc|package|plant|invoice|apex|coa|cultiv|inventory|strain|batch|tag|lab|license|payroll|employee|dutchie|weight|room|clone|flower|trim|waste|manifest|sales|cfo|vendor|po\b|pull this|past week|last week|\bpull\b|last \d+ days?|past \d+ days?|hr\b|roster|staff|callout|timesheet|attendance|who missed|permission|admin|shipped|shipping|shipment|outbound|went out)\b/i.test(question)
     || followRecords
     || !!readHumanIntent(question).lastN;
-  const lookupQ = followRecords && !/\btags?\b/i.test(question)
+  const lookupQ = followWho && !/\btags?\b/i.test(question)
     ? `${question} tags yesterday`
     : question;
 
