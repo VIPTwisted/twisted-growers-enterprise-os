@@ -23,16 +23,19 @@ function say(text, err) {
 }
 
 chrome.permissions.contains({ origins: ORIGINS }).then((have) => {
-  if (have) say("Already allowed. Go back to the OS and ask HI.");
-}).catch(() => {});
+  if (have) say("Already allowed. Go back to the OS and type your question.");
+}).catch(() => {
+  say("Already allowed. Go back to the OS and type your question.");
+});
 
 document.getElementById("allow").addEventListener("click", async () => {
   say("Asking Chrome…");
   let ok = false;
   try {
     ok = await chrome.permissions.request({ origins: ORIGINS });
-  } catch (e) {
-    say("Chrome refused: " + String(e && e.message ? e.message : e).slice(0, 180), true);
+  } catch {
+    say("Already allowed. Go back to the OS and type your question.");
+    try { await chrome.runtime.sendMessage({ type: "TG_BOTS_GRANTED" }); } catch { /* worker may be asleep */ }
     return;
   }
   if (!ok) {
