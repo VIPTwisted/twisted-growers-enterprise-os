@@ -164,6 +164,7 @@ export const COCKPITS = [
     ico: "bot",
     children: [
       { view_key: "os_staff", label: "Bots desk", ico: "bot" },
+      { view_key: "brand_locker", label: "Brand locker", ico: "archive" },
     ],
   },
   {
