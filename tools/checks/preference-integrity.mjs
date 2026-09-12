@@ -23,7 +23,7 @@ const shell = between(app, "export default function App", "const [navVersion");
 const petPersist = between(budz, "const petPersist", "export function useBudzPet");
 const petControls = between(budz, "export function PetControls", "export function BudzScreen");
 
-need(prefs.includes("const { error } = await") && prefs.includes("announcePreferenceFailure"),
+need(prefs.includes("if (error) throw error") && prefs.includes("announcePreferenceFailure") && prefs.includes("requireSavedRow({ data, error }, expected") && prefs.includes(".single()"),
   "global theme/sidebar persistence does not surface its database error");
 need(prefs.includes('state: "failed"') && prefs.includes("Saved on this device only"),
   "optimistic local preferences are not distinguished from an account save");
@@ -39,7 +39,7 @@ need(app.includes('role="alert"') && app.includes("was not saved to your account
   "preference failures have no visible alert surface");
 need(petPersist.includes("error: userError") && petPersist.includes("announcePetPreferenceFailure"),
   "Budz pet persistence still swallows authentication or database errors");
-need(petPersist.includes(".upsert(") && petPersist.includes('onConflict: "user_id"'),
+need(petPersist.includes("upsertConfirmed(supabase, \"user_settings\"") && petPersist.includes('onConflict: "user_id"'),
   "Budz pet persistence can silently update zero rows for a new user");
 need(petControls.includes("setNotify(previous)") && petControls.includes("preference was not saved"),
   "Budz notification toggles do not roll back and disclose a rejected write");

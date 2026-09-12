@@ -1,5 +1,8 @@
+import { readPermissionMatrix } from "./lib/permission-matrix.js";
+import { watchConfiguration } from "./lib/config-refresh.js";
 import React, { useEffect, useState, useCallback, useRef, useMemo, lazy, Suspense } from "react";
 import { fetchDepartmentDashboard } from "./lib/dashboard-range.js";
+import { createSaveQueue, requireSavedRow, upsertConfirmed } from "./lib/save-receipt.js";
 import { rangePlan } from "./lib/range-search.js";
 import { emptyObjectNote } from "./lib/emptyObjectNote.js";
 import {
@@ -428,6 +431,10 @@ function announcePreferenceFailure(area, error) {
 }
 
 function usePrefs(session) {
+  const saveQueue = useRef(createSaveQueue());
+  const saveSequence = useRef(0);
+  const currentUser = useRef(null);
+  currentUser.current = session?.user?.id ?? null;
   const [theme, setThemeState] = useState(() => localStorage.getItem("tg-theme") || "dark");
   const [collapsed, setCollapsedState] = useState(() => localStorage.getItem("tg-nav") === "1");
   const [saveState, setSaveState] = useState({ state: "idle", message: null });
@@ -443,36 +450,50 @@ function usePrefs(session) {
      from this same response. */
   const [navWidth, setNavWidthState] = useState(() => Number(localStorage.getItem("tg-navw")) || 246);
   useEffect(() => {
-    if (!session) return;
+    let live = true;
+    setSaveState({ state: "idle", message: null });
+    if (!session?.user?.id) return () => { live = false; };
     supabase.from("user_settings").select("theme, sidebar_collapsed, sidebar_width")
       .eq("user_id", session.user.id).maybeSingle()
       .then(({ data, error }) => {
-        if (error) {
-          const message = `Account preferences could not be read: ${error.message}`;
-          setSaveState({ state: "failed", message });
-          announcePreferenceFailure("Account preferences", error);
-          return;
-        }
+        if (!live) return;
+        if (error) throw error;
         if (data?.theme) setThemeState(data.theme);
         if (typeof data?.sidebar_collapsed === "boolean") setCollapsedState(data.sidebar_collapsed);
         if (data?.sidebar_width) setNavWidthState(data.sidebar_width);
+      }).catch(error => {
+        if (!live) return;
+        const message = `Account preferences could not be read: ${preferenceErrorText(error)}`;
+        setSaveState({ state: "failed", message });
+        announcePreferenceFailure("Account preferences", error);
       });
-  }, [session]);
+    return () => { live = false; };
+  }, [session?.user?.id]);
   const persist = useCallback(async (patch) => {
     if (!session) return { ok: false, error: "No signed-in account is available." };
+    const userId = session.user.id;
+    const sequence = ++saveSequence.current;
     setSaveState({ state: "saving", message: "Saving to your account…" });
+    return saveQueue.current(async () => {
+    if (currentUser.current !== userId) return { ok: false, error: "The signed-in account changed before the save." };
     try {
-      const { error } = await supabase.from("user_settings")
-        .upsert({ user_id: session.user.id, ...patch, updated_at: new Date().toISOString() }, { onConflict: "user_id" });
+      const expected = { user_id: userId, ...patch };
+      const { data, error } = await supabase.from("user_settings")
+        .upsert({ ...expected, updated_at: new Date().toISOString() }, { onConflict: "user_id" })
+        .select(Object.keys(expected).join(",")).single();
       if (error) throw error;
-      setSaveState({ state: "saved", message: "Saved to your account." });
+      requireSavedRow({ data, error }, expected, "Account preference");
+      if (currentUser.current === userId && sequence === saveSequence.current) setSaveState({ state: "saved", message: "Saved to your account." });
       return { ok: true };
     } catch (error) {
       const message = `Saved on this device only; the account save failed: ${preferenceErrorText(error)}`;
-      setSaveState({ state: "failed", message });
-      announcePreferenceFailure("Account preferences", error);
+      if (currentUser.current === userId) {
+        if (sequence === saveSequence.current) setSaveState({ state: "failed", message });
+        announcePreferenceFailure("Account preferences", error);
+      }
       return { ok: false, error: preferenceErrorText(error) };
     }
+    });
   }, [session]);
   const setTheme = useCallback((t) => { setThemeState(t); persist({ theme: t }); }, [persist]);
   const setCollapsed = useCallback((c) => { setCollapsedState(c); persist({ sidebar_collapsed: c }); }, [persist]);
@@ -501,8 +522,13 @@ function useNav(version, session, viewAsRole) {
      old code called auth.getUser() itself, which could resolve before
      useSession() had restored a persisted session on a hard refresh. */
   useEffect(() => {
+    setNav(null); setReports([]); setApps([]); setDeep([]); setFinance([]); setTax([]); setHr([]); setNavError(null);
+  }, [session?.user?.id, viewAsRole]);
+  useEffect(() => {
+    let live = true;
+    const blank = () => { setNav([]); setReports([]); setApps([]); setDeep([]); setFinance([]); setTax([]); setHr([]); };
     const uid = session?.user?.id;
-    if (!uid) { setNav(null); setNavError(null); return; }
+    if (!uid) return () => { live = false; };
     (async () => {
       /* THE SAME DEFECT, THE SECOND READER OF THE SAME FACT — 19 Aug 2026.
          Below this hook sits a twenty-line postmortem about a role read whose
@@ -514,16 +540,9 @@ function useNav(version, session, viewAsRole) {
          Command Center, while a refused nav_role_visibility read emptied the
          hidden set and opened every page in the platform to whoever was
          looking. A menu that cannot be built correctly is not built at all. */
-      const [{ data: rows, error: navErr }, { data: me, error: roleErr }] = await Promise.all([
-        supabase.from("nav_registry").select("*").eq("enabled", true).order("category_order").order("item_order"),
-        supabase.from("app_users").select("role").eq("user_id", uid).maybeSingle(),
-      ]);
-      const blank = () => { setNav([]); setReports([]); setApps([]); setDeep([]); setFinance([]); setTax([]); setHr([]); };
-      if (navErr || roleErr) {
-        const e = navErr ?? roleErr;
-        setNavError(`${e.message || e.code || "the read was refused and returned no message"} — your menu is not being guessed at.`);
-        blank(); return;
-      }
+      const { data: me, error: roleErr } = await supabase.from("app_users").select("role").eq("user_id", uid).maybeSingle();
+      if (!live) return;
+      if (roleErr) throw roleErr;
       /* viewAsRole is the admin-only design-preview lens (owner request, 11 Aug
          2026). It substitutes WHICH visibility rows filter the menus — nothing
          else. The session, the queries and row-level security all remain the
@@ -533,11 +552,10 @@ function useNav(version, session, viewAsRole) {
         setNavError("You are signed in, but no role is assigned to this account in app_users, so there is no menu to build.");
         blank(); return;
       }
-      const { data: vis, error: visErr } = await supabase.from("nav_role_visibility").select("view_key, visible").eq("role", role);
-      if (visErr) {
-        setNavError(`${visErr.message || visErr.code || "the visibility read was refused"} — rather than show you every page, nothing is shown.`);
-        blank(); return;
-      }
+      const snapshot = await readPermissionMatrix(supabase, role);
+      if (!live) return;
+      const rows = snapshot.nav;
+      const vis = snapshot.visibility;
       setNavError(null);
       const hidden = new Set((vis ?? []).filter((v) => !v.visible).map((v) => v.view_key));
       const shown = (rows ?? []).filter((r) => !hidden.has(r.view_key));
@@ -550,7 +568,12 @@ function useNav(version, session, viewAsRole) {
       setFinance(shown.filter((r) => r.surface === "finance"));
       setTax(shown.filter((r) => r.surface === "tax"));
       setHr(shown.filter((r) => r.surface === "hr"));
-    })();
+    })().catch((error) => {
+      if (!live) return;
+      blank();
+      setNavError(`Menu could not be loaded: ${error.message || "Network request failed"}`);
+    });
+    return () => { live = false; };
   }, [version, session?.user?.id, viewAsRole]);
   return { nav, reports, apps, deep, finance, tax, hr, navError };
 }
@@ -575,9 +598,10 @@ function useNav(version, session, viewAsRole) {
  * `null` means we have not finished asking; a string is a real answer. The error text
  * is kept so the screen can say WHY instead of inventing a role.
  */
-function useRole(session) {
+function useRole(session, version = 0) {
   const [role, setRole] = useState(null);
   const [roleError, setRoleError] = useState(null);
+  useEffect(() => { setRole(null); setRoleError(null); }, [session?.user?.id]);
   useEffect(() => {
     let live = true;
     if (!session?.user?.id) { setRole(null); setRoleError(null); return; }
@@ -592,9 +616,13 @@ function useRole(session) {
         }
         setRoleError(data?.role ? null : "You are signed in, but no role is assigned to this account in app_users.");
         setRole(data?.role ?? false);
+      }).catch((error) => {
+        if (!live) return;
+        setRole(null);
+        setRoleError(`Role could not be loaded: ${error.message || "Network request failed"}`);
       });
     return () => { live = false; };
-  }, [session?.user?.id]);
+  }, [session?.user?.id, version]);
   return { role, roleError };
 }
 
@@ -602,17 +630,34 @@ function useRole(session) {
 function MenuManager({ onChanged }) {
   const [rows, setRows] = useState(null);
   const [msg, setMsg] = useState(null);
+  const [saving, setSaving] = useState(false);
   const load = useCallback(() => {
     supabase.from("nav_registry").select("*")
       .order("category_order").order("item_order")
-      .then(({ data }) => setRows(data ?? []));
+      .then(({ data, error }) => {
+        if (error) throw error;
+        setRows(data ?? []);
+      }).catch((error) => {
+        setRows([]);
+        setMsg({ kind: "err", text: `Menu could not be read: ${error.message}` });
+      });
   }, []);
   useEffect(() => { load(); }, [load]);
   async function toggle(row) {
-    const { error } = await supabase.from("nav_registry")
-      .update({ enabled: !row.enabled }).eq("id", row.id);
-    if (error) setMsg({ kind: "err", text: `Not permitted: ${error.message}` });
-    else { setMsg({ kind: "ok", text: `“${row.label}” is now ${row.enabled ? "hidden from" : "visible to"} all users.` }); load(); onChanged(); }
+    if (saving) return;
+    setSaving(true);
+    setMsg(null);
+    try {
+      const expected = { id: row.id, enabled: !row.enabled };
+      const result = await supabase.from("nav_registry")
+        .update({ enabled: expected.enabled }).eq("id", row.id).eq("enabled", row.enabled)
+        .select("id,enabled").single();
+      requireSavedRow(result, expected, "Menu change");
+      setMsg({ kind: "ok", text: `“${row.label}” is now ${row.enabled ? "hidden from" : "visible to"} all users.` });
+      load(); onChanged();
+    } catch (error) {
+      setMsg({ kind: "err", text: `Menu change not confirmed: ${error.message}` });
+    } finally { setSaving(false); }
   }
   const cats = [];
   for (const e of rows ?? []) {
@@ -642,7 +687,7 @@ function MenuManager({ onChanged }) {
                         <td style={{ width: "60%" }}>{r.label}</td>
                         <td><span className={`pill ${r.enabled ? "ok" : "dim"}`}>{r.enabled ? "visible" : "hidden"}</span></td>
                         <td style={{ textAlign: "right" }}>
-                          <button className="btn ghost" style={{ margin: 0, padding: "5px 12px", fontSize: 12 }} onClick={() => toggle(r)}>
+                          <button className="btn ghost" disabled={saving} style={{ margin: 0, padding: "5px 12px", fontSize: 12 }} onClick={() => toggle(r)}>
                             {r.enabled ? "Hide" : "Show"}
                           </button>
                         </td>
@@ -6060,8 +6105,7 @@ function BrainScreen({ session, go, isExec, dictation }) {
   const pick = async (r) => {
     setRoleSel(r); setSaved(false);
     setBrainSaveMsg({ kind: "saving", text: "Saving your TG Brain role…" });
-    const { error } = await supabase.from("user_settings")
-      .upsert({ user_id: session.user.id, brain_role: r }, { onConflict: "user_id" });
+    const { error } = await upsertConfirmed(supabase, "user_settings", { user_id: session.user.id, brain_role: r }, { onConflict: "user_id" });
     if (error) {
       setBrainSaveMsg({ kind: "err", text: `Your TG Brain role was not saved: ${error.message}` });
       announcePreferenceFailure("TG Brain role", error);
@@ -6073,7 +6117,7 @@ function BrainScreen({ session, go, isExec, dictation }) {
   const saveMem = async () => {
     if (!mem.trim()) return;
     setBrainSaveMsg({ kind: "saving", text: "Saving TG Brain memory…" });
-    const { error } = await supabase.from("configurations").upsert({
+    const { error } = await upsertConfirmed(supabase, "configurations", {
       key: "brain_memory",
       value: { text: mem.trim().slice(0, 8000), saved_by: session.user.email, saved_at: new Date().toISOString() },
     }, { onConflict: "key" });
@@ -9099,8 +9143,7 @@ function Settings({ session, prefs }) {
     const previous = ct;
     setCt(next); applyCanvasTheme(next);
     setSettingsMsg({ kind: "saving", text: "Saving the canvas to your account…" });
-    const { error } = await supabase.from("user_settings")
-      .upsert({ user_id: session.user.id, canvas_theme: next }, { onConflict: "user_id" });
+    const { error } = await upsertConfirmed(supabase, "user_settings", { user_id: session.user.id, canvas_theme: next }, { onConflict: "user_id" });
     if (error) {
       setCt(previous); applyCanvasTheme(previous);
       setSettingsMsg({ kind: "err", text: `Canvas was not saved: ${error.message}` });
@@ -9141,8 +9184,7 @@ function Settings({ session, prefs }) {
     const { error } = await supabase.storage.from("avatars").upload(path, blob, { upsert: true, contentType: "image/jpeg" });
     if (error) { setAvMsg(`Upload failed: ${error.message}`); return; }
     const { data } = supabase.storage.from("avatars").getPublicUrl(path);
-    const { error: saveError } = await supabase.from("user_settings")
-      .upsert({ user_id: session.user.id, avatar_url: data.publicUrl }, { onConflict: "user_id" });
+    const { error: saveError } = await upsertConfirmed(supabase, "user_settings", { user_id: session.user.id, avatar_url: data.publicUrl }, { onConflict: "user_id" });
     if (saveError) {
       setAvMsg(`Photo uploaded, but your profile was not updated: ${saveError.message}`);
       announcePreferenceFailure("Profile photo preference", saveError);
@@ -11750,6 +11792,10 @@ export default function App() {
     return () => window.removeEventListener("tg-preference-error", show);
   }, []);
   const [navVersion, setNavVersion] = useState(0);
+  useEffect(() => {
+    if (!session?.user?.id) return;
+    return watchConfiguration(supabase, session.user.id, () => setNavVersion(v => v + 1));
+  }, [session?.user?.id]);
   /* VIEW AS A ROLE — owner request 11 Aug 2026, admin-only design-preview lens.
      Rendering only: it swaps which nav_role_visibility rows filter the surfaces.
      It never mints a session, never changes auth, never alters row-level
@@ -11791,23 +11837,25 @@ export default function App() {
   };
   const { nav, reports, apps, deep, finance, tax, hr, navError } = useNav(navVersion, session, viewAsRole);
   const [repMenu, setRepMenu] = useState(false);
-  const { role, roleError } = useRole(session ?? null);
+  const { role, roleError } = useRole(session ?? null, navVersion);
   /* Page gate from EXISTING page_permissions rows (no invented auth path): a row
      with can_view=false for the effective role blocks the page body and says so.
      Real enforcement stays server-side in row-level security — this is the
      honest door sign, and in preview mode it uses the previewed role so an admin
      can see exactly what that role would be told. */
   const [blockedViews, setBlockedViews] = useState(null);
+  useEffect(() => { setBlockedViews(null); }, [session?.user?.id, role, viewAsRole]);
   useEffect(() => {
-    if (!session) { setBlockedViews(null); return; }
+    let live = true;
     const effRole = viewAsRole ?? role;
-    if (!effRole) return;
-    supabase.from("page_permissions").select("view_key, can_view").eq("role", effRole).eq("can_view", false)
-      .then(({ data, error }) => {
-        if (error) { setBlockedViews(new Map([["__error", error.message]])); return; }
-        setBlockedViews(new Map(rowsOr(data).map((r) => [r.view_key, true])));
-      });
-  }, [session, role, viewAsRole]);
+    if (!session || !effRole) return () => { live = false; };
+    readPermissionMatrix(supabase, effRole).then(snapshot => {
+      if (live) setBlockedViews(new Map(snapshot.permissions.filter(r => r.can_view === false).map(r => [r.view_key, true])));
+    }).catch(error => {
+      if (live) setBlockedViews(new Map([["__error", error.message]]));
+    });
+    return () => { live = false; };
+  }, [session, role, viewAsRole, navVersion]);
   const { view, setView, goBack, goForward, goHome, canBack, canForward } = useOsHistory();
   const [findOpen, setFindOpen] = useState(false);
   const findPages = useMemo(() => {
@@ -11876,9 +11924,10 @@ export default function App() {
     if (!f || !session) return;
     const path = `${session.user.id}-${Date.now()}.${(f.name.split(".").pop() || "png").toLowerCase()}`;
     const { error } = await supabase.storage.from("avatars").upload(path, f, { upsert: true });
-    if (error) return;
+    if (error) { announcePreferenceFailure("Profile photo upload", error); return; }
     const { data } = supabase.storage.from("avatars").getPublicUrl(path);
-    await supabase.from("user_settings").upsert({ user_id: session.user.id, avatar_url: data.publicUrl }, { onConflict: "user_id" });
+    const { error: saveError } = await upsertConfirmed(supabase, "user_settings", { user_id: session.user.id, avatar_url: data.publicUrl }, { onConflict: "user_id" });
+    if (saveError) { announcePreferenceFailure("Profile photo preference", saveError); return; }
     setAvatarUrl(data.publicUrl);
   };
   const [alertN, setAlertN] = useState(0);

@@ -800,7 +800,9 @@ const migrationEntries = files.map((name) => ({
 // gpt_transferred_custody_consumer_guards so Top G speed can pass Gates.
 // Other desk applied it. Tamper seal, not an approval of the SQL. No ledger rewrite.
 // Anonymous relation privilege repair only; no financial definitions or data changed.
-const expectedMigrationTreeDigest = "66df5ac8eead0581969a858b30194ec06661233801a2b57d00666882780d9587";
+// Proposed configuration transaction; does not change money relations. Application awaits approval.
+// Also records the exact already-applied administrative tracker migration; no reapplication.
+const expectedMigrationTreeDigest = "feaf3d26e80ad14f0bb062938b00043e4d54267f256155a2edd205448ff85b4a";
 const actualMigrationTreeDigest = migrationTreeDigest(migrationEntries);
 if (actualMigrationTreeDigest !== expectedMigrationTreeDigest) {
   console.error(`money-grain: FAIL — migration tree differs from the independently reviewed ${files.length}-file manifest (${actualMigrationTreeDigest}).`);

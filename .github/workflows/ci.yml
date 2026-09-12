@@ -63,7 +63,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "22"
 
       # Two package.json files by design: the repo-level one holds the gates, app/web holds the
       # application. Keeping them separate means tooling never alters the front-end build —
@@ -74,6 +74,11 @@ jobs:
       - name: Install app dependencies
         working-directory: app/web
         run: npm install --no-audit --no-fund
+
+      - name: Permission changes are atomic and reject stale revisions
+        run: node --test tools/tests/permission-matrix.integration.mjs
+      - name: Saves require matching returned rows
+        run: node --test tools/tests/save-receipt.test.mjs tools/tests/date-range.test.mjs tools/tests/permission-matrix.test.mjs tools/tests/config-refresh.test.mjs
 
       - name: Deployment proof rejects stale evidence and missing protections
         run: node --test tools/tests/deployment-proof.test.mjs
