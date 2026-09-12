@@ -385,7 +385,7 @@ export default function OsStaff({ go }) {
                         type="button"
                         onClick={() => {
                           makeDocuments({
-                            title: m.title || desk.name,
+                            title: m.title || "Top G",
                             body: m.text,
                             facts: m.facts,
                             formats: [kind],

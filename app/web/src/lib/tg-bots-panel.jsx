@@ -4,7 +4,7 @@
    Paid API stays off. Metrc stays read-only. */
 import React, { useEffect, useState } from "react";
 import {
-  PROVIDERS, TG_BOTS_ZIP, MODEL_CATALOG, extProviderNow, extTooOld, pingTgBots, providerLabel,
+  PROVIDERS, TG_BOTS_ZIP, MODEL_CATALOG, extProviderNow, extTooOld, providerLabel,
   pushButtonSetup, savePreferred, saveExtModel, tgBotsModels, tgBotsNewThread, tgBotsSetModel,
   tgBotsStatus, extModelNow,
 } from "./topg-connect.js";
@@ -20,9 +20,9 @@ export default function TgBotsPanel({ compact = false, onReady }) {
   const [botsUrl, setBotsUrl] = useState("");
 
   async function refresh() {
-    const [ping, status] = await Promise.all([pingTgBots(), tgBotsStatus()]);
-    const installed = !!(ping.installed || status.installed);
-    const next = { installed, version: ping.version || status.version, ...(status.installed ? status : {}) };
+    const status = await tgBotsStatus();
+    const installed = !!status.installed;
+    const next = { installed, version: status.version, ...(status.installed ? status : {}) };
     setSt(next);
     if (next.provider) setProvider(next.provider);
     if (typeof next.model === "string" && next.model && !model) setModel(next.model);
