@@ -685,8 +685,8 @@ export async function budzAnswer(question) {
     ev.slice(0, 20).forEach((r) => {
       rows.push({
         label: r.package_tag,
-        detail: `${r.event}${r.counterparty ? " · " + r.counterparty : ""}${r.room ? " · " + r.room : ""}`,
-        meta: `${r.licence || ""}${r.lb_delta != null ? " · " + r.lb_delta + " lb" : ""}`,
+        detail: `${r.event}${r.counterparty ? " · " + r.counterparty : ""}${r.room ? " · " + r.room : ""}${r.licence ? " · " + r.licence : ""}`,
+        meta: r.lb_delta != null ? String(r.lb_delta) + " lb" : "",
         drill: "metrc_rpt_packages",
       });
     });
