@@ -6,7 +6,7 @@ Applied: 20260912195558_gpt_atomic_permission_matrix. Both RPCs remain SECURITY 
 
 The saved-row frontend is retained in PR233. The secure review browser sign-in returned Invalid login credentials. Authenticated UI verification required by CLAUDE.md F2 has not passed; this infrastructure release contains no frontend changes.
 
-PR219's PostgreSQL dependency-rebuild fixture is included unchanged from its reviewed head. It is an isolated structural regression test, not a production operation or dataset certificate.
+PR219's PostgreSQL dependency-rebuild fixture is included from its reviewed head, with cleanup of fixture-created roles so subsequent isolated tests remain independent. It is an isolated structural regression test, not a production operation or dataset certificate.
 
 Earlier releases confirmed merged: PR206 (Apex history evidence), PR217 (quantity precision repair), PR227 (HTTP protections), PR230 (deployment verification), PR231 (anonymous relation access). GitHub main ancestry is checked separately from source certification.
 
