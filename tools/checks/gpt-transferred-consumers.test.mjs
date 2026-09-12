@@ -50,9 +50,9 @@ await q(`insert into metrc_packages select n,'MC','tag'||n,'item'||n,10,'g','Roo
 update metrc_packages set raw=raw||'{"IsOnHold":true}' where source_state in ('onhold','transferred');
 insert into metrc_packages select 7,'MP','tag1','other-licence',20,'g','Room',current_date,'TestPassed',false,'{"Quantity":20,"IsFinished":false}'::jsonb,now(),'active','fixture',current_date;`);
 // Demonstrate the original defects before repair.
-assert.equal((await rows("select count(*)::int n from v_inventory_locator where identifier='tag4'"))[0].n,1);
+assert.equal((await rows("select identifier from v_inventory_locator where identifier='tag4'")).length,1);
 assert.equal((await rows("select on_hold from v_inventory_reconciliation where item='item4'"))[0].on_hold,'10.0');
-assert.equal((await rows("select count(*)::int n from v_inventory_locator where identifier='tag1'"))[0].n,1);
+assert.equal((await rows("select identifier from v_inventory_locator where identifier='tag1'")).length,1);
 // Fixture dependencies are typed stand-ins; PostgreSQL deparses casts differently.
 // Bind ONLY expected preflight hashes to this fixture catalog; execute unchanged revised bodies.
 let fixtureMigration=migration;
