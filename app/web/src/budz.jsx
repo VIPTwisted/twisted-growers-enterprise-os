@@ -680,10 +680,8 @@ export async function budzAnswer(question) {
     };
   }
 
-  if (
-    (has("harvest") && (has("this week") || has("past week") || has("last week") || has("harvest schedule") || has("as a spreadsheet") || has("pull")))
-    || (has("pull") && (has("past week") || has("last week") || has("this week")))
-  ) {
+  const windowAsk = /\b(this week|past week|last week|this past|last \d+ days?|past \d+ days?|last \d+ weeks?|past \d+ weeks?)\b/.test(t);
+  if (has("pull") || (has("harvest") && (windowAsk || has("harvest schedule") || has("as a spreadsheet")))) {
     const iso = (d) => d.toISOString().slice(0, 10);
     const now = new Date();
     const monday = (d) => {
@@ -693,10 +691,17 @@ export async function budzAnswer(question) {
       x.setHours(0, 0, 0, 0);
       return x;
     };
-    const past = has("past week") || has("last week") || has("this past") || (has("pull") && !has("schedule") && !has("upcoming"));
+    const daysMatch = t.match(/\b(?:last|past)\s+(\d+)\s+days?\b/);
+    const weeksMatch = t.match(/\b(?:last|past)\s+(\d+)\s+weeks?\b/);
     let start;
-    let end;
-    if (past) {
+    let end = iso(now);
+    if (daysMatch) {
+      const n = Math.min(365, Math.max(1, Number(daysMatch[1])));
+      start = iso(new Date(Date.now() - n * 864e5));
+    } else if (weeksMatch) {
+      const n = Math.min(52, Math.max(1, Number(weeksMatch[1])));
+      start = iso(new Date(Date.now() - n * 7 * 864e5));
+    } else if (has("past week") || has("last week") || has("this past")) {
       const thisMon = monday(now);
       const prevMon = new Date(thisMon);
       prevMon.setDate(prevMon.getDate() - 7);
@@ -711,26 +716,45 @@ export async function budzAnswer(question) {
       start = iso(thisMon);
       end = iso(sun);
     }
-    const [{ data: cuts, error: cutErr }, { data: planned, error: planErr }] = await Promise.all([
+    const [{ data: pulls, error: pullErr }, { data: cuts, error: cutErr }, { data: planned, error: planErr }] = await Promise.all([
+      supabase.from("harvest_pulls")
+        .select("harvest_date,flower_room,pull_no,cultivars,original_total_plants,proj_harvest_weight_lbs,operating_room_plants")
+        .gte("harvest_date", start)
+        .lte("harvest_date", end)
+        .order("harvest_date")
+        .limit(200),
       supabase.from("v_harvest_forensic")
-        .select("harvest_name,strain,harvest_started,finished_date,drying_room,plants,wet_lb,packaged_lb,harvest_state,harvest_closed")
+        .select("harvest_name,strain,harvest_started,harvest_closed,drying_room,plants,wet_lb,packaged_lb,harvest_state")
         .gte("harvest_started", start)
         .lte("harvest_started", end)
         .order("harvest_started")
-        .limit(80),
+        .limit(200),
       supabase.from("harvest_schedule")
         .select("harvest_date,cultivar,flower_room,projected_weight_lbs,room_cycle_flag")
         .gte("harvest_date", start)
         .lte("harvest_date", end)
         .order("harvest_date")
-        .limit(80),
+        .limit(200),
     ]);
-    if (cutErr && planErr) return { headline: "Harvest records could not be read: " + (cutErr.message || planErr.message), rows: [] };
-    const pulled = (cuts ?? []).map((r) => ({
+    if (pullErr && cutErr && planErr) return { headline: "Harvest records could not be read: " + (pullErr?.message || cutErr?.message || planErr?.message), rows: [] };
+    const pulled = (pulls ?? []).map((r) => ({
+      source: "pull",
+      harvest_date: r.harvest_date,
+      name: r.cultivars ?? "",
+      room: r.flower_room ?? "",
+      plants: r.original_total_plants ?? "",
+      wet_lb: "",
+      packaged_lb: r.proj_harvest_weight_lbs ?? "",
+      state: "harvest_pulls",
+      label: `${r.harvest_date} · pull ${r.pull_no ?? "unnumbered"} · ${r.flower_room || "room not named"}`,
+      detail: r.cultivars || "cultivars not named",
+      meta: [r.original_total_plants != null && r.original_total_plants !== "" ? r.original_total_plants + " plants on the pull" : null, r.proj_harvest_weight_lbs != null && r.proj_harvest_weight_lbs !== "" ? r.proj_harvest_weight_lbs + " lb projected" : null].filter(Boolean).join(" · "),
+      drill: "harvest_schedule",
+    }));
+    const forensic = (cuts ?? []).map((r) => ({
       source: "cut",
       harvest_date: r.harvest_started ? String(r.harvest_started).slice(0, 10) : "",
       name: r.harvest_name ?? "",
-      strain: r.strain ?? "",
       room: r.drying_room ?? "",
       plants: r.plants ?? "",
       wet_lb: r.wet_lb ?? "",
@@ -756,10 +780,10 @@ export async function budzAnswer(question) {
       meta: r.projected_weight_lbs != null && r.projected_weight_lbs !== "" ? `${r.projected_weight_lbs} lb projected` : "planner — not a Metrc cut",
       drill: "harvest_schedule",
     }));
-    const rows = [...pulled, ...plan];
-    if (!rows.length) return none(`No cuts on v_harvest_forensic and no planner events on harvest_schedule from ${start} through ${end}.`, past ? "harvest_forensic" : "harvest_schedule");
+    const rows = [...pulled, ...forensic, ...plan];
+    if (!rows.length) return none(`No rows on harvest_pulls, v_harvest_forensic, or harvest_schedule from ${start} through ${end}.`, "harvest_schedule");
     return {
-      headline: `${pulled.length} cut${pulled.length === 1 ? "" : "s"} on the forensic record, ${plan.length} planner event${plan.length === 1 ? "" : "s"}, ${start} through ${end}. Cuts are v_harvest_forensic. Planner is harvest_schedule — not a Metrc write.`,
+      headline: `${pulled.length} pull${pulled.length === 1 ? "" : "s"} on harvest_pulls, ${forensic.length} cut${forensic.length === 1 ? "" : "s"} on v_harvest_forensic, ${plan.length} planner row${plan.length === 1 ? "" : "s"} on harvest_schedule, ${start} through ${end}. Pulls are the room calendar. Cuts are Metrc forensic. Planner is not a Metrc write.`,
       rows,
     };
   }
@@ -1689,7 +1713,7 @@ export async function askBudzFull(question, history = [], { onFacts, surface = "
      Failure is silent on purpose. Memory makes a good answer better; it must
      never be the reason there is no answer at all. */
   let memory = null;
-  const needsRecords = /\b(harvest|metrc|package|plant|invoice|apex|coa|cultiv|inventory|strain|batch|tag|lab|license|payroll|employee|dutchie|weight|room|clone|flower|trim|waste|manifest|sales|cfo|vendor|po\b|pull this|past week|last week)\b/i.test(question);
+  const needsRecords = /\b(harvest|metrc|package|plant|invoice|apex|coa|cultiv|inventory|strain|batch|tag|lab|license|payroll|employee|dutchie|weight|room|clone|flower|trim|waste|manifest|sales|cfo|vendor|po\b|pull this|past week|last week|\bpull\b|last \d+ days?|past \d+ days?)\b/i.test(question);
   if (needsRecords) {
     try {
       const { data } = await supabase.rpc("f_brain_memory_for");
@@ -1723,7 +1747,7 @@ export async function askBudzFull(question, history = [], { onFacts, surface = "
     }
     return lines.filter(Boolean).join("\n") || null;
   })();
-  if (fromRecords && !a.askClaude && (facts.length || wantedFormats(question).length)) {
+  if (fromRecords && !a.askClaude && needsRecords) {
     return { headline: a.headline || "", facts, composed: fromRecords, via: "Live OS records", askErr: null };
   }
 
