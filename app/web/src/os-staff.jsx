@@ -91,6 +91,9 @@ export default function OsStaff({ go }) {
     window.addEventListener("tg-topg", n);
     const fresh = () => {
       setThread([]);
+      setBusy(false);
+      busyRef.current = false;
+      setText("");
       try { localStorage.removeItem(threadKey(sel)); } catch { /* private */ }
     };
     window.addEventListener("tg-bots-new-chat", fresh);
@@ -127,7 +130,7 @@ export default function OsStaff({ go }) {
 
   async function send(raw, asDesk) {
     const value = (raw ?? text).trim();
-    if ((!value && !bag.files.length) || busy) return;
+    if (!value && !bag.files.length) return;
     const desk = asDesk || targetBot(value);
     if (desk.id !== bot.id) setSel(desk.id);
     setText("");
@@ -136,6 +139,7 @@ export default function OsStaff({ go }) {
     setBusy(true);
     busyRef.current = true;
     let uploaded = [];
+    try {
     if (attached.length) {
       const up = await bag.upload(value);
       uploaded = up.filter((u) => !u.error);
@@ -145,8 +149,6 @@ export default function OsStaff({ go }) {
       }
     }
     if (!value) {
-      setBusy(false);
-      busyRef.current = false;
       if (uploaded.length) {
         setThread((m) => [...m, { role: "agent", text: "Got " + uploaded.length + " file" + (uploaded.length > 1 ? "s" : "") + ". Saved. Ask what to do with them." }]);
       }
@@ -160,7 +162,10 @@ export default function OsStaff({ go }) {
       .slice(-8)
       .map((m) => ({ who: m.role === "user" ? "me" : "bot", text: m.text }));
     try {
-      const out = await askBudzFull(asked, history, { surface: "staff-" + desk.id, desk });
+      const out = await Promise.race([
+        askBudzFull(asked, history, { surface: "staff-" + desk.id, desk }),
+        new Promise((r) => setTimeout(() => r({ composed: "Still working — send it again. I did not freeze.", facts: [], headline: "", via: "Top G", askErr: null }), 9000)),
+      ]);
       const fromLive = (out.headline && out.facts && out.facts.length)
         ? [out.headline, ...out.facts.map((r) => [r.label, r.detail, r.meta].filter(Boolean).join(" — "))].join("\n")
         : "";
@@ -195,8 +200,10 @@ export default function OsStaff({ go }) {
         open: desk.open,
       }]);
     }
-    setBusy(false);
-    busyRef.current = false;
+    } finally {
+      setBusy(false);
+      busyRef.current = false;
+    }
   }
 
   sendRef.current = send;
@@ -431,9 +438,8 @@ export default function OsStaff({ go }) {
             onChange={(e) => setText(e.target.value)}
             aria-label={`Message ${bot.name}`}
             placeholder={`Message ${bot.name}`}
-            disabled={busy}
           />
-          <button type="submit" disabled={busy}>Send</button>
+          <button type="submit">Send</button>
         </form>
       </section>
 
