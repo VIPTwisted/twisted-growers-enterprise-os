@@ -681,6 +681,154 @@ export async function budzAnswer(question) {
     };
   }
 
+  const lastNRaw = t.match(/\blast\s+(\d+|one|two|three|four|five|six|seven|eight|nine|ten)\s+(harvests?|pulls?)\b/);
+  if (lastNRaw) {
+    const words = { one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10 };
+    const n = Math.min(10, Math.max(1, words[lastNRaw[1]] || Number(lastNRaw[1]) || 2));
+    const iso = (d) => d.toISOString().slice(0, 10);
+    const today = iso(new Date());
+    const { data: downs, error: downErr } = await supabase
+      .from("v_harvest_takedown")
+      .select("takedown_start,flower_room,plants,wet_lb,harvests,harvest_records,takedown_days,is_material")
+      .lte("takedown_start", today)
+      .order("takedown_start", { ascending: false })
+      .limit(n);
+    if (downErr) return { headline: "Last harvests could not be read: " + downErr.message, rows: [] };
+    const takedowns = downs ?? [];
+    if (!takedowns.length) return none("No takedown has been recorded yet.", "harvest_forensic");
+    const oldest = takedowns[takedowns.length - 1].takedown_start;
+    const newest = takedowns[0].takedown_start;
+    const endCut = iso(new Date(new Date(newest).getTime() + 4 * 864e5));
+    const [{ data: cuts }, { data: pulls }] = await Promise.all([
+      supabase.from("v_harvest_forensic")
+        .select("harvest_name,strain,harvest_started,harvest_closed,drying_room,plants,wet_lb,packaged_lb,waste_lb,still_in_room_lb,conversion_pct,harvest_state")
+        .gte("harvest_started", oldest)
+        .lte("harvest_started", endCut)
+        .order("harvest_started")
+        .limit(200),
+      supabase.from("harvest_pulls")
+        .select("harvest_date,flower_room,pull_no,cultivars,original_total_plants,proj_harvest_weight_lbs")
+        .lte("harvest_date", today)
+        .order("harvest_date", { ascending: false })
+        .limit(n),
+    ]);
+    const nnum = (x) => {
+      const v = Number(x);
+      return Number.isFinite(v) ? v : null;
+    };
+    const inWindow = (started, down) => {
+      const s = String(started || "").slice(0, 10);
+      const a = String(down.takedown_start || "").slice(0, 10);
+      const days = Number(down.takedown_days || 1);
+      const b = iso(new Date(new Date(a).getTime() + Math.max(0, days) * 864e5));
+      return s >= a && s <= b;
+    };
+    const rows = [];
+    takedowns.forEach((d, i) => {
+      const lines = (cuts ?? []).filter((c) => inWindow(c.harvest_started, d));
+      const pkg = lines.reduce((a, r) => a + (nnum(r.packaged_lb) || 0), 0);
+      rows.push({
+        source: "takedown",
+        compare_slot: "harvest " + (i + 1),
+        harvest_date: d.takedown_start,
+        room: d.flower_room ?? "",
+        harvest_name: "takedown " + (d.harvest_records ?? lines.length) + " records",
+        strain: d.harvests ?? "",
+        plants: d.plants ?? "",
+        wet_lb: d.wet_lb ?? "",
+        packaged_lb: lines.length ? pkg : "",
+        waste_lb: "",
+        conversion_pct: "",
+        harvest_state: d.is_material ? "material takedown" : "",
+        compare_note: "v_harvest_takedown",
+        label: `${d.takedown_start} · ${d.flower_room || "room not named"} · harvest ${i + 1} of ${takedowns.length}`,
+        detail: d.harvests || "harvests not named",
+        meta: [d.plants != null ? d.plants + " plants" : null, d.wet_lb != null && d.wet_lb !== "" ? d.wet_lb + " lb wet" : null, lines.length ? pkg + " lb packaged on forensic" : null].filter(Boolean).join(" · "),
+        drill: "harvest_forensic",
+      });
+      lines.forEach((r) => {
+        rows.push({
+          source: "cut",
+          compare_slot: "harvest " + (i + 1),
+          harvest_date: r.harvest_started ? String(r.harvest_started).slice(0, 10) : "",
+          room: r.drying_room ?? "",
+          harvest_name: r.harvest_name ?? "",
+          strain: r.strain ?? "",
+          plants: r.plants ?? "",
+          wet_lb: r.wet_lb ?? "",
+          packaged_lb: r.packaged_lb ?? "",
+          waste_lb: r.waste_lb ?? "",
+          conversion_pct: r.conversion_pct ?? "",
+          harvest_state: r.harvest_state ?? "",
+          compare_note: r.harvest_closed ? "closed " + String(r.harvest_closed).slice(0, 10) : "not closed",
+          label: `${r.harvest_started ? String(r.harvest_started).slice(0, 10) : "date not recorded"} · ${r.harvest_name || "harvest not named"}`,
+          detail: [r.strain, r.drying_room, r.harvest_state].filter(Boolean).join(" · "),
+          meta: [r.plants != null ? r.plants + " plants" : null, r.wet_lb != null && r.wet_lb !== "" ? r.wet_lb + " lb wet" : null, r.packaged_lb != null && r.packaged_lb !== "" ? r.packaged_lb + " lb packaged" : null].filter(Boolean).join(" · "),
+          drill: "harvest_forensic",
+        });
+      });
+    });
+    if (takedowns.length >= 2) {
+      const a = takedowns[0];
+      const b = takedowns[1];
+      const delta = (x, y, unit) => {
+        const av = nnum(x);
+        const bv = nnum(y);
+        if (av == null || bv == null) return "";
+        const d = av - bv;
+        return `${d} ${unit} (derived: harvest 1 minus harvest 2, not a Metrc write)`;
+      };
+      rows.push({
+        source: "compare",
+        compare_slot: "harvest 1 vs harvest 2",
+        harvest_date: `${a.takedown_start} vs ${b.takedown_start}`,
+        room: `${a.flower_room || "?"} vs ${b.flower_room || "?"}`,
+        harvest_name: "comparison",
+        strain: "",
+        plants: delta(a.plants, b.plants, "plants"),
+        wet_lb: delta(a.wet_lb, b.wet_lb, "lb wet"),
+        packaged_lb: "",
+        waste_lb: "",
+        conversion_pct: "",
+        harvest_state: "",
+        compare_note: "Derived from v_harvest_takedown. Do not treat the difference as a certified figure.",
+        label: `Compare ${a.takedown_start} ${a.flower_room || ""} vs ${b.takedown_start} ${b.flower_room || ""}`,
+        detail: `${a.plants} plants / ${a.wet_lb} lb wet vs ${b.plants} plants / ${b.wet_lb} lb wet`,
+        meta: delta(a.plants, b.plants, "plants") + " · " + delta(a.wet_lb, b.wet_lb, "lb wet"),
+        drill: "harvest_forensic",
+      });
+    }
+    (pulls ?? []).forEach((r) => {
+      rows.push({
+        source: "pull calendar",
+        compare_slot: "",
+        harvest_date: r.harvest_date,
+        room: r.flower_room ?? "",
+        harvest_name: `pull ${r.pull_no ?? "unnumbered"}`,
+        strain: r.cultivars ?? "",
+        plants: r.original_total_plants ?? "",
+        wet_lb: "",
+        packaged_lb: r.proj_harvest_weight_lbs ?? "",
+        waste_lb: "",
+        conversion_pct: "",
+        harvest_state: "harvest_pulls planner",
+        compare_note: "Room calendar. Not a Metrc cut.",
+        label: `${r.harvest_date} · pull ${r.pull_no ?? "unnumbered"} · ${r.flower_room || "room not named"} (calendar)`,
+        detail: r.cultivars || "cultivars not named",
+        meta: "planner — not a Metrc cut",
+        drill: "harvest_schedule",
+      });
+    });
+    const a = takedowns[0];
+    const b = takedowns[1];
+    return {
+      headline: b
+        ? `Last ${takedowns.length} actual takedowns on v_harvest_takedown: ${a.takedown_start} ${a.flower_room || ""} (${a.plants} plants, ${a.wet_lb} lb wet) vs ${b.takedown_start} ${b.flower_room || ""} (${b.plants} plants, ${b.wet_lb} lb wet). Differences are derived. Pull calendar rows are not Metrc cuts.`
+        : `Last takedown on v_harvest_takedown: ${a.takedown_start} ${a.flower_room || ""} (${a.plants} plants, ${a.wet_lb} lb wet).`,
+      rows,
+    };
+  }
+
   const windowAsk = /\b(this week|past week|last week|this past|last \d+ days?|past \d+ days?|last \d+ weeks?|past \d+ weeks?)\b/.test(t);
   if (has("pull") || (has("harvest") && (windowAsk || has("harvest schedule") || has("as a spreadsheet")))) {
     const iso = (d) => d.toISOString().slice(0, 10);
@@ -1753,7 +1901,7 @@ export async function askBudzFull(question, history = [], { onFacts, surface = "
     return lines.filter(Boolean).join("\n") || null;
   })();
   const lookupOnly = fromRecords && !a.askClaude && needsRecords
-    && /\b(pull|as a spreadsheet|last \d+ days|past \d+ days|past week|last week|harvest schedule)\b/i.test(question)
+    && /\b(pull|as a spreadsheet|last \d+ days|past \d+ days|past week|last week|harvest schedule|last (two|three|\d+) harvest)\b/i.test(question)
     && !/\b(why|should|explain|write|draft|tell me|what should|how do we|strategy|plan a)\b/i.test(question);
   if (lookupOnly) {
     return { headline: a.headline || "", facts, composed: fromRecords, via: "Live OS records", askErr: null };
