@@ -27,7 +27,7 @@ export default function TgBotsPanel({ compact = false, onReady }) {
     if (typeof next.model === "string" && next.model && !model) setModel(next.model);
   }
 
-  useEffect(() => { refresh(); }, []);
+  useEffect(() => { refresh(); }, []); // eslint-disable-line react-hooks/exhaustive-deps -- ping once on mount
 
   async function tapProvider(key) {
     if (on && provider === key) {
