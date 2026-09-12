@@ -55,9 +55,11 @@ try{
     for(position=0;position<spec.metadata.length;position++)await exec(spec.metadata[position]);
   });
   const targetNames=spec.relations.filter(r=>r.kind!=='r').map(r=>"'"+r.name+"'").join(',');
-  const snapshot=async()=>one(`select c.relname,c.relkind,c.reloptions,c.relacl::text,c.relispopulated,pg_get_viewdef(c.oid,true) definition,
-    (select jsonb_agg(jsonb_build_array(a.attname,format_type(a.atttypid,a.atttypmod),a.attacl::text,col_description(c.oid,a.attnum)) order by a.attnum) from pg_attribute a where a.attrelid=c.oid and a.attnum>0 and not a.attisdropped) columns,
+  const snapshot=async()=>one(`select c.relname,c.relkind,pg_get_userbyid(c.relowner) owner,c.reloptions,c.relacl::text,c.relispopulated,pg_get_viewdef(c.oid,true) definition,
+    (select jsonb_agg(jsonb_build_array(a.attname,format_type(a.atttypid,a.atttypmod),a.attacl::text,col_description(c.oid,a.attnum),pg_get_expr(d.adbin,d.adrelid)) order by a.attnum) from pg_attribute a left join pg_attrdef d on d.adrelid=a.attrelid and d.adnum=a.attnum where a.attrelid=c.oid and a.attnum>0 and not a.attisdropped) columns,
+    (select jsonb_agg(jsonb_build_array(ci.relname,pg_get_indexdef(i.indexrelid),obj_description(ci.oid,'pg_class'),i.indisclustered,i.indisvalid,i.indisready,ci.reloptions,pg_get_userbyid(ci.relowner)) order by ci.relname) from pg_index i join pg_class ci on ci.oid=i.indexrelid where i.indrelid=c.oid) indexes,
     obj_description(c.oid,'pg_class') comment from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='public' and c.relname in (${targetNames}) order by c.relname`);
+  const functionSnapshot=()=>one("select pg_get_functiondef(p.oid) definition,pg_get_userbyid(p.proowner) owner,p.proacl::text,p.proconfig,p.prosecdef,p.proleakproof,p.provolatile,p.proparallel,p.proisstrict,p.procost,p.prorows,obj_description(p.oid,'pg_proc') comment from pg_proc p where p.oid='public.f_drill_stays(text,date,date)'::regprocedure");
   phase='synthetic source fixture';
   await exec(`alter table metrc_packages enable row level security;
     create policy precision_fixture_reader on metrc_packages for select to tg_desktop_reader using (true);
@@ -69,6 +71,7 @@ try{
   // Keep the pre-repair matview snapshot consistent with its synthetic base row.
   await iterate(spec.matviews.map(v=>({name:v.name,sql:'refresh materialized view public."'+v.name+'";'})));
   const before=await snapshot();
+  const functionBefore=await functionSnapshot();
   assert.equal((await one("select count(*)::int n from metrc_packages where quantity is distinct from (raw->>'Quantity')::numeric"))[0].n,6);
   const baseSnapshot=()=>one("select c.relrowsecurity,c.relforcerowsecurity,c.relacl::text,(select jsonb_agg(jsonb_build_array(polname,polcmd,pg_get_expr(polqual,polrelid),pg_get_expr(polwithcheck,polrelid)) order by polname) from pg_policy where polrelid=c.oid) policies from pg_class c where c.oid='public.metrc_packages'::regclass");
   const baseBefore=await baseSnapshot();
@@ -93,6 +96,7 @@ try{
     await assert.rejects(()=>exec('select 1/0'),/division by zero/);
     await exec('rollback');
     assert.deepEqual(await snapshot(),before);
+    assert.deepEqual(await functionSnapshot(),functionBefore);
     assert.equal((await one('select quantity::text from metrc_packages where id=1'))[0].quantity,'123.457');
     assert.deepEqual(await baseSnapshot(),baseBefore);
     assert.equal((await one("select to_regnamespace('tg_precision_fixture_bootstrap') as ns"))[0].ns,null);
@@ -111,6 +115,7 @@ try{
     assert.equal((await one("select count(*)::int n from metrc_packages where quantity is distinct from (raw->>'Quantity')::numeric"))[0].n,0);
     assert.deepEqual(await baseSnapshot(),baseBefore);
     assert.equal((await one("select count(*)::int as n from pg_class where relkind='m' and not relispopulated"))[0].n,0);
+    assert.deepEqual(await functionSnapshot(),functionBefore);
     assert.equal((await one("select to_regnamespace('tg_precision_fixture_bootstrap') as ns"))[0].ns,null);
     await exec('commit');
   });

@@ -24,7 +24,9 @@ definitions and access metadata, and removes the surrogate before commit.
 
 Checks cover an active reader, an uncaptured dependent, injected failure after
 the rebuild, successful widening, preserved RLS/policies, definitions, column
-contracts, relation privileges and comments, populated materialized views, and
+contracts, relation owners/privileges/comments, index definitions and state,
+the composite-return function's definition/permissions/options/comments,
+populated materialized views, and
 refusal to narrow values back to three decimals. CI requires native PostgreSQL
 17. The optional local PGlite run has one session and cannot establish native
 concurrency behavior. A loopback-only guard prevents the fixture from connecting
@@ -34,7 +36,7 @@ to a remote database, and it creates and drops its own disposable database.
 
 This fixture is a schema and synthetic-data rehearsal, not a timed production
 population rehearsal. Production execution still needs fresh schema/security
-fingerprints, exact function and index metadata verification, source-version
+fingerprints, live function and index metadata verification, source-version
 guards, coordinated sync/refresh draining, bounded locking and execution,
 materialized report checks using representative data, and current API reads.
 Raw payload agreement does not by itself certify freshness or full population
@@ -45,6 +47,11 @@ when a materialized view refreshes. That is physical storage churn, not proof of
 a report-definition change. A production preflight must distinguish it from
 actual dependency, privilege and definition changes while retaining all those
 checks.
+
+This is an independent candidate, not the deployed maintenance payload in
+PR #217. That payload uses a different cycle edge and a private one-time runner.
+A pass here does not establish that the deployed payload or its live reports
+passed. Its terminal receipt and independent production readback are required.
 
 ## Five guard questions
 
