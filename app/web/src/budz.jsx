@@ -793,7 +793,7 @@ export async function budzAnswer(question) {
       })),
     };
   }
-  if (has("testing schedule", "going out and what is coming back") || (has("this week") && has("test", "testing", "coa", "lab") && !has("harvest"))) {
+  if (has("testing schedule", "going out and what is coming back")) {
     const { rows } = await sel("v_coa_register");
     const outNow = rows.filter((r) => /submitted|progress/i.test(r.lab_testing_state || "") && !/notsubmitted|passed|failed/i.test(r.lab_testing_state || ""));
     const un = rows.filter((r) => /notsubmitted/i.test(r.lab_testing_state || ""));
