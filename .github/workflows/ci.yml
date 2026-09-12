@@ -101,7 +101,7 @@ jobs:
       - name: Metrc transferred custody consumers (isolated Postgres)
         env:
           TRANSFERRED_TEST_PGURL: ${{ env.MONEY_TEST_PGURL }}
-        run: node tools/checks/gpt-transferred-consumers.test.mjs
+        run: node tools/tests/gpt-transferred-consumers.integration.mjs
 
       - name: Metrc source record verification (isolated Postgres)
         env:

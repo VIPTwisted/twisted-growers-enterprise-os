@@ -16,7 +16,7 @@ The candidate uses CREATE OR REPLACE, retaining columns, owner, grants, comments
 Native CI, adjacent to the precision-maintenance test, uses the existing PostgreSQL service:
 
 ```sh
-TRANSFERRED_TEST_PGURL=postgresql://...@localhost/... node tools/checks/gpt-transferred-consumers.test.mjs
+TRANSFERRED_TEST_PGURL=postgresql://...@localhost/... node tools/tests/gpt-transferred-consumers.integration.mjs
 ```
 
 The adapter refuses non-loopback hosts, creates a uniquely named disposable database and role, then removes them. A local embedded rehearsal is available through `TRANSFERRED_TEST_PGLITE_MODULE` pointing to an installed PGlite module; that adapter refuses to run in CI. No test depends on a scratch path.
