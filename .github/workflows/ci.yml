@@ -75,6 +75,9 @@ jobs:
         working-directory: app/web
         run: npm install --no-audit --no-fund
 
+      - name: Deployment proof rejects stale evidence and missing protections
+        run: node --test tools/tests/deployment-proof.test.mjs
+
       - name: Metrc backfill completion and recovery (isolated Postgres)
         env:
           METRC_TEST_PGURL: ${{ env.MONEY_TEST_PGURL }}

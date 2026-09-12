@@ -36,75 +36,22 @@
 import { execFileSync } from "node:child_process";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import { verifyDeployment } from "../lib/deployment-proof.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const SITE = process.env.TG_SITE_URL || "https://twisted-growers-enterprise-os.netlify.app";
-const git = (...a) => execFileSync("git", a, { cwd: ROOT, encoding: "utf8" }).trim();
+const git = (...args) => execFileSync("git", args, {
+  cwd: ROOT, encoding: "utf8", timeout: 20000, stdio: ["ignore", "pipe", "pipe"],
+}).trim();
 
-let failed = 0;
-
-try {
-  git("fetch", "-q", "origin");
-} catch { /* offline: fall back to the local ref and say so below */ }
-
-let expected = "";
-let expectedSource = "origin/main";
-try { expected = git("rev-parse", "origin/main"); }
-catch { expected = git("rev-parse", "HEAD"); expectedSource = "local HEAD (origin unreachable)"; }
-
-const res = await fetch(`${SITE}/?deploycheck=${Date.now()}`, { redirect: "follow" })
-  .catch((e) => ({ ok: false, status: 0, _err: String(e) }));
-
-if (!res.ok) {
-  console.error(`deploy-current: FAIL — the live site did not answer: ${res.status || res._err}`);
-  console.error(`   ${SITE}`);
-  console.error(`   A site that cannot be reached is not a site that is deployed.`);
-  process.exit(1);
-}
-
-const html = await res.text();
-const meta = (name) => (html.match(new RegExp(`<meta name="${name}" content="([^"]*)"`)) || [])[1] || null;
-const liveCommit = meta("tg-build-commit");
-const builtAt = meta("tg-build-at");
-
-if (!liveCommit) {
-  console.error("deploy-current: FAIL — the live site carries NO build stamp.");
-  console.error("   It is running a build made before stamping existed, so there is no way to know");
-  console.error("   which commit is serving. Deploy once from current main and this answers itself.");
-  console.error(`   expected (${expectedSource}): ${expected.slice(0, 7)}`);
-  process.exit(1);
-}
-
-const short = (s) => (s || "").slice(0, 7);
-
-if (liveCommit === "unknown") {
-  console.error("deploy-current: FAIL — the live build stamped itself 'unknown'.");
-  console.error("   The build could not read its own commit — a shallow CI checkout with no COMMIT_REF.");
-  failed++;
-} else if (liveCommit !== expected) {
-  /* Say HOW far behind, because "behind by one merge" and "behind by two days" are
-     different emergencies and the number is cheap to compute. */
-  let behind = "";
-  try {
-    const n = git("rev-list", "--count", `${liveCommit}..${expected}`);
-    behind = ` — ${n} commit(s) behind`;
-  } catch { behind = " — and the live commit is not in this repository at all"; }
-
-  console.error(`deploy-current: FAIL — the live site is NOT running ${expectedSource}${behind}.`);
-  console.error(`   live      : ${short(liveCommit)}   built ${builtAt ?? "unknown"}`);
-  console.error(`   expected  : ${short(expected)}   (${expectedSource})`);
-  console.error(`   Work that is committed and not deployed is work nobody can see. Between 9 and 11`);
-  console.error(`   Aug 2026 this state held for two days across fourteen failed builds and four`);
-  console.error(`   agents, and nothing reported it.`);
-  failed++;
-} else {
-  console.log(`deploy-current: PASS — live site is running ${short(liveCommit)}, matching ${expectedSource}.`);
-  console.log(`               built ${builtAt ?? "unknown"}`);
-}
-
-if (failed) {
-  console.error(`\ndeploy-current: ${failed} problem(s).`);
-  console.error(`Check the deploy log before assuming the push was enough:`);
-  console.error(`  npx netlify api listSiteDeploys --data '{"site_id":"<id>"}'`);
-  process.exit(1);
-}
+const result = await verifyDeployment({
+  site: SITE,
+  readExpected: () => {
+    // Explicit destination avoids stale origin/main in unusual checkout refspecs.
+    git("fetch", "-q", "origin", "+refs/heads/main:refs/remotes/origin/main");
+    return git("rev-parse", "refs/remotes/origin/main");
+  },
+});
+console.log(`deploy-current: ${result.status} — checked ${result.checkedAt}`);
+console.log(JSON.stringify(result, null, 2));
+if (result.status !== "PASS") process.exitCode = 1;

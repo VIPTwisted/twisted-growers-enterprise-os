@@ -70,7 +70,7 @@ jobs:
       # the commit. A build that has not landed in 12 minutes has not landed.
       # On the schedule and on a manual run there is nothing to wait for, so it
       # checks once and answers immediately.
-      - name: Is the live site running origin/main?
+      - name: Verify current live commit and security headers
         run: |
           if [ "${{ github.event_name }}" = "push" ]; then
             for i in $(seq 1 24); do
@@ -81,7 +81,7 @@ jobs:
               echo "Not yet — attempt $i of 24, waiting 30s."
               sleep 30
             done
-            echo "::error::Twelve minutes after the push, the live site is still not serving this commit."
+            echo "::error::Live commit and security verification did not pass within twelve minutes. Inspect the specific result below."
             node tools/checks/deploy-current.mjs
             exit 1
           else
@@ -91,7 +91,8 @@ jobs:
       - name: Say what to do about it
         if: failure()
         run: |
-          echo "::error::The live site is NOT running origin/main."
+          echo "::error::Deployment verification failed or could not obtain current evidence."
+          echo "Read the result above: origin lookup, response, build stamp, or security headers."
           echo ""
           echo "This is the state that held unnoticed for four hours on 12 Aug 2026,"
           echo "and for two days between 9 and 11 Aug across fourteen failed builds."
