@@ -69,7 +69,7 @@ export default function OsUsers({ go, session }) {
       const result = await supabase.from("app_users").update(patch).eq("user_id", user_id)
         .select("user_id,display_name,role,must_change_password").single();
       requireSavedRow(result, expected, "User update");
-      setNotice("User saved. Role change takes effect on their next page load.");
+      setNotice("User saved. Signed-in menus refresh automatically; reloading also applies the role change.");
       setErr(null);
       load();
     } catch (error) {

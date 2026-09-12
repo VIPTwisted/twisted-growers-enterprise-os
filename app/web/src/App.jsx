@@ -450,21 +450,25 @@ function usePrefs(session) {
      from this same response. */
   const [navWidth, setNavWidthState] = useState(() => Number(localStorage.getItem("tg-navw")) || 246);
   useEffect(() => {
-    if (!session) return;
+    let live = true;
+    setSaveState({ state: "idle", message: null });
+    if (!session?.user?.id) return () => { live = false; };
     supabase.from("user_settings").select("theme, sidebar_collapsed, sidebar_width")
       .eq("user_id", session.user.id).maybeSingle()
       .then(({ data, error }) => {
-        if (error) {
-          const message = `Account preferences could not be read: ${error.message}`;
-          setSaveState({ state: "failed", message });
-          announcePreferenceFailure("Account preferences", error);
-          return;
-        }
+        if (!live) return;
+        if (error) throw error;
         if (data?.theme) setThemeState(data.theme);
         if (typeof data?.sidebar_collapsed === "boolean") setCollapsedState(data.sidebar_collapsed);
         if (data?.sidebar_width) setNavWidthState(data.sidebar_width);
+      }).catch(error => {
+        if (!live) return;
+        const message = `Account preferences could not be read: ${preferenceErrorText(error)}`;
+        setSaveState({ state: "failed", message });
+        announcePreferenceFailure("Account preferences", error);
       });
-  }, [session]);
+    return () => { live = false; };
+  }, [session?.user?.id]);
   const persist = useCallback(async (patch) => {
     if (!session) return { ok: false, error: "No signed-in account is available." };
     const userId = session.user.id;
