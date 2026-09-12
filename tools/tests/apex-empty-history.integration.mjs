@@ -8,6 +8,7 @@ import pg from "pg";
 const original = readFileSync(new URL("../../supabase/migrations/20260911134123_gpt_apex_sync_source_verification.sql", import.meta.url), "utf8");
 const overlap = readFileSync(new URL("../repairs/gpt-apex-verification-paging-overlap.sql", import.meta.url), "utf8");
 const repair = readFileSync(new URL("../repairs/gpt-apex-empty-history.sql", import.meta.url), "utf8");
+const continuity = readFileSync(new URL("../../supabase/migrations/20260912044301_gpt_apex_require_continuous_history_for_records.sql", import.meta.url), "utf8");
 const companyStart = "2023-11-30T17:52:07Z";
 const receiving = "receiving-orders";
 const base = "https://app.apextrading.com/api";
@@ -53,6 +54,7 @@ test("Apex empty-history proof in isolated PostgreSQL with mocked HTTP", async t
     await client.query(`begin; ${overlap} commit;`);
     await client.query("insert into apex_entity(entity,endpoint,scope_needed,min_interval_minutes,required,delta_required) values('receiving-orders','/receiving-orders','view:receiving-orders',720,true,true),('transporter-orders','/transporter-orders','view:transporter-orders',240,false,false)");
     await client.query(`begin; ${repair}; commit;`);
+    await client.query(`begin; ${continuity} commit;`);
     const query = (s, p) => client.query(s, p);
     const result = async (s, p) => (await query(s, p)).rows[0].result;
     const reset = async () => {
@@ -94,6 +96,11 @@ test("Apex empty-history proof in isolated PostgreSQL with mocked HTTP", async t
       const body = JSON.stringify({ orders: [], meta: { total: 0, current_page: 1, last_page: 1 } });
       return result("select tg_apex_verification_page($1,$2,1,$3,$4,$5) result", [run.run_id, run.entity,
         { per_page: "2", page: "1", updated_at_from: run.request_from }, body, sha(body)]);
+    };
+    const nonemptyPage = async run => {
+      const body = JSON.stringify({ orders: [{ id: 73, updated_at: run.started_at }], meta: { total: 1, current_page: 1, last_page: 1 } });
+      return result("select tg_apex_verification_page($1,$2,1,$3,$4,$5) result", [run.run_id, run.entity,
+        { per_page: "2", page: "1", ...(run.request_from ? { updated_at_from: run.request_from } : {}) }, body, sha(body)]);
     };
 
     await t.test("proof uses exact GET scope, preserves body hashes and leaves cursor untouched", async () => {
@@ -226,6 +233,28 @@ test("Apex empty-history proof in isolated PostgreSQL with mocked HTTP", async t
       }
     });
 
+    await t.test("nonempty deltas cannot bypass history continuity or changed source context", async () => {
+      for (const mode of ["valid", "token", "account", "policy", "gap", "delta_disabled"]) {
+        await reset(); const p = await makeProof();
+        if (mode === "token") await query("update integration_secrets set value='rotated-fixture-token'");
+        if (mode === "account") await query("update apex_raw set payload=payload||'{\"id\":999}' where entity='company'");
+        if (mode === "policy") await query("update apex_entity set scope_needed='different' where entity=$1", [receiving]);
+        if (mode === "gap") await query("update apex_watermark set updated_at_from=clock_timestamp()+interval '10 minutes' where entity=$1", [receiving]);
+        if (mode === "delta_disabled") await query("update apex_entity set supports_delta=false where entity=$1", [receiving]);
+        const before = await wm(); const run = await beginSync(); await nonemptyPage(run);
+        const done = await finish(run);
+        assert.equal(done.state, mode === "valid" ? "api_verified" : "incomplete", mode);
+        if (mode === "valid") {
+          assert.equal(done.empty_history_proof_id, p.id);
+          assert.equal(Date.parse((await wm()).updated_at_from), Date.parse(run.started_at));
+        } else {
+          assert.match(done.error, /history context or cursor continuity/, mode);
+          assert.equal((await wm()).updated_at_from, before.updated_at_from, mode);
+          assert.equal(done.empty_history_proof_id, null, mode);
+        }
+      }
+    });
+
     await t.test("cadence changes do not invalidate factual history evidence", async () => {
       await reset(); const p = await makeProof(); await query("update apex_entity set min_interval_minutes=11,why='fixture cadence change' where entity=$1", [receiving]);
       const run = await beginSync(); await emptyPage(run); const done = await finish(run);
@@ -280,7 +309,7 @@ test("Apex empty-history proof in isolated PostgreSQL with mocked HTTP", async t
         assert.equal((await proof(p.id)).state, "proven_empty");
         assert.equal(await result("select count(*)::int result from apex_raw where apex_id='received-after-deploy'"), 1);
         assert.deepEqual((await snapshot()).proof, before.proof); assert.deepEqual((await snapshot()).raw, before.raw);
-      } finally { await query(repairedFinish); }
+      } finally { await query(continuity.match(/create or replace function public\.tg_apex_verification_finish\([\s\S]*?\$function\$;/i)[0]); }
     });
 
     await t.test("finished evidence is immutable and workers/browser roles cannot manufacture proof", async () => {

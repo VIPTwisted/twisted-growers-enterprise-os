@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { supabase, FUNCTIONS_URL, ANON_KEY } from "./lib/supabase.js";
-import { extProviderFromOs, viaLine, wakeTgBots, askTgBotsNow, pingTgBots, extTooOld, usableExtModel, tgBotsNewThread } from "./lib/topg-connect.js";
+import { extProviderFromOs, viaLine, wakeTgBots, askTgBotsNow, pingTgBots, extModelNow } from "./lib/topg-connect.js";
+import { wantedFormats } from "./lib/os-bot-files.js";
 
 import TgBotsPanel from "./lib/tg-bots-panel.jsx";
 import { deskForView } from "./lib/os-desk.js";
@@ -679,6 +680,35 @@ export async function budzAnswer(question) {
     };
   }
 
+  if (has("harvest") && (has("this week") || has("harvest schedule") || has("as a spreadsheet"))) {
+    const start = new Date().toISOString().slice(0, 10);
+    const end = new Date(Date.now() + 7 * 864e5).toISOString().slice(0, 10);
+    const { data, error } = await supabase
+      .from("harvest_schedule")
+      .select("harvest_date,cultivar,flower_room,projected_weight_lbs,room_cycle_flag")
+      .gte("harvest_date", start)
+      .lte("harvest_date", end)
+      .order("harvest_date")
+      .limit(80);
+    if (error) return { headline: "Harvest schedule could not be read: " + error.message, rows: [] };
+    const rows = data ?? [];
+    if (!rows.length) return none(`No harvest events on the schedule from ${start} through ${end}.`, "harvest_schedule");
+    return {
+      headline: `${rows.length} harvest event${rows.length === 1 ? "" : "s"} on the schedule from ${start} through ${end}. Planner table harvest_schedule — not a Metrc write.`,
+      rows: rows.map((r) => ({
+        harvest_date: r.harvest_date,
+        cultivar: r.cultivar ?? "",
+        flower_room: r.flower_room ?? "",
+        projected_weight_lbs: r.projected_weight_lbs ?? "",
+        room_cycle_flag: r.room_cycle_flag ?? "",
+        label: `${r.harvest_date} · ${r.cultivar || "cultivar not named"}`,
+        detail: r.flower_room || "room not named",
+        meta: r.projected_weight_lbs != null && r.projected_weight_lbs !== "" ? `${r.projected_weight_lbs} lb projected` : "",
+        drill: "harvest_schedule",
+      })),
+    };
+  }
+
   if (has("still open and how long", "open and how long", "harvests are still open")) {
     const { rows } = await sel("v_harvest_forensic");
     const open = rows
@@ -763,7 +793,7 @@ export async function budzAnswer(question) {
       })),
     };
   }
-  if (has("testing schedule", "going out and what is coming back", "this week")) {
+  if (has("testing schedule", "going out and what is coming back")) {
     const { rows } = await sel("v_coa_register");
     const outNow = rows.filter((r) => /submitted|progress/i.test(r.lab_testing_state || "") && !/notsubmitted|passed|failed/i.test(r.lab_testing_state || ""));
     const un = rows.filter((r) => /notsubmitted/i.test(r.lab_testing_state || ""));
@@ -1552,7 +1582,43 @@ async function askMeteredApi(question, history) {
    called, so both surfaces show what is known immediately and fill in the
    composed answer when it lands. Nobody waits on a model to see a number that
    was already sitting in a view. */
+async function liveWeather(question) {
+  if (!/\bweather\b|\bforecast\b|\btemperature\b|\btonight\b.*\b(ma|mass|boston)\b/i.test(question)) return null;
+  const spots = [
+    { re: /\bworcester\b/i, lat: 42.2626, lon: -71.8023, name: "Worcester" },
+    { re: /\bspringfield\b/i, lat: 42.1015, lon: -72.5898, name: "Springfield" },
+    { re: /\bpittsfield\b|\bberkshire/i, lat: 42.4501, lon: -73.2454, name: "Pittsfield" },
+    { re: /\bboston\b/i, lat: 42.3601, lon: -71.0589, name: "Boston" },
+    { re: /\bma\b|\bmass\b|massachusetts/i, lat: 42.3601, lon: -71.0589, name: "Massachusetts (Boston)" },
+  ];
+  const hit = spots.find((s) => s.re.test(question)) || { lat: 42.3601, lon: -71.0589, name: "Massachusetts (Boston)" };
+  try {
+    const hdr = { Accept: "application/geo+json" };
+    const pt = await fetch(`https://api.weather.gov/points/${hit.lat},${hit.lon}`, { headers: hdr });
+    if (!pt.ok) return null;
+    const pj = await pt.json();
+    const url = pj.properties?.forecast;
+    if (!url) return null;
+    const fc = await fetch(url, { headers: hdr });
+    if (!fc.ok) return null;
+    const fj = await fc.json();
+    const periods = (fj.properties?.periods || []).slice(0, 4);
+    if (!periods.length) return null;
+    const lines = periods.map((p) => `${p.name}: ${p.temperature}°${p.temperatureUnit} — ${p.shortForecast}. ${p.detailedForecast || ""}`.trim());
+    return `Weather for ${hit.name} (National Weather Service, live):\n\n${lines.join("\n\n")}`;
+  } catch {
+    return null;
+  }
+}
+
 export async function askBudzFull(question, history = [], { onFacts, surface = "assistant", desk } = {}) {
+  const askedAt = Date.now();
+
+  /* Weather does not wait on Grok. National Weather Service, seconds, this page. */
+  const wx = await liveWeather(question);
+  if (wx) {
+    return { headline: "", facts: [], composed: wx, via: "National Weather Service", askErr: null };
+  }
   /* MEMORY, BEFORE THE QUESTION IS ANSWERED.
 
      Wired HERE rather than in each screen, because the pet, the assistant page
@@ -1586,12 +1652,25 @@ export async function askBudzFull(question, history = [], { onFacts, surface = "
   let askErr = null;
   const log = history;
   onFacts?.(a, facts);
-  const askedAt = Date.now();
   const asked = [
     `Grok in Twisted Growers OS as ${desk?.name || "Top G"}. Answer anything. Metrc read-only. Buddy is boss.`,
     facts.length ? `Records: ${JSON.stringify({ summary: a.headline, records: facts.slice(0, 12) }).slice(0, 4000)}` : "",
     question,
   ].filter(Boolean).join("\n");
+
+  /* A file request with live rows does not wait on Grok. Spreadsheet now. */
+  const fromRecords = (() => {
+    const lines = [];
+    if (a.headline) lines.push(a.headline);
+    for (const r of facts) {
+      if (!r || typeof r !== "object") continue;
+      if (r.label) lines.push([r.label, r.detail, r.meta].filter(Boolean).join(" — "));
+    }
+    return lines.filter(Boolean).join("\n") || null;
+  })();
+  if (wantedFormats(question).length && fromRecords) {
+    return { headline: a.headline || "", facts, composed: fromRecords, via: "Live OS records", askErr: null };
+  }
 
       /* ── 1. The desktop bridge ────────────────────────────────────────────
          WHY THIS GOES THROUGH THE DATABASE AND NOT STRAIGHT TO 127.0.0.1.
@@ -1631,7 +1710,8 @@ export async function askBudzFull(question, history = [], { onFacts, surface = "
             supabase.rpc("f_ai_model_for", { p_user: uid }),
           ]);
           const extProv = extProviderFromOs(pick?.provider);
-          const pickModel = usableExtModel(bridgeModel);
+          const picked = extModelNow();
+          const pickModel = "";
 
           /* 1.3+ talks straight to the add-on. 1.2.0 does not know ASK_NOW, so
              that call returns empty and we used to stop with "Press Allow" —
@@ -1639,20 +1719,15 @@ export async function askBudzFull(question, history = [], { onFacts, surface = "
              can still type into the signed-in Grok tab. */
           const ping = await pingTgBots();
           let live = { installed: !!ping.installed, ok: false };
+          /* Always ASK_NOW. 1.2.0 refuses that message instantly. 1.3 types
+             into the signed-in tab. Never open a new Grok thread first — that
+             stole the add-on and the question sat in the queue for minutes. */
           if (ping.installed) {
-            try {
-              if (!sessionStorage.getItem("tg-bots-fresh")) {
-                await tgBotsNewThread(extProv);
-                sessionStorage.setItem("tg-bots-fresh", "1");
-              }
-            } catch { /* old thread is worse than none */ }
-          }
-          if (ping.installed && !extTooOld(ping.version)) {
             live = await askTgBotsNow(asked, { provider: extProv, model: pickModel });
           }
           if (live.installed && live.ok && live.reply && !/interrupted by the user|I DO NOT HAVE A BUILT-IN REPORT/i.test(live.reply)) {
             composed = live.reply;
-            via = viaLine(live.provider || extProv, live.model || bridgeModel);
+            via = viaLine(live.provider || extProv, picked || live.model || bridgeModel);
           }
 
           if (!composed) {
@@ -1713,16 +1788,12 @@ export async function askBudzFull(question, history = [], { onFacts, surface = "
             if (apiRace || !cfg.paid_model_enabled) return;
             apiRace = askMeteredApi(asked, log).catch(() => null);
           };
-          const deadline = Date.now() + 25000;
-          /* Owner, 8 Aug 2026: "speed is critical". Two seconds, not eight.
-             The bridge has never answered faster than 11 seconds, so in practice
-             this races almost every question - which is the point. A free answer
-             nobody waits for beats a free answer nobody sees. */
+          const deadline = Date.now() + 8000;
           const raceAt = Date.now() + 2000;
           let done = null;
           let apiWon = null;
           while (Date.now() < deadline) {
-            await new Promise((r) => setTimeout(r, 600));
+            await new Promise((r) => setTimeout(r, 300));
             if (Date.now() > raceAt) startApiRace();
             if (apiRace) {
               /* Peek without blocking: Promise.race against an already-resolved
@@ -1751,8 +1822,11 @@ export async function askBudzFull(question, history = [], { onFacts, surface = "
             askErr = /path specified/i.test(raw)
               ? "The old Windows bot stole that question. Task Manager → end node.exe, stay signed in on grok.com, ask again."
               : raw.slice(0, 250);
+          } else if (fromRecords) {
+            composed = fromRecords;
+            via = "Live OS records (Grok did not answer in time)";
           } else {
-            askErr = "TG Bots did not pick this up. Stay signed in on grok.com in another tab and ask again. If the answer says path specified, Task Manager → end node.exe."
+            askErr = "No answer in 8 seconds. Stay signed in on grok.com. Task Manager → end node.exe if it is running. Ask again.";
           }
           }
         } catch (e) {

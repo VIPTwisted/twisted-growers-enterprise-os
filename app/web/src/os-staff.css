@@ -229,6 +229,31 @@
 .osstaff-routines li span { flex: 1; min-width: 0; }
 .osstaff-routines li b { display: block; font-size: 0.8rem; }
 .osstaff-routines li i { display: block; font-style: normal; font-size: 0.7rem; color: var(--muted); }
+.osstaff-rail li {
+  display: flex;
+  align-items: center;
+  gap: 0.15rem;
+}
+.osstaff-drop {
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 0.2rem 0.4rem;
+}
+.osstaff-chain {
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+.osstaff-add button {
+  border: 1px solid var(--neon-line);
+  background: var(--neon-soft);
+  color: var(--neon);
+  border-radius: 999px;
+  padding: 0.35rem 0.8rem;
+  cursor: pointer;
+}
 .sr-only {
   position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0);
 }
@@ -263,3 +288,45 @@
   .osstaff { flex-direction: column; }
   .osstaff-rail { width: auto; border-right: 0; border-bottom: 1px solid var(--line); }
 }
+.osstaff-skills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  padding: 0.5rem 1.25rem;
+  border-bottom: 1px solid var(--line);
+}
+.osstaff-skills button {
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  color: var(--ink);
+  border-radius: 999px;
+  padding: 0.25rem 0.7rem;
+  cursor: pointer;
+  font-size: 0.75rem;
+}
+.osstaff-fleet {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--ink);
+}
+.osstaff-runs ul { list-style: none; margin: 0.3rem 0 0; padding: 0; }
+.osstaff-runs li { font-size: 0.7rem; color: var(--muted); padding: 0.15rem 0; }
+.osstaff-docs { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: 0.6rem; }
+.osstaff-docs a {
+  border: 1px solid var(--neon-line);
+  background: var(--neon-soft);
+  color: var(--neon);
+  border-radius: 999px;
+  padding: 0.3rem 0.75rem;
+  text-decoration: none;
+  font-size: 0.75rem;
+}
+.osstaff-clip {
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--ink);
+  border-radius: 999px;
+  padding: 0.4rem 0.8rem;
+  cursor: pointer;
+}
+.osstaff-main form.dropping { outline: 1px solid var(--neon-line); }

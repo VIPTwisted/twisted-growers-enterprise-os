@@ -29,6 +29,21 @@ dispatcher and worker continue to run; no site design or browser code changes.
 The API's transport `updated_at_from` parameter is retained even though the
 provided specification's parameter metadata does not mark it required.
 
+## Continuity correction on 12 September 2026
+
+PR review identified that a nonempty delta could bypass the history anchor after
+an account, credential or cursor change. Migration `20260912044301` closes that
+path for every run of a feed initialized from proven-empty history, including
+when its delta policy changes. The repository contains the exact applied SQL.
+The migration refuses function drift or active workers before replacing the
+completion function. Fixtures apply that complete migration and exercise valid
+nonempty delivery, changed credentials, account, policy, cursor gaps and disabled
+delta mode. Rejected runs keep their previous cursor and remain incomplete.
+
+The live function was already corrected when this session resumed. This update
+restores its missing migration record in Git, adds the regression cases, and
+retains the newer complete schema snapshot and all intervening frontend work.
+
 ## Acceptance boundary
 
 This proves an empty **API history population for the captured account, endpoint

@@ -1,64 +1,13 @@
 /* Command → Assistant → Staff. Grok Bots clone on the live OS.
    Live AI — same engine as Budz. Buddy on Grok stays boss. Metrc read-only. */
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { askBudzFull } from "./budz.jsx";
+import { askBudzFull, useChatFiles, ChatFiles } from "./budz.jsx";
 import TgBotsPanel from "./lib/tg-bots-panel.jsx";
 import { topGConnected } from "./lib/topg-connect.js";
+import { allBots, addCustomBot, removeCustomBot, chainOf, BUDDY } from "./lib/os-bots.js";
+import { skillsFor, dueThisMinute, dayKey, loadRuns, recordRun } from "./lib/os-bot-runtime.js";
+import { makeDocuments, wantedFormats } from "./lib/os-bot-files.js";
 import "./os-staff.css";
-
-const STAFF = [
-  { id: "topg", name: "Top G", role: "Chief of Staff", pin: true, face: "/bots/topg.gif", motion: "ring",
-    open: "tower", prompts: ["What is on fire this week?", "Research the board", "Open Command Center"],
-    job: "You talk to me for ordinary work. Buddy on Grok is the ultimate boss — I work with him." },
-  { id: "hq", name: "HQ", role: "Leadership room", pin: true, face: "/bots/command.jpg",
-    open: "dept_dash_command", prompts: ["Who is seated in HQ?", "Open Command Center"],
-    job: "Leadership only. Top G, Command, CFO, Engineer. Not a company C-suite." },
-  { id: "engineer", name: "Engineer", role: "Engineering shop", pin: true, face: "/bots/engineer.gif",
-    open: "app_secrets", prompts: ["What is wired?", "Open secrets"],
-    job: "Shared shop. Integrations, secrets. Nothing irreversible without owner yes." },
-  { id: "cfo", name: "CFO", role: "Finance shop", pin: true, face: "/bots/cfo.jpg",
-    open: "dept_dash_sales", prompts: ["Open the Apex book", "VALUE DIFFERS"],
-    job: "Money. Apex invoice is source of record. Do not blend a Metrc pound into an invoice." },
-  { id: "command", name: "Command", role: "COO", face: "/bots/command.jpg",
-    open: "dept_dash_command", prompts: ["Need-action-now", "Quiet if clean?"],
-    job: "Calendar, exceptions, operations. Auditor of desks under you." },
-  { id: "admin", name: "Admin", role: "Users & permissions", face: "/bots/admin.jpg", live: true, motion: "admin",
-    open: "permissions", prompts: ["Who can see Metrc queues?", "Open permissions"],
-    job: "People, roles, who can open which page." },
-  { id: "guard", name: "Guard", role: "Hard gate", face: "/bots/guard.jpg", live: true, motion: "ring",
-    open: "xq_metrc_exceptions", prompts: ["What is blocked on the tray?"],
-    job: "External email, bid, contract, publish stay draft until the owner says yes." },
-  { id: "apex", name: "Apex", role: "Orders, ship, receive", face: "/bots/apex.jpg", live: true, motion: "box",
-    open: "orders", prompts: ["Open the orders book", "What is in receiving?"],
-    job: "Inventory, orders, shipping, receiving. Invoice money lives in Apex." },
-  { id: "cultivation", name: "Cultivation", role: "Grow & harvest", face: "/bots/cultivation.jpg", live: true, motion: "guy",
-    open: "ops_cm", prompts: ["Harvest schedule this week", "Open C and M overlay"],
-    job: "Cultivation including harvest schedules. Room-turn rule is not changed from chat." },
-  { id: "metrc", name: "Metrc", role: "Custody & tags", face: "/bots/metrc.jpg",
-    open: "dept_dash_metrc", prompts: ["Open exception queues"],
-    job: "Custody and tags. Read only. Write instructions for the person to do in Metrc." },
-  { id: "quality", name: "Quality", role: "COA & labs",
-    open: "dept_dash_quality", prompts: ["Failed with no disposition", "COA gaps"],
-    job: "COA, labs, test status. Attach when available." },
-  { id: "manufacturing", name: "Manufacturing", role: "Finished line", face: "/bots/manufacturing.jpg", live: true, motion: "ring",
-    open: "dept_dash_mfg", prompts: ["Units this shift", "Pre-roll vs vape vs concentrate"],
-    job: "Finished goods line. Room stage is a ruling, not a Metrc write." },
-  { id: "inventory", name: "Inventory", role: "On-hand", face: "/bots/inventory.jpg", live: true, motion: "box",
-    open: "dept_dash_inventory", prompts: ["Pre-rolls on hand", "3rd party vs ours"],
-    job: "Pre-rolls, vapes, concentrates, bulk, packaged flower, third party." },
-  { id: "reports", name: "Reports", role: "As-of freeze", face: "/bots/reports.jpg", live: true, motion: "box",
-    open: "report_center", prompts: ["Open plant waste as-of", "Run every cloned report"],
-    job: "Snapshot pages declare as-of. Period bus is one page at a time. Waste only via v_waste_qty_truth." },
-  { id: "settings", name: "Settings", role: "Integrations desk", face: "/bots/settings.jpg", live: true, motion: "ring",
-    open: "settings", prompts: ["What keys are live?", "Date defaults"],
-    job: "Keys, connections, who the assistant is allowed to answer." },
-  { id: "workspace", name: "Workspace", role: "Clipboard", face: "/bots/workspace.jpg", live: true, motion: "box",
-    open: "tg_workspace", prompts: ["What is on the clipboard?", "Open my tasks"],
-    job: "TG clipboard. Custody stays in Metrc." },
-  { id: "hr", name: "HR", role: "Roster & schedules", face: "/bots/hr.jpg",
-    open: "dept_dash_hr", prompts: ["Who is on the clock?", "Production schedule this week"],
-    job: "Scheduling and zones. Production schedules. Harvest schedule is Cultivation." },
-];
 
 const WHEN_PRESETS = [
   "Weekdays at 8:00 AM",
@@ -116,23 +65,40 @@ export default function OsStaff({ go }) {
   const [topg, setTopg] = useState(() => topGConnected());
   const [routines, setRoutines] = useState(() => loadRoutines());
   const [newRoutine, setNewRoutine] = useState(false);
+  const [newBot, setNewBot] = useState(false);
+  const [bots, setBots] = useState(() => allBots());
+  const [botForm, setBotForm] = useState({ name: "", role: "", job: "", reportsTo: "topg" });
   const [form, setForm] = useState({ botId: "topg", name: "", when: WHEN_PRESETS[0], intent: "Check X. Quiet if empty." });
+  const [runs, setRuns] = useState(() => loadRuns());
   const ready = useRef(false);
   const end = useRef(null);
-  const bot = STAFF.find((s) => s.id === sel) || STAFF[0];
+  const fileRef = useRef(null);
+  const busyRef = useRef(false);
+  const sendRef = useRef(null);
+  const bag = useChatFiles("staff");
+  const bot = bots.find((s) => s.id === sel) || bots[0];
+  const line = chainOf(bot, bots);
   const needle = q.trim().toLowerCase();
   const listed = useMemo(
-    () => STAFF.filter((s) => !needle || (s.name + s.role).toLowerCase().includes(needle)),
-    [needle],
+    () => bots.filter((s) => !needle || (s.name + s.role).toLowerCase().includes(needle)),
+    [needle, bots],
   );
-  const pins = STAFF.filter((s) => s.pin);
+  const pins = bots.filter((s) => s.pin);
   const company = listed.filter((s) => !s.pin);
 
   useEffect(() => {
     const n = () => setTopg(topGConnected());
     window.addEventListener("tg-topg", n);
-    return () => window.removeEventListener("tg-topg", n);
-  }, []);
+    const fresh = () => {
+      setThread([]);
+      try { localStorage.removeItem(threadKey(sel)); } catch { /* private */ }
+    };
+    window.addEventListener("tg-bots-new-chat", fresh);
+    return () => {
+      window.removeEventListener("tg-topg", n);
+      window.removeEventListener("tg-bots-new-chat", fresh);
+    };
+  }, [sel]);
   useEffect(() => {
     ready.current = false;
     setThread(loadThread(sel));
@@ -156,33 +122,69 @@ export default function OsStaff({ go }) {
     const m = String(raw).match(/^@([a-z0-9_]+)/i);
     if (!m) return bot;
     const needle = m[1].toLowerCase();
-    return STAFF.find((s) => s.id === needle || s.name.toLowerCase() === needle) || bot;
+    return bots.find((s) => s.id === needle || s.name.toLowerCase() === needle) || bot;
   }
 
-  async function send(raw) {
+  async function send(raw, asDesk) {
     const value = (raw ?? text).trim();
-    if (!value || busy) return;
-    const desk = targetBot(value);
+    if ((!value && !bag.files.length) || busy) return;
+    const desk = asDesk || targetBot(value);
     if (desk.id !== bot.id) setSel(desk.id);
     setText("");
-    setThread((m) => [...m, { role: "user", text: value }]);
+    const attached = bag.files.map((f) => f.name);
+    setThread((m) => [...m, { role: "user", text: value || "(sent files)", files: attached }]);
     setBusy(true);
+    busyRef.current = true;
+    let uploaded = [];
+    if (attached.length) {
+      const up = await bag.upload(value);
+      uploaded = up.filter((u) => !u.error);
+      const bad = up.filter((u) => u.error);
+      if (bad.length) {
+        setThread((m) => [...m, { role: "agent", text: "Could not take " + bad.map((b) => b.name).join(", ") + ": " + bad[0].error }]);
+      }
+    }
+    if (!value) {
+      setBusy(false);
+      busyRef.current = false;
+      if (uploaded.length) {
+        setThread((m) => [...m, { role: "agent", text: "Got " + uploaded.length + " file" + (uploaded.length > 1 ? "s" : "") + ". Saved. Ask what to do with them." }]);
+      }
+      return;
+    }
+    const asked = uploaded.length
+      ? value + "\n\nAttached files: " + uploaded.map((u) => u.name).join(", ")
+      : value;
     const history = thread
       .filter((m) => m.text && !m.thinking)
       .slice(-8)
       .map((m) => ({ who: m.role === "user" ? "me" : "bot", text: m.text }));
     try {
-      const out = await askBudzFull(value, history, { surface: "staff-" + desk.id, desk });
+      const out = await askBudzFull(asked, history, { surface: "staff-" + desk.id, desk });
+      const fromLive = (out.headline && out.facts && out.facts.length)
+        ? [out.headline, ...out.facts.map((r) => [r.label, r.detail, r.meta].filter(Boolean).join(" — "))].join("\n")
+        : "";
       const body = out.composed
+        || fromLive
         || out.askErr
         || out.headline
         || `${desk.name} could not reach the live assistant. Confirm the TG Bots add-on or the desktop bridge.`;
+      const want = wantedFormats(value);
+      const docs = (out.composed || fromLive) ? makeDocuments({
+        title: desk.name + " " + value.slice(0, 48),
+        body,
+        facts: out.facts,
+        formats: want.length ? want : ["pdf", "xls", "docx", "html"],
+        download: want.length > 0,
+      }) : [];
       setThread((m) => [...m, {
         role: "agent",
         text: body,
         via: out.via || null,
         headline: out.composed && out.headline ? out.headline : null,
         open: desk.open,
+        facts: out.facts || [],
+        docs,
       }]);
     } catch (e) {
       setThread((m) => [...m, {
@@ -192,7 +194,10 @@ export default function OsStaff({ go }) {
       }]);
     }
     setBusy(false);
+    busyRef.current = false;
   }
+
+  sendRef.current = send;
 
   function addRoutine() {
     const name = form.name.trim();
@@ -210,13 +215,63 @@ export default function OsStaff({ go }) {
     setNewRoutine(false);
   }
 
+  function addBot() {
+    const r = addCustomBot(botForm);
+    if (!r.ok) return;
+    setBots(allBots());
+    setBotForm({ name: "", role: "", job: "", reportsTo: "topg" });
+    setNewBot(false);
+    setSel(r.bot.id);
+  }
+
+  function dropBot(id) {
+    removeCustomBot(id);
+    setBots(allBots());
+    if (sel === id) setSel("topg");
+  }
+
+  function runRoutine(r) {
+    const owner = bots.find((s) => s.id === r.botId);
+    if (!owner || !r.enabled) return;
+    setSel(owner.id);
+    send(r.intent, owner);
+    setRuns(recordRun({ at: new Date().toISOString(), name: r.name, botId: r.botId, how: "run" }));
+  }
+
+  useEffect(() => {
+    const tick = () => {
+      if (busyRef.current) return;
+      const now = new Date();
+      const key = dayKey(now);
+      let changed = false;
+      let fired = false;
+      const next = routines.map((r) => {
+        if (fired || !r.enabled || r.lastRunDay === key) return r;
+        if (!dueThisMinute(r.when, now)) return r;
+        const owner = bots.find((s) => s.id === r.botId);
+        if (owner) sendRef.current?.(r.intent, owner);
+        recordRun({ at: now.toISOString(), name: r.name, botId: r.botId, how: "clock" });
+        changed = true;
+        fired = true;
+        return { ...r, lastRunDay: key };
+      });
+      if (changed) {
+        persistRoutines(next);
+        setRuns(loadRuns());
+      }
+    };
+    const id = setInterval(tick, 30000);
+    tick();
+    return () => clearInterval(id);
+  }, [routines, bots]);
+
   return (
     <div className="osstaff">
       <aside className="osstaff-rail">
         <form
           onSubmit={(e) => {
             e.preventDefault();
-            const hit = STAFF.find((s) => (s.name + s.role).toLowerCase().includes(needle));
+            const hit = bots.find((s) => (s.name + s.role).toLowerCase().includes(needle));
             if (hit) setSel(hit.id);
           }}
         >
@@ -234,6 +289,8 @@ export default function OsStaff({ go }) {
             </button>
           ))}
         </div>
+        <p className="osstaff-k">Buddy · Grok Bots</p>
+        <p className="osstaff-chain">{BUDDY.name} → Top G → desks. Add a specialist when the job has a long-lived owner.</p>
         <p className="osstaff-k">Twisted Growers</p>
         <ul>
           {company.map((s) => (
@@ -245,9 +302,34 @@ export default function OsStaff({ go }) {
                   <i>{s.role}</i>
                 </span>
               </button>
+              {s.custom ? (
+                <button type="button" className="osstaff-drop" aria-label={`Remove ${s.name}`} onClick={() => dropBot(s.id)}>×</button>
+              ) : null}
             </li>
           ))}
         </ul>
+        <div className="osstaff-add">
+          <button type="button" onClick={() => setNewBot((v) => !v)}>{newBot ? "Cancel" : "Add bot"}</button>
+          {newBot ? (
+            <form className="osstaff-rform" onSubmit={(e) => { e.preventDefault(); addBot(); }}>
+              <label>Name
+                <input aria-label="Bot name" value={botForm.name} onChange={(e) => setBotForm({ ...botForm, name: e.target.value })} required />
+              </label>
+              <label>Title
+                <input aria-label="Bot title" value={botForm.role} onChange={(e) => setBotForm({ ...botForm, role: e.target.value })} placeholder="Specialist" />
+              </label>
+              <label>Reports to
+                <select aria-label="Reports to" value={botForm.reportsTo} onChange={(e) => setBotForm({ ...botForm, reportsTo: e.target.value })}>
+                  {bots.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+                </select>
+              </label>
+              <label>Job
+                <input aria-label="Bot job" value={botForm.job} onChange={(e) => setBotForm({ ...botForm, job: e.target.value })} placeholder="What this bot owns" />
+              </label>
+              <button type="submit">Save bot</button>
+            </form>
+          ) : null}
+        </div>
         <div className="osstaff-foot">
           <p className="osstaff-k">{topg ? "Bots live on this computer" : "Tap Grok, Claude, or ChatGPT above the chat"}</p>
         </div>
@@ -258,13 +340,20 @@ export default function OsStaff({ go }) {
           <Face src={bot.face} name={bot.name} live={bot.live} motion={bot.motion} size="sm" />
           <div>
             <h1>{bot.name}</h1>
-            <p>{bot.role} · Twisted Growers</p>
+            <p>{bot.role} · {line.map((n) => n.name).join(" → ")}</p>
           </div>
           {bot.open && go ? (
             <button type="button" className="osstaff-go" onClick={() => go(bot.open)}>Open desk</button>
           ) : null}
         </header>
         <TgBotsPanel compact onReady={() => setTopg(true)} />
+        {skillsFor(bot.id).length ? (
+          <div className="osstaff-skills" role="group" aria-label="Skills">
+            {skillsFor(bot.id).map((s) => (
+              <button key={s.id} type="button" onClick={() => send(s.ask, bot)}>{s.name}</button>
+            ))}
+          </div>
+        ) : null}
         <div className="osstaff-thread">
           {thread.length === 0 ? (
             <div className="osstaff-empty">
@@ -286,18 +375,39 @@ export default function OsStaff({ go }) {
                 {m.open && go ? (
                   <button type="button" onClick={() => go(m.open)}>Open in OS</button>
                 ) : null}
+                {m.docs?.length ? (
+                  <div className="osstaff-docs">
+                    {m.docs.map((d) => (
+                      <a key={d.name} href={d.url} download={d.name}>{d.kind === "xls" ? "Spreadsheet" : d.kind === "docx" ? "Word" : d.kind === "pdf" ? "PDF" : "HTML"}</a>
+                    ))}
+                  </div>
+                ) : null}
               </div>
             ))
           )}
           {busy ? <div className="osstaff-bubble"><p>Asking Grok…</p></div> : null}
           <div ref={end} />
         </div>
+        <ChatFiles bag={bag} />
         <form
           onSubmit={(e) => {
             e.preventDefault();
             send();
           }}
+          className={bag.dropping ? "dropping" : ""}
+          {...bag.dropProps}
         >
+          <input
+            ref={fileRef}
+            type="file"
+            multiple
+            aria-label="Attach any file"
+            style={{ display: "none" }}
+            onChange={(e) => { bag.add(e.target.files); e.target.value = ""; }}
+          />
+          <button type="button" className="osstaff-clip" onClick={() => fileRef.current?.click()}>
+            Attach
+          </button>
           <label className="sr-only" htmlFor="osstaff-ask">Message {bot.name}</label>
           <input
             id="osstaff-ask"
@@ -312,7 +422,12 @@ export default function OsStaff({ go }) {
       </section>
 
       <aside className="osstaff-side">
-        <p className="osstaff-k">{bot.name}&rsquo;s screen</p>
+        <p className="osstaff-k">Fleet</p>
+        <p className="osstaff-fleet">
+          {topg ? "Grok on" : "Grok idle"} · {bots.length} bots · {routines.filter((r) => r.enabled).length} routines armed
+          {runs[0] ? ` · last ${runs[0].name}` : ""}
+        </p>
+        <p className="osstaff-chain">Always-on while this OS tab is open. Not a rented cloud box. Buddy stays boss. Metrc read-only.</p>
         <div className="osstaff-screen">
           <div className="osstaff-dots" aria-hidden="true"><i /><i /><i /></div>
           <p>Live OS desk. Click Open desk to work the real page. Chat stays on this clone.</p>
@@ -325,12 +440,12 @@ export default function OsStaff({ go }) {
             <p>Routines</p>
             <button type="button" onClick={() => setNewRoutine((v) => !v)} aria-label="Create routine">+</button>
           </div>
-          <p className="osstaff-k">Any bot. Intent, not a frozen script. Quiet if empty.</p>
+          <p className="osstaff-k">Any bot. Intent, not a frozen script. Quiet if empty. Runs on the clock while this tab is open.</p>
           {newRoutine ? (
             <form className="osstaff-rform" onSubmit={(e) => { e.preventDefault(); addRoutine(); }}>
               <label>Bot
                 <select aria-label="Routine bot" value={form.botId} onChange={(e) => setForm({ ...form, botId: e.target.value })}>
-                  {STAFF.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+                  {bots.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
                 </select>
               </label>
               <label>Name
@@ -349,7 +464,7 @@ export default function OsStaff({ go }) {
           ) : null}
           <ul>
             {routines.map((r) => {
-              const owner = STAFF.find((s) => s.id === r.botId);
+              const owner = bots.find((s) => s.id === r.botId);
               return (
                 <li key={r.id}>
                   <button type="button" className="osstaff-rbot" onClick={() => setSel(r.botId)}>
@@ -362,10 +477,21 @@ export default function OsStaff({ go }) {
                   <button type="button" onClick={() => persistRoutines(routines.map((x) => x.id === r.id ? { ...x, enabled: !x.enabled } : x))}>
                     {r.enabled ? "On" : "Off"}
                   </button>
+                  <button type="button" onClick={() => runRoutine(r)}>Run</button>
                 </li>
               );
             })}
           </ul>
+          {runs.length ? (
+            <div className="osstaff-runs">
+              <p className="osstaff-k">Recent runs</p>
+              <ul>
+                {runs.slice(0, 6).map((x, i) => (
+                  <li key={x.at + i}><span>{x.name} · {x.how === "clock" ? "clock" : "run"}</span></li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
         </div>
       </aside>
     </div>

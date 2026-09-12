@@ -24,6 +24,16 @@ export const TG_BOTS_ZIP = "/tg-ai-ext.zip";
 export const TG_BOTS_NEED = "1.3.0";
 
 export const TG_BOTS_PROVIDER_KEY = "tg-bots-provider";
+export const TG_BOTS_MODEL_KEY = "tg-bots-model";
+
+/* Versions each signed-in tab usually offers. Live list from Load my versions
+   is merged on top. Empty / "current" is never sent — that opens a dead menu. */
+export const MODEL_CATALOG = {
+  grok: ["Grok 4 Heavy", "Grok 4", "Grok 3", "Grok"],
+  grokbots: ["Grok 4 Heavy", "Grok 4", "Grok"],
+  claude: ["Opus 4.1", "Sonnet 4.5", "Opus 4", "Sonnet 4", "Haiku 3.5"],
+  gpt: ["GPT-5", "GPT-5 Thinking", "o3", "GPT-4o"],
+};
 
 /* The four the add-on can drive. `grokbots` is a named Grok bot, so it also
    needs a botsUrl. Labels are what a person should see. */
@@ -74,6 +84,18 @@ export function extProviderNow() {
     if (p && PROVIDERS.some((x) => x.key === p)) return p;
   } catch { /* private mode */ }
   return "grok";
+}
+
+export function extModelNow() {
+  try { return usableExtModel(localStorage.getItem(TG_BOTS_MODEL_KEY)); } catch { return ""; }
+}
+
+export function saveExtModel(model) {
+  try {
+    const v = usableExtModel(model);
+    if (v) localStorage.setItem(TG_BOTS_MODEL_KEY, v);
+    else localStorage.removeItem(TG_BOTS_MODEL_KEY);
+  } catch { /* private mode */ }
 }
 
 export function extProviderFromOs(osProvider) {
