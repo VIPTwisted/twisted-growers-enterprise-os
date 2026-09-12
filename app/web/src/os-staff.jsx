@@ -131,8 +131,16 @@ export default function OsStaff({ go }) {
   useEffect(() => {
     const n = () => setTopg(topGConnected());
     window.addEventListener("tg-topg", n);
-    return () => window.removeEventListener("tg-topg", n);
-  }, []);
+    const fresh = () => {
+      setThread([]);
+      try { localStorage.removeItem(threadKey(sel)); } catch { /* private */ }
+    };
+    window.addEventListener("tg-bots-new-chat", fresh);
+    return () => {
+      window.removeEventListener("tg-topg", n);
+      window.removeEventListener("tg-bots-new-chat", fresh);
+    };
+  }, [sel]);
   useEffect(() => {
     ready.current = false;
     setThread(loadThread(sel));
