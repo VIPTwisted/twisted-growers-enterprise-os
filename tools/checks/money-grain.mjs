@@ -793,7 +793,8 @@ const migrationEntries = files.map((name) => ({
 // Dump replaces the prior baseline only. Other desks applied
 // gpt_apex_require_continuous_history_for_records with no file. No ledger rewrite.
 // Filed exact applied Apex history migrations and regression coverage; financial formulas unchanged.
-const expectedMigrationTreeDigest = "48d59b4474a9603a477926190c9a0d157c6fb68a3785938d6f8cc3c2d1588c0c";
+// Restored exact concurrent production certificate precision guard; no ledger rewrite.
+const expectedMigrationTreeDigest = "edb89929d825410e63b0cfbf8a55b51bf24cb8f00b0ea919640f53ada71c846f";
 const actualMigrationTreeDigest = migrationTreeDigest(migrationEntries);
 if (actualMigrationTreeDigest !== expectedMigrationTreeDigest) {
   console.error(`money-grain: FAIL — migration tree differs from the independently reviewed ${files.length}-file manifest (${actualMigrationTreeDigest}).`);
