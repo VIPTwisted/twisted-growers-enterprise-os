@@ -1,11 +1,12 @@
 /* Command → Assistant → Staff. Grok Bots clone on the live OS.
    Live AI — same engine as Budz. Buddy on Grok stays boss. Metrc read-only. */
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { askBudzFull } from "./budz.jsx";
+import { askBudzFull, useChatFiles, ChatFiles } from "./budz.jsx";
 import TgBotsPanel from "./lib/tg-bots-panel.jsx";
 import { topGConnected } from "./lib/topg-connect.js";
 import { allBots, addCustomBot, removeCustomBot, chainOf, BUDDY } from "./lib/os-bots.js";
 import { skillsFor, dueThisMinute, dayKey, loadRuns, recordRun } from "./lib/os-bot-runtime.js";
+import { makeDocuments, wantedFormats } from "./lib/os-bot-files.js";
 import "./os-staff.css";
 
 const WHEN_PRESETS = [
@@ -71,8 +72,10 @@ export default function OsStaff({ go }) {
   const [runs, setRuns] = useState(() => loadRuns());
   const ready = useRef(false);
   const end = useRef(null);
+  const fileRef = useRef(null);
   const busyRef = useRef(false);
   const sendRef = useRef(null);
+  const bag = useChatFiles("staff");
   const bot = bots.find((s) => s.id === sel) || bots[0];
   const line = chainOf(bot, bots);
   const needle = q.trim().toLowerCase();
@@ -124,29 +127,60 @@ export default function OsStaff({ go }) {
 
   async function send(raw, asDesk) {
     const value = (raw ?? text).trim();
-    if (!value || busy) return;
+    if ((!value && !bag.files.length) || busy) return;
     const desk = asDesk || targetBot(value);
     if (desk.id !== bot.id) setSel(desk.id);
     setText("");
-    setThread((m) => [...m, { role: "user", text: value }]);
+    const attached = bag.files.map((f) => f.name);
+    setThread((m) => [...m, { role: "user", text: value || "(sent files)", files: attached }]);
     setBusy(true);
     busyRef.current = true;
+    let uploaded = [];
+    if (attached.length) {
+      const up = await bag.upload(value);
+      uploaded = up.filter((u) => !u.error);
+      const bad = up.filter((u) => u.error);
+      if (bad.length) {
+        setThread((m) => [...m, { role: "agent", text: "Could not take " + bad.map((b) => b.name).join(", ") + ": " + bad[0].error }]);
+      }
+    }
+    if (!value) {
+      setBusy(false);
+      busyRef.current = false;
+      if (uploaded.length) {
+        setThread((m) => [...m, { role: "agent", text: "Got " + uploaded.length + " file" + (uploaded.length > 1 ? "s" : "") + ". Saved. Ask what to do with them." }]);
+      }
+      return;
+    }
+    const asked = uploaded.length
+      ? value + "\n\nAttached files: " + uploaded.map((u) => u.name).join(", ")
+      : value;
     const history = thread
       .filter((m) => m.text && !m.thinking)
       .slice(-8)
       .map((m) => ({ who: m.role === "user" ? "me" : "bot", text: m.text }));
     try {
-      const out = await askBudzFull(value, history, { surface: "staff-" + desk.id, desk });
+      const out = await askBudzFull(asked, history, { surface: "staff-" + desk.id, desk });
       const body = out.composed
         || out.askErr
         || out.headline
         || `${desk.name} could not reach the live assistant. Confirm the TG Bots add-on or the desktop bridge.`;
+      const want = wantedFormats(value);
+      const docs = out.composed ? makeDocuments({
+        title: desk.name + " " + value.slice(0, 48),
+        body,
+        facts: out.facts,
+        formats: want.length ? want : ["pdf", "xls", "docx", "html"],
+        download: want.length > 0,
+      }) : [];
       setThread((m) => [...m, {
         role: "agent",
         text: body,
         via: out.via || null,
         headline: out.composed && out.headline ? out.headline : null,
         open: desk.open,
+        facts: out.facts || [],
+        docs,
       }]);
     } catch (e) {
       setThread((m) => [...m, {
@@ -337,18 +371,39 @@ export default function OsStaff({ go }) {
                 {m.open && go ? (
                   <button type="button" onClick={() => go(m.open)}>Open in OS</button>
                 ) : null}
+                {m.docs?.length ? (
+                  <div className="osstaff-docs">
+                    {m.docs.map((d) => (
+                      <a key={d.name} href={d.url} download={d.name}>{d.kind === "xls" ? "Spreadsheet" : d.kind === "docx" ? "Word" : d.kind === "pdf" ? "PDF" : "HTML"}</a>
+                    ))}
+                  </div>
+                ) : null}
               </div>
             ))
           )}
           {busy ? <div className="osstaff-bubble"><p>Asking Grok…</p></div> : null}
           <div ref={end} />
         </div>
+        <ChatFiles bag={bag} />
         <form
           onSubmit={(e) => {
             e.preventDefault();
             send();
           }}
+          className={bag.dropping ? "dropping" : ""}
+          {...bag.dropProps}
         >
+          <input
+            ref={fileRef}
+            type="file"
+            multiple
+            aria-label="Attach any file"
+            style={{ display: "none" }}
+            onChange={(e) => { bag.add(e.target.files); e.target.value = ""; }}
+          />
+          <button type="button" className="osstaff-clip" onClick={() => fileRef.current?.click()}>
+            Attach
+          </button>
           <label className="sr-only" htmlFor="osstaff-ask">Message {bot.name}</label>
           <input
             id="osstaff-ask"

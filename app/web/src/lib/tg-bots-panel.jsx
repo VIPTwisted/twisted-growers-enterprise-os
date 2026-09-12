@@ -4,9 +4,9 @@
    Paid API stays off. Metrc stays read-only. */
 import React, { useEffect, useState } from "react";
 import {
-  PROVIDERS, TG_BOTS_NEED, TG_BOTS_ZIP, extProviderNow, extTooOld, pingTgBots, providerLabel,
-  pushButtonSetup, savePreferred, tgBotsModels, tgBotsNewThread, tgBotsSetModel,
-  tgBotsStatus,
+  PROVIDERS, TG_BOTS_ZIP, MODEL_CATALOG, extProviderNow, extTooOld, pingTgBots, providerLabel,
+  pushButtonSetup, savePreferred, saveExtModel, tgBotsModels, tgBotsNewThread, tgBotsSetModel,
+  tgBotsStatus, extModelNow,
 } from "./topg-connect.js";
 
 export default function TgBotsPanel({ compact = false, onReady }) {
@@ -15,7 +15,7 @@ export default function TgBotsPanel({ compact = false, onReady }) {
   const [msg, setMsg] = useState("");
   const [provider, setProvider] = useState(() => extProviderNow());
   const [models, setModels] = useState([]);
-  const [model, setModel] = useState("");
+  const [model, setModel] = useState(() => extModelNow());
   const [botsUrl, setBotsUrl] = useState("");
 
   async function refresh() {
@@ -24,10 +24,10 @@ export default function TgBotsPanel({ compact = false, onReady }) {
     const next = { installed, version: ping.version || status.version, ...(status.installed ? status : {}) };
     setSt(next);
     if (next.provider) setProvider(next.provider);
-    if (typeof next.model === "string") setModel(next.model);
+    if (typeof next.model === "string" && next.model && !model) setModel(next.model);
   }
 
-  useEffect(() => { refresh(); }, []);
+  useEffect(() => { refresh(); }, []); // eslint-disable-line react-hooks/exhaustive-deps -- ping once on mount
 
   async function tapProvider(key) {
     if (on && provider === key) {
@@ -88,13 +88,20 @@ export default function TgBotsPanel({ compact = false, onReady }) {
 
   async function pickVersion(value) {
     setModel(value);
+    saveExtModel(value);
     if (!st?.installed) return;
-    await tgBotsSetModel(provider, value);
+    const r = await tgBotsSetModel(provider, value);
+    if (r && r.ok === false) {
+      setMsg("Could not switch the tab to " + value + ". Pick it on grok.com / claude.ai / chatgpt.com. This OS will keep using that tab.");
+    } else {
+      setMsg("Using " + (value || "whatever the tab has selected") + ".");
+    }
   }
 
   const on = !!(st && st.installed && st.on);
   const installed = !!(st && st.installed);
   const old = installed && extTooOld(st.version);
+  const listed = Array.from(new Set([...(MODEL_CATALOG[provider] || []), ...models].filter(Boolean)));
 
   return (
     <div className={`tgbots${compact ? " compact" : ""}`}>
@@ -151,15 +158,17 @@ export default function TgBotsPanel({ compact = false, onReady }) {
       )}
       {installed && (
         <div className="tgbots-more">
-          <label>
-            Version
-            <select aria-label="Version" value={model} onChange={(e) => pickVersion(e.target.value)} disabled={busy}>
-              <option value="">Whatever the tab already has selected</option>
-              {models.map((m) => (
-                <option key={m} value={m}>{m}</option>
-              ))}
-            </select>
-          </label>
+          <p className="tgbots-k">Model — tap one. All of these are on your paid plan when that site offers them.</p>
+          <div className="tgbots-models" role="group" aria-label="Model">
+            <button type="button" className={!model ? "on" : ""} onClick={() => pickVersion("")}>
+              Tab default
+            </button>
+            {listed.map((m) => (
+              <button key={m} type="button" className={model === m ? "on" : ""} onClick={() => pickVersion(m)}>
+                {m}
+              </button>
+            ))}
+          </div>
           <button type="button" className="ghost" disabled={busy} onClick={loadVersions}>Load my versions</button>
           <button type="button" className="ghost" onClick={startNew}>New conversation</button>
         </div>

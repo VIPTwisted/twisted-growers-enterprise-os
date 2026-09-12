@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { supabase, FUNCTIONS_URL, ANON_KEY } from "./lib/supabase.js";
-import { extProviderFromOs, viaLine, wakeTgBots, askTgBotsNow, pingTgBots, usableExtModel } from "./lib/topg-connect.js";
+import { extProviderFromOs, viaLine, wakeTgBots, askTgBotsNow, pingTgBots, extModelNow } from "./lib/topg-connect.js";
 
 import TgBotsPanel from "./lib/tg-bots-panel.jsx";
 import { deskForView } from "./lib/os-desk.js";
@@ -1666,7 +1666,8 @@ export async function askBudzFull(question, history = [], { onFacts, surface = "
             supabase.rpc("f_ai_model_for", { p_user: uid }),
           ]);
           const extProv = extProviderFromOs(pick?.provider);
-          const pickModel = usableExtModel(bridgeModel);
+          const picked = extModelNow();
+          const pickModel = "";
 
           /* 1.3+ talks straight to the add-on. 1.2.0 does not know ASK_NOW, so
              that call returns empty and we used to stop with "Press Allow" —
@@ -1682,7 +1683,7 @@ export async function askBudzFull(question, history = [], { onFacts, surface = "
           }
           if (live.installed && live.ok && live.reply && !/interrupted by the user|I DO NOT HAVE A BUILT-IN REPORT/i.test(live.reply)) {
             composed = live.reply;
-            via = viaLine(live.provider || extProv, live.model || bridgeModel);
+            via = viaLine(live.provider || extProv, picked || live.model || bridgeModel);
           }
 
           if (!composed) {
