@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { supabase, FUNCTIONS_URL, ANON_KEY } from "./lib/supabase.js";
-import { extProviderFromOs, viaLine, wakeTgBots, askTgBotsNow, pingTgBots, extTooOld, usableExtModel } from "./lib/topg-connect.js";
+import { extProviderFromOs, viaLine, wakeTgBots, askTgBotsNow, pingTgBots, extTooOld, usableExtModel, tgBotsNewThread } from "./lib/topg-connect.js";
 
 import TgBotsPanel from "./lib/tg-bots-panel.jsx";
 import { deskForView } from "./lib/os-desk.js";
@@ -1568,12 +1568,15 @@ export async function askBudzFull(question, history = [], { onFacts, surface = "
      Failure is silent on purpose. Memory makes a good answer better; it must
      never be the reason there is no answer at all. */
   let memory = null;
-  try {
-    const { data } = await supabase.rpc("f_brain_memory_for");
-    memory = data ?? null;
-  } catch { /* answer without it rather than not at all */ }
+  const needsRecords = /\b(harvest|metrc|package|plant|invoice|apex|coa|cultiv|inventory|strain|batch|tag|lab|license|payroll|employee|dutchie|weight|room|clone|flower|trim|waste|manifest|sales|cfo|vendor|po\b)\b/i.test(question);
+  if (needsRecords) {
+    try {
+      const { data } = await supabase.rpc("f_brain_memory_for");
+      memory = data ?? null;
+    } catch { /* answer without it rather than not at all */ }
+  }
 
-  const a = await budzAnswer(question);
+  const a = needsRecords ? await budzAnswer(question) : { rows: [], headline: "" };
   const facts = a.rows ?? [];
   const cfg = await getAiCfg();
   let composed = null;
@@ -1584,19 +1587,11 @@ export async function askBudzFull(question, history = [], { onFacts, surface = "
   const log = history;
   onFacts?.(a, facts);
   const askedAt = Date.now();
-  const asked = desk?.name
-    ? [
-        `You are Grok — a full AI assistant — working inside the Twisted Growers Enterprise OS as ${desk.name}, ${desk.role}.`,
-        desk.job ? `This desk: ${desk.job}` : "",
-        "Answer ANY topic they ask: this company, cultivation, money, weather, code, strategy, IT, writing, planning, anything.",
-        "When the question is about this business, use the live records and this desk. Metrc is read-only. Apex invoice is money source of record. Do not invent a certified number.",
-        "When it is not about this business, answer as Grok normally. Collaborate. Do the work.",
-        "Buddy on Grok Bots is the ultimate boss. Top G is OS Chief of Staff. You never outrank Buddy.",
-        desk.open ? `When they need a page in this OS, send them to the live OS page for this desk.` : "",
-        "",
-        "QUESTION: " + question,
-      ].filter(Boolean).join("\n")
-    : question;
+  const asked = [
+    `Grok in Twisted Growers OS as ${desk?.name || "Top G"}. Answer anything. Metrc read-only. Buddy is boss.`,
+    facts.length ? `Records: ${JSON.stringify({ summary: a.headline, records: facts.slice(0, 12) }).slice(0, 4000)}` : "",
+    question,
+  ].filter(Boolean).join("\n");
 
       /* ── 1. The desktop bridge ────────────────────────────────────────────
          WHY THIS GOES THROUGH THE DATABASE AND NOT STRAIGHT TO 127.0.0.1.
@@ -1644,10 +1639,18 @@ export async function askBudzFull(question, history = [], { onFacts, surface = "
              can still type into the signed-in Grok tab. */
           const ping = await pingTgBots();
           let live = { installed: !!ping.installed, ok: false };
+          if (ping.installed) {
+            try {
+              if (!sessionStorage.getItem("tg-bots-fresh")) {
+                await tgBotsNewThread(extProv);
+                sessionStorage.setItem("tg-bots-fresh", "1");
+              }
+            } catch { /* old thread is worse than none */ }
+          }
           if (ping.installed && !extTooOld(ping.version)) {
             live = await askTgBotsNow(asked, { provider: extProv, model: pickModel });
           }
-          if (live.installed && live.ok && live.reply) {
+          if (live.installed && live.ok && live.reply && !/interrupted by the user|I DO NOT HAVE A BUILT-IN REPORT/i.test(live.reply)) {
             composed = live.reply;
             via = viaLine(live.provider || extProv, live.model || bridgeModel);
           }
@@ -1710,7 +1713,7 @@ export async function askBudzFull(question, history = [], { onFacts, surface = "
             if (apiRace || !cfg.paid_model_enabled) return;
             apiRace = askMeteredApi(asked, log).catch(() => null);
           };
-          const deadline = Date.now() + 150000;
+          const deadline = Date.now() + 25000;
           /* Owner, 8 Aug 2026: "speed is critical". Two seconds, not eight.
              The bridge has never answered faster than 11 seconds, so in practice
              this races almost every question - which is the point. A free answer
@@ -1740,7 +1743,7 @@ export async function askBudzFull(question, history = [], { onFacts, surface = "
             via = "Claude (API, the desktop was slower)";
           }
 
-          if (done?.status === "done" && done.answer) {
+          if (done?.status === "done" && done.answer && !/interrupted by the user|I DO NOT HAVE A BUILT-IN REPORT/i.test(done.answer)) {
             composed = done.answer;
             via = viaLine(done.provider || extProv, done.model || bridgeModel);
           } else if (done?.status === "error") {

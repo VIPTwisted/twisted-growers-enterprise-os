@@ -114,26 +114,32 @@ export function topGConnected() {
   try { return localStorage.getItem(TOPG_KEY) === "1"; } catch { return false; }
 }
 
-function sendExt(msg) {
+function sendExt(msg, timeoutMs = 4000) {
   return new Promise((resolve) => {
+    let done = false;
+    const finish = (v) => { if (!done) { done = true; resolve(v); } };
+    const t = setTimeout(() => finish({ installed: true, ok: false, error: "timed out" }), timeoutMs);
     try {
       const ext = typeof globalThis !== "undefined" ? globalThis.chrome : null;
       if (!ext || !ext.runtime || !ext.runtime.sendMessage) {
-        resolve({ installed: false });
+        clearTimeout(t);
+        finish({ installed: false });
         return;
       }
       ext.runtime.sendMessage(TG_BOTS_ID, msg, (res) => {
+        clearTimeout(t);
         const err = ext.runtime.lastError;
         if (err) {
           const m = String(err.message || err);
           const missing = /Could not establish|Receiving end does not exist/i.test(m);
-          resolve({ installed: !missing, ok: false, error: m });
+          finish({ installed: !missing, ok: false, error: m });
           return;
         }
-        resolve({ installed: true, ...(res || {}) });
+        finish({ installed: true, ...(res || {}) });
       });
     } catch {
-      resolve({ installed: false });
+      clearTimeout(t);
+      finish({ installed: false });
     }
   });
 }
@@ -171,7 +177,7 @@ export function wakeTgBots() {
 /* Direct path. The OS talks to the add-on in this browser. No queue, so the
    old Windows Claude CLI cannot steal the question. Used when the add-on is on. */
 export function askTgBotsNow(question, extra = {}) {
-  return sendExt({ type: "TG_BOTS_ASK_NOW", question, ...extra });
+  return sendExt({ type: "TG_BOTS_ASK_NOW", question, ...extra }, 90000);
 }
 
 
