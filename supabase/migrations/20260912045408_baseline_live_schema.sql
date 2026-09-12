@@ -15768,7 +15768,7 @@ begin
     into n,bad,root_hash from public.apex_record_verification r left join public.apex_raw a on a.id=r.raw_id where r.run_id=p_run and r.entity=p_entity;
   if n<>v.records_seen or bad>0 then why:=coalesce(why,'Stored record manifest no longer agrees with source evidence'); end if;
   if v.source_total is not null and n<>v.source_total then why:=coalesce(why,'Verified population differs from source total'); end if;
-  if e.supports_delta and exists(select 1 from public.apex_empty_history_proof where entity=p_entity and state='proven_empty') then
+  if exists(select 1 from public.apex_empty_history_proof where entity=p_entity and state='proven_empty') then
     begin
       history_context:=public.tg_apex_history_context(p_entity);
     exception when others then
@@ -15781,6 +15781,10 @@ begin
         where prior.entity=p_entity and prior.state='api_verified' and prior.empty_history_proof_id=h.id
          and prior.cursor_after=v.cursor_before and prior.finished_at<=v.started_at))
      order by h.finished_at desc limit 1;
+  end if;
+  if proof.id is null and
+   exists(select 1 from public.apex_empty_history_proof where entity=p_entity and state='proven_empty') then
+    why:=coalesce(why,'Apex history context or cursor continuity is unproven; cursor held');
   end if;
   if e.supports_delta and n=0 and proof.id is null and
    (not exists(select 1 from public.apex_raw where entity=p_entity)

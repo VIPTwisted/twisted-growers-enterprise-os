@@ -28,7 +28,10 @@ function linesOf(text) {
 function tableOf(facts, text) {
   const rows = Array.isArray(facts) ? facts.filter((r) => r && typeof r === "object") : [];
   if (rows.length) {
-    const keys = Object.keys(rows[0]).filter((k) => k !== "id").slice(0, 12);
+    const skip = new Set(["label", "detail", "meta", "drill", "action"]);
+    let keys = Object.keys(rows[0]).filter((k) => k !== "id" && !skip.has(k));
+    if (!keys.length) keys = Object.keys(rows[0]).filter((k) => k !== "id").slice(0, 12);
+    keys = keys.slice(0, 12);
     return {
       headers: keys,
       rows: rows.map((r) => keys.map((k) => r[k] == null ? "" : String(r[k]))),

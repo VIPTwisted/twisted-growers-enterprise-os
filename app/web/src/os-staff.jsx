@@ -161,12 +161,16 @@ export default function OsStaff({ go }) {
       .map((m) => ({ who: m.role === "user" ? "me" : "bot", text: m.text }));
     try {
       const out = await askBudzFull(asked, history, { surface: "staff-" + desk.id, desk });
+      const fromLive = (out.headline && out.facts && out.facts.length)
+        ? [out.headline, ...out.facts.map((r) => [r.label, r.detail, r.meta].filter(Boolean).join(" — "))].join("\n")
+        : "";
       const body = out.composed
+        || fromLive
         || out.askErr
         || out.headline
         || `${desk.name} could not reach the live assistant. Confirm the TG Bots add-on or the desktop bridge.`;
       const want = wantedFormats(value);
-      const docs = out.composed ? makeDocuments({
+      const docs = (out.composed || fromLive) ? makeDocuments({
         title: desk.name + " " + value.slice(0, 48),
         body,
         facts: out.facts,

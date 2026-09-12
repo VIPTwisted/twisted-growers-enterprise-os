@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { supabase, FUNCTIONS_URL, ANON_KEY } from "./lib/supabase.js";
 import { extProviderFromOs, viaLine, wakeTgBots, askTgBotsNow, pingTgBots, extModelNow } from "./lib/topg-connect.js";
+import { wantedFormats } from "./lib/os-bot-files.js";
 
 import TgBotsPanel from "./lib/tg-bots-panel.jsx";
 import { deskForView } from "./lib/os-desk.js";
@@ -679,6 +680,35 @@ export async function budzAnswer(question) {
     };
   }
 
+  if (has("harvest") && (has("this week") || has("harvest schedule") || has("as a spreadsheet"))) {
+    const start = new Date().toISOString().slice(0, 10);
+    const end = new Date(Date.now() + 7 * 864e5).toISOString().slice(0, 10);
+    const { data, error } = await supabase
+      .from("harvest_schedule")
+      .select("harvest_date,cultivar,flower_room,projected_weight_lbs,room_cycle_flag")
+      .gte("harvest_date", start)
+      .lte("harvest_date", end)
+      .order("harvest_date")
+      .limit(80);
+    if (error) return { headline: "Harvest schedule could not be read: " + error.message, rows: [] };
+    const rows = data ?? [];
+    if (!rows.length) return none(`No harvest events on the schedule from ${start} through ${end}.`, "harvest_schedule");
+    return {
+      headline: `${rows.length} harvest event${rows.length === 1 ? "" : "s"} on the schedule from ${start} through ${end}. Planner table harvest_schedule — not a Metrc write.`,
+      rows: rows.map((r) => ({
+        harvest_date: r.harvest_date,
+        cultivar: r.cultivar ?? "",
+        flower_room: r.flower_room ?? "",
+        projected_weight_lbs: r.projected_weight_lbs ?? "",
+        room_cycle_flag: r.room_cycle_flag ?? "",
+        label: `${r.harvest_date} · ${r.cultivar || "cultivar not named"}`,
+        detail: r.flower_room || "room not named",
+        meta: r.projected_weight_lbs != null && r.projected_weight_lbs !== "" ? `${r.projected_weight_lbs} lb projected` : "",
+        drill: "harvest_schedule",
+      })),
+    };
+  }
+
   if (has("still open and how long", "open and how long", "harvests are still open")) {
     const { rows } = await sel("v_harvest_forensic");
     const open = rows
@@ -763,7 +793,7 @@ export async function budzAnswer(question) {
       })),
     };
   }
-  if (has("testing schedule", "going out and what is coming back", "this week")) {
+  if (has("testing schedule", "going out and what is coming back")) {
     const { rows } = await sel("v_coa_register");
     const outNow = rows.filter((r) => /submitted|progress/i.test(r.lab_testing_state || "") && !/notsubmitted|passed|failed/i.test(r.lab_testing_state || ""));
     const un = rows.filter((r) => /notsubmitted/i.test(r.lab_testing_state || ""));
@@ -1628,6 +1658,20 @@ export async function askBudzFull(question, history = [], { onFacts, surface = "
     question,
   ].filter(Boolean).join("\n");
 
+  /* A file request with live rows does not wait on Grok. Spreadsheet now. */
+  const fromRecords = (() => {
+    const lines = [];
+    if (a.headline) lines.push(a.headline);
+    for (const r of facts) {
+      if (!r || typeof r !== "object") continue;
+      if (r.label) lines.push([r.label, r.detail, r.meta].filter(Boolean).join(" — "));
+    }
+    return lines.filter(Boolean).join("\n") || null;
+  })();
+  if (wantedFormats(question).length && fromRecords) {
+    return { headline: a.headline || "", facts, composed: fromRecords, via: "Live OS records", askErr: null };
+  }
+
       /* ── 1. The desktop bridge ────────────────────────────────────────────
          WHY THIS GOES THROUGH THE DATABASE AND NOT STRAIGHT TO 127.0.0.1.
 
@@ -1778,6 +1822,9 @@ export async function askBudzFull(question, history = [], { onFacts, surface = "
             askErr = /path specified/i.test(raw)
               ? "The old Windows bot stole that question. Task Manager → end node.exe, stay signed in on grok.com, ask again."
               : raw.slice(0, 250);
+          } else if (fromRecords) {
+            composed = fromRecords;
+            via = "Live OS records (Grok did not answer in time)";
           } else {
             askErr = "No answer in 8 seconds. Stay signed in on grok.com. Task Manager → end node.exe if it is running. Ask again.";
           }
