@@ -136,7 +136,7 @@ export function topGConnected() {
   try { return localStorage.getItem(TOPG_KEY) === "1"; } catch { return false; }
 }
 
-function sendExt(msg, timeoutMs = 4000) {
+function sendExt(msg, timeoutMs = 800) {
   return new Promise((resolve) => {
     let done = false;
     const finish = (v) => { if (!done) { done = true; resolve(v); } };
@@ -199,7 +199,7 @@ export function wakeTgBots() {
 /* Direct path. The OS talks to the add-on in this browser. No queue, so the
    old Windows Claude CLI cannot steal the question. Used when the add-on is on. */
 export function askTgBotsNow(question, extra = {}) {
-  return sendExt({ type: "TG_BOTS_ASK_NOW", question, ...extra }, 15000);
+  return sendExt({ type: "TG_BOTS_ASK_NOW", question, ...extra }, 8000);
 }
 
 

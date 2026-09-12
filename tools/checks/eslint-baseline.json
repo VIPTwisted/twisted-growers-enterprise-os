@@ -1,7 +1,7 @@
 {
-  "warnings": 12,
+  "warnings": 11,
   "byRule": {
     "react-hooks/exhaustive-deps": 8,
-    "no-empty": 4
+    "no-empty": 3
   }
 }

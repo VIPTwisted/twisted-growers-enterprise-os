@@ -170,13 +170,15 @@ export default function OsStaff({ go }) {
         || out.headline
         || `${desk.name} could not reach the live assistant. Confirm the TG Bots add-on or the desktop bridge.`;
       const want = wantedFormats(value);
-      const docs = (out.composed || fromLive) ? makeDocuments({
-        title: desk.name + " " + value.slice(0, 48),
-        body,
-        facts: out.facts,
-        formats: want.length ? want : ["pdf", "xls", "docx", "html"],
-        download: want.length > 0,
-      }) : [];
+      if (want.length && (out.composed || fromLive)) {
+        makeDocuments({
+          title: desk.name + " " + value.slice(0, 48),
+          body,
+          facts: out.facts,
+          formats: want,
+          download: true,
+        });
+      }
       setThread((m) => [...m, {
         role: "agent",
         text: body,
@@ -184,7 +186,7 @@ export default function OsStaff({ go }) {
         headline: out.composed && out.headline ? out.headline : null,
         open: desk.open,
         facts: out.facts || [],
-        docs,
+        title: desk.name + " " + value.slice(0, 48),
       }]);
     } catch (e) {
       setThread((m) => [...m, {
@@ -375,10 +377,24 @@ export default function OsStaff({ go }) {
                 {m.open && go ? (
                   <button type="button" onClick={() => go(m.open)}>Open in OS</button>
                 ) : null}
-                {m.docs?.length ? (
+                {m.role === "agent" && m.text ? (
                   <div className="osstaff-docs">
-                    {m.docs.map((d) => (
-                      <a key={d.name} href={d.url} download={d.name}>{d.kind === "xls" ? "Spreadsheet" : d.kind === "docx" ? "Word" : d.kind === "pdf" ? "PDF" : "HTML"}</a>
+                    {[["pdf", "PDF"], ["xls", "Spreadsheet"], ["docx", "Word"], ["html", "HTML"]].map(([kind, label]) => (
+                      <button
+                        key={kind}
+                        type="button"
+                        onClick={() => {
+                          makeDocuments({
+                            title: m.title || "Top G",
+                            body: m.text,
+                            facts: m.facts,
+                            formats: [kind],
+                            download: true,
+                          });
+                        }}
+                      >
+                        {label}
+                      </button>
                     ))}
                   </div>
                 ) : null}

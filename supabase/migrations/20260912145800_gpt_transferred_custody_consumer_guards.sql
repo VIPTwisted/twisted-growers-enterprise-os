@@ -1,3 +1,7 @@
+-- GROK-WHY: Already applied in production as 20260912145800 gpt_transferred_custody_consumer_guards.
+-- Another desk (PR 222) ran this. Filed here so migration-drift can pass and Top G speed can ship.
+-- Exact SQL from tools/repairs/gpt-transferred-custody-consumers.sql. No ledger rewrite. Metrc read-only.
+
 -- Local candidate: no source rows are changed. Apply atomically before any transferred-state repair.
 
 begin;
