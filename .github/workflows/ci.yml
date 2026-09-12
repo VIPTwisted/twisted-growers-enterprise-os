@@ -98,6 +98,11 @@ jobs:
           PRECISION_TEST_PGURL: ${{ env.MONEY_TEST_PGURL }}
         run: node --test tools/tests/metrc-precision-job.integration.mjs
 
+      - name: Metrc transferred custody consumers (isolated Postgres)
+        env:
+          TRANSFERRED_TEST_PGURL: ${{ env.MONEY_TEST_PGURL }}
+        run: node tools/tests/gpt-transferred-consumers.integration.mjs
+
       - name: Metrc source record verification (isolated Postgres)
         env:
           METRC_TEST_PGURL: ${{ env.MONEY_TEST_PGURL }}
