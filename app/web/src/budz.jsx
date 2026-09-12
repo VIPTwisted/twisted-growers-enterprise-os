@@ -641,14 +641,28 @@ export async function budzAnswer(question) {
      already routes correctly somewhere below. */
 
   /* ── TAGS THAT CHANGED ───────────────────────────────────────────
-     Daily floor question. Metrc does not name the employee who moved a
-     plant. Package events and room snapshots do name the tag, the event,
-     and the room. Destroyed plants name DestroyedByUserName. */
-  if (/\btags?\b/.test(t) && /\b(chang|moved|adjust|created|yesterday|who)\b/.test(t)) {
+     Package events name the tag and the event. They do not carry who.
+     WHO is on the OS adjustments desk: metrc_rpt_adjustments.adjusted_by
+     (Metrc report User — same column the tag dossier shows). Destroyed
+     plants: metrc_rpt_plants_destroyed.destroyed_by.
+     Do not scan metrc_plants.raw. Do not invent a name. */
+  if (/\btags?\b/.test(t) && /\b(chang|moved|adjust|created|yesterday|who|modif)\b/.test(t)) {
     const yest = osYesterdayNy();
-    const got = await Promise.race([
-      supabase.from("v_package_events").select("package_tag,event_date,event,lb_delta,licence,room,counterparty").eq("event_date", yest).limit(400),
-      new Promise((r) => setTimeout(() => r({ data: null, error: { message: "timed out" } }), 3000)),
+    const wantWho = /\b(who|whom|whose|modif|employee|person)\b/.test(t);
+    const timeout = (ms) => new Promise((r) => setTimeout(() => r({ data: null, error: { message: "timed out" } }), ms));
+    const [got, adjGot, deadGot] = await Promise.all([
+      Promise.race([
+        supabase.from("v_package_events").select("package_tag,event_date,event,lb_delta,licence,room,counterparty").eq("event_date", yest).limit(400),
+        timeout(3000),
+      ]),
+      Promise.race([
+        supabase.from("metrc_rpt_adjustments").select("package_tag,adjusted_on,adjusted_by,reason,note,quantity,uom,licence").eq("adjusted_on", yest).limit(400),
+        timeout(3000),
+      ]),
+      Promise.race([
+        supabase.from("metrc_rpt_plants_destroyed").select("plant_tag,destroyed_on,destroyed_by,location,destroyed_note").eq("destroyed_on", yest).limit(400),
+        timeout(3000),
+      ]),
     ]);
     const events = got?.data;
     const evErr = got?.error;
@@ -656,8 +670,64 @@ export async function budzAnswer(question) {
       return { headline: "Tag changes could not be read: " + evErr.message, rows: [] };
     }
     const ev = Array.isArray(events) ? events : [];
-    const dead = [];
+    const adj = Array.isArray(adjGot?.data) ? adjGot.data : [];
+    const dead = Array.isArray(deadGot?.data) ? deadGot.data : [];
+    const adjErr = adjGot?.error;
+    const deadErr = deadGot?.error;
+    const byWho = {};
+    adj.forEach((r) => {
+      const who = String(r.adjusted_by || "").trim() || "not recorded";
+      (byWho[who] ||= []).push(r);
+    });
+    const byDead = {};
+    dead.forEach((r) => {
+      const who = String(r.destroyed_by || "").trim() || "not recorded";
+      (byDead[who] ||= []).push(r);
+    });
+    const namedAdj = Object.keys(byWho).filter((k) => k !== "not recorded");
+    const namedDead = Object.keys(byDead).filter((k) => k !== "not recorded");
+    const whoLine = namedAdj.length
+      ? namedAdj.sort((a, b) => byWho[b].length - byWho[a].length).map((n) => `${n} (${byWho[n].length})`).join(", ")
+      : "";
+    const deadLine = namedDead.length
+      ? namedDead.sort((a, b) => byDead[b].length - byDead[a].length).map((n) => `${n} (${byDead[n].length})`).join(", ")
+      : "";
+    const unnamedAdj = (byWho["not recorded"] || []).length;
+    const createdN = ev.filter((r) => /created|consumed|shipped|received/i.test(r.event || "")).length;
     const rows = [];
+    namedAdj.sort((a, b) => byWho[b].length - byWho[a].length).forEach((who) => {
+      const list = byWho[who];
+      rows.push({
+        label: who,
+        detail: `${list.length} package adjustment${list.length === 1 ? "" : "s"} · ${list.slice(0, 3).map((r) => r.package_tag).join(" · ")}`,
+        meta: list[0]?.reason || yest,
+        drill: "rpt-adjustments",
+      });
+    });
+    namedDead.sort((a, b) => byDead[b].length - byDead[a].length).forEach((who) => {
+      const list = byDead[who];
+      rows.push({
+        label: who,
+        detail: `${list.length} plant tag${list.length === 1 ? "" : "s"} destroyed · ${list.slice(0, 3).map((r) => r.plant_tag).join(" · ")}`,
+        meta: list[0]?.location || yest,
+        drill: "metrc_rpt_plants_destroyed",
+      });
+    });
+    if (wantWho) {
+      const bits = [];
+      if (whoLine) bits.push(`Package adjustments named: ${whoLine}.`);
+      else if (adjErr) bits.push("Adjustments desk could not be read: " + adjErr.message);
+      else if (adj.length) bits.push(`${adj.length} package adjustment${adj.length === 1 ? "" : "s"} yesterday. Employee not recorded on those rows.`);
+      else bits.push("No package adjustments yesterday, so no adjusted-by name.");
+      if (unnamedAdj && whoLine) bits.push(`${unnamedAdj} adjustment${unnamedAdj === 1 ? "" : "s"} did not record an employee.`);
+      if (deadLine) bits.push(`Destroyed plants named: ${deadLine}.`);
+      else if (deadErr) bits.push("Destroyed-plants desk could not be read: " + deadErr.message);
+      if (createdN) bits.push(`${createdN} create / consume / ship / receive event${createdN === 1 ? "" : "s"} have no employee field on the OS.`);
+      return {
+        headline: `${yest} (America/New_York). ${bits.join(" ")}`,
+        rows: rows.length ? rows : [{ label: "No employee name on those tag events", detail: "metrc_rpt_adjustments.adjusted_by and metrc_rpt_plants_destroyed.destroyed_by", meta: yest, drill: "rpt-adjustments" }],
+      };
+    }
     const byEvent = {};
     ev.forEach((r) => { byEvent[r.event || "event"] = (byEvent[r.event || "event"] || 0) + 1; });
     Object.entries(byEvent).forEach(([k, n]) => {
@@ -676,19 +746,14 @@ export async function budzAnswer(question) {
         drill: "metrc_rpt_packages",
       });
     });
-    dead.slice(0, 20).forEach((r) => {
-      rows.push({
-        label: r.tag || "destroyed plant",
-        detail: r.who ? ("Destroyed by " + r.who) : "Destroyed. Metrc did not name who.",
-        meta: [r.room, r.note].filter(Boolean).join(" · "),
-        drill: "metrc_rpt_plants_destroyed",
-      });
-    });
-    if (!rows.length) {
-      return none("No package event or destroyed plant is on the record for " + yest + " (America/New_York).", "plant_history");
+    if (!rows.length && !ev.length && !adj.length && !dead.length) {
+      return none("No package event, adjustment, or destroyed plant is on the record for " + yest + " (America/New_York).", "plant_history");
     }
+    const whoBit = whoLine
+      ? ` Who adjusted: ${whoLine}.`
+      : (adj.length ? " Adjustments did not record an employee." : " No adjustments, so no adjusted-by name.");
     return {
-      headline: `${yest} (America/New_York): ${ev.length} package event${ev.length === 1 ? "" : "s"} on v_package_events. Metrc does not name the employee who moved or adjusted a tag.`,
+      headline: `${yest} (America/New_York): ${ev.length} package event${ev.length === 1 ? "" : "s"} on v_package_events.${whoBit}`,
       rows,
     };
   }
@@ -2037,12 +2102,20 @@ export async function askBudzFull(question, history = [], { onFacts, surface = "
     return { headline: "", facts: [], composed: wx, via: "National Weather Service", askErr: null };
   }
 
+  const lastBot = [...history].reverse().find((m) => m.who === "bot")?.text || "";
+  const lastMe = [...history].reverse().find((m) => m.who === "me")?.text || "";
+  const followRecords = /\b(who|why did you not|i need to know)\b/i.test(question)
+    && /\b(tag|package|harvest|adjust|v_package)\b/i.test(`${lastBot} ${lastMe}`);
   const needsRecords = /\b(harvest|metrc|package|plant|invoice|apex|coa|cultiv|inventory|strain|batch|tag|lab|license|payroll|employee|dutchie|weight|room|clone|flower|trim|waste|manifest|sales|cfo|vendor|po\b|pull this|past week|last week|\bpull\b|last \d+ days?|past \d+ days?|hr\b|roster|staff|callout|timesheet|attendance|who missed|permission|admin)\b/i.test(question)
+    || followRecords
     || !!readHumanIntent(question).lastN;
+  const lookupQ = followRecords && !/\btags?\b/i.test(question)
+    ? `${question} tags yesterday`
+    : question;
 
   const a = needsRecords
     ? await Promise.race([
-      budzAnswer(question),
+      budzAnswer(lookupQ),
       new Promise((r) => setTimeout(() => r({ rows: [], headline: "Live records took too long. Ask again." }), 5000)),
     ])
     : { rows: [], headline: "" };
