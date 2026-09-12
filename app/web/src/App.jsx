@@ -79,6 +79,7 @@ import { HOME_VIEW, useOsHistory, OsNavBtns, OsFind } from "./os-chrome.jsx";
 import OsAsk from "./os-ask.jsx";
 const CultivationDashboard = lazy(() => import("./dash-cultivation.jsx"));
 const ReportVault = lazy(() => import("./report-vault.jsx"));
+const BrandLocker = lazy(() => import("./brand-locker.jsx"));
 const AlertDrain = lazy(() => import("./alert-drain.jsx"));
 const ReportCenter = lazy(() => import("./report-center.jsx"));
 const DutchieCm = lazy(() => import("./dutchie-cm.jsx"));
@@ -12008,6 +12009,7 @@ export default function App() {
     intelligence_briefing: <IntelligenceBriefing go={setView} />,
     budz: <BudzScreen go={setView} />,
     os_staff: <OsStaff go={setView} />,
+    brand_locker: <BrandLocker session={session} />,
     os_help: <OsHelp go={setView} />,
     os_users: <OsUsers go={setView} session={session} />,
     permissions: <OsPermissions go={setView} session={session} />,

@@ -794,7 +794,9 @@ const migrationEntries = files.map((name) => ({
 // gpt_apex_require_continuous_history_for_records with no file. No ledger rewrite.
 // Recorded exact applied Apex continuity and package certification guard migrations.
 // Exact applied one-time Metrc precision migration; existing money contracts preserved.
-const expectedMigrationTreeDigest = "7bc34ff05ea8c654b8a661815987bf57d3dd46c191409d10ef7b62ff14e7ef32";
+// Re-pinned 12 Sep 2026 after brand locker + live schema dump swap. 1073 files.
+// Dump replaces the prior baseline only. Brand locker is not money. No ledger rewrite.
+const expectedMigrationTreeDigest = "96aa8fb88b05be2f48c6f5278c61131fdd806fba815a281d760973c8d2422bc5";
 const actualMigrationTreeDigest = migrationTreeDigest(migrationEntries);
 if (actualMigrationTreeDigest !== expectedMigrationTreeDigest) {
   console.error(`money-grain: FAIL — migration tree differs from the independently reviewed ${files.length}-file manifest (${actualMigrationTreeDigest}).`);

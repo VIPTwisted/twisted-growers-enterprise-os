@@ -41,6 +41,8 @@ export const OS_DESKS = {
     job: "Keys, connections, who the assistant is allowed to answer." },
   workspace: { id: "workspace", name: "Workspace", role: "Clipboard", open: "tg_workspace",
     job: "TG clipboard. Custody stays in Metrc." },
+  brand: { id: "brand", name: "Brand", role: "Marketing locker", open: "brand_locker",
+    job: "Company logos, ads, packaging, photos, video. Any file. Not Metrc." },
   hr: { id: "hr", name: "HR", role: "Roster & schedules", open: "dept_dash_hr",
     job: "Scheduling and zones. Production schedules. Harvest schedule is Cultivation." },
 };
@@ -57,6 +59,7 @@ const RULES = [
   [/secret|integrat|app_secrets/, "engineer"],
   [/permission|os_users|menu_manager/, "admin"],
   [/workspace|tg_workspace|tasks|whiteboards|planner/, "workspace"],
+  [/brand|marketing|logo|packaging/, "brand"],
   [/alert|decision|tower|ceo|facility|command|dept_dash_command/, "command"],
   [/guard|hard.?gate|xq_/, "guard"],
   [/assistant|budz|brain|os_staff/, "topg"],

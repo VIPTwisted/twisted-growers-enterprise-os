@@ -635,6 +635,91 @@ export async function budzAnswer(question) {
      order, so a loose keyword here would silently steal a question that
      already routes correctly somewhere below. */
 
+  /* ── TAGS THAT CHANGED ───────────────────────────────────────────
+     Daily floor question. Metrc does not name the employee who moved a
+     plant. Package events and room snapshots do name the tag, the event,
+     and the room. Destroyed plants name DestroyedByUserName. */
+  if (/\btags?\b/.test(t) && /\b(chang|moved|adjust|created|yesterday|who)\b/.test(t)) {
+    const yest = osYesterdayNy();
+    const prior = osDayNy(-2);
+    const [{ data: events, error: evErr }, { data: yRooms, error: yErr }, { data: pRooms }, dest] = await Promise.all([
+      supabase.from("v_package_events").select("package_tag,event_date,event,lb_delta,licence,room,counterparty").eq("event_date", yest).limit(400),
+      supabase.from("v_room_history").select("package_tag,room,record_type,strain,licence").eq("observed_on", yest).limit(8000),
+      supabase.from("v_room_history").select("package_tag,room").eq("observed_on", prior).limit(8000),
+      supabase.from("metrc_plants").select("raw").gte("raw->>DestroyedDate", yest).lt("raw->>DestroyedDate", osTodayNy()).limit(200),
+    ]);
+    if (evErr && yErr) {
+      return { headline: "Tag changes could not be read: " + (evErr.message || yErr.message), rows: [] };
+    }
+    const ev = Array.isArray(events) ? events : [];
+    const yesterdayRooms = Array.isArray(yRooms) ? yRooms : [];
+    const priorMap = new Map((Array.isArray(pRooms) ? pRooms : []).map((r) => [r.package_tag, r.room]));
+    const moved = [];
+    for (const r of yesterdayRooms) {
+      const was = priorMap.get(r.package_tag);
+      if (was !== undefined && was !== r.room) moved.push({ ...r, was });
+    }
+    const dead = [];
+    if (!dest.error && Array.isArray(dest.data)) {
+      for (const row of dest.data) {
+        const raw = row.raw || {};
+        dead.push({
+          tag: raw.Label || "",
+          who: raw.DestroyedByUserName || "",
+          room: raw.LocationName || "",
+          note: raw.DestroyedNote || "",
+        });
+      }
+    }
+    const rows = [];
+    const byEvent = {};
+    ev.forEach((r) => { byEvent[r.event || "event"] = (byEvent[r.event || "event"] || 0) + 1; });
+    Object.entries(byEvent).forEach(([k, n]) => {
+      rows.push({
+        label: `${n} package tag${n === 1 ? "" : "s"} ${k.toLowerCase()}`,
+        detail: "v_package_events · yesterday America/New_York",
+        meta: yest,
+        drill: "metrc_rpt_packages",
+      });
+    });
+    ev.slice(0, 20).forEach((r) => {
+      rows.push({
+        label: r.package_tag,
+        detail: `${r.event}${r.counterparty ? " · " + r.counterparty : ""}${r.room ? " · " + r.room : ""}${r.licence ? " · " + r.licence : ""}`,
+        meta: r.lb_delta != null ? String(r.lb_delta) + " lb" : "",
+        drill: "metrc_rpt_packages",
+      });
+    });
+    const byMove = {};
+    moved.forEach((r) => {
+      const k = (r.was || "none") + " → " + (r.room || "none");
+      byMove[k] = (byMove[k] || 0) + 1;
+    });
+    Object.entries(byMove).slice(0, 12).forEach(([k, n]) => {
+      rows.push({
+        label: `${n} tag${n === 1 ? "" : "s"} changed room`,
+        detail: k,
+        meta: "v_room_history snapshot " + prior + " vs " + yest,
+        drill: "plant_history",
+      });
+    });
+    dead.slice(0, 20).forEach((r) => {
+      rows.push({
+        label: r.tag || "destroyed plant",
+        detail: r.who ? ("Destroyed by " + r.who) : "Destroyed. Metrc did not name who.",
+        meta: [r.room, r.note].filter(Boolean).join(" · "),
+        drill: "metrc_rpt_plants_destroyed",
+      });
+    });
+    if (!rows.length) {
+      return none("No package event, room change, or destroyed plant is on the record for " + yest + " (America/New_York).", "plant_history");
+    }
+    return {
+      headline: `${yest} (America/New_York): ${ev.length} package event${ev.length === 1 ? "" : "s"} on v_package_events, ${moved.length} tag${moved.length === 1 ? "" : "s"} changed room vs ${prior} on v_room_history, ${dead.length} plant${dead.length === 1 ? "" : "s"} destroyed. Metrc does not name the employee who moved or adjusted a tag. Destroyed plants name DestroyedByUserName when Metrc has it.`,
+      rows,
+    };
+  }
+
   if (has("inventory issues", "inventory issue")) {
     const { rows } = await sel("v_inventory_alerts");
     if (!rows.length) return none("No inventory alerts are open. Nothing has been raised.", "inventory_alerts");
@@ -1529,11 +1614,12 @@ export async function budzAnswer(question) {
     };
   }
 
+  const found = await searchLiveViews(question);
+  if (found && (found.rows?.length || found.headline)) return found;
   return {
-    headline:
-      "I do not have a built-in report for that one. Send it to Claude Desktop with the button below — it reads this same database live, over the subscription the company already pays for, and it can answer anything. Nothing is billed.",
+    headline: "No live OS view matched that wording. I still answer here — this company, weather, code, stocks, writing, anything. Ask it another way, or tap Grok so the signed-in tab talks like grok.com.",
     rows: [],
-    askClaude: true,
+    askClaude: false,
   };
 }
 
@@ -1568,8 +1654,8 @@ const readProfileCache = () => {
    device. This is a person handing over one file. An assistant that confuses
    the two will refuse an upload while quoting a privacy rule that does not
    apply to it. */
-const CHAT_MAX_FILES = 10;
-const CHAT_MAX_BYTES = 100 * 1024 * 1024;
+const CHAT_MAX_FILES = 100;
+const CHAT_MAX_BYTES = Number.POSITIVE_INFINITY;
 
 export function useChatFiles(surface) {
   const [files, setFiles] = useState([]);
@@ -1585,8 +1671,8 @@ export function useChatFiles(surface) {
     /* Say what was dropped and why. Silently taking four of nine files is how
        somebody sends a partial set and believes all of it arrived. */
     const notes = [];
-    if (tooBig.length) notes.push(`${tooBig.map((f) => f.name).join(", ")} — over 100 MB, not attached.`);
-    if (incoming.length - tooBig.length > ok.length) notes.push(`Ten files at a time; the rest were not attached.`);
+    if (tooBig.length) notes.push(`${tooBig.map((f) => f.name).join(", ")} — this browser could not hold those bytes. Split the drop.`);
+    if (incoming.length - tooBig.length > ok.length) notes.push(`A hundred files at a time; drop the rest next.`);
     setWarn(notes.join(" "));
     if (ok.length) setFiles((cur) => [...cur, ...ok.map((f) => ({ name: f.name, type: f.type, size: f.size, file: f }))]);
   };
@@ -1828,6 +1914,56 @@ function realModelReply(text) {
    called, so both surfaces show what is known immediately and fill in the
    composed answer when it lands. Nobody waits on a model to see a number that
    was already sitting in a view. */
+function osTodayNy() {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York" }).format(new Date());
+}
+function osDayNy(daysBack) {
+  const [y, m, d] = osTodayNy().split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d + daysBack)).toISOString().slice(0, 10);
+}
+function osYesterdayNy() { return osDayNy(-1); }
+
+async function searchLiveViews(question) {
+  const q = String(question || "").toLowerCase();
+  const stop = new Set(["tell","what","who","the","and","for","our","you","are","was","were","this","that","they","them","then","with","from","have","been","does","did","just","like","about","please","need","want","show","list","give","full","into","over","under","than","also","some","any","all","can","could","would","should","come","came","here","there","your","mine"]);
+  const words = q.split(/[^a-z0-9]+/).filter((w) => w.length > 2 && !stop.has(w));
+  if (!words.length) return null;
+  const { data: nav, error } = await supabase
+    .from("nav_registry")
+    .select("view_key,label,table_ref,description")
+    .eq("enabled", true)
+    .limit(800);
+  if (error) return { headline: "The live page list could not be read: " + error.message, rows: [] };
+  const scored = (Array.isArray(nav) ? nav : [])
+    .filter((r) => r.table_ref && /^[a-z][a-z0-9_]*$/i.test(r.table_ref) && !r.table_ref.startsWith("f_"))
+    .map((r) => {
+      const hay = `${r.view_key} ${r.label} ${r.table_ref} ${r.description || ""}`.toLowerCase();
+      let s = 0;
+      for (const w of words) if (hay.includes(w)) s += (w.length > 4 ? 2 : 1);
+      return { ...r, s };
+    })
+    .filter((r) => r.s >= 2)
+    .sort((a, b) => b.s - a.s);
+  const hit = scored[0];
+  if (!hit) return null;
+  const { data, error: qErr } = await supabase.from(hit.table_ref).select("*").limit(40);
+  if (qErr) return { headline: `${hit.label} could not be read: ${qErr.message}`, rows: [{ label: hit.view_key, detail: qErr.message, meta: hit.table_ref, drill: hit.view_key }] };
+  const rows = Array.isArray(data) ? data : [];
+  if (!rows.length) {
+    return { headline: `No rows on ${hit.label} (${hit.table_ref}) right now.`, rows: [{ label: hit.view_key, detail: "Open that desk if you want the empty report.", meta: "", drill: hit.view_key }] };
+  }
+  const keys = Object.keys(rows[0] || {}).filter((k) => k !== "raw").slice(0, 8);
+  return {
+    headline: `${rows.length} live row${rows.length === 1 ? "" : "s"} from ${hit.label} (${hit.table_ref}). These are OS records. Not a certified number unless that desk says so.`,
+    rows: rows.slice(0, 30).map((r) => ({
+      label: String(r[keys[0]] ?? r[keys[1]] ?? hit.label),
+      detail: keys.slice(1, 4).map((k) => (r[k] != null && r[k] !== "" ? `${k} ${r[k]}` : "")).filter(Boolean).join(" · "),
+      meta: keys.slice(4, 8).map((k) => (r[k] != null && r[k] !== "" ? `${k} ${r[k]}` : "")).filter(Boolean).join(" · "),
+      drill: hit.view_key,
+    })),
+  };
+}
+
 async function liveWeather(question) {
   if (!/\bweather\b|\bforecast\b|\btemperature\b|\btonight\b.*\b(ma|mass|boston)\b/i.test(question)) return null;
   const spots = [
@@ -1930,7 +2066,7 @@ export async function askBudzFull(question, history = [], { onFacts, surface = "
   })();
 
   /* A file request with live rows does not wait on Grok. Spreadsheet now. */
-  const fromRecords = (() => {
+  const fromRecords = a.askClaude ? null : (() => {
     const lines = [];
     if (a.headline) lines.push(a.headline);
     for (const r of facts) {
@@ -1939,10 +2075,10 @@ export async function askBudzFull(question, history = [], { onFacts, surface = "
     }
     return lines.filter(Boolean).join("\n") || null;
   })();
-  const lookupOnly = fromRecords && !a.askClaude && needsRecords
-    && /\b(as a spreadsheet|spreadsheet|xlsx|excel|pdf|docx|word document|\bas html\b)\b/i.test(question)
-    && /\b(last \d+ days|past \d+ days|past week|last week|last (two|three|\d+) harvest|harvest schedule)\b/i.test(question);
-  if (lookupOnly) {
+  /* Daily OS work stays in this chat. Do not wait on grok.com and do not
+     send them to a page. Records now. Grok still answers weather, stocks,
+     code, and anything that is not already in a view. */
+  if (fromRecords && !a.askClaude && facts.length) {
     return { headline: a.headline || "", facts, composed: fromRecords, via: "Live OS records", askErr: null };
   }
 
@@ -2004,7 +2140,7 @@ export async function askBudzFull(question, history = [], { onFacts, surface = "
             composed = live.reply;
             via = viaLine(live.provider || extProv, picked || live.model || bridgeModel);
           }
-          if (!composed && /tap grok/i.test(String(live.error || ""))) {
+          if (!composed && /tap grok/i.test(String(live.error || "")) && !needsRecords) {
             composed = "Tap Grok, Claude, or ChatGPT above until that pill is green. Stay signed in on that site. No key. Then type here. Press the question mark if you want the steps.";
             via = "TG Bots";
           }
@@ -2157,8 +2293,8 @@ export async function askBudzFull(question, history = [], { onFacts, surface = "
     const hello = /^(hi|hey|hello|yo|hi there|good morning|good afternoon|howdy)[\s!.?]*$/i.test(String(question || "").trim());
     composed = fromRecords
       || (hello
-        ? "Hey. I'm Top G. Talk like grok.com — weather, harvests, money, code, anything. Tap Grok, Claude, or ChatGPT above until the pill is green so your signed-in tab answers. No key."
-        : "I heard you. Tap Grok, Claude, or ChatGPT above until the pill is green and stay signed in on that site. I can still pull live OS records — ask a harvest, Apex, weather, or anything.");
+        ? "Hey. I'm Top G. I handle this OS from chat — harvests, tags, Apex, HR, weather, code, stocks, anything. Tap Grok until the pill is green if you want grok.com in the same thread. No key."
+        : "I heard you. I work this OS from chat. Tap Grok until the pill is green for grok.com on stocks, code, and long writing. For this company, ask the question again in ordinary language and I pull the live records.");
     via = fromRecords ? "Live OS records" : (via || "Top G");
     askErr = null;
   }
