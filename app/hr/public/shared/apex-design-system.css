@@ -1,0 +1,83 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   APEXOS DESIGN SYSTEM — the enterprise UI constitution (v1).
+   ONE source of truth for grid · spacing · type · color tokens · components.
+   Loaded sitewide by the nav (after theme-lock). Pages converge onto these
+   classes so every screen is consistent — the fix for "built by different teams".
+   Rules enforced by tools/site-guardrail.sh. See docs/APEXOS_DESIGN_SYSTEM.md.
+   ═══════════════════════════════════════════════════════════════════════════ */
+:root{
+  /* color tokens — register/HR palette. NO ORANGE (status only: green/amber/red/blue). */
+  --apex-bg:#0f1419; --apex-bg2:#161b26; --apex-panel:#1a1f2e; --apex-tile:#0f1622;
+  --apex-line:#363d52; --apex-ink:#e8ecf4; --apex-muted:#8996b8;
+  --apex-primary:#00d4ff; --apex-primary2:#00e5ff;      /* tenant-skinnable */
+  --apex-success:#00e676; --apex-warning:#ffd600; --apex-danger:#ff1744; --apex-info:#00d4ff;
+  /* spacing scale (4px base) */
+  --sp-1:4px; --sp-2:8px; --sp-3:12px; --sp-4:16px; --sp-5:24px; --sp-6:32px; --sp-7:40px;
+  /* type scale */
+  --fs-h1:32px; --fs-h2:24px; --fs-h3:20px; --fs-body:14px; --fs-cap:12px; --fs-micro:10px;
+  --apex-max:1440px;
+}
+/* ── grid + shell ─────────────────────────────────────────────────────────── */
+.apex-page{max-width:var(--apex-max);margin:0 auto;padding:var(--sp-5)}
+.apex-grid{display:grid;grid-template-columns:repeat(12,1fr);gap:var(--sp-5)}
+.apex-row{display:flex;gap:var(--sp-4);flex-wrap:wrap}
+.apex-topbar{display:flex;align-items:center;justify-content:space-between;gap:var(--sp-4);
+  padding:var(--sp-3) var(--sp-5);background:rgba(10,16,28,.6);border-bottom:2px solid var(--apex-primary2)}
+.apex-topbar h1{margin:0;font-size:17px;font-weight:800;letter-spacing:.3px;color:var(--apex-ink)}
+/* filter bar (hard rule: top of every KPI page) */
+.apex-filterbar{display:flex;flex-wrap:wrap;gap:var(--sp-4);align-items:flex-end;
+  padding:var(--sp-3) var(--sp-5);background:var(--apex-bg2);border-bottom:1px solid var(--apex-line)}
+.apex-field{display:flex;flex-direction:column;gap:var(--sp-1)}
+.apex-field>label{font-size:var(--fs-micro);font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--apex-muted)}
+/* ── type ─────────────────────────────────────────────────────────────────── */
+.apex-h1{font-size:var(--fs-h1);font-weight:800;margin:0} .apex-h2{font-size:var(--fs-h2);font-weight:800;margin:0}
+.apex-h3{font-size:var(--fs-h3);font-weight:800;margin:0} .apex-cap{font-size:var(--fs-cap);color:var(--apex-muted)}
+.apex-mono{font-family:'Roboto Mono','Cascadia Mono',Consolas,monospace}   /* numbers are sacred */
+/* ── buttons ──────────────────────────────────────────────────────────────── */
+.apex-btn{background:var(--apex-panel);color:var(--apex-ink);border:1px solid var(--apex-line);
+  padding:7px 13px;font:inherit;font-weight:800;font-size:var(--fs-cap);cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;gap:6px}
+.apex-btn:hover{background:var(--apex-primary);color:#06121a;border-color:var(--apex-primary)}
+.apex-btn--primary{background:var(--apex-primary);color:#06121a;border-color:var(--apex-primary)}
+.apex-btn--ghost{background:transparent;border-color:transparent}
+.apex-btn--danger:hover{background:var(--apex-danger);border-color:var(--apex-danger);color:#fff}
+/* ── inputs / selects ─────────────────────────────────────────────────────── */
+.apex-select,.apex-input{background:var(--apex-panel);color:var(--apex-ink);border:1px solid var(--apex-line);
+  padding:7px 10px;font:inherit;min-width:160px}
+.apex-select:focus,.apex-input:focus{outline:2px solid var(--apex-primary);outline-offset:1px}
+/* ── KPI tile (title · metric(mono) · trend · risk badge · ai badge · drill) ── */
+.apex-kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:var(--sp-4)}
+@media(max-width:1100px){.apex-kpi-grid{grid-template-columns:repeat(2,1fr)}}
+.apex-kpi{background:var(--apex-panel);border:1px solid var(--apex-line);border-top:3px solid var(--apex-line);
+  padding:var(--sp-4);cursor:pointer;min-height:120px;display:flex;flex-direction:column;position:relative}
+.apex-kpi:hover{border-color:var(--apex-primary);background:#1d2334}
+.apex-kpi[data-risk="low"]{border-top-color:var(--apex-success)} .apex-kpi[data-risk="medium"]{border-top-color:var(--apex-warning)}
+.apex-kpi[data-risk="high"]{border-top-color:var(--apex-danger)} .apex-kpi[data-risk="critical"]{border-top-color:var(--apex-danger)}
+.apex-kpi .k-title{font-size:var(--fs-cap);font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:var(--apex-muted)}
+.apex-kpi .k-metric{font-size:30px;font-weight:800;margin:var(--sp-2) 0 2px;line-height:1;font-family:'Roboto Mono',Consolas,monospace}
+.apex-kpi .k-sub{font-size:var(--fs-cap);color:var(--apex-muted)}
+.apex-kpi .k-badges{margin-top:auto;display:flex;gap:6px;padding-top:var(--sp-3)}
+/* ── cards / panels ───────────────────────────────────────────────────────── */
+.apex-card,.apex-panel{background:var(--apex-panel);border:1px solid var(--apex-line)}
+.apex-card{padding:var(--sp-5)}
+.apex-panel>.p-head{padding:var(--sp-3) var(--sp-4);border-bottom:1px solid var(--apex-line);
+  font-size:13px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;display:flex;justify-content:space-between}
+/* ── badges (status only) ─────────────────────────────────────────────────── */
+.apex-badge{font-size:var(--fs-micro);font-weight:800;text-transform:uppercase;letter-spacing:.04em;padding:2px 7px;border:1px solid currentColor}
+.apex-badge--low{color:var(--apex-success)} .apex-badge--medium{color:var(--apex-warning)}
+.apex-badge--high,.apex-badge--critical{color:var(--apex-danger)} .apex-badge--info,.apex-badge--ai{color:var(--apex-info)}
+.apex-badge--none{color:var(--apex-muted)}
+/* ── tables (48px rows · right-align numbers · hover) ─────────────────────── */
+.apex-table{width:100%;border-collapse:collapse}
+.apex-table th,.apex-table td{padding:var(--sp-2) var(--sp-3);text-align:left;border-bottom:1px solid var(--apex-line);font-size:13px;height:48px}
+.apex-table th{height:56px;font-size:var(--fs-micro);text-transform:uppercase;letter-spacing:.05em;color:var(--apex-muted);background:var(--apex-tile)}
+.apex-table td.num,.apex-table th.num{text-align:right;font-family:'Roboto Mono',Consolas,monospace}
+.apex-table tr.clickable{cursor:pointer}.apex-table tr.clickable:hover{background:var(--apex-bg2)}
+.apex-pos{color:var(--apex-success)} .apex-neg{color:var(--apex-danger)} .apex-zero{color:var(--apex-muted)}
+/* ── breadcrumb (Org → Store → Register → Shift → Txn → Item) ──────────────── */
+.apex-crumbs{display:flex;gap:6px;align-items:center;font-size:var(--fs-cap);color:var(--apex-muted);padding:var(--sp-2) var(--sp-5)}
+.apex-crumbs a{color:var(--apex-primary);text-decoration:none}.apex-crumbs .sep{opacity:.5}
+/* ── tabs (max 5 · active = primary · NO source-required) ─────────────────── */
+.apex-tabs{display:flex;gap:6px;flex-wrap:wrap;padding:var(--sp-2) var(--sp-4);border-bottom:1px solid var(--apex-line)}
+.apex-tab{background:var(--apex-panel);border:1px solid var(--apex-line);color:var(--apex-ink);padding:6px 12px;cursor:pointer;font-weight:800;font-size:var(--fs-cap)}
+.apex-tab.active{background:var(--apex-primary);color:#06121a;border-color:var(--apex-primary)}
+.apex-empty{padding:var(--sp-5);text-align:center;color:var(--apex-muted)}

@@ -1,0 +1,6 @@
+# Minimal Supabase config for the HR platform so `supabase db pull` works here.
+# Live project ref: zsmdejhgdyyaakqsjhmk  (link with: supabase link --project-ref zsmdejhgdyyaakqsjhmk)
+project_id = "vip-hr-hub"
+
+[db]
+major_version = 15

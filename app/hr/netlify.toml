@@ -1,0 +1,35 @@
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+# The app is built with base /hr/ so it can sit beside the Twisted Growers OS at the same origin.
+# Files still live at the publish root, so /hr/... is mapped back onto them.
+[[redirects]]
+  from = "/hr/assets/*"
+  to = "/assets/:splat"
+  status = 200
+
+[[redirects]]
+  from = "/hr/hqdocs/*"
+  to = "/hqdocs/:splat"
+  status = 200
+
+[[redirects]]
+  from = "/hr/shared/*"
+  to = "/shared/:splat"
+  status = 200
+
+[[redirects]]
+  from = "/hr/*"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/"
+  to = "/hr/"
+  status = 301
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

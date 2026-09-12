@@ -79,6 +79,15 @@
 # was complete and correct; the redirect turned "you are running yesterday's HTML" into what
 # looked like a broken bundle. A 404 says the true thing, and lets the client detect a stale
 # module graph and reload instead of failing with a type error.
+# Human Resources lives at /hr on this domain: the HR platform (app/hr, its own Netlify site built from the
+# same repo) is proxied here so it shares the OS origin and therefore the OS sign-in. Same Supabase project,
+# schema `hr`. The OS never rewrites /hr to itself.
+[[redirects]]
+  from = "/hr/*"
+  to = "https://tg-hr.netlify.app/hr/:splat"
+  status = 200
+  force = true
+
 [[redirects]]
   from = "/assets/*"
   to = "/assets/:splat"
@@ -93,12 +102,3 @@
   for = "/index.html"
   [headers.values]
     Cache-Control = "public, max-age=0, must-revalidate"
-
-# Protect the OS from cross-origin framing, base-URL injection and plugin embeds.
-# Script and connection allowlists require a separate measured resource policy.
-[[headers]]
-  for = "/*"
-  [headers.values]
-    Content-Security-Policy = "frame-ancestors 'self'; base-uri 'self'; object-src 'none'"
-    X-Frame-Options = "SAMEORIGIN"
-    X-Content-Type-Options = "nosniff"
