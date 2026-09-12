@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { supabase, FUNCTIONS_URL, ANON_KEY } from "./lib/supabase.js";
-import { extProviderFromOs, viaLine, wakeTgBots, askTgBotsNow, pingTgBots, tgBotsStatus, extModelNow } from "./lib/topg-connect.js";
+import { extProviderFromOs, viaLine, wakeTgBots, askTgBotsNow, tgBotsStatus, extModelNow } from "./lib/topg-connect.js";
 import { CORE_BOTS } from "./lib/os-bots.js";
 
 import TgBotsPanel from "./lib/tg-bots-panel.jsx";
@@ -641,24 +641,14 @@ export async function budzAnswer(question) {
      and the room. Destroyed plants name DestroyedByUserName. */
   if (/\btags?\b/.test(t) && /\b(chang|moved|adjust|created|yesterday|who)\b/.test(t)) {
     const yest = osYesterdayNy();
-    const prior = osDayNy(-2);
-    const [{ data: events, error: evErr }, { data: yRooms, error: yErr }, { data: pRooms }, dest] = await Promise.all([
+    const [{ data: events, error: evErr }, dest] = await Promise.all([
       supabase.from("v_package_events").select("package_tag,event_date,event,lb_delta,licence,room,counterparty").eq("event_date", yest).limit(400),
-      supabase.from("v_room_history").select("package_tag,room,record_type,strain,licence").eq("observed_on", yest).limit(8000),
-      supabase.from("v_room_history").select("package_tag,room").eq("observed_on", prior).limit(8000),
-      supabase.from("metrc_plants").select("raw").gte("raw->>DestroyedDate", yest).lt("raw->>DestroyedDate", osTodayNy()).limit(200),
+      supabase.from("metrc_plants").select("raw").gte("raw->>DestroyedDate", yest).lt("raw->>DestroyedDate", osTodayNy()).limit(80),
     ]);
-    if (evErr && yErr) {
-      return { headline: "Tag changes could not be read: " + (evErr.message || yErr.message), rows: [] };
+    if (evErr) {
+      return { headline: "Tag changes could not be read: " + evErr.message, rows: [] };
     }
     const ev = Array.isArray(events) ? events : [];
-    const yesterdayRooms = Array.isArray(yRooms) ? yRooms : [];
-    const priorMap = new Map((Array.isArray(pRooms) ? pRooms : []).map((r) => [r.package_tag, r.room]));
-    const moved = [];
-    for (const r of yesterdayRooms) {
-      const was = priorMap.get(r.package_tag);
-      if (was !== undefined && was !== r.room) moved.push({ ...r, was });
-    }
     const dead = [];
     if (!dest.error && Array.isArray(dest.data)) {
       for (const row of dest.data) {
@@ -690,19 +680,6 @@ export async function budzAnswer(question) {
         drill: "metrc_rpt_packages",
       });
     });
-    const byMove = {};
-    moved.forEach((r) => {
-      const k = (r.was || "none") + " → " + (r.room || "none");
-      byMove[k] = (byMove[k] || 0) + 1;
-    });
-    Object.entries(byMove).slice(0, 12).forEach(([k, n]) => {
-      rows.push({
-        label: `${n} tag${n === 1 ? "" : "s"} changed room`,
-        detail: k,
-        meta: "v_room_history snapshot " + prior + " vs " + yest,
-        drill: "plant_history",
-      });
-    });
     dead.slice(0, 20).forEach((r) => {
       rows.push({
         label: r.tag || "destroyed plant",
@@ -712,10 +689,10 @@ export async function budzAnswer(question) {
       });
     });
     if (!rows.length) {
-      return none("No package event, room change, or destroyed plant is on the record for " + yest + " (America/New_York).", "plant_history");
+      return none("No package event or destroyed plant is on the record for " + yest + " (America/New_York).", "plant_history");
     }
     return {
-      headline: `${yest} (America/New_York): ${ev.length} package event${ev.length === 1 ? "" : "s"} on v_package_events, ${moved.length} tag${moved.length === 1 ? "" : "s"} changed room vs ${prior} on v_room_history, ${dead.length} plant${dead.length === 1 ? "" : "s"} destroyed. Metrc does not name the employee who moved or adjusted a tag. Destroyed plants name DestroyedByUserName when Metrc has it.`,
+      headline: `${yest} (America/New_York): ${ev.length} package event${ev.length === 1 ? "" : "s"} on v_package_events, ${dead.length} plant${dead.length === 1 ? "" : "s"} destroyed. Metrc does not name the employee who moved or adjusted a tag. Destroyed plants name DestroyedByUserName when Metrc has it.`,
       rows,
     };
   }
@@ -1932,7 +1909,7 @@ async function searchLiveViews(question) {
     .from("nav_registry")
     .select("view_key,label,table_ref,description")
     .eq("enabled", true)
-    .limit(800);
+    .limit(200);
   if (error) return { headline: "The live page list could not be read: " + error.message, rows: [] };
   const scored = (Array.isArray(nav) ? nav : [])
     .filter((r) => r.table_ref && /^[a-z][a-z0-9_]*$/i.test(r.table_ref) && !r.table_ref.startsWith("f_"))
@@ -2019,15 +1996,17 @@ export async function askBudzFull(question, history = [], { onFacts, surface = "
   let memory = null;
   const needsRecords = /\b(harvest|metrc|package|plant|invoice|apex|coa|cultiv|inventory|strain|batch|tag|lab|license|payroll|employee|dutchie|weight|room|clone|flower|trim|waste|manifest|sales|cfo|vendor|po\b|pull this|past week|last week|\bpull\b|last \d+ days?|past \d+ days?)\b/i.test(question)
     || !!readHumanIntent(question).lastN;
-  if (needsRecords) {
-    try {
-      const { data } = await supabase.rpc("f_brain_memory_for");
-      memory = data ?? null;
-    } catch { /* answer without it rather than not at all */ }
-  }
 
   const a = needsRecords ? await budzAnswer(question) : { rows: [], headline: "" };
   const facts = a.rows ?? [];
+  onFacts?.(a, facts);
+  const fromRecordsEarly = !a.askClaude && facts.length
+    ? [a.headline, ...facts.map((r) => [r.label, r.detail, r.meta].filter(Boolean).join(" — "))].filter(Boolean).join("\n")
+    : null;
+  if (fromRecordsEarly) {
+    return { headline: a.headline || "", facts, composed: fromRecordsEarly, via: "Live OS records", askErr: null };
+  }
+
   const cfg = await getAiCfg();
   let composed = null;
   let via = null;
@@ -2035,7 +2014,6 @@ export async function askBudzFull(question, history = [], { onFacts, surface = "
      never blank. A bare catch here once hid a total outage. */
   let askErr = null;
   const log = history;
-  onFacts?.(a, facts);
   const asked = [
     `You are Grok — a full AI assistant — working inside Twisted Growers Enterprise OS as ${desk?.name || "Top G"}, ${desk?.role || "Chief of Staff"}. Buddy on Grok Bots is the ultimate boss. You never outrank Buddy.`,
     `Work exactly as you work on grok.com. Same engagement. Same capability. Ordinary language. Typos, shorthand, half sentences. Answer what they meant. There is no required phrasing and no topic is off limits. You are not a harvest lookup and you are not limited to this OS. Weather, code, money, writing, news, strategy, IT, cultivation, anything a person would ask Grok — answer it. Collaborate. Do the work.`,
@@ -2127,13 +2105,13 @@ export async function askBudzFull(question, history = [], { onFacts, surface = "
              that call returns empty and we used to stop with "Press Allow" —
              a tab 1.2.0 never opens. Fall back to the queue and WAKE so 1.2.0
              can still type into the signed-in Grok tab. */
-          const ping = await pingTgBots();
-          const status = ping.installed ? await tgBotsStatus() : { on: false };
-          let live = { installed: !!ping.installed, ok: false, error: "" };
+          const status = await tgBotsStatus();
+          const liveReady = !!(status.installed && status.on);
+          let live = { installed: !!status.installed, ok: false, error: "" };
           const apiEarly = cfg.paid_model_enabled ? askMeteredApi(asked, log).catch(() => null) : null;
-          if (ping.installed && status.on) {
+          if (liveReady) {
             live = await askTgBotsNow(extQuestion, { provider: extProv, model: pickModel });
-          } else if (ping.installed && !status.on) {
+          } else if (status.installed && !status.on) {
             live = { installed: true, ok: false, error: "Tap Grok on Bots desk first." };
           }
           if (live.installed && live.ok && realModelReply(live.reply) && !/interrupted by the user|I DO NOT HAVE A BUILT-IN REPORT/i.test(live.reply)) {
@@ -2279,14 +2257,12 @@ export async function askBudzFull(question, history = [], { onFacts, surface = "
      an answer worth recalling: it is re-derivable in milliseconds, and filling
      the table with it would push the real answers out of the recent window. */
   if (composed) {
-    try {
-      await supabase.from("brain_conversation").insert({
-        surface, question,
-        answer: String(composed).slice(0, 20000),
-        answered_by: via,
-        seconds: Math.round((Date.now() - askedAt) / 1000),
-      });
-    } catch { /* a memory that fails to save must never break the answer */ }
+    supabase.from("brain_conversation").insert({
+      surface, question,
+      answer: String(composed).slice(0, 20000),
+      answered_by: via,
+      seconds: Math.round((Date.now() - askedAt) / 1000),
+    }).then(() => {}).catch(() => {});
   }
 
   if (!composed) {
