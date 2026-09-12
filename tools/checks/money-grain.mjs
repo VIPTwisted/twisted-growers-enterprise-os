@@ -802,7 +802,7 @@ const migrationEntries = files.map((name) => ({
 // Anonymous relation privilege repair only; no financial definitions or data changed.
 // Proposed configuration transaction; does not change money relations. Application awaits approval.
 // Also records the exact already-applied administrative tracker migration; no reapplication.
-const expectedMigrationTreeDigest = "385edfb70d0c31460d8e899a5c4b4acff9cb2c038d2431cda28f275e73d08015";
+const expectedMigrationTreeDigest = "feaf3d26e80ad14f0bb062938b00043e4d54267f256155a2edd205448ff85b4a";
 const actualMigrationTreeDigest = migrationTreeDigest(migrationEntries);
 if (actualMigrationTreeDigest !== expectedMigrationTreeDigest) {
   console.error(`money-grain: FAIL — migration tree differs from the independently reviewed ${files.length}-file manifest (${actualMigrationTreeDigest}).`);
