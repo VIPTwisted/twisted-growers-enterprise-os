@@ -800,10 +800,10 @@ const migrationEntries = files.map((name) => ({
 // gpt_transferred_custody_consumer_guards so Top G speed can pass Gates.
 // Other desk applied it. Tamper seal, not an approval of the SQL. No ledger rewrite.
 // Anonymous relation privilege repair only; no financial definitions or data changed.
-// Re-pinned 12 Sep 2026, 1075 -> 1076 files. Recorded exact applied
-// claude_tracker_todo_sheets_and_it_health so Top G chrome can pass Gates.
-// Other desk applied it. Tamper seal, not an approval of the SQL. No ledger rewrite.
-const expectedMigrationTreeDigest = "8d56bb5cb3f9c4b5189223a0c5a5165b6fe0ddb791ee63b537aa405dc3c918b3";
+// Re-pinned 12 Sep 2026 after live dump swap 492/553/30/1367 -> 494/557/30/1371.
+// Dump replaces the prior baseline only so bots can ship a real .xlsx.
+// Other desks added/dropped objects after 14:36 dump. No ledger rewrite.
+const expectedMigrationTreeDigest = "c99e8f13cc38b742ce267d366b4e164eef71f01c797aa15f005ba6da676f582d";
 const actualMigrationTreeDigest = migrationTreeDigest(migrationEntries);
 if (actualMigrationTreeDigest !== expectedMigrationTreeDigest) {
   console.error(`money-grain: FAIL — migration tree differs from the independently reviewed ${files.length}-file manifest (${actualMigrationTreeDigest}).`);
