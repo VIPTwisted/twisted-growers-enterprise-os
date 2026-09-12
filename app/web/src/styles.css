@@ -1930,6 +1930,17 @@ button.teamcard:hover { border-color: var(--neon-line); }
 .asetgrp .tgbots{padding:0;border:0;background:transparent}
 .tgbots-head{display:flex;align-items:center;gap:10px;justify-content:space-between}
 .tgbots-head strong{font-size:13px}
+.tgbots-head-right{display:flex;align-items:center;gap:8px}
+.tgbots-q{
+  width:1.5rem;height:1.5rem;border-radius:999px;border:1px solid var(--line);
+  background:transparent;color:var(--ink);cursor:pointer;font-size:13px;font-weight:700;
+  line-height:1;
+}
+.tgbots-q:hover,.tgbots-q[aria-expanded="true"]{border-color:var(--accent);color:var(--accent);background:var(--neon-soft)}
+.tgbots-howto{margin-top:10px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--surface);font-size:13px;color:var(--ink)}
+.tgbots-howto ol{margin:6px 0 0;padding-left:18px}
+.tgbots-howto li{margin:5px 0}
+.tgbots-howto a{color:var(--accent)}
 .tgbots-pill{font-size:11px;letter-spacing:.04em;text-transform:uppercase;padding:2px 8px;border-radius:999px;border:1px solid var(--line);color:var(--muted)}
 .tgbots-pill.on{color:var(--accent);border-color:var(--accent)}
 .tgbots-pill.miss{color:var(--red);border-color:var(--red)}
