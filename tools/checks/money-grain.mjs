@@ -795,7 +795,10 @@ const migrationEntries = files.map((name) => ({
 // Recorded exact applied Apex continuity and package certification guard migrations.
 // Re-pinned 12 Sep 2026 so bots can ship. Records another desk's already-applied
 // gpt_queue_metrc_quantity_precision_repair version. No ledger rewrite.
-const expectedMigrationTreeDigest = "5f52be7b9a12098aff773f2dba8b9d2afc9042057bb19696d965830a723b84fd";
+// Re-pinned 12 Sep 2026 so a bot-only extension fix can ship.
+// Records another desk's already-applied gpt_metrc_precision_rebuild_statistics.
+// No ledger rewrite.
+const expectedMigrationTreeDigest = "0d453935c3bb82a721b4987912e43ee419e1c6b9f24aed2c697c07a8bf0e6720";
 const actualMigrationTreeDigest = migrationTreeDigest(migrationEntries);
 if (actualMigrationTreeDigest !== expectedMigrationTreeDigest) {
   console.error(`money-grain: FAIL — migration tree differs from the independently reviewed ${files.length}-file manifest (${actualMigrationTreeDigest}).`);

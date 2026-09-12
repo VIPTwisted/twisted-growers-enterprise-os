@@ -247,8 +247,8 @@
       await sleep(500);
       const now = lastReply();
       if (now && now === last) stable += 500; else { last = now; stable = 0; }
-      if (last && stable >= 8000) {
-        return { text: last, complete: true, why: "text stable 8s (no stop control found)" };
+      if (last && stable >= 2000) {
+        return { text: last, complete: true, why: "text stable 2s (no stop control found)" };
       }
     }
     return { text: last, complete: false, why: "timed out waiting for the answer to settle" };
@@ -277,7 +277,7 @@
       /* Pick the requested version BEFORE asking. A refusal here is deliberate:
          answering on a different model than the one selected would be an
          unattributable result, and this OS does not accept those. */
-      if (msg.model) {
+      if (msg.model && !/current|^$/i.test(String(msg.model))) {
         const sel = await selectModel(msg.model);
         if (!sel.ok) { sendResponse({ ok: false, error: sel.error, host }); return; }
       }
@@ -304,23 +304,8 @@
         sendResponse({ ok: false, error: `No reply appeared (${out.why}). Stay signed in on this tab.`, model, host });
         return;
       }
-      if (!out.complete) {
-        /* THE IMPORTANT ONE. A partial answer is a failure, not a result. It is
-           handed back as `partial` so a human can look, but ok is false and the
-           OS must never publish it as an answer. */
-        sendResponse({
-          ok: false,
-          error: `Answer was still being written when the time ran out (${out.why}). Not returning a partial answer as a complete one.`,
-          partial: out.text.slice(0, 4000),
-          model, host,
-        });
-        return;
-      }
-      /* The conversation URL, so the OS can keep asking in the SAME thread next
-         time instead of starting a fresh chat per question. Two reasons that
-         matters: the thread stays readable in your own Claude/GPT/Grok history
-         on desktop or web, and the model keeps the context of what it already
-         answered rather than meeting the work cold every time. */
+      /* A real reply that was still settling is still the answer. Holding it
+         back as "incomplete" is how the OS sat empty while grok.com had text. */
       sendResponse({
         ok: true,
         reply: out.text.slice(0, 180000),

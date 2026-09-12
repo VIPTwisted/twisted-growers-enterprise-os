@@ -1911,6 +1911,25 @@ export async function askBudzFull(question, history = [], { onFacts, surface = "
     `QUESTION: ${question}`,
   ].filter(Boolean).join("\n");
 
+  /* What the signed-in Grok/Claude/ChatGPT tab actually sees. Their subscription,
+     no key. Their words go in as they typed them. Live records ride along only
+     when this is company work — otherwise it is the same as typing on grok.com. */
+  const extQuestion = (() => {
+    const bits = [];
+    if (facts.length) {
+      bits.push("Live Twisted Growers OS records — use these numbers, do not invent a certified figure:");
+      if (a.headline) bits.push(a.headline);
+      for (const r of facts.slice(0, 15)) {
+        if (!r || typeof r !== "object") continue;
+        const line = [r.label, r.detail, r.meta].filter(Boolean).join(" — ");
+        if (line) bits.push(line);
+      }
+      bits.push("Metrc is read-only. If this is not about this company, ignore the records and answer as you would on grok.com.");
+    }
+    bits.push(question);
+    return bits.join("\n");
+  })();
+
   /* A file request with live rows does not wait on Grok. Spreadsheet now. */
   const fromRecords = (() => {
     const lines = [];
@@ -1980,7 +1999,7 @@ export async function askBudzFull(question, history = [], { onFacts, surface = "
              empty fast and grok.com still answers. */
           const apiEarly = askMeteredApi(asked, log).catch(() => null);
           if (ping.installed) {
-            live = await askTgBotsNow(asked, { provider: extProv, model: pickModel });
+            live = await askTgBotsNow(extQuestion, { provider: extProv, model: pickModel });
           }
           if (live.installed && live.ok && live.reply && !/interrupted by the user|I DO NOT HAVE A BUILT-IN REPORT/i.test(live.reply)) {
             composed = live.reply;
