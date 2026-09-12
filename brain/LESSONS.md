@@ -306,3 +306,12 @@ loaded its rules. → Advice built on the wrong company's context. → **Open
 verify the working directory as the first message
 (`docs/handoff/00_START_NEW_CHAT.md`). The Desktop "Twisted Growers" folder is
 a deliberate decoy that only redirects.**
+# 12 September 2026 Apex continuity and interrupted handoffs
+
+A nonempty response does not prove continuous population coverage. A feed
+initialized from an empty-history proof must keep its account and cursor anchor
+for nonempty responses as well as empty ones. The PR review found the missing
+guard. On resumption, production already had the correction in migration
+20260912044301, while its source file and regression cases were absent from the
+open PR. Compare applied migration statements, live function definitions and the
+PR head before repeating a repair or treating a handoff as current state.
