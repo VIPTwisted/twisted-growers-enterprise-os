@@ -288,3 +288,26 @@
   .osstaff { flex-direction: column; }
   .osstaff-rail { width: auto; border-right: 0; border-bottom: 1px solid var(--line); }
 }
+.osstaff-skills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  padding: 0.5rem 1.25rem;
+  border-bottom: 1px solid var(--line);
+}
+.osstaff-skills button {
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  color: var(--ink);
+  border-radius: 999px;
+  padding: 0.25rem 0.7rem;
+  cursor: pointer;
+  font-size: 0.75rem;
+}
+.osstaff-fleet {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--ink);
+}
+.osstaff-runs ul { list-style: none; margin: 0.3rem 0 0; padding: 0; }
+.osstaff-runs li { font-size: 0.7rem; color: var(--muted); padding: 0.15rem 0; }
