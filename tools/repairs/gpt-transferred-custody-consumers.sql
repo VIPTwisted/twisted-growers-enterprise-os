@@ -2,12 +2,35 @@
 
 begin;
 
+set transaction isolation level read committed;
+
 set local lock_timeout = '5s';
 
 set local statement_timeout = '60s';
 
 set local search_path = public, pg_temp;
 
+-- ACCESS SHARE prevents concurrent replacement of these views while permitting
+-- ordinary writes to their recursively locked dependencies. ONLY would not stop
+-- recursive view dependency locking. Hold every lock through commit/rollback.
+lock table public.v_inventory_locator, public.v_inventory_reconciliation
+  in access share mode;
+
+do $lock_functions$
+declare locked_count integer;
+begin
+  perform oid from pg_catalog.pg_proc
+   where oid in ('public.f_stock_status(text,boolean)'::regprocedure,
+                 'public.tg_snapshot_inventory(date)'::regprocedure)
+   order by oid for update;
+  get diagnostics locked_count = row_count;
+  if locked_count <> 2 then
+    raise exception 'Expected exactly two function rows to lock, found %', locked_count;
+  end if;
+end $lock_functions$;
+
+-- Separate statement after lock acquisition: READ COMMITTED sees completed DDL
+-- that preceded our locks. No function/view attribute is changed to acquire them.
 do $preflight$ begin
 
  if md5(pg_get_functiondef('public.f_stock_status(text,boolean)'::regprocedure)) <> 'b6ad0c833ba2af5428404f0efe8458d3' then raise exception 'Definition drift: f_stock_status'; end if;

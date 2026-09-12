@@ -92,6 +92,40 @@ assert.equal((await rows('select count(*)::int n from inventory_snapshot'))[0].n
 assert.equal((await rows("select quantity::text,finished,raw->>'IsFinished' raw_finished from metrc_packages where source_state='transferred'"))[0].quantity,'10');
 // A stale or repeated migration must fail before replacing anything.
 await assert.rejects(q(fixtureMigration),/Definition drift/); await q('rollback');
+// Test the exact migration lock prefix, with a genuinely independent backend.
+// PGlite is one backend and cannot provide an honest concurrency result.
+if (embedded) console.log('SKIP: two-session DDL contention (embedded runtime; native CI runs it)');
+else {
+ const competitor=new pg.Client(db.connectionParameters);
+ await competitor.connect();
+ try {
+  await competitor.query("set lock_timeout='250ms'; set statement_timeout='5s'");
+  const lockPrefix=migration.slice(0,migration.indexOf('do $preflight$ begin'));
+  assert.ok(lockPrefix.includes('for update') && lockPrefix.includes('access share mode'));
+  for (const target of ['function','view']) for (const release of ['rollback','commit']) {
+   const definitionQuery=target==='function'
+    ? "select pg_get_functiondef('public.f_stock_status(text,boolean)'::regprocedure) definition"
+    : "select pg_get_viewdef('public.v_inventory_locator'::regclass,true) definition";
+   const [{definition}]=await rows(definitionQuery);
+   const originalDDL=target==='function'?definition:`create or replace view public.v_inventory_locator with(security_invoker=true) as ${definition}`;
+   const replacement=target==='function'
+    ?originalDDL.replace('Transferred — accepted by recipient','Competing transfer label')
+    :originalDDL.replace("'State conflict'::text","'Competing state conflict'::text");
+   assert.notEqual(replacement,originalDDL,'competitor must attempt an actual change');
+   await q(lockPrefix);
+   try {
+    await assert.rejects(competitor.query(replacement),e=>e.code==='55P03','competing DDL must time out on our transaction locks');
+    assert.equal((await rows(definitionQuery))[0].definition,definition,'blocked competitor cannot change definition during preflight window');
+    await q(release);
+    // Retrying after either termination path proves locks were released.
+    await competitor.query(replacement);
+    assert.notEqual((await rows(definitionQuery))[0].definition,definition,'competitor proceeds after lock release');
+    await q(originalDDL);
+   } finally {await q('rollback');}
+  }
+  console.log('PASS: native function/view replacements blocked during lock window and released after both rollback and commit');
+ } finally {await competitor.end();}
+}
 console.log('PASS: actual four revised consumers, original defect controls, licence grain, state exclusions, retained conflicts, hold/failure cases, snapshot, security preservation, definition-drift refusal');
 } catch (error) {console.error(error.message); process.exitCode=1;} finally {
  if(embedded) await embedded.close();

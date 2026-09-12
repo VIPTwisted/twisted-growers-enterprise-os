@@ -9,7 +9,7 @@ This local candidate changes four consumers before a separately guarded mirror s
 - `v_inventory_reconciliation` limits held quantities and hold warnings to active/on-hold states. Transferred-only history is explicitly not verified. Existing mixed-unit aggregation and the general fallback for other states remain outside this repair.
 - `v_inventory_locator` excludes transferred records from its unknown-state conflict branch; legitimate inactive/unknown conflicts remain visible. Both revised views preserve licence-plus-tag grain, including source/destination rows with identical tags.
 
-The candidate uses CREATE OR REPLACE, retaining columns, owner, grants, comments and function security settings. Both views explicitly retain their existing security_invoker setting. Preflight hashes reject unexpected live definition drift before any replacement. Deployment must serialize DDL; preflight alone is not a concurrent-DDL lock. No dependency is dropped or rebuilt and no package row is changed.
+The candidate uses CREATE OR REPLACE, retaining columns, owner, grants, comments and function security settings. Both views explicitly retain their existing security_invoker setting. Preflight hashes reject unexpected live definition drift before any replacement. Before preflight, the READ COMMITTED transaction obtains ACCESS SHARE locks on both views and FOR UPDATE locks on exactly the two pg_proc rows, in OID order. A separate preflight statement then sees any preceding committed DDL. No same-value ALTER is used to acquire a lock. The locks remain through commit/rollback; view dependencies receive recursive ACCESS SHARE locks, permitting ordinary data writes. Concurrent DDL can cause a timeout/deadlock, which must abort the entire migration; never proceed without the locks. This does not prevent a later deployment after commit. No dependency is dropped or rebuilt and no package row is changed.
 
 ## Verification
 
@@ -29,8 +29,9 @@ The test installs the original live definitions over typed dependency stand-ins,
 - Exact preservation of every package field immediately across the migration.
 - View owners, ACLs, options and comments; function owners, ACLs, security mode, search path, volatility, parallel setting and comments.
 - Explicit transfer labelling and refusal of a repeated/drifted migration.
+- Native-only independent-backend function and view replacement attempts: both time out while the exact migration lock prefix is held, cannot change definitions, then succeed after either rollback or commit. The test restores each fixture definition afterwards.
 
-Only expected view preflight hashes are rebound to the disposable fixture catalog, because stand-in dependency types alter PostgreSQL deparsing. Revised bodies and function preflights execute unchanged. Local PGlite verification passes; the native adapter is wired to CI but must pass there before release.
+Only expected view preflight hashes are rebound to the disposable fixture catalog, because stand-in dependency types alter PostgreSQL deparsing. Revised bodies and function preflights execute unchanged. Local PGlite verification passes and explicitly skips only the two-session contention cases, because it has one backend. Earlier native semantic CI passed; the new native contention cases must pass CI before release.
 
 ## Remaining scope
 
