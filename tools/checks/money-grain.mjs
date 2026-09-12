@@ -792,9 +792,8 @@ const migrationEntries = files.map((name) => ({
 // Re-pinned 12 Sep 2026 so a bot-only harvest-spreadsheet fix can ship.
 // Dump replaces the prior baseline only. Other desks applied
 // gpt_apex_require_continuous_history_for_records with no file. No ledger rewrite.
-// Filed exact applied Apex history migrations and regression coverage; financial formulas unchanged.
-// Restored exact concurrent production certificate precision guard; no ledger rewrite.
-const expectedMigrationTreeDigest = "edb89929d825410e63b0cfbf8a55b51bf24cb8f00b0ea919640f53ada71c846f";
+// Recorded exact applied Apex continuity and package certification guard migrations.
+const expectedMigrationTreeDigest = "013b1d45a4fe5b21bb94ceb12d0dd9524cf48d3452f753eed9dd06871306af2f";
 const actualMigrationTreeDigest = migrationTreeDigest(migrationEntries);
 if (actualMigrationTreeDigest !== expectedMigrationTreeDigest) {
   console.error(`money-grain: FAIL — migration tree differs from the independently reviewed ${files.length}-file manifest (${actualMigrationTreeDigest}).`);

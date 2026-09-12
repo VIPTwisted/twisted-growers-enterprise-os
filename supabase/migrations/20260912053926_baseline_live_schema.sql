@@ -9133,10 +9133,13 @@ begin
   if e is null then
     return query select 'WARN', 'no export digest', 'No Packages Inventory export has been digested for '||p_license||'.'; return;
   end if;
+  if coalesce(e.digests->>'per_tag','') not like '%qty(4dp)%' then
+    return query select 'FAIL', 'digest at wrong precision', 'The latest export digest for '||p_license||' was hashed at '||coalesce(e.digests->>'per_tag','?')||'. Only a four-decimal digest can certify quantity. Re-digest the export.'; return;
+  end if;
   win_start := coalesce((e.digests->>'window_start')::date, e.as_of - 729);
   with m as (
     select p.tag,
-           md5(p.tag||'|'||to_char(p.quantity,'FM9999999990.000')||'|'||coalesce(p.uom,'')||'|'||coalesce(p.lab_testing_state,'')||'|'||coalesce(p.location,'')||'|'||coalesce(p.item_name,'')) as h,
+           md5(p.tag||'|'||to_char(p.quantity,'FM9999999990.0000')||'|'||coalesce(p.uom,'')||'|'||coalesce(p.lab_testing_state,'')||'|'||coalesce(p.location,'')||'|'||coalesce(p.item_name,'')) as h,
            (p.raw->>'LastModified')::timestamptz as last_mod
     from metrc_packages p where p.license = p_license and p.source_state = 'active' and p.packaged_on >= win_start),
   x as (select j.key as tag, j.value as h from jsonb_each_text(e.rows) j)
@@ -9152,13 +9155,13 @@ begin
   age := current_date - e.as_of;
   if n_diff > 0 or n_missing > 0 or n_extra > 0 then
     return query select 'FAIL', n_same||' same · '||n_diff||' differ before snapshot · '||n_missing||' in export not mirror · '||n_extra||' in mirror not export',
-      'The '||e.as_of||' export and the mirror disagree on packages the mirror has NOT changed since the export was taken: '||left(coalesce(sample,''),300)||'. Either the sync missed a change or the mirror drifted. The certificate does not carry.';
+      'The '||e.as_of||' export and the mirror disagree on packages the mirror has NOT changed since the export was taken: '||left(coalesce(sample,''),300)||'. Compared at Metrc precision (four decimals; the mirror column is numeric(14,3), so a stored quantity that lost its fourth decimal fails here until the precision repair lands). The certificate does not carry.';
   elsif age > 7 then
     return query select 'WARN', n_same||' same · '||n_after||' changed after snapshot · export '||age||'d old',
       'No disagreement, but the export is '||age||' days old. Pull a fresh Packages Inventory export to renew.';
   else
     return query select 'PASS', n_same||' same · '||n_after||' changed after snapshot · '||n_outside||' older than the report window · export '||age||'d old',
-      'CERTIFIED against the '||e.as_of||' Packages Inventory export taken '||to_char(e.snapshot_at at time zone 'UTC','HH24:MI:SS')||'Z ('||coalesce(e.source_file,'?')||'): every in-window active package matches on tag, quantity, unit, lab state, location and item; '||n_after||' changed in Metrc after the snapshot and are excluded on that evidence; '||n_outside||' active packages were packaged before '||win_start||' and are outside the report window. Re-computed on the live mirror at '||to_char(now(),'YYYY-MM-DD HH24:MI')||' UTC.';
+      'CERTIFIED against the '||e.as_of||' Packages Inventory export taken '||to_char(e.snapshot_at at time zone 'UTC','HH24:MI:SS')||'Z ('||coalesce(e.source_file,'?')||'): every in-window active package matches on tag, quantity (four decimals), unit, lab state, location and item; '||n_after||' changed in Metrc after the snapshot and are excluded on that evidence; '||n_outside||' active packages were packaged before '||win_start||' and are outside the report window. Re-computed on the live mirror at '||to_char(now(),'YYYY-MM-DD HH24:MI')||' UTC.';
   end if;
 end $function$
 ;
@@ -10553,6 +10556,14 @@ begin
     perform f_deployment_check_record('mirror.intransit_vs_metrc', s, v, d);
     r:=r+1; if s='FAIL' then f:=f+1; elsif s='WARN' then w:=w+1; end if;
   exception when others then perform f_deployment_check_record('mirror.intransit_vs_metrc','FAIL','error',left(sqlerrm,200)); r:=r+1; f:=f+1; end;
+
+  begin
+    select count(*), string_agg(tag||' '||quantity||'≠'||(raw->>'Quantity'), ', ' order by tag) into n, d
+      from metrc_packages where raw->>'Quantity' is not null and (raw->>'Quantity')::numeric <> quantity;
+    s := case when n = 0 then 'PASS' else 'FAIL' end;
+    perform f_deployment_check_record('mirror.package_quantity_precision', s, n||' rows differ', case when s='PASS' then 'Every stored quantity equals its raw Metrc quantity.' else 'Stored quantity lost precision on: '||left(coalesce(d,''),400)||'. Column is numeric(14,3); Metrc sends four decimals. Precision repair is in the sync lane (GPT).' end);
+    r:=r+1; if s='FAIL' then f:=f+1; end if;
+  exception when others then perform f_deployment_check_record('mirror.package_quantity_precision','FAIL','error',left(sqlerrm,200)); r:=r+1; f:=f+1; end;
 
   return query select r, f, w;
 end $function$
