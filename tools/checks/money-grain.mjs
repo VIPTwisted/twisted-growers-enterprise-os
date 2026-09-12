@@ -807,7 +807,10 @@ const migrationEntries = files.map((name) => ({
 // claude_tracker_17_scheduling_todo_discrete_and_auto so the Bots paid key can
 // sit on Sync. Other desk applied it. Tamper seal, not an approval of the SQL.
 // No ledger rewrite.
-const expectedMigrationTreeDigest = "cfaf3ae3390f030c89bfbf95c4b204163a529ddf74e8a621e52bbfad6ae357c6";
+// Re-pinned 12 Sep 2026, 1079 -> 1084 files. Recorded claude_scheduling_05
+// plus hr_00..hr_03 so the Bots paid key can pass Gates. Other desks applied
+// them. Tamper seal, not an approval of the SQL. No ledger rewrite.
+const expectedMigrationTreeDigest = "52acc89bf05eb88b3befb8cfad7847db8f2db6dd66651ee7d302f801cf72f162";
 const actualMigrationTreeDigest = migrationTreeDigest(migrationEntries);
 if (actualMigrationTreeDigest !== expectedMigrationTreeDigest) {
   console.error(`money-grain: FAIL — migration tree differs from the independently reviewed ${files.length}-file manifest (${actualMigrationTreeDigest}).`);
