@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { supabase, FUNCTIONS_URL, ANON_KEY } from "./lib/supabase.js";
 import { extProviderFromOs, viaLine, wakeTgBots, askTgBotsNow, pingTgBots, extModelNow } from "./lib/topg-connect.js";
 import { wantedFormats } from "./lib/os-bot-files.js";
+import { CORE_BOTS } from "./lib/os-bots.js";
 
 import TgBotsPanel from "./lib/tg-bots-panel.jsx";
 import { deskForView } from "./lib/os-desk.js";
@@ -680,10 +681,156 @@ export async function budzAnswer(question) {
     };
   }
 
-  if (
-    (has("harvest") && (has("this week") || has("past week") || has("last week") || has("harvest schedule") || has("as a spreadsheet") || has("pull")))
-    || (has("pull") && (has("past week") || has("last week") || has("this week")))
-  ) {
+  const lastNRaw = t.match(/\blast\s+(\d+|one|two|three|four|five|six|seven|eight|nine|ten)\s+(harvests?|pulls?)\b/);
+  if (lastNRaw) {
+    const words = { one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10 };
+    const n = Math.min(10, Math.max(1, words[lastNRaw[1]] || Number(lastNRaw[1]) || 2));
+    const iso = (d) => d.toISOString().slice(0, 10);
+    const today = iso(new Date());
+    const { data: downs, error: downErr } = await supabase
+      .from("v_harvest_takedown")
+      .select("takedown_start,flower_room,plants,wet_lb,harvests,harvest_records,takedown_days,is_material")
+      .lte("takedown_start", today)
+      .order("takedown_start", { ascending: false })
+      .limit(n);
+    if (downErr) return { headline: "Last harvests could not be read: " + downErr.message, rows: [] };
+    const takedowns = Array.isArray(downs) ? downs : [];
+    if (!takedowns.length) return none("No takedown has been recorded yet.", "harvest_forensic");
+    const oldest = takedowns[takedowns.length - 1].takedown_start;
+    const newest = takedowns[0].takedown_start;
+    const endCut = iso(new Date(new Date(newest).getTime() + 4 * 864e5));
+    const [{ data: cuts }, { data: pulls }] = await Promise.all([
+      supabase.from("v_harvest_forensic")
+        .select("harvest_name,strain,harvest_started,harvest_closed,drying_room,plants,wet_lb,packaged_lb,waste_lb,still_in_room_lb,conversion_pct,harvest_state")
+        .gte("harvest_started", oldest)
+        .lte("harvest_started", endCut)
+        .order("harvest_started")
+        .limit(200),
+      supabase.from("harvest_pulls")
+        .select("harvest_date,flower_room,pull_no,cultivars,original_total_plants,proj_harvest_weight_lbs")
+        .lte("harvest_date", today)
+        .order("harvest_date", { ascending: false })
+        .limit(n),
+    ]);
+    const nnum = (x) => {
+      const v = Number(x);
+      return Number.isFinite(v) ? v : null;
+    };
+    const inWindow = (started, down) => {
+      const s = String(started || "").slice(0, 10);
+      const a = String(down.takedown_start || "").slice(0, 10);
+      const days = Number(down.takedown_days || 1);
+      const b = iso(new Date(new Date(a).getTime() + Math.max(0, days) * 864e5));
+      return s >= a && s <= b;
+    };
+    const rows = [];
+    takedowns.forEach((d, i) => {
+      const lines = (Array.isArray(cuts) ? cuts : []).filter((c) => inWindow(c.harvest_started, d));
+      const pkg = lines.reduce((a, r) => a + (nnum(r.packaged_lb) || 0), 0);
+      rows.push({
+        source: "takedown",
+        compare_slot: "harvest " + (i + 1),
+        harvest_date: d.takedown_start,
+        room: d.flower_room ?? "",
+        harvest_name: "takedown " + (d.harvest_records ?? lines.length) + " records",
+        strain: d.harvests ?? "",
+        plants: d.plants ?? "",
+        wet_lb: d.wet_lb ?? "",
+        packaged_lb: lines.length ? pkg : "",
+        waste_lb: "",
+        conversion_pct: "",
+        harvest_state: d.is_material ? "material takedown" : "",
+        compare_note: "v_harvest_takedown",
+        label: `${d.takedown_start} · ${d.flower_room || "room not named"} · harvest ${i + 1} of ${takedowns.length}`,
+        detail: d.harvests || "harvests not named",
+        meta: [d.plants != null ? d.plants + " plants" : null, d.wet_lb != null && d.wet_lb !== "" ? d.wet_lb + " lb wet" : null, lines.length ? pkg + " lb packaged on forensic" : null].filter(Boolean).join(" · "),
+        drill: "harvest_forensic",
+      });
+      lines.forEach((r) => {
+        rows.push({
+          source: "cut",
+          compare_slot: "harvest " + (i + 1),
+          harvest_date: r.harvest_started ? String(r.harvest_started).slice(0, 10) : "",
+          room: r.drying_room ?? "",
+          harvest_name: r.harvest_name ?? "",
+          strain: r.strain ?? "",
+          plants: r.plants ?? "",
+          wet_lb: r.wet_lb ?? "",
+          packaged_lb: r.packaged_lb ?? "",
+          waste_lb: r.waste_lb ?? "",
+          conversion_pct: r.conversion_pct ?? "",
+          harvest_state: r.harvest_state ?? "",
+          compare_note: r.harvest_closed ? "closed " + String(r.harvest_closed).slice(0, 10) : "not closed",
+          label: `${r.harvest_started ? String(r.harvest_started).slice(0, 10) : "date not recorded"} · ${r.harvest_name || "harvest not named"}`,
+          detail: [r.strain, r.drying_room, r.harvest_state].filter(Boolean).join(" · "),
+          meta: [r.plants != null ? r.plants + " plants" : null, r.wet_lb != null && r.wet_lb !== "" ? r.wet_lb + " lb wet" : null, r.packaged_lb != null && r.packaged_lb !== "" ? r.packaged_lb + " lb packaged" : null].filter(Boolean).join(" · "),
+          drill: "harvest_forensic",
+        });
+      });
+    });
+    if (takedowns.length >= 2) {
+      const a = takedowns[0];
+      const b = takedowns[1];
+      const delta = (x, y, unit) => {
+        const av = nnum(x);
+        const bv = nnum(y);
+        if (av == null || bv == null) return "";
+        const d = av - bv;
+        return `${d} ${unit} (derived: harvest 1 minus harvest 2, not a Metrc write)`;
+      };
+      rows.push({
+        source: "compare",
+        compare_slot: "harvest 1 vs harvest 2",
+        harvest_date: `${a.takedown_start} vs ${b.takedown_start}`,
+        room: `${a.flower_room || "?"} vs ${b.flower_room || "?"}`,
+        harvest_name: "comparison",
+        strain: "",
+        plants: delta(a.plants, b.plants, "plants"),
+        wet_lb: delta(a.wet_lb, b.wet_lb, "lb wet"),
+        packaged_lb: "",
+        waste_lb: "",
+        conversion_pct: "",
+        harvest_state: "",
+        compare_note: "Derived from v_harvest_takedown. Do not treat the difference as a certified figure.",
+        label: `Compare ${a.takedown_start} ${a.flower_room || ""} vs ${b.takedown_start} ${b.flower_room || ""}`,
+        detail: `${a.plants} plants / ${a.wet_lb} lb wet vs ${b.plants} plants / ${b.wet_lb} lb wet`,
+        meta: delta(a.plants, b.plants, "plants") + " · " + delta(a.wet_lb, b.wet_lb, "lb wet"),
+        drill: "harvest_forensic",
+      });
+    }
+    (Array.isArray(pulls) ? pulls : []).forEach((r) => {
+      rows.push({
+        source: "pull calendar",
+        compare_slot: "",
+        harvest_date: r.harvest_date,
+        room: r.flower_room ?? "",
+        harvest_name: `pull ${r.pull_no ?? "unnumbered"}`,
+        strain: r.cultivars ?? "",
+        plants: r.original_total_plants ?? "",
+        wet_lb: "",
+        packaged_lb: r.proj_harvest_weight_lbs ?? "",
+        waste_lb: "",
+        conversion_pct: "",
+        harvest_state: "harvest_pulls planner",
+        compare_note: "Room calendar. Not a Metrc cut.",
+        label: `${r.harvest_date} · pull ${r.pull_no ?? "unnumbered"} · ${r.flower_room || "room not named"} (calendar)`,
+        detail: r.cultivars || "cultivars not named",
+        meta: "planner — not a Metrc cut",
+        drill: "harvest_schedule",
+      });
+    });
+    const a = takedowns[0];
+    const b = takedowns[1];
+    return {
+      headline: b
+        ? `Last ${takedowns.length} actual takedowns on v_harvest_takedown: ${a.takedown_start} ${a.flower_room || ""} (${a.plants} plants, ${a.wet_lb} lb wet) vs ${b.takedown_start} ${b.flower_room || ""} (${b.plants} plants, ${b.wet_lb} lb wet). Differences are derived. Pull calendar rows are not Metrc cuts.`
+        : `Last takedown on v_harvest_takedown: ${a.takedown_start} ${a.flower_room || ""} (${a.plants} plants, ${a.wet_lb} lb wet).`,
+      rows,
+    };
+  }
+
+  const windowAsk = /\b(this week|past week|last week|this past|last \d+ days?|past \d+ days?|last \d+ weeks?|past \d+ weeks?)\b/.test(t);
+  if (has("pull") || (has("harvest") && (windowAsk || has("harvest schedule") || has("as a spreadsheet")))) {
     const iso = (d) => d.toISOString().slice(0, 10);
     const now = new Date();
     const monday = (d) => {
@@ -693,10 +840,17 @@ export async function budzAnswer(question) {
       x.setHours(0, 0, 0, 0);
       return x;
     };
-    const past = has("past week") || has("last week") || has("this past") || (has("pull") && !has("schedule") && !has("upcoming"));
+    const daysMatch = t.match(/\b(?:last|past)\s+(\d+)\s+days?\b/);
+    const weeksMatch = t.match(/\b(?:last|past)\s+(\d+)\s+weeks?\b/);
     let start;
-    let end;
-    if (past) {
+    let end = iso(now);
+    if (daysMatch) {
+      const n = Math.min(365, Math.max(1, Number(daysMatch[1])));
+      start = iso(new Date(Date.now() - n * 864e5));
+    } else if (weeksMatch) {
+      const n = Math.min(52, Math.max(1, Number(weeksMatch[1])));
+      start = iso(new Date(Date.now() - n * 7 * 864e5));
+    } else if (has("past week") || has("last week") || has("this past")) {
       const thisMon = monday(now);
       const prevMon = new Date(thisMon);
       prevMon.setDate(prevMon.getDate() - 7);
@@ -711,26 +865,45 @@ export async function budzAnswer(question) {
       start = iso(thisMon);
       end = iso(sun);
     }
-    const [{ data: cuts, error: cutErr }, { data: planned, error: planErr }] = await Promise.all([
+    const [{ data: pulls, error: pullErr }, { data: cuts, error: cutErr }, { data: planned, error: planErr }] = await Promise.all([
+      supabase.from("harvest_pulls")
+        .select("harvest_date,flower_room,pull_no,cultivars,original_total_plants,proj_harvest_weight_lbs,operating_room_plants")
+        .gte("harvest_date", start)
+        .lte("harvest_date", end)
+        .order("harvest_date")
+        .limit(200),
       supabase.from("v_harvest_forensic")
-        .select("harvest_name,strain,harvest_started,finished_date,drying_room,plants,wet_lb,packaged_lb,harvest_state,harvest_closed")
+        .select("harvest_name,strain,harvest_started,harvest_closed,drying_room,plants,wet_lb,packaged_lb,harvest_state")
         .gte("harvest_started", start)
         .lte("harvest_started", end)
         .order("harvest_started")
-        .limit(80),
+        .limit(200),
       supabase.from("harvest_schedule")
         .select("harvest_date,cultivar,flower_room,projected_weight_lbs,room_cycle_flag")
         .gte("harvest_date", start)
         .lte("harvest_date", end)
         .order("harvest_date")
-        .limit(80),
+        .limit(200),
     ]);
-    if (cutErr && planErr) return { headline: "Harvest records could not be read: " + (cutErr.message || planErr.message), rows: [] };
-    const pulled = (cuts ?? []).map((r) => ({
+    if (pullErr && cutErr && planErr) return { headline: "Harvest records could not be read: " + (pullErr?.message || cutErr?.message || planErr?.message), rows: [] };
+    const pulled = (pulls ?? []).map((r) => ({
+      source: "pull",
+      harvest_date: r.harvest_date,
+      name: r.cultivars ?? "",
+      room: r.flower_room ?? "",
+      plants: r.original_total_plants ?? "",
+      wet_lb: "",
+      packaged_lb: r.proj_harvest_weight_lbs ?? "",
+      state: "harvest_pulls",
+      label: `${r.harvest_date} · pull ${r.pull_no ?? "unnumbered"} · ${r.flower_room || "room not named"}`,
+      detail: r.cultivars || "cultivars not named",
+      meta: [r.original_total_plants != null && r.original_total_plants !== "" ? r.original_total_plants + " plants on the pull" : null, r.proj_harvest_weight_lbs != null && r.proj_harvest_weight_lbs !== "" ? r.proj_harvest_weight_lbs + " lb projected" : null].filter(Boolean).join(" · "),
+      drill: "harvest_schedule",
+    }));
+    const forensic = (cuts ?? []).map((r) => ({
       source: "cut",
       harvest_date: r.harvest_started ? String(r.harvest_started).slice(0, 10) : "",
       name: r.harvest_name ?? "",
-      strain: r.strain ?? "",
       room: r.drying_room ?? "",
       plants: r.plants ?? "",
       wet_lb: r.wet_lb ?? "",
@@ -756,10 +929,10 @@ export async function budzAnswer(question) {
       meta: r.projected_weight_lbs != null && r.projected_weight_lbs !== "" ? `${r.projected_weight_lbs} lb projected` : "planner — not a Metrc cut",
       drill: "harvest_schedule",
     }));
-    const rows = [...pulled, ...plan];
-    if (!rows.length) return none(`No cuts on v_harvest_forensic and no planner events on harvest_schedule from ${start} through ${end}.`, past ? "harvest_forensic" : "harvest_schedule");
+    const rows = [...pulled, ...forensic, ...plan];
+    if (!rows.length) return none(`No rows on harvest_pulls, v_harvest_forensic, or harvest_schedule from ${start} through ${end}.`, "harvest_schedule");
     return {
-      headline: `${pulled.length} cut${pulled.length === 1 ? "" : "s"} on the forensic record, ${plan.length} planner event${plan.length === 1 ? "" : "s"}, ${start} through ${end}. Cuts are v_harvest_forensic. Planner is harvest_schedule — not a Metrc write.`,
+      headline: `${pulled.length} pull${pulled.length === 1 ? "" : "s"} on harvest_pulls, ${forensic.length} cut${forensic.length === 1 ? "" : "s"} on v_harvest_forensic, ${plan.length} planner row${plan.length === 1 ? "" : "s"} on harvest_schedule, ${start} through ${end}. Pulls are the room calendar. Cuts are Metrc forensic. Planner is not a Metrc write.`,
       rows,
     };
   }
@@ -1689,7 +1862,7 @@ export async function askBudzFull(question, history = [], { onFacts, surface = "
      Failure is silent on purpose. Memory makes a good answer better; it must
      never be the reason there is no answer at all. */
   let memory = null;
-  const needsRecords = /\b(harvest|metrc|package|plant|invoice|apex|coa|cultiv|inventory|strain|batch|tag|lab|license|payroll|employee|dutchie|weight|room|clone|flower|trim|waste|manifest|sales|cfo|vendor|po\b|pull this|past week|last week)\b/i.test(question);
+  const needsRecords = /\b(harvest|metrc|package|plant|invoice|apex|coa|cultiv|inventory|strain|batch|tag|lab|license|payroll|employee|dutchie|weight|room|clone|flower|trim|waste|manifest|sales|cfo|vendor|po\b|pull this|past week|last week|\bpull\b|last \d+ days?|past \d+ days?)\b/i.test(question);
   if (needsRecords) {
     try {
       const { data } = await supabase.rpc("f_brain_memory_for");
@@ -1708,9 +1881,13 @@ export async function askBudzFull(question, history = [], { onFacts, surface = "
   const log = history;
   onFacts?.(a, facts);
   const asked = [
-    `Grok in Twisted Growers OS as ${desk?.name || "Top G"}. Answer anything. Metrc read-only. Buddy is boss.`,
-    facts.length ? `Records: ${JSON.stringify({ summary: a.headline, records: facts.slice(0, 12) }).slice(0, 4000)}` : "",
-    question,
+    `You are Grok — a full AI assistant — working inside Twisted Growers Enterprise OS as ${desk?.name || "Top G"}, ${desk?.role || "Chief of Staff"}. Buddy on Grok Bots is the ultimate boss. You never outrank Buddy.`,
+    `Answer ANY topic they ask: this company, cultivation, money, weather, code, strategy, IT, writing, planning, news, sports, science, anything a person would ask Grok. Collaborate. Do the work. When they need a page in this OS, send them to the live OS page for that desk.`,
+    `When the question is this business, use the live records below. Metrc is read-only. Apex invoice is money source of record. Do not invent a certified number. If a figure is not in the records, say so and name the report. When the question is not this business, answer as Grok normally — full knowledge, not a lookup bot.`,
+    `OS desks: ${CORE_BOTS.map((b) => `${b.name} (${b.role})`).join(", ")}. Buddy is boss. Top G is chief of staff.`,
+    desk?.job ? `This desk: ${desk.job}` : "",
+    facts.length ? `Live records: ${JSON.stringify({ summary: a.headline, records: facts.slice(0, 20) }).slice(0, 6000)}` : "",
+    `QUESTION: ${question}`,
   ].filter(Boolean).join("\n");
 
   /* A file request with live rows does not wait on Grok. Spreadsheet now. */
@@ -1723,7 +1900,10 @@ export async function askBudzFull(question, history = [], { onFacts, surface = "
     }
     return lines.filter(Boolean).join("\n") || null;
   })();
-  if (fromRecords && !a.askClaude && (facts.length || wantedFormats(question).length)) {
+  const lookupOnly = fromRecords && !a.askClaude && needsRecords
+    && /\b(pull|as a spreadsheet|last \d+ days|past \d+ days|past week|last week|harvest schedule|last (two|three|\d+) harvest)\b/i.test(question)
+    && !/\b(why|should|explain|write|draft|tell me|what should|how do we|strategy|plan a)\b/i.test(question);
+  if (lookupOnly) {
     return { headline: a.headline || "", facts, composed: fromRecords, via: "Live OS records", askErr: null };
   }
 
@@ -1843,8 +2023,9 @@ export async function askBudzFull(question, history = [], { onFacts, surface = "
             if (apiRace || !cfg.paid_model_enabled) return;
             apiRace = askMeteredApi(asked, log).catch(() => null);
           };
-          const deadline = Date.now() + 8000;
-          const raceAt = Date.now() + 2000;
+          startApiRace();
+          const deadline = Date.now() + 45000;
+          const raceAt = Date.now();
           let done = null;
           let apiWon = null;
           while (Date.now() < deadline) {
@@ -1881,7 +2062,7 @@ export async function askBudzFull(question, history = [], { onFacts, surface = "
             composed = fromRecords;
             via = "Live OS records (Grok did not answer in time)";
           } else {
-            askErr = "No answer in 8 seconds. Stay signed in on grok.com. Task Manager → end node.exe if it is running. Ask again.";
+            askErr = "No answer in 45 seconds. Stay signed in on grok.com. Task Manager → end node.exe if it is running. Ask again.";
           }
           }
         } catch (e) {
