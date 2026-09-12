@@ -5,6 +5,7 @@ import { askBudzFull } from "./budz.jsx";
 import TgBotsPanel from "./lib/tg-bots-panel.jsx";
 import { topGConnected } from "./lib/topg-connect.js";
 import { allBots, addCustomBot, removeCustomBot, chainOf, BUDDY } from "./lib/os-bots.js";
+import { skillsFor, dueThisMinute, dayKey, loadRuns, recordRun } from "./lib/os-bot-runtime.js";
 import "./os-staff.css";
 
 const WHEN_PRESETS = [
@@ -67,8 +68,11 @@ export default function OsStaff({ go }) {
   const [bots, setBots] = useState(() => allBots());
   const [botForm, setBotForm] = useState({ name: "", role: "", job: "", reportsTo: "topg" });
   const [form, setForm] = useState({ botId: "topg", name: "", when: WHEN_PRESETS[0], intent: "Check X. Quiet if empty." });
+  const [runs, setRuns] = useState(() => loadRuns());
   const ready = useRef(false);
   const end = useRef(null);
+  const busyRef = useRef(false);
+  const sendRef = useRef(null);
   const bot = bots.find((s) => s.id === sel) || bots[0];
   const line = chainOf(bot, bots);
   const needle = q.trim().toLowerCase();
@@ -126,6 +130,7 @@ export default function OsStaff({ go }) {
     setText("");
     setThread((m) => [...m, { role: "user", text: value }]);
     setBusy(true);
+    busyRef.current = true;
     const history = thread
       .filter((m) => m.text && !m.thinking)
       .slice(-8)
@@ -151,7 +156,10 @@ export default function OsStaff({ go }) {
       }]);
     }
     setBusy(false);
+    busyRef.current = false;
   }
+
+  sendRef.current = send;
 
   function addRoutine() {
     const name = form.name.trim();
@@ -189,7 +197,35 @@ export default function OsStaff({ go }) {
     if (!owner || !r.enabled) return;
     setSel(owner.id);
     send(r.intent, owner);
+    setRuns(recordRun({ at: new Date().toISOString(), name: r.name, botId: r.botId, how: "run" }));
   }
+
+  useEffect(() => {
+    const tick = () => {
+      if (busyRef.current) return;
+      const now = new Date();
+      const key = dayKey(now);
+      let changed = false;
+      let fired = false;
+      const next = routines.map((r) => {
+        if (fired || !r.enabled || r.lastRunDay === key) return r;
+        if (!dueThisMinute(r.when, now)) return r;
+        const owner = bots.find((s) => s.id === r.botId);
+        if (owner) sendRef.current?.(r.intent, owner);
+        recordRun({ at: now.toISOString(), name: r.name, botId: r.botId, how: "clock" });
+        changed = true;
+        fired = true;
+        return { ...r, lastRunDay: key };
+      });
+      if (changed) {
+        persistRoutines(next);
+        setRuns(loadRuns());
+      }
+    };
+    const id = setInterval(tick, 30000);
+    tick();
+    return () => clearInterval(id);
+  }, [routines, bots]);
 
   return (
     <div className="osstaff">
@@ -273,6 +309,13 @@ export default function OsStaff({ go }) {
           ) : null}
         </header>
         <TgBotsPanel compact onReady={() => setTopg(true)} />
+        {skillsFor(bot.id).length ? (
+          <div className="osstaff-skills" role="group" aria-label="Skills">
+            {skillsFor(bot.id).map((s) => (
+              <button key={s.id} type="button" onClick={() => send(s.ask, bot)}>{s.name}</button>
+            ))}
+          </div>
+        ) : null}
         <div className="osstaff-thread">
           {thread.length === 0 ? (
             <div className="osstaff-empty">
@@ -320,7 +363,12 @@ export default function OsStaff({ go }) {
       </section>
 
       <aside className="osstaff-side">
-        <p className="osstaff-k">{bot.name}&rsquo;s screen</p>
+        <p className="osstaff-k">Fleet</p>
+        <p className="osstaff-fleet">
+          {topg ? "Grok on" : "Grok idle"} · {bots.length} bots · {routines.filter((r) => r.enabled).length} routines armed
+          {runs[0] ? ` · last ${runs[0].name}` : ""}
+        </p>
+        <p className="osstaff-chain">Always-on while this OS tab is open. Not a rented cloud box. Buddy stays boss. Metrc read-only.</p>
         <div className="osstaff-screen">
           <div className="osstaff-dots" aria-hidden="true"><i /><i /><i /></div>
           <p>Live OS desk. Click Open desk to work the real page. Chat stays on this clone.</p>
@@ -333,7 +381,7 @@ export default function OsStaff({ go }) {
             <p>Routines</p>
             <button type="button" onClick={() => setNewRoutine((v) => !v)} aria-label="Create routine">+</button>
           </div>
-          <p className="osstaff-k">Any bot. Intent, not a frozen script. Quiet if empty.</p>
+          <p className="osstaff-k">Any bot. Intent, not a frozen script. Quiet if empty. Runs on the clock while this tab is open.</p>
           {newRoutine ? (
             <form className="osstaff-rform" onSubmit={(e) => { e.preventDefault(); addRoutine(); }}>
               <label>Bot
@@ -375,6 +423,16 @@ export default function OsStaff({ go }) {
               );
             })}
           </ul>
+          {runs.length ? (
+            <div className="osstaff-runs">
+              <p className="osstaff-k">Recent runs</p>
+              <ul>
+                {runs.slice(0, 6).map((x, i) => (
+                  <li key={x.at + i}><span>{x.name} · {x.how === "clock" ? "clock" : "run"}</span></li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
         </div>
       </aside>
     </div>
