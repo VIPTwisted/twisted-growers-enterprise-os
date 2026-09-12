@@ -8,6 +8,13 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
 const SHEET_ID = "1GBTlv8kfAQeaFacrKZXj9Sxm3mKjW-ncw5lOwEwGnR0";
+/* The third element is where the header row USED to be pinned. Since 12 Sep 2026
+   it is only a hint: the header is found by what it contains (see findHeader).
+   Solventless was pinned to row 2; the sheet's header moved to row 1, so for an
+   unknown number of days the sync read a product row as the header, mapped no
+   columns, kept no rows, and reported ok - 17 solventless products missing from
+   every finished-goods figure, with no alarm. A pinned row number is a promise
+   the spreadsheet never made. */
 const TABS: Array<[string, string, number]> = [
   ["Solventless", "solventless", 2],
   ["Hydrocarbon", "hydrocarbon", 1],
@@ -22,7 +29,10 @@ const TABS: Array<[string, string, number]> = [
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  /* x-admin-key was in the DEPLOYED v4 header list but not in the committed file -
+     the one line where repo and production disagreed (found 12 Sep 2026 by diffing
+     live before redeploying, as the note at the top of this file says to). */
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-admin-key",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 const json = (body: unknown, status = 200) =>
@@ -125,6 +135,34 @@ function toDate(v: string): string | null {
   return null;
 }
 
+/* HEADER LOCK. A header row is the row that NAMES the columns: it maps at least
+   five known fields and at least two of the four identity fields (batch, strain,
+   bulk tag, final tag). A product row maps none of them - a strain name, a tag,
+   a batch code and a status are values, not headings - so the two cannot be
+   confused. The first eight rows are searched; the pinned row wins a tie.
+
+   Not found is an ERROR that stops the run before any delete. The alternative -
+   reading a value row as the header - is how a whole product line vanished in
+   silence. Empty is different from broken: a template tab with a real header and
+   no products is found, keeps zero rows, and that zero is true. */
+const IDENTITY = ["production_batch", "strain_flavor", "bulk_metrc_tag", "final_metrc_tag"];
+function findHeader(grid: string[][], hint: number): { row: number; cols: Record<number, string> } | null {
+  let best: { row: number; cols: Record<number, string>; score: number } | null = null;
+  for (let r = 0; r < Math.min(grid.length, 8); r++) {
+    const cols: Record<number, string> = {};
+    const seen = new Set<string>();
+    let ident = 0;
+    (grid[r] ?? []).forEach((h, i) => {
+      const f = mapField(h);
+      if (f && !seen.has(f)) { cols[i] = f; seen.add(f); if (IDENTITY.includes(f)) ident++; }
+    });
+    const score = Object.keys(cols).length;
+    if (ident < 2 || score < 5) continue;
+    if (!best || score > best.score || (score === best.score && r + 1 === hint)) best = { row: r + 1, cols, score };
+  }
+  return best ? { row: best.row, cols: best.cols } : null;
+}
+
 async function fetchTab(tab: string): Promise<string[][]> {
   const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(tab)}`;
   const r = await fetch(url, { redirect: "follow" });
@@ -141,6 +179,10 @@ Deno.serve(async (req: Request) => {
 
   const started = new Date().toISOString();
   const results: Record<string, number> = {};
+  /* Per-tab evidence for the run log. Until 12 Sep 2026 a run recorded one total,
+     so a tab that dropped to zero was invisible inside "172 records, ok". */
+  const headerRows: Record<string, number> = {};
+  const runNote = () => JSON.stringify({ tabs: results, header_rows: headerRows });
 
   /* ?tab= — sync ONE spreadsheet tab. Owner, 9 Aug 2026: "LIST ALL SPREADSHEETS
      WITH A BUTTON", "EVERYTHING INDIVIDUALLY".
@@ -167,12 +209,15 @@ Deno.serve(async (req: Request) => {
 
   try {
     const allRows: Record<string, unknown>[] = [];
-    for (const [tab, category, hdrRow] of TABS_TO_RUN) {
+    for (const [tab, category, hdrHint] of TABS_TO_RUN) {
       const grid = await fetchTab(tab);
-      const hdr = grid[hdrRow - 1] ?? [];
-      const cols: Record<number, string> = {};
-      const seen = new Set<string>();
-      hdr.forEach((h, i) => { const f = mapField(h); if (f && !seen.has(f)) { cols[i] = f; seen.add(f); } });
+      const found = findHeader(grid, hdrHint);
+      if (!found) {
+        throw new Error(`Sheet tab "${tab}": no header row in the first 8 rows (it was last known at row ${hdrHint}). `
+          + `Nothing was changed. A tab read without its header would import as EMPTY and delete every row it holds.`);
+      }
+      const { row: hdrRow, cols } = found;
+      headerRows[tab.trim()] = hdrRow;
       let n = 0;
       for (let r = hdrRow; r < grid.length; r++) {
         const rec: Record<string, unknown> = {};
@@ -247,7 +292,7 @@ Deno.serve(async (req: Request) => {
       await service.from("metrc_sync_runs").insert({
         endpoint: wantedTab ? `google_sheet_fg:${wantedTab.trim()}` : "google_sheet_fg",
         license: "-", started_at: started, finished_at: new Date().toISOString(),
-        status: "error", records: 0,
+        status: "error", records: 0, note: runNote(),
         error: `REFUSED: ${incoming} incoming vs ${heldCount} held for ${scope}.`,
       });
       return json({ ok: false, refused: true, held: heldCount, incoming,
@@ -277,13 +322,13 @@ Deno.serve(async (req: Request) => {
     await service.from("metrc_sync_runs").insert({
       endpoint: "google_sheet_fg", license: "-", started_at: started,
       finished_at: new Date().toISOString(), status: "ok",
-      records: allRows.length + tpRows.length, error: null,
+      records: allRows.length + tpRows.length, error: null, note: runNote(),
     });
-    return json({ ok: true, results, total: allRows.length + tpRows.length });
+    return json({ ok: true, results, header_rows: headerRows, total: allRows.length + tpRows.length });
   } catch (e) {
     await service.from("metrc_sync_runs").insert({
       endpoint: "google_sheet_fg", license: "-", started_at: started,
-      finished_at: new Date().toISOString(), status: "error", records: 0,
+      finished_at: new Date().toISOString(), status: "error", records: 0, note: runNote(),
       error: String(e).slice(0, 500),
     });
     return json({ ok: false, error: String(e) }, 500);
