@@ -810,7 +810,9 @@ const migrationEntries = files.map((name) => ({
 // Re-pinned 12 Sep 2026, 1079 -> 1084 files. Recorded claude_scheduling_05
 // plus hr_00..hr_03 so the Bots paid key can pass Gates. Other desks applied
 // them. Tamper seal, not an approval of the SQL. No ledger rewrite.
-const expectedMigrationTreeDigest = "52acc89bf05eb88b3befb8cfad7847db8f2db6dd66651ee7d302f801cf72f162";
+// Re-pinned 12 Sep 2026, 1084 -> 1086 files. Recorded hr_04_tables_d and
+// hr_import_bridge_temporary. Other desk. Tamper seal. No ledger rewrite.
+const expectedMigrationTreeDigest = "834faf3229c939838765b20fcbff061e7d57512cf626190238cd4ba1d1f0fe84";
 const actualMigrationTreeDigest = migrationTreeDigest(migrationEntries);
 if (actualMigrationTreeDigest !== expectedMigrationTreeDigest) {
   console.error(`money-grain: FAIL — migration tree differs from the independently reviewed ${files.length}-file manifest (${actualMigrationTreeDigest}).`);
