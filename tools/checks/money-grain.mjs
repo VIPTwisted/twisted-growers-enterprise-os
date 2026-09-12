@@ -789,7 +789,10 @@ const migrationEntries = files.map((name) => ({
 // Re-pinned 11 Sep 2026 so a bot-only fix can ship. Production gained one
 // table (487). Dump replaces the prior baseline only. No ledger rewrite.
 // Metrc delivered-record verification and complete live schema capture; no money-contract change.
-const expectedMigrationTreeDigest = "73de68d3b1775ea61b2e05b7c1c1e7c3558035043b00e80a965dbd734bce5105";
+// Re-pinned 12 Sep 2026 so a bot-only harvest-spreadsheet fix can ship.
+// Dump replaces the prior baseline only. Other desks applied
+// gpt_apex_require_continuous_history_for_records with no file. No ledger rewrite.
+const expectedMigrationTreeDigest = "ed8f731054186aeff5330524268293ef89f7bc1fc2e84081072a39ba5e96701c";
 const actualMigrationTreeDigest = migrationTreeDigest(migrationEntries);
 if (actualMigrationTreeDigest !== expectedMigrationTreeDigest) {
   console.error(`money-grain: FAIL — migration tree differs from the independently reviewed ${files.length}-file manifest (${actualMigrationTreeDigest}).`);
