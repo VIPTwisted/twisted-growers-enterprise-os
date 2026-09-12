@@ -57,7 +57,7 @@ export default function TgBotsPanel({ compact = false, onReady }) {
     setProvider(key);
     setModels(Array.isArray(r.models) ? r.models : []);
     setSt({ installed: true, ok: true, on: true, provider: r.provider, model: r.model, hasToken: true, version: r.version || st?.version });
-    setMsg(`On. ${providerLabel(key)} answers in this OS chat. Leave this button green. Type below. Do not click it again.`);
+    setMsg(`On. ${providerLabel(key)} answers in this OS chat like the desktop app. Leave this button green. Type below. Paste a Grok, Claude, or ChatGPT key under Settings → Keys and Connections for token-speed answers.`);
     onReady?.(r);
     setBusy(false);
   }

@@ -1975,9 +1975,10 @@ export async function askBudzFull(question, history = [], { onFacts, surface = "
              can still type into the signed-in Grok tab. */
           const ping = await pingTgBots();
           let live = { installed: !!ping.installed, ok: false };
-          /* Grok and the metered API run together. Waiting on grok.com alone is
-             how a 40-second silence looked like a dead bot. First real answer wins. */
-          const apiEarly = cfg.paid_model_enabled ? askMeteredApi(asked, log).catch(() => null) : null;
+          /* Token path and grok.com run together. A key in Settings, Keys and
+             Connections answers like the desktop API. No key: this returns
+             empty fast and grok.com still answers. */
+          const apiEarly = askMeteredApi(asked, log).catch(() => null);
           if (ping.installed) {
             live = await askTgBotsNow(asked, { provider: extProv, model: pickModel });
           }
@@ -2045,7 +2046,7 @@ export async function askBudzFull(question, history = [], { onFacts, surface = "
              second off every answer. */
           let apiRace = apiEarly;
           const startApiRace = () => {
-            if (apiRace || !cfg.paid_model_enabled) return;
+            if (apiRace) return;
             apiRace = askMeteredApi(asked, log).catch(() => null);
           };
           startApiRace();
@@ -2131,7 +2132,7 @@ export async function askBudzFull(question, history = [], { onFacts, surface = "
           }
         } catch {}
       }
-      if (!composed && cfg.paid_model_enabled) {
+      if (!composed) {
         try {
           const hist2 = [...log, { who: "me", text: asked }]
             .filter((m) => m.text && !m.rows)
