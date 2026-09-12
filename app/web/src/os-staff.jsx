@@ -4,61 +4,8 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { askBudzFull } from "./budz.jsx";
 import TgBotsPanel from "./lib/tg-bots-panel.jsx";
 import { topGConnected } from "./lib/topg-connect.js";
+import { allBots, addCustomBot, removeCustomBot, chainOf, BUDDY } from "./lib/os-bots.js";
 import "./os-staff.css";
-
-const STAFF = [
-  { id: "topg", name: "Top G", role: "Chief of Staff", pin: true, face: "/bots/topg.gif", motion: "ring",
-    open: "tower", prompts: ["What is on fire this week?", "Research the board", "Open Command Center"],
-    job: "You talk to me for ordinary work. Buddy on Grok is the ultimate boss — I work with him." },
-  { id: "hq", name: "HQ", role: "Leadership room", pin: true, face: "/bots/command.jpg",
-    open: "dept_dash_command", prompts: ["Who is seated in HQ?", "Open Command Center"],
-    job: "Leadership only. Top G, Command, CFO, Engineer. Not a company C-suite." },
-  { id: "engineer", name: "Engineer", role: "Engineering shop", pin: true, face: "/bots/engineer.gif",
-    open: "app_secrets", prompts: ["What is wired?", "Open secrets"],
-    job: "Shared shop. Integrations, secrets. Nothing irreversible without owner yes." },
-  { id: "cfo", name: "CFO", role: "Finance shop", pin: true, face: "/bots/cfo.jpg",
-    open: "dept_dash_sales", prompts: ["Open the Apex book", "VALUE DIFFERS"],
-    job: "Money. Apex invoice is source of record. Do not blend a Metrc pound into an invoice." },
-  { id: "command", name: "Command", role: "COO", face: "/bots/command.jpg",
-    open: "dept_dash_command", prompts: ["Need-action-now", "Quiet if clean?"],
-    job: "Calendar, exceptions, operations. Auditor of desks under you." },
-  { id: "admin", name: "Admin", role: "Users & permissions", face: "/bots/admin.jpg", live: true, motion: "admin",
-    open: "permissions", prompts: ["Who can see Metrc queues?", "Open permissions"],
-    job: "People, roles, who can open which page." },
-  { id: "guard", name: "Guard", role: "Hard gate", face: "/bots/guard.jpg", live: true, motion: "ring",
-    open: "xq_metrc_exceptions", prompts: ["What is blocked on the tray?"],
-    job: "External email, bid, contract, publish stay draft until the owner says yes." },
-  { id: "apex", name: "Apex", role: "Orders, ship, receive", face: "/bots/apex.jpg", live: true, motion: "box",
-    open: "orders", prompts: ["Open the orders book", "What is in receiving?"],
-    job: "Inventory, orders, shipping, receiving. Invoice money lives in Apex." },
-  { id: "cultivation", name: "Cultivation", role: "Grow & harvest", face: "/bots/cultivation.jpg", live: true, motion: "guy",
-    open: "ops_cm", prompts: ["Harvest schedule this week", "Open C and M overlay"],
-    job: "Cultivation including harvest schedules. Room-turn rule is not changed from chat." },
-  { id: "metrc", name: "Metrc", role: "Custody & tags", face: "/bots/metrc.jpg",
-    open: "dept_dash_metrc", prompts: ["Open exception queues"],
-    job: "Custody and tags. Read only. Write instructions for the person to do in Metrc." },
-  { id: "quality", name: "Quality", role: "COA & labs",
-    open: "dept_dash_quality", prompts: ["Failed with no disposition", "COA gaps"],
-    job: "COA, labs, test status. Attach when available." },
-  { id: "manufacturing", name: "Manufacturing", role: "Finished line", face: "/bots/manufacturing.jpg", live: true, motion: "ring",
-    open: "dept_dash_mfg", prompts: ["Units this shift", "Pre-roll vs vape vs concentrate"],
-    job: "Finished goods line. Room stage is a ruling, not a Metrc write." },
-  { id: "inventory", name: "Inventory", role: "On-hand", face: "/bots/inventory.jpg", live: true, motion: "box",
-    open: "dept_dash_inventory", prompts: ["Pre-rolls on hand", "3rd party vs ours"],
-    job: "Pre-rolls, vapes, concentrates, bulk, packaged flower, third party." },
-  { id: "reports", name: "Reports", role: "As-of freeze", face: "/bots/reports.jpg", live: true, motion: "box",
-    open: "report_center", prompts: ["Open plant waste as-of", "Run every cloned report"],
-    job: "Snapshot pages declare as-of. Period bus is one page at a time. Waste only via v_waste_qty_truth." },
-  { id: "settings", name: "Settings", role: "Integrations desk", face: "/bots/settings.jpg", live: true, motion: "ring",
-    open: "settings", prompts: ["What keys are live?", "Date defaults"],
-    job: "Keys, connections, who the assistant is allowed to answer." },
-  { id: "workspace", name: "Workspace", role: "Clipboard", face: "/bots/workspace.jpg", live: true, motion: "box",
-    open: "tg_workspace", prompts: ["What is on the clipboard?", "Open my tasks"],
-    job: "TG clipboard. Custody stays in Metrc." },
-  { id: "hr", name: "HR", role: "Roster & schedules", face: "/bots/hr.jpg",
-    open: "dept_dash_hr", prompts: ["Who is on the clock?", "Production schedule this week"],
-    job: "Scheduling and zones. Production schedules. Harvest schedule is Cultivation." },
-];
 
 const WHEN_PRESETS = [
   "Weekdays at 8:00 AM",
@@ -116,16 +63,20 @@ export default function OsStaff({ go }) {
   const [topg, setTopg] = useState(() => topGConnected());
   const [routines, setRoutines] = useState(() => loadRoutines());
   const [newRoutine, setNewRoutine] = useState(false);
+  const [newBot, setNewBot] = useState(false);
+  const [bots, setBots] = useState(() => allBots());
+  const [botForm, setBotForm] = useState({ name: "", role: "", job: "", reportsTo: "topg" });
   const [form, setForm] = useState({ botId: "topg", name: "", when: WHEN_PRESETS[0], intent: "Check X. Quiet if empty." });
   const ready = useRef(false);
   const end = useRef(null);
-  const bot = STAFF.find((s) => s.id === sel) || STAFF[0];
+  const bot = bots.find((s) => s.id === sel) || bots[0];
+  const line = chainOf(bot, bots);
   const needle = q.trim().toLowerCase();
   const listed = useMemo(
-    () => STAFF.filter((s) => !needle || (s.name + s.role).toLowerCase().includes(needle)),
-    [needle],
+    () => bots.filter((s) => !needle || (s.name + s.role).toLowerCase().includes(needle)),
+    [needle, bots],
   );
-  const pins = STAFF.filter((s) => s.pin);
+  const pins = bots.filter((s) => s.pin);
   const company = listed.filter((s) => !s.pin);
 
   useEffect(() => {
@@ -164,13 +115,13 @@ export default function OsStaff({ go }) {
     const m = String(raw).match(/^@([a-z0-9_]+)/i);
     if (!m) return bot;
     const needle = m[1].toLowerCase();
-    return STAFF.find((s) => s.id === needle || s.name.toLowerCase() === needle) || bot;
+    return bots.find((s) => s.id === needle || s.name.toLowerCase() === needle) || bot;
   }
 
-  async function send(raw) {
+  async function send(raw, asDesk) {
     const value = (raw ?? text).trim();
     if (!value || busy) return;
-    const desk = targetBot(value);
+    const desk = asDesk || targetBot(value);
     if (desk.id !== bot.id) setSel(desk.id);
     setText("");
     setThread((m) => [...m, { role: "user", text: value }]);
@@ -218,13 +169,35 @@ export default function OsStaff({ go }) {
     setNewRoutine(false);
   }
 
+  function addBot() {
+    const r = addCustomBot(botForm);
+    if (!r.ok) return;
+    setBots(allBots());
+    setBotForm({ name: "", role: "", job: "", reportsTo: "topg" });
+    setNewBot(false);
+    setSel(r.bot.id);
+  }
+
+  function dropBot(id) {
+    removeCustomBot(id);
+    setBots(allBots());
+    if (sel === id) setSel("topg");
+  }
+
+  function runRoutine(r) {
+    const owner = bots.find((s) => s.id === r.botId);
+    if (!owner || !r.enabled) return;
+    setSel(owner.id);
+    send(r.intent, owner);
+  }
+
   return (
     <div className="osstaff">
       <aside className="osstaff-rail">
         <form
           onSubmit={(e) => {
             e.preventDefault();
-            const hit = STAFF.find((s) => (s.name + s.role).toLowerCase().includes(needle));
+            const hit = bots.find((s) => (s.name + s.role).toLowerCase().includes(needle));
             if (hit) setSel(hit.id);
           }}
         >
@@ -242,6 +215,8 @@ export default function OsStaff({ go }) {
             </button>
           ))}
         </div>
+        <p className="osstaff-k">Buddy · Grok Bots</p>
+        <p className="osstaff-chain">{BUDDY.name} → Top G → desks. Add a specialist when the job has a long-lived owner.</p>
         <p className="osstaff-k">Twisted Growers</p>
         <ul>
           {company.map((s) => (
@@ -253,9 +228,34 @@ export default function OsStaff({ go }) {
                   <i>{s.role}</i>
                 </span>
               </button>
+              {s.custom ? (
+                <button type="button" className="osstaff-drop" aria-label={`Remove ${s.name}`} onClick={() => dropBot(s.id)}>×</button>
+              ) : null}
             </li>
           ))}
         </ul>
+        <div className="osstaff-add">
+          <button type="button" onClick={() => setNewBot((v) => !v)}>{newBot ? "Cancel" : "Add bot"}</button>
+          {newBot ? (
+            <form className="osstaff-rform" onSubmit={(e) => { e.preventDefault(); addBot(); }}>
+              <label>Name
+                <input aria-label="Bot name" value={botForm.name} onChange={(e) => setBotForm({ ...botForm, name: e.target.value })} required />
+              </label>
+              <label>Title
+                <input aria-label="Bot title" value={botForm.role} onChange={(e) => setBotForm({ ...botForm, role: e.target.value })} placeholder="Specialist" />
+              </label>
+              <label>Reports to
+                <select aria-label="Reports to" value={botForm.reportsTo} onChange={(e) => setBotForm({ ...botForm, reportsTo: e.target.value })}>
+                  {bots.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+                </select>
+              </label>
+              <label>Job
+                <input aria-label="Bot job" value={botForm.job} onChange={(e) => setBotForm({ ...botForm, job: e.target.value })} placeholder="What this bot owns" />
+              </label>
+              <button type="submit">Save bot</button>
+            </form>
+          ) : null}
+        </div>
         <div className="osstaff-foot">
           <p className="osstaff-k">{topg ? "Bots live on this computer" : "Tap Grok, Claude, or ChatGPT above the chat"}</p>
         </div>
@@ -266,7 +266,7 @@ export default function OsStaff({ go }) {
           <Face src={bot.face} name={bot.name} live={bot.live} motion={bot.motion} size="sm" />
           <div>
             <h1>{bot.name}</h1>
-            <p>{bot.role} · Twisted Growers</p>
+            <p>{bot.role} · {line.map((n) => n.name).join(" → ")}</p>
           </div>
           {bot.open && go ? (
             <button type="button" className="osstaff-go" onClick={() => go(bot.open)}>Open desk</button>
@@ -338,7 +338,7 @@ export default function OsStaff({ go }) {
             <form className="osstaff-rform" onSubmit={(e) => { e.preventDefault(); addRoutine(); }}>
               <label>Bot
                 <select aria-label="Routine bot" value={form.botId} onChange={(e) => setForm({ ...form, botId: e.target.value })}>
-                  {STAFF.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+                  {bots.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
                 </select>
               </label>
               <label>Name
@@ -357,7 +357,7 @@ export default function OsStaff({ go }) {
           ) : null}
           <ul>
             {routines.map((r) => {
-              const owner = STAFF.find((s) => s.id === r.botId);
+              const owner = bots.find((s) => s.id === r.botId);
               return (
                 <li key={r.id}>
                   <button type="button" className="osstaff-rbot" onClick={() => setSel(r.botId)}>
@@ -370,6 +370,7 @@ export default function OsStaff({ go }) {
                   <button type="button" onClick={() => persistRoutines(routines.map((x) => x.id === r.id ? { ...x, enabled: !x.enabled } : x))}>
                     {r.enabled ? "On" : "Off"}
                   </button>
+                  <button type="button" onClick={() => runRoutine(r)}>Run</button>
                 </li>
               );
             })}
