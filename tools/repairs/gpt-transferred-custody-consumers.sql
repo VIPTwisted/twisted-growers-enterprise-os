@@ -17,20 +17,40 @@ lock table public.v_inventory_locator, public.v_inventory_reconciliation
   in access share mode;
 
 do $lock_functions$
-declare locked_count integer;
+declare
+  r record;
+  original_oid oid;
+  temporary_name text;
+  locked_count integer := 0;
 begin
-  perform oid from pg_catalog.pg_proc
-   where oid in ('public.f_stock_status(text,boolean)'::regprocedure,
-                 'public.tg_snapshot_inventory(date)'::regprocedure)
-   order by oid for update;
-  get diagnostics locked_count = row_count;
-  if locked_count <> 2 then
-    raise exception 'Expected exactly two function rows to lock, found %', locked_count;
-  end if;
+  for r in select * from (values
+    ('f_stock_status', 'text,boolean'),
+    ('tg_snapshot_inventory', 'date')
+  ) targets(function_name, argument_types) order by function_name
+  loop
+    original_oid := to_regprocedure(format('public.%I(%s)', r.function_name, r.argument_types));
+    if original_oid is null then raise exception 'Missing function to lock: %', r.function_name; end if;
+    -- A transaction/OID-qualified name is only temporary; existing objects are
+    -- never dropped or overwritten. The uniqueness check and DDL both fail closed.
+    temporary_name := format('gpt_custody_lock_%s_%s', original_oid, txid_current());
+    if to_regprocedure(format('public.%I(%s)', temporary_name, r.argument_types)) is not null then
+      raise exception 'Temporary function signature collision: %', temporary_name;
+    end if;
+    execute format('alter function public.%I(%s) rename to %I', r.function_name, r.argument_types, temporary_name);
+    if to_regprocedure(format('public.%I(%s)', temporary_name, r.argument_types)) is distinct from original_oid then
+      raise exception 'Function identity changed while locking: %', r.function_name;
+    end if;
+    execute format('alter function public.%I(%s) rename to %I', temporary_name, r.argument_types, r.function_name);
+    if to_regprocedure(format('public.%I(%s)', r.function_name, r.argument_types)) is distinct from original_oid then
+      raise exception 'Function identity changed after locking: %', r.function_name;
+    end if;
+    locked_count := locked_count + 1;
+  end loop;
+  if locked_count <> 2 then raise exception 'Expected exactly two locked functions'; end if;
 end $lock_functions$;
 
 -- Separate statement after lock acquisition: READ COMMITTED sees completed DDL
--- that preceded our locks. No function/view attribute is changed to acquire them.
+-- that preceded our locks. Function names are restored before this check; bodies/configuration were never rewritten.
 do $preflight$ begin
 
  if md5(pg_get_functiondef('public.f_stock_status(text,boolean)'::regprocedure)) <> 'b6ad0c833ba2af5428404f0efe8458d3' then raise exception 'Definition drift: f_stock_status'; end if;
