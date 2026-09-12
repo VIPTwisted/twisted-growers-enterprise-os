@@ -26,3 +26,5 @@ The isolated PostgreSQL fixture verifies authenticated reads, admin-only writes,
 Signed-in browser verification is still outstanding because the available site tab is at Sign in. Use the secure browser authentication flow; do not request credentials in chat. The authenticated UI and realtime behavior must be inspected before deployment. The proposed RPCs have not been called or applied in production.
 
 Previously deployed separately: PR230 repaired deployment evidence checks; PR231 removed anonymous SELECT access from the five identified relations. Three existing public relations without RLS and broader platform work remain outside this proposed change. This report is not whole-platform completion certification.
+
+CI also identified an unrelated applied migration missing from the repository: `20260912160337_claude_tracker_todo_sheets_and_it_health`. Its exact SQL has been copied from Supabase migration history as an administrative source record, without executing it or implementing its pending tasks. The tree pin includes this file. CI now uses Node 22, matching Netlify and the installed Supabase client's WebSocket requirement.
