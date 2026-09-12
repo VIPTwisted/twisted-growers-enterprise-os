@@ -86,7 +86,7 @@ jobs:
       - name: Apex verification, failure recovery and concurrency (isolated Postgres)
         env:
           APEX_TEST_PGURL: ${{ env.MONEY_TEST_PGURL }}
-        run: node --test tools/tests/apex-verification.integration.mjs tools/tests/apex-verified-pull.test.mjs
+        run: node --test tools/tests/apex-verification.integration.mjs tools/tests/apex-verified-pull.test.mjs tools/tests/apex-empty-history.integration.mjs
 
       - name: Metrc atomic cursor completion (isolated Postgres)
         env:

@@ -8,6 +8,13 @@ keeps it growing. Plain English throughout.
 
 ## The files that outrank this one
 
+Operational repair: [Apex empty-history initialization](../docs/APEX_EMPTY_HISTORY.md)
+maps the administrative proof, ordinary-sync continuity, acceptance limits and
+recovery. Its executable repair is `tools/repairs/gpt-apex-empty-history.sql`;
+native PostgreSQL fixtures are `tools/tests/apex-empty-history.integration.mjs`.
+Applied versions are `20260911235239` and `20260911235352`; the latter resolves
+a live column/variable collision. Private source evidence stays outside Git.
+
 | File | Single source of truth for |
 |---|---|
 | [CLAUDE.md](../CLAUDE.md) | **Rules.** The hard rules and the locked facts. Loads automatically in every session. |
