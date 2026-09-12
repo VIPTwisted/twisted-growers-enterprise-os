@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { supabase, FUNCTIONS_URL, ANON_KEY } from "./lib/supabase.js";
-import { extProviderFromOs, viaLine, wakeTgBots, askTgBotsNow, pingTgBots, extTooOld, usableExtModel, tgBotsNewThread } from "./lib/topg-connect.js";
+import { extProviderFromOs, viaLine, wakeTgBots, askTgBotsNow, pingTgBots, usableExtModel } from "./lib/topg-connect.js";
 
 import TgBotsPanel from "./lib/tg-bots-panel.jsx";
 import { deskForView } from "./lib/os-desk.js";
@@ -1552,7 +1552,43 @@ async function askMeteredApi(question, history) {
    called, so both surfaces show what is known immediately and fill in the
    composed answer when it lands. Nobody waits on a model to see a number that
    was already sitting in a view. */
+async function liveWeather(question) {
+  if (!/\bweather\b|\bforecast\b|\btemperature\b|\btonight\b.*\b(ma|mass|boston)\b/i.test(question)) return null;
+  const spots = [
+    { re: /\bworcester\b/i, lat: 42.2626, lon: -71.8023, name: "Worcester" },
+    { re: /\bspringfield\b/i, lat: 42.1015, lon: -72.5898, name: "Springfield" },
+    { re: /\bpittsfield\b|\bberkshire/i, lat: 42.4501, lon: -73.2454, name: "Pittsfield" },
+    { re: /\bboston\b/i, lat: 42.3601, lon: -71.0589, name: "Boston" },
+    { re: /\bma\b|\bmass\b|massachusetts/i, lat: 42.3601, lon: -71.0589, name: "Massachusetts (Boston)" },
+  ];
+  const hit = spots.find((s) => s.re.test(question)) || { lat: 42.3601, lon: -71.0589, name: "Massachusetts (Boston)" };
+  try {
+    const hdr = { Accept: "application/geo+json" };
+    const pt = await fetch(`https://api.weather.gov/points/${hit.lat},${hit.lon}`, { headers: hdr });
+    if (!pt.ok) return null;
+    const pj = await pt.json();
+    const url = pj.properties?.forecast;
+    if (!url) return null;
+    const fc = await fetch(url, { headers: hdr });
+    if (!fc.ok) return null;
+    const fj = await fc.json();
+    const periods = (fj.properties?.periods || []).slice(0, 4);
+    if (!periods.length) return null;
+    const lines = periods.map((p) => `${p.name}: ${p.temperature}°${p.temperatureUnit} — ${p.shortForecast}. ${p.detailedForecast || ""}`.trim());
+    return `Weather for ${hit.name} (National Weather Service, live):\n\n${lines.join("\n\n")}`;
+  } catch {
+    return null;
+  }
+}
+
 export async function askBudzFull(question, history = [], { onFacts, surface = "assistant", desk } = {}) {
+  const askedAt = Date.now();
+
+  /* Weather does not wait on Grok. National Weather Service, seconds, this page. */
+  const wx = await liveWeather(question);
+  if (wx) {
+    return { headline: "", facts: [], composed: wx, via: "National Weather Service", askErr: null };
+  }
   /* MEMORY, BEFORE THE QUESTION IS ANSWERED.
 
      Wired HERE rather than in each screen, because the pet, the assistant page
@@ -1586,7 +1622,6 @@ export async function askBudzFull(question, history = [], { onFacts, surface = "
   let askErr = null;
   const log = history;
   onFacts?.(a, facts);
-  const askedAt = Date.now();
   const asked = [
     `Grok in Twisted Growers OS as ${desk?.name || "Top G"}. Answer anything. Metrc read-only. Buddy is boss.`,
     facts.length ? `Records: ${JSON.stringify({ summary: a.headline, records: facts.slice(0, 12) }).slice(0, 4000)}` : "",
@@ -1639,15 +1674,10 @@ export async function askBudzFull(question, history = [], { onFacts, surface = "
              can still type into the signed-in Grok tab. */
           const ping = await pingTgBots();
           let live = { installed: !!ping.installed, ok: false };
+          /* Always ASK_NOW. 1.2.0 refuses that message instantly. 1.3 types
+             into the signed-in tab. Never open a new Grok thread first — that
+             stole the add-on and the question sat in the queue for minutes. */
           if (ping.installed) {
-            try {
-              if (!sessionStorage.getItem("tg-bots-fresh")) {
-                await tgBotsNewThread(extProv);
-                sessionStorage.setItem("tg-bots-fresh", "1");
-              }
-            } catch { /* old thread is worse than none */ }
-          }
-          if (ping.installed && !extTooOld(ping.version)) {
             live = await askTgBotsNow(asked, { provider: extProv, model: pickModel });
           }
           if (live.installed && live.ok && live.reply && !/interrupted by the user|I DO NOT HAVE A BUILT-IN REPORT/i.test(live.reply)) {
@@ -1713,16 +1743,12 @@ export async function askBudzFull(question, history = [], { onFacts, surface = "
             if (apiRace || !cfg.paid_model_enabled) return;
             apiRace = askMeteredApi(asked, log).catch(() => null);
           };
-          const deadline = Date.now() + 25000;
-          /* Owner, 8 Aug 2026: "speed is critical". Two seconds, not eight.
-             The bridge has never answered faster than 11 seconds, so in practice
-             this races almost every question - which is the point. A free answer
-             nobody waits for beats a free answer nobody sees. */
+          const deadline = Date.now() + 8000;
           const raceAt = Date.now() + 2000;
           let done = null;
           let apiWon = null;
           while (Date.now() < deadline) {
-            await new Promise((r) => setTimeout(r, 600));
+            await new Promise((r) => setTimeout(r, 300));
             if (Date.now() > raceAt) startApiRace();
             if (apiRace) {
               /* Peek without blocking: Promise.race against an already-resolved
@@ -1752,7 +1778,7 @@ export async function askBudzFull(question, history = [], { onFacts, surface = "
               ? "The old Windows bot stole that question. Task Manager → end node.exe, stay signed in on grok.com, ask again."
               : raw.slice(0, 250);
           } else {
-            askErr = "TG Bots did not pick this up. Stay signed in on grok.com in another tab and ask again. If the answer says path specified, Task Manager → end node.exe."
+            askErr = "No answer in 8 seconds. Stay signed in on grok.com. Task Manager → end node.exe if it is running. Ask again.";
           }
           }
         } catch (e) {
