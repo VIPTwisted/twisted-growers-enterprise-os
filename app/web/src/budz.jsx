@@ -2063,6 +2063,29 @@ export async function askBudzFull(question, history = [], { onFacts, surface = "
     via = "TG Bots";
   }
 
+  /* 1.2.0 has no ASK_NOW. Queue for the desktop without waiting — the UI
+     already has a fallback. 1.3+ already tried the signed-in tab. */
+  if (!composed && live.installed === false) {
+    supabase.auth.getUser().then(({ data: u }) => {
+      const uid = u?.user?.id;
+      if (!uid) return;
+      return supabase.from("ai_bridge_jobs").insert({
+        asked_by: uid,
+        question: asked,
+        context: {
+          summary: a.headline,
+          records: facts.slice(0, 40),
+          model: pickModel,
+          provider: extProv,
+          desk: desk ? { name: desk.name, role: desk.role } : null,
+        },
+        model: pickModel,
+        provider: extProv,
+        status: "pending",
+      });
+    }).catch(() => {});
+  }
+
   if (!composed) {
     const cfg = _aiCfg || await getAiCfg();
     if (cfg.local_model_enabled && cfg.local_model_url) {
