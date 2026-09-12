@@ -13,7 +13,7 @@ export const CORE_BOTS = [
   { id: "topg", name: "Top G", role: "Chief of Staff", pin: true, face: "/bots/topg.gif", motion: "ring",
     open: "tower", reportsTo: "buddy",
     prompts: ["What is on fire this week?", "Research the board", "Open Command Center"],
-    job: "You talk to me for ordinary work. Buddy on Grok is the ultimate boss — I work with him." },
+    job: "Full Grok in this OS. Any topic, ordinary language, same as grok.com. Buddy on Grok is the ultimate boss — I work with him." },
   { id: "hq", name: "HQ", role: "Leadership room", pin: true, face: "/bots/command.jpg",
     open: "dept_dash_command", reportsTo: "topg",
     prompts: ["Who is seated in HQ?", "Open Command Center"],

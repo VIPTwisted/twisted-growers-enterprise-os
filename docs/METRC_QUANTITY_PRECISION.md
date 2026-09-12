@@ -1,5 +1,13 @@
 # Metrc saved-source quantity precision
 
+**Live outcome, 12 September 2026 at 12:47 UTC:** the second attempt completed.
+Its immutable receipt records six repaired rows, 204 verified dependencies,
+unconstrained numeric storage and zero saved-source quantity differences.
+An independent 12:48 UTC query confirmed all six exact values and both one-time
+schedules removed. Both active-package export comparisons subsequently passed
+against their explicitly dated September 11 snapshots. Full certification
+through September 12 remains open; no whole-dataset GO is asserted here.
+
 The package mirror stored quantities as `numeric(14,3)`. Six saved source
 quantities contained a fourth decimal place, so ingestion rounded their values.
 Migration `20260912121116_gpt_queue_metrc_quantity_precision_repair.sql` queues
@@ -45,6 +53,20 @@ success is not a completed repair; read this receipt and verify the live state.
 
 ## Verification and recovery
 
+The first live attempt reached the final availability check for
+`v_dept_dash_cfo` but exhausted its 15-minute budget at 12:28 UTC on September
+12. Its immutable failure receipt confirms the rollback. Independent checks
+found the original six mismatches, original source fingerprint and all 204
+original dependency-definition fingerprints intact; its schedule was removed.
+
+Migration `20260912123148_gpt_metrc_precision_rebuild_statistics.sql` preserves
+that receipt and queues a separate attempt. It analyzes the package table and
+each newly populated materialized view before planning its consumers. It also
+reports the current relation and phase in the session application name. The
+same timeout, source guards, permissions and final assertions remain in force.
+The second queue refuses an unresolved predecessor or an existing second
+attempt. Both attempt runners are exercised by the native CI fixture.
+
 The private full rehearsal reconstructs all 204 actual dependency definitions,
 the production DDL guards, typed empty outside providers and six synthetic
 quantity records in PGlite PostgreSQL. It tests dependency and source drift,
@@ -70,10 +92,11 @@ forward migration; retain the previous definitions in private recovery evidence.
 
 Equality to a saved source payload proves storage precision only. Five of these
 rows are explicitly historical report imports; their fresh direct lookups were
-denied and do not establish current API absence. The active-package export
-digests still use three decimals and are correctly rejected by the four-decimal
-certificate guard. Fresh original source exports or an independently complete
-source reconciliation are still required for population certification.
+denied and do not establish current API absence. Four-decimal active-package
+digests were recorded on September 12 at 05:43 UTC, superseding the earlier
+three-decimal digests. They describe September 11 snapshots, not today's complete
+population. Fresh original source exports or an independently complete source
+reconciliation are still required for certification through today.
 
 This repair does not certify every OS tile, report or business total. General
 Apex partial-page publication and ordinary-worker credit-read fail-open behavior

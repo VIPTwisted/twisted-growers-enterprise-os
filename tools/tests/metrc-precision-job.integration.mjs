@@ -6,6 +6,7 @@ import test from "node:test";
 import pg from "pg";
 
 const migration = readFileSync(new URL("../../supabase/migrations/20260912121116_gpt_queue_metrc_quantity_precision_repair.sql", import.meta.url), "utf8");
+const retryMigration = readFileSync(new URL("../../supabase/migrations/20260912123148_gpt_metrc_precision_rebuild_statistics.sql", import.meta.url), "utf8");
 const marker = "$tg_repair_body$";
 const begin = migration.indexOf(marker) + marker.length;
 const end = migration.indexOf(marker, begin);
@@ -21,7 +22,7 @@ create temp table tg_quantity_preflight on commit drop as select x from generate
 create view public.precision_fixture_view as select quantity from public.metrc_packages;
 `;
 
-test("one-time Metrc precision runner retains atomic repair and durable failure evidence", async t => {
+for (const attempt of [1, 2]) test(`Metrc precision attempt ${attempt} retains atomic repair and durable failure evidence`, async t => {
   let client, admin, database, embedded;
   if (process.env.PRECISION_TEST_PGLITE_MODULE) {
     assert.ok(!process.env.CI, "CI must run native PostgreSQL");
@@ -39,7 +40,9 @@ test("one-time Metrc precision runner retains atomic repair and durable failure 
   }
   const q = (s, p) => client.query(s, p);
   const scalar = async s => (await q(s)).rows[0].result;
-  const run = () => scalar("select tg_maintenance.run_metrc_precision() result");
+  const runner = attempt === 1 ? "run_metrc_precision" : "run_metrc_precision_v2";
+  const getter = attempt === 1 ? "metrc_precision_sql" : "metrc_precision_sql_v2";
+  const run = () => scalar(`select tg_maintenance.${runner}() result`);
   const state = () => scalar(`select jsonb_build_object(
     'type',(select format_type(atttypid,atttypmod) from pg_attribute where attrelid='metrc_packages'::regclass and attname='quantity'),
     'rows',(select jsonb_agg(to_jsonb(p) order by id) from metrc_packages p),
@@ -47,7 +50,18 @@ test("one-time Metrc precision runner retains atomic repair and durable failure 
   const reset = async (fault = "", expired = false) => {
     await q("drop schema if exists tg_maintenance cascade; drop view if exists precision_fixture_view; drop table if exists metrc_packages; delete from cron.job;");
     await q("create table metrc_packages(id int primary key,quantity numeric(14,3),raw jsonb); insert into metrc_packages select x,1.234,'{\"Quantity\":1.2345}'::jsonb from generate_series(1,6) x;");
-    let sql = migration.slice(0, begin) + payload + fault + migration.slice(end);
+    let template = migration;
+    if (attempt === 2) {
+      const previousFault = `do $$ begin raise exception 'Precision final check timed out at "public"."v_dept_dash_cfo"'; end $$;`;
+      await q(migration.slice(0, begin) + payload + previousFault + migration.slice(end));
+      const prior = await scalar("select tg_maintenance.run_metrc_precision() result");
+      assert.equal(prior.status, "failed");
+      assert.match(prior.error, /Precision final check timed out/);
+      template = retryMigration;
+    }
+    const first = template.indexOf(marker) + marker.length;
+    const last = template.indexOf(marker, first);
+    let sql = template.slice(0, first) + payload + fault + template.slice(last);
     if (expired) sql = sql.replace("clock_timestamp()+interval '20 minutes'", "clock_timestamp()-interval '1 minute'");
     await q(sql);
   };
@@ -94,13 +108,18 @@ test("one-time Metrc precision runner retains atomic repair and durable failure 
     });
     await t.test("changed SQL or job identity cannot replace the sealed repair", async () => {
       await reset(); const before = await state();
-      await assert.rejects(() => q("update tg_maintenance.metrc_quantity_precision_run set repair_sha256='replacement'"), /identity is immutable/);
-      await q("create or replace function tg_maintenance.metrc_precision_sql() returns text language sql immutable set search_path=pg_catalog as $$ select 'select 1'::text $$");
+      await assert.rejects(() => q("update tg_maintenance.metrc_quantity_precision_run set repair_sha256='replacement' where status='pending'"), /identity is immutable/);
+      await q(`create or replace function tg_maintenance.${getter}() returns text language sql immutable set search_path=pg_catalog as $$ select 'select 1'::text $$`);
       assert.match((await run()).error, /hash changed/); assert.deepEqual(await state(), before);
     });
     await t.test("receipt refuses an incomplete repair", async () => {
       await reset("delete from pg_temp.tg_quantity_changed where id=6;"); const before = await state();
       const result = await run(); assert.equal(result.status, "failed"); assert.match(result.error, /does not reconcile/);
+      assert.deepEqual(await state(), before);
+    });
+    await t.test("second attempt refuses an unresolved predecessor or an existing retry", async () => {
+      await reset(); const before = await state();
+      await assert.rejects(() => q(retryMigration), attempt === 1 ? /Previous precision attempt/ : /Second precision attempt already exists/);
       assert.deepEqual(await state(), before);
     });
   } finally {

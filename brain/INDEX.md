@@ -11,6 +11,8 @@ keeps it growing. Plain English throughout.
 Operational repair: [Metrc quantity precision](../docs/METRC_QUANTITY_PRECISION.md)
 maps migration `20260912121116_gpt_queue_metrc_quantity_precision_repair.sql`,
 its one-time execution receipt, dependency preservation and certification limits.
+Migration `20260912123148_gpt_metrc_precision_rebuild_statistics.sql` retains
+the first rollback receipt and adds planner statistics to a separately sealed attempt.
 `tools/tests/metrc-precision-job.integration.mjs` exercises the deployed runner
 in disposable PostgreSQL; full dependency rehearsal evidence remains private.
 
