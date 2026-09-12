@@ -15,7 +15,7 @@ const AREAS = [
 ];
 
 function safeName(name) {
-  return String(name || "file").replace(/[^A-Za-Z0-9._-]+/g, "_").slice(0, 180);
+  return String(name || "file").replace(/[^\w.-]+/g, "_").slice(0, 180);
 }
 
 function kindOf(type, name) {
