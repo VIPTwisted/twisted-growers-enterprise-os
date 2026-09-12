@@ -6,6 +6,7 @@ import pg from 'pg';
 import assert from 'node:assert/strict';
 const spec=JSON.parse(gunzipSync(readFileSync(new URL('./fixtures/package-precision-schema.json.gz',import.meta.url))));
 let db,admin,other,database;
+let originalRoles;
 if(process.env.PRECISION_PGLITE_MODULE){
   assert.ok(!process.env.CI,'CI must exercise PostgreSQL 17 and concurrent sessions');
   const {PGlite}=await import(pathToFileURL(process.env.PRECISION_PGLITE_MODULE).href);
@@ -16,6 +17,7 @@ if(process.env.PRECISION_PGLITE_MODULE){
   const url=new URL(process.env.PRECISION_TEST_PGURL);
   assert.ok(['localhost','127.0.0.1','[::1]'].includes(url.hostname),'Refusing non-loopback fixture database');
   admin=new pg.Client({connectionString:url.href});await admin.connect();
+  originalRoles=new Set((await admin.query('select rolname from pg_roles')).rows.map(r=>r.rolname));
   const version=(await admin.query('show server_version_num')).rows[0].server_version_num;
   assert.equal(Math.floor(Number(version)/10000),17,'Native fixture must use production major version 17');
   database='quantity_fixture_'+randomUUID().replaceAll('-','');await admin.query('create database '+database);url.pathname='/'+database;
@@ -128,4 +130,7 @@ try{
 }catch(e){
   const output={status:'failed',phase,position,error:e.message,detail:e.detail,results};
   if(process.env.PRECISION_RESULTS_FILE)writeFileSync(process.env.PRECISION_RESULTS_FILE,JSON.stringify(output,null,2));console.error(JSON.stringify(output));process.exitCode=1;
-}finally{if(other)await other.end();await db.close();if(admin){try{await admin.query('drop database '+database);}finally{await admin.end();}}}
+}finally{if(other)await other.end();await db.close();if(admin){try{await admin.query('drop database '+database);
+  const created=(await admin.query('select rolname from pg_roles')).rows.map(r=>r.rolname).filter(name=>!originalRoles.has(name));
+  for(const name of created)await admin.query('drop role '+pg.escapeIdentifier(name));
+}finally{await admin.end();}}}
