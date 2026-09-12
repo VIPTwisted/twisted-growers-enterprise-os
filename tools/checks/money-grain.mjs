@@ -796,7 +796,10 @@ const migrationEntries = files.map((name) => ({
 // Exact applied one-time Metrc precision migration; existing money contracts preserved.
 // Re-pinned 12 Sep 2026 after brand locker + live schema dump swap. 1073 files.
 // Dump replaces the prior baseline only. Brand locker is not money. No ledger rewrite.
-const expectedMigrationTreeDigest = "96aa8fb88b05be2f48c6f5278c61131fdd806fba815a281d760973c8d2422bc5";
+// Re-pinned 12 Sep 2026, 1073 -> 1074 files. Recorded exact applied
+// gpt_transferred_custody_consumer_guards so Top G speed can pass Gates.
+// Other desk applied it. Tamper seal, not an approval of the SQL. No ledger rewrite.
+const expectedMigrationTreeDigest = "16bdc8da9073e5b0d1d12f3c7e35fd1813f1c2d85c8ce9d6d1311349af2e6d80";
 const actualMigrationTreeDigest = migrationTreeDigest(migrationEntries);
 if (actualMigrationTreeDigest !== expectedMigrationTreeDigest) {
   console.error(`money-grain: FAIL — migration tree differs from the independently reviewed ${files.length}-file manifest (${actualMigrationTreeDigest}).`);

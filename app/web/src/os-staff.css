@@ -312,7 +312,7 @@
 .osstaff-runs ul { list-style: none; margin: 0.3rem 0 0; padding: 0; }
 .osstaff-runs li { font-size: 0.7rem; color: var(--muted); padding: 0.15rem 0; }
 .osstaff-docs { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: 0.6rem; }
-.osstaff-docs a {
+.osstaff-docs a, .osstaff-docs button {
   border: 1px solid var(--neon-line);
   background: var(--neon-soft);
   color: var(--neon);
@@ -320,6 +320,7 @@
   padding: 0.3rem 0.75rem;
   text-decoration: none;
   font-size: 0.75rem;
+  cursor: pointer;
 }
 .osstaff-clip {
   border: 1px solid var(--line);
