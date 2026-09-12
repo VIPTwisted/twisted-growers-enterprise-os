@@ -93,3 +93,12 @@
   for = "/index.html"
   [headers.values]
     Cache-Control = "public, max-age=0, must-revalidate"
+
+# Protect the OS from cross-origin framing, base-URL injection and plugin embeds.
+# Script and connection allowlists require a separate measured resource policy.
+[[headers]]
+  for = "/*"
+  [headers.values]
+    Content-Security-Policy = "frame-ancestors 'self'; base-uri 'self'; object-src 'none'"
+    X-Frame-Options = "SAMEORIGIN"
+    X-Content-Type-Options = "nosniff"
