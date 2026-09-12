@@ -56,9 +56,11 @@ const PayRuns = lazy(() => import("./payruns.jsx"));
 const MySchedule = lazy(() => import("./myschedule.jsx"));
 const SyncItems = lazy(() => import("./syncitems.jsx"));
 const KeysConnections = lazy(() => import("./keysconnections.jsx"));
+const SettingsDash = lazy(() => import("./settings-dash.jsx"));
 const WidgetCanvas = lazy(() => import("./wcanvas.jsx").then((m) => ({ default: m.WidgetCanvas })));
 const TgWorkspace = lazy(() => import("./tgworkspace.jsx"));
 import jsQR from "jsqr";
+import BotsPaidKey from "./bots-paid-key.jsx";
 import { supabase, FUNCTIONS_URL } from "./lib/supabase.js";
 import { BudzScreen, CeoDashboard, AssistantSettings, BudzPet, useBudzPet, RedGreen,
          askBudzFull, useChatFiles, ChatFiles, Thinking,
@@ -8986,6 +8988,9 @@ function Integrations({ session }) {
               SYNC ALL BUTTON" / "LIST ALL SPREADSHEETS WITH A BUTTON". Its own file
               because App.jsx is already 9,700 lines and the owner has ruled against
               files big enough that one break takes everything down. */}
+          <div style={{ marginTop: 16 }}>
+            <BotsPaidKey role={role} />
+          </div>
           <SyncItems session={session} licences={metrcLicences} />
         </div>
         <div>
@@ -11989,6 +11994,7 @@ export default function App() {
        one import and one entry for this build. */
     tg_workspace: <TgWorkspace session={session} go={setView} />,
     settings: <Settings session={session} prefs={prefs} />,
+    dept_dash_settings: <SettingsDash go={setView} role={role} />,
     help: <OsHelp go={setView} />,
     metrc_mirror: <MetrcMirror />,
     metrc_mc: <MetrcMirror license="MC281714" />,

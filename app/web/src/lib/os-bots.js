@@ -67,7 +67,7 @@ export const CORE_BOTS = [
     prompts: ["Open plant waste as-of", "Run every cloned report"],
     job: "Snapshot pages declare as-of. Period bus is one page at a time. Waste only via v_waste_qty_truth." },
   { id: "settings", name: "Settings", role: "Integrations desk", face: "/bots/settings.jpg", live: true, motion: "ring",
-    open: "settings", reportsTo: "engineer",
+    open: "integrations", reportsTo: "engineer",
     prompts: ["What keys are live?", "Date defaults"],
     job: "Keys, connections, who the assistant is allowed to answer." },
   { id: "workspace", name: "Workspace", role: "Clipboard", face: "/bots/workspace.jpg", live: true, motion: "box",
