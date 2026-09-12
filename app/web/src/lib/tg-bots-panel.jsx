@@ -81,19 +81,9 @@ export default function TgBotsPanel({ compact = false, onReady }) {
 
   function startNew() {
     const p = provider || "grok";
-    const sites = {
-      grok: "https://grok.com/",
-      grokbots: "https://grok.com/",
-      claude: "https://claude.ai/new",
-      gpt: "https://chatgpt.com/",
-    };
-    /* Open FIRST, in this click. Awaiting the add-on first makes Chrome treat
-       window.open as a popup and block it — the button looks dead. */
-    const w = window.open(sites[p] || "https://grok.com/", "_blank", "noopener");
     tgBotsNewThread(p).catch(() => {});
-    setMsg(w
-      ? "New " + providerLabel(p) + " chat opened. Stay signed in on that tab. Type below — do not tap Grok."
-      : "This browser blocked the new tab. Allow popups for the OS, or open grok.com yourself and click New chat there.");
+    try { window.dispatchEvent(new Event("tg-bots-new-chat")); } catch { /* no window */ }
+    setMsg("Fresh chat. Stay on this page. Type below. Do not tap Grok.");
   }
 
   async function pickVersion(value) {
