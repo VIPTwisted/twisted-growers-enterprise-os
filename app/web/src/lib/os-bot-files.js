@@ -195,19 +195,73 @@ ${table.headers?.length > 1 ? `<table><thead><tr>${head}</tr></thead><tbody>${ro
   return new Blob([html], { type: "text/html;charset=utf-8" });
 }
 
-function makeXls(title, table) {
-  const cell = (v) => `<Cell><Data ss:Type="String">${String(v).replace(/&/g, "&").replace(/</g, "<")}</Data></Cell>`;
-  const header = `<Row>${(table.headers || []).map(cell).join("")}</Row>`;
-  const body = (table.rows || []).map((r) => `<Row>${r.map(cell).join("")}</Row>`).join("");
-  const xml = `<?xml version="1.0"?><?mso-application progid="Excel.Sheet"?>
-<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"
- xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">
-<Worksheet ss:Name="OS"><Table>
-<Row><Cell><Data ss:Type="String">${String(title).replace(/&/g, "&")}</Data></Cell></Row>
-<Row><Cell><Data ss:Type="String">From Twisted Growers OS. Not a certified Metrc figure unless a named live view is in this sheet.</Data></Cell></Row>
-${header}${body}
-</Table></Worksheet></Workbook>`;
-  return new Blob([xml], { type: "application/vnd.ms-excel" });
+function xmlEsc(s) {
+  return String(s ?? "")
+    .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, "")
+    .replace(/&/g, "\u0026amp;")
+    .replace(/</g, "\u0026lt;")
+    .replace(/>/g, "\u0026gt;")
+    .replace(/"/g, "\u0026quot;")
+    .slice(0, 32000);
+}
+
+function colRef(i) {
+  let s = "";
+  let n = i + 1;
+  while (n > 0) {
+    const m = (n - 1) % 26;
+    s = String.fromCharCode(65 + m) + s;
+    n = Math.floor((n - 1) / 26);
+  }
+  return s;
+}
+
+function makeXlsx(title, table) {
+  const enc = new TextEncoder();
+  const matrix = [
+    [String(title || "OS")],
+    ["From Twisted Growers OS. Not a certified Metrc figure unless a named live view is in this sheet."],
+    [],
+    table.headers || [],
+    ...(table.rows || []),
+  ];
+  const sheetRows = matrix.map((row, ri) => {
+    const cells = (row || []).map((v, ci) => {
+      if (v == null || v === "") return "";
+      const ref = `${colRef(ci)}${ri + 1}`;
+      return `<c r="${ref}" t="inlineStr"><is><t xml:space="preserve">${xmlEsc(v)}</t></is></c>`;
+    }).join("");
+    return `<row r="${ri + 1}">${cells}</row>`;
+  }).join("");
+  const sheet = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>`
+    + `<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">`
+    + `<sheetData>${sheetRows}</sheetData></worksheet>`;
+  const types = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>`
+    + `<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">`
+    + `<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>`
+    + `<Default Extension="xml" ContentType="application/xml"/>`
+    + `<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>`
+    + `<Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`
+    + `</Types>`;
+  const rels = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>`
+    + `<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">`
+    + `<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>`
+    + `</Relationships>`;
+  const workbook = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>`
+    + `<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">`
+    + `<sheets><sheet name="OS" sheetId="1" r:id="rId1"/></sheets></workbook>`;
+  const wbRels = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>`
+    + `<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">`
+    + `<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>`
+    + `</Relationships>`;
+  const zip = zipStore([
+    { name: "[Content_Types].xml", data: enc.encode(types) },
+    { name: "_rels/.rels", data: enc.encode(rels) },
+    { name: "xl/workbook.xml", data: enc.encode(workbook) },
+    { name: "xl/_rels/workbook.xml.rels", data: enc.encode(wbRels) },
+    { name: "xl/worksheets/sheet1.xml", data: enc.encode(sheet) },
+  ]);
+  return new Blob([zip], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
 }
 
 function makeDocx(title, body) {
@@ -249,7 +303,7 @@ export function makeDocuments({ title, body, facts, formats, download }) {
     let blob;
     let file;
     if (kind === "pdf") { blob = makePdf(title, text); file = name + ".pdf"; }
-    else if (kind === "xls") { blob = makeXls(title, table); file = name + ".xls"; }
+    else if (kind === "xls" || kind === "xlsx") { blob = makeXlsx(title, table); file = name + ".xlsx"; }
     else if (kind === "docx") { blob = makeDocx(title, text); file = name + ".docx"; }
     else { blob = makeHtml(title, text, table); file = name + ".html"; }
     if (download) downloadBlob(file, blob);
