@@ -1,0 +1,535 @@
+{
+  "rooms": [
+    {
+      "id": "rr-m",
+      "name": "Trim Room",
+      "zone": "process",
+      "x": 2.2,
+      "y": 7.4,
+      "w": 11.8,
+      "h": 11,
+      "zh": 22,
+      "jobs": "Trim. Hand and machine.",
+      "labeled": true,
+      "metrc": "Trim Room",
+      "aliasNote": "Own room. Above Flower Packaging."
+    },
+    {
+      "id": "break",
+      "name": "Break Room",
+      "zone": "office",
+      "x": 14,
+      "y": 7.4,
+      "w": 11.8,
+      "h": 11,
+      "zh": 18,
+      "jobs": "Unpaid break. Two waves. No Metrc location — ops room.",
+      "labeled": true
+    },
+    {
+      "id": "conf",
+      "name": "Packaging Room",
+      "zone": "process",
+      "x": 2.2,
+      "y": 18.4,
+      "w": 11.8,
+      "h": 11,
+      "zh": 24,
+      "jobs": "Finished flower packs. 3.5 g eighths and other finished flower units.",
+      "labeled": true,
+      "metrc": "Packaging Room",
+      "aliasNote": "Below Trim. Metrc Packaging Room. 3.5 g flower jars and finished flower units. Not Josh — he runs Packaging, not this room."
+    },
+    {
+      "id": "stage",
+      "name": "Packaging & Supplies",
+      "zone": "process",
+      "x": 14,
+      "y": 18.4,
+      "w": 11.8,
+      "h": 11,
+      "zh": 22,
+      "jobs": "Packaging supplies. Tubes, jars, labels. On-hand, reorder, cost, freight, suppliers.",
+      "labeled": true,
+      "aliasNote": "Was Staging. Not a Metrc location. OS packaging-supply book."
+    },
+    {
+      "id": "office",
+      "name": "Pre-Rolls",
+      "zone": "process",
+      "x": 2.2,
+      "y": 29.4,
+      "w": 11.8,
+      "h": 11.2,
+      "zh": 22,
+      "jobs": "Flower pre-rolls. Fill, weigh, finish.",
+      "labeled": true,
+      "aliasNote": "West half of the old open office. No dedicated Metrc room yet."
+    },
+    {
+      "id": "infused",
+      "name": "Infused Pre-Rolls",
+      "zone": "process",
+      "x": 14,
+      "y": 29.4,
+      "w": 11.8,
+      "h": 11.2,
+      "zh": 22,
+      "jobs": "Infused pre-rolls. Oil, finish, pack.",
+      "labeled": true,
+      "aliasNote": "East half of the old open office. No dedicated Metrc room yet."
+    },
+    {
+      "id": "pack",
+      "name": "Packaging",
+      "zone": "process",
+      "x": 2.2,
+      "y": 40.6,
+      "w": 11.8,
+      "h": 10.4,
+      "zh": 24,
+      "jobs": "Finish pack. Pre-rolls, infused pre-rolls, vapes, and other non-flower finished goods. Not 3.5 g flower jars.",
+      "labeled": true,
+      "aliasNote": "Packaging Manager Josh. Not Metrc Packaging Room (that is flower). No dedicated Metrc location yet."
+    },
+    {
+      "id": "vault",
+      "name": "Finish Vault",
+      "zone": "process",
+      "x": 14,
+      "y": 40.6,
+      "w": 11.8,
+      "h": 10.4,
+      "zh": 28,
+      "jobs": "Secured finished goods.",
+      "labeled": true,
+      "metrc": "Finish Vault"
+    },
+    {
+      "id": "kitchen",
+      "name": "Production Room",
+      "zone": "process",
+      "x": 2.2,
+      "y": 51,
+      "w": 11.8,
+      "h": 9,
+      "zh": 26,
+      "jobs": "Manufacturing line. Infusion, conversion, production runs.",
+      "labeled": true,
+      "metrc": "Production Room",
+      "aliasNote": "A1.1 labels Full Kitchen here. Display name is Manufacturing. Mapped to Metrc Production Room."
+    },
+    {
+      "id": "cure",
+      "name": "Cure Vault",
+      "zone": "dry",
+      "x": 37.7,
+      "y": 42.6,
+      "w": 11.9,
+      "h": 10.5,
+      "zh": 26,
+      "jobs": "Curing / bulk. Open harvests.",
+      "labeled": true,
+      "metrc": "Cure Vault"
+    },
+    {
+      "id": "pretrim",
+      "name": "Pre Trim Storage Room",
+      "zone": "process",
+      "x": 2.2,
+      "y": 60,
+      "w": 23.6,
+      "h": 9.6,
+      "zh": 22,
+      "jobs": "Dried, awaiting trim.",
+      "labeled": true,
+      "metrc": "Pre Trim Storage Room"
+    },
+    {
+      "id": "dock-inv",
+      "name": "Inventory",
+      "zone": "process",
+      "x": 2.2,
+      "y": 84.6,
+      "w": 24,
+      "h": 10.4,
+      "zh": 22,
+      "jobs": "Finished-goods inventory. Packed product on the shelf, ready to ship.",
+      "labeled": true,
+      "metrc": "Shipping & Receiving",
+      "aliasNote": "West of the dock. Same Metrc location as Shipping & Receiving. This card is on-hand packages."
+    },
+    {
+      "id": "ship",
+      "name": "Shipping",
+      "zone": "process",
+      "x": 26.2,
+      "y": 84.6,
+      "w": 23.4,
+      "h": 10.4,
+      "zh": 22,
+      "jobs": "Dock. Outbound orders, returns, manifests.",
+      "labeled": true,
+      "aliasNote": "East of Inventory. Desk and outbound. Apex invoice is SoR for the order. Manifests happen in Metrc."
+    },
+    {
+      "id": "veg",
+      "name": "Vegetation Room",
+      "zone": "canopy",
+      "x": 25.8,
+      "y": 7.4,
+      "w": 23.8,
+      "h": 35.2,
+      "zh": 40,
+      "jobs": "Space, transplant, veg cycle.",
+      "labeled": true,
+      "metrc": "Vegetation Room"
+    },
+    {
+      "id": "dry2",
+      "name": "Dry Room #2",
+      "zone": "dry",
+      "x": 49.6,
+      "y": 84.6,
+      "w": 24,
+      "h": 10.4,
+      "zh": 32,
+      "jobs": "Hang, A/B/C, moisture.",
+      "labeled": true,
+      "metrc": "Dry Room #2"
+    },
+    {
+      "id": "dry1",
+      "name": "Dry Room #1",
+      "zone": "dry",
+      "x": 73.6,
+      "y": 84.6,
+      "w": 24,
+      "h": 10.4,
+      "zh": 32,
+      "jobs": "Hang, A/B/C, moisture.",
+      "labeled": true,
+      "metrc": "Dry Room #1"
+    },
+    {
+      "id": "f1",
+      "name": "Flower Room #1",
+      "zone": "flower",
+      "x": 49.6,
+      "y": 7.4,
+      "w": 24,
+      "h": 35.2,
+      "zh": 52,
+      "jobs": "Water, IPM, defol, harvest. LARGE cap 1,140.",
+      "labeled": true,
+      "metrc": "Flower Room #1",
+      "size": "LARGE",
+      "cap": 1140
+    },
+    {
+      "id": "f2",
+      "name": "Flower Room #2",
+      "zone": "flower",
+      "x": 73.6,
+      "y": 7.4,
+      "w": 24,
+      "h": 35.2,
+      "zh": 52,
+      "jobs": "Water, IPM, defol, harvest. SMALL cap 1,050.",
+      "labeled": true,
+      "metrc": "Flower Room #2",
+      "size": "SMALL",
+      "cap": 1050
+    },
+    {
+      "id": "f3",
+      "name": "Flower Room #3",
+      "zone": "flower",
+      "x": 49.6,
+      "y": 42.6,
+      "w": 24,
+      "h": 42,
+      "zh": 52,
+      "jobs": "Water, IPM, defol, harvest. LARGE cap 1,140.",
+      "labeled": true,
+      "metrc": "Flower Room #3",
+      "size": "LARGE",
+      "cap": 1140
+    },
+    {
+      "id": "f4",
+      "name": "Flower Room #4",
+      "zone": "flower",
+      "x": 73.6,
+      "y": 42.6,
+      "w": 24,
+      "h": 42,
+      "zh": 52,
+      "jobs": "Water, IPM, defol, harvest. SMALL cap 1,050.",
+      "labeled": true,
+      "metrc": "Flower Room #4",
+      "size": "SMALL",
+      "cap": 1050
+    },
+    {
+      "id": "hydro",
+      "name": "Hydrocarbon",
+      "zone": "process",
+      "x": 2.2,
+      "y": 69.6,
+      "w": 11.8,
+      "h": 15,
+      "zh": 26,
+      "jobs": "Extraction — hydrocarbon.",
+      "labeled": true,
+      "metrc": "Hydrocarbon",
+      "aliasNote": "Empty slab under Pre-Trim. Existing rooms not moved."
+    },
+    {
+      "id": "solventless",
+      "name": "Solventless",
+      "zone": "process",
+      "x": 14,
+      "y": 69.6,
+      "w": 11.8,
+      "h": 15,
+      "zh": 26,
+      "jobs": "Extraction — solventless.",
+      "labeled": true,
+      "metrc": "Solventless",
+      "aliasNote": "Empty slab under Pre-Trim. Existing rooms not moved."
+    },
+    {
+      "id": "fulfill",
+      "name": "Fulfillment Vault",
+      "zone": "dry",
+      "x": 25.8,
+      "y": 42.6,
+      "w": 11.9,
+      "h": 10.5,
+      "zh": 28,
+      "jobs": "Bulk / outbound. Open harvests and packages.",
+      "labeled": true,
+      "metrc": "Fulfillment Vault",
+      "aliasNote": "Empty slab south of Vegetation. Existing rooms not moved."
+    },
+    {
+      "id": "freezer",
+      "name": "Freezer/Biomass Storage",
+      "zone": "process",
+      "x": 14,
+      "y": 51,
+      "w": 11.8,
+      "h": 9,
+      "zh": 26,
+      "jobs": "Fresh frozen and biomass.",
+      "labeled": true,
+      "metrc": "Freezer/Biomass Storage",
+      "aliasNote": "Empty slab south of Vegetation. Existing rooms not moved."
+    },
+    {
+      "id": "bda",
+      "name": "BDA/Storage Room",
+      "zone": "process",
+      "x": 25.8,
+      "y": 53.1,
+      "w": 11.9,
+      "h": 10.5,
+      "zh": 22,
+      "jobs": "BDA storage.",
+      "labeled": true,
+      "metrc": "BDA/Storage Room",
+      "aliasNote": "Empty slab south of Vegetation. Existing rooms not moved."
+    },
+    {
+      "id": "biomass",
+      "name": "Biomass Prep",
+      "zone": "process",
+      "x": 37.7,
+      "y": 53.1,
+      "w": 11.9,
+      "h": 10.5,
+      "zh": 22,
+      "jobs": "Biomass preparation.",
+      "labeled": true,
+      "metrc": "Biomass Prep",
+      "aliasNote": "Empty slab south of Vegetation. Existing rooms not moved."
+    },
+    {
+      "id": "grind",
+      "name": "Grind Room",
+      "zone": "process",
+      "x": 25.8,
+      "y": 63.6,
+      "w": 11.9,
+      "h": 10.5,
+      "zh": 22,
+      "jobs": "Grinding.",
+      "labeled": true,
+      "metrc": "Grind Room",
+      "aliasNote": "Empty slab south of Vegetation. Existing rooms not moved."
+    },
+    {
+      "id": "qa",
+      "name": "QA Room",
+      "zone": "process",
+      "x": 37.7,
+      "y": 63.6,
+      "w": 11.9,
+      "h": 10.5,
+      "zh": 22,
+      "jobs": "QA.",
+      "labeled": true,
+      "metrc": "QA Room",
+      "aliasNote": "Empty slab south of Vegetation. Existing rooms not moved."
+    },
+    {
+      "id": "quar",
+      "name": "Quarantine",
+      "zone": "process",
+      "x": 25.8,
+      "y": 74.1,
+      "w": 11.9,
+      "h": 10.5,
+      "zh": 22,
+      "jobs": "Quarantine hold.",
+      "labeled": true,
+      "metrc": "Quarantine",
+      "aliasNote": "Empty slab south of Vegetation. Existing rooms not moved."
+    },
+    {
+      "id": "wh1",
+      "name": "Warehouse #1",
+      "zone": "process",
+      "x": 37.7,
+      "y": 74.1,
+      "w": 11.9,
+      "h": 10.5,
+      "zh": 22,
+      "jobs": "Warehouse.",
+      "labeled": true,
+      "metrc": "Warehouse #1",
+      "aliasNote": "Empty slab south of Vegetation. Existing rooms not moved."
+    }
+  ],
+  "depts": [
+    {
+      "id": "cult",
+      "label": "Cultivation",
+      "wing": "cultivation",
+      "groups": [
+        {
+          "label": "Flower",
+          "rooms": [
+            "f1",
+            "f2",
+            "f3",
+            "f4",
+            "veg"
+          ],
+          "also": [
+            {
+              "label": "Mother Room",
+              "id": "veg"
+            },
+            {
+              "label": "Clone Room",
+              "id": "veg"
+            }
+          ]
+        },
+        {
+          "label": "Dry / Cure",
+          "rooms": [
+            "dry1",
+            "dry2",
+            "cure"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "mfg",
+      "label": "Manufacturing",
+      "wing": "manufacturing",
+      "groups": [
+        {
+          "label": "Extraction",
+          "rooms": [
+            "hydro",
+            "solventless",
+            "kitchen"
+          ]
+        },
+        {
+          "label": "Frozen / biomass",
+          "rooms": [
+            "freezer",
+            "biomass",
+            "bda"
+          ]
+        },
+        {
+          "label": "Vaults",
+          "rooms": [
+            "vault",
+            "fulfill"
+          ]
+        },
+        {
+          "label": "Dock / hold",
+          "rooms": [
+            "dock-inv",
+            "ship",
+            "pretrim",
+            "quar",
+            "wh1"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "pack",
+      "label": "Packaging",
+      "wing": "packaging",
+      "groups": [
+        {
+          "label": "Flower",
+          "rooms": [
+            "conf",
+            "pack",
+            "grind",
+            "rr-m"
+          ]
+        },
+        {
+          "label": "Pre-rolls",
+          "rooms": [
+            "office",
+            "infused"
+          ]
+        },
+        {
+          "label": "Packaging & Supplies",
+          "rooms": [
+            "stage"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "ops",
+      "label": "Operations",
+      "wing": "facility",
+      "groups": [
+        {
+          "label": "Floor",
+          "rooms": [
+            "break",
+            "qa"
+          ]
+        }
+      ]
+    }
+  ]
+}
