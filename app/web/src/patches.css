@@ -1769,3 +1769,21 @@ button.narrblock:hover { outline: 1px solid var(--line); }
   color:var(--ink-2);
   font-size:.78rem;
 }
+
+/* ═══ THE SYNC BUTTON'S PANEL WAS BEING CLIPPED ══════════════════════════
+ * Owner, 13 Sep 2026: "the Sync button does not work — it glitched yesterday."
+ * The button worked; its panel opened and was invisible. PR 168 (8 Sep) put
+ * overflow:hidden on .railfoot to stop the Top G gif crushing the menu, and
+ * the Sync panel is absolutely positioned INSIDE that foot (styles.css:611,
+ * bottom:44px), so every pixel of it above the foot's box was cut off. The
+ * first green production build after PR 168 was 12 Sep 21:12 UTC — which is
+ * exactly when the owner saw it stop working.
+ * A fixed-position box is not clipped by an ancestor's overflow, so the panel
+ * now anchors to the viewport beside the rail. Theme untouched: same surface,
+ * border, shadow and width as styles.css draws it.
+ */
+.nav .railfoot .syncpanel {
+  position: fixed; top: auto; bottom: 64px; left: 12px; right: auto;
+  width: min(380px, calc(100vw - 24px)); z-index: 80;
+}
+.nav.closed .railfoot .syncpanel { left: 64px; }
