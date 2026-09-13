@@ -56,6 +56,7 @@ const PayRuns = lazy(() => import("./payruns.jsx"));
 const MySchedule = lazy(() => import("./myschedule.jsx"));
 const SyncItems = lazy(() => import("./syncitems.jsx"));
 const KeysConnections = lazy(() => import("./keysconnections.jsx"));
+const SyncConnections = lazy(() => import("./synccenter.jsx"));
 const SettingsDash = lazy(() => import("./settings-dash.jsx"));
 const WidgetCanvas = lazy(() => import("./wcanvas.jsx").then((m) => ({ default: m.WidgetCanvas })));
 const TgWorkspace = lazy(() => import("./tgworkspace.jsx"));
@@ -577,7 +578,7 @@ function useNav(version, session, viewAsRole) {
  * `null` means we have not finished asking; a string is a real answer. The error text
  * is kept so the screen can say WHY instead of inventing a role.
  */
-function useRole(session) {
+export function useRole(session) {
   const [role, setRole] = useState(null);
   const [roleError, setRoleError] = useState(null);
   useEffect(() => {
@@ -3845,7 +3846,7 @@ function parseSyncResponse(src, j) {
   if (item.errors.length && !item.details.length) item.ok = false;
   return item;
 }
-function SyncCenter({ session }) {
+function SyncCenter({ session, go }) {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(null);
   const [report, setReport] = useState(null);
@@ -3868,9 +3869,13 @@ function SyncCenter({ session }) {
     setOpen(false);
     setReport({ when: new Date().toLocaleTimeString(), items });
   };
+  /* THE SYNC BUTTON OPENS THE SYNC PAGE. Owner, 13 Sep 2026: "when you hit Sync it had its own
+     dedicated page" — not a drop-up in the side menu. The button now goes straight to Sync &
+     Connections (view "integrations"): every sync site-wide, every token and key, Run now on
+     each, recent runs. The drop-up stays reachable only from that page's own controls. */
   return (
     <div className="syncwrap">
-      <button className="btn syncbtn" onClick={() => setOpen((v) => !v)}>{I.plug}<span className="synclbl"> Sync</span></button>
+      <button className="btn syncbtn" onClick={() => { if (typeof go === "function") go("integrations"); else setOpen((v) => !v); }} title="Sync & Connections — every sync, token and key">{I.plug}<span className="synclbl"> Sync</span></button>
       {open && (
         <div className="syncpanel">
           <div className="sphead">
@@ -8077,7 +8082,7 @@ function FinishedGoods({ session }) {
 }
 
 /* ---------- QR decoder ---------- */
-function QrDecode({ onDecoded }) {
+export function QrDecode({ onDecoded }) {
   const [msg, setMsg] = useState(null);
   const decode = useCallback(async (blob) => {
     try {
@@ -11968,7 +11973,10 @@ export default function App() {
     pay_runs: <PayRuns go={setView} session={session} />,
     my_availability: <MySchedule mode="availability" go={setView} />,
     my_swap: <MySchedule mode="swap" go={setView} />,
-    integrations: <Integrations session={session} />,
+    /* Owner, 13 Sep 2026: one page for every sync and every secret. SyncConnections reads the
+       sync_registry; the older Integrations form and Keys & Connections are superseded by it
+       (both components stay in this file until the menu consolidation deploys). */
+    integrations: <SyncConnections session={session} />,
     /* A credential vault is not a report. Routed through the report archetype this page
        inherited a search box, an export row and a date range defaulted to THIS MONTH, so a
        key set in July read as not set — on the one screen where that conclusion makes
@@ -12379,7 +12387,7 @@ export default function App() {
               <img src="/bots/topg.gif" alt="" width="28" height="28" />
               <span className="railbots-lbl">Bots</span>
             </button>
-            {session && <SyncCenter session={session} />}
+            {session && <SyncCenter session={session} go={setView} />}
             <RailMetrc />
           </div>
           {!prefs.collapsed && (
