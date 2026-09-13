@@ -38,6 +38,7 @@ import {
   ListTodo,
   Lock,
   Map,
+  MessageSquare,
   Package,
   PenLine,
   Plug,
@@ -69,6 +70,7 @@ const ICO = {
   bell: Bell,
   book: BookOpen,
   bot: Bot,
+  chat: MessageSquare,
   briefcase: Briefcase,
   building: Building2,
   calculator: Calculator,
@@ -164,6 +166,11 @@ export const COCKPITS = [
     ico: "bot",
     children: [
       { view_key: "os_staff", label: "Bots desk", ico: "bot" },
+      /* Owner, 13 Sep 2026: "where is my Budz chat page — I don't see it in my
+         menu any more … add back the Budz page so I see it in menu." It left the
+         side menu on 8 Sep with the 14-cockpit move (nav row budz → surface=deep,
+         os_change_log side-to-deep); the page itself never went anywhere. */
+      { view_key: "budz", label: "Budz chat", ico: "chat" },
       { view_key: "brand_locker", label: "Brand locker", ico: "archive" },
     ],
   },
