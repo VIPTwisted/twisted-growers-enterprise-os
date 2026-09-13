@@ -832,7 +832,10 @@ const migrationEntries = files.map((name) => ({
 // f_sync_set_enabled, f_sync_set_schedule, f_sync_runs, f_cron_jobs) and
 // claude_secret_remove_and_inventory_all (tg_secret_remove; inventory lists both stores) — the
 // Sync page made editable. Claude desk. Tamper seal, not an approval.
-const expectedMigrationTreeDigest = "51fd8f22735b1ea0564f250a5ce31270e89afb5dffed3bb5acedeb34fb529d3b";
+// Re-pinned 13 Sep 2026, 1106 -> 1108 files. Recorded claude_sync_registry_remove and
+// claude_sync_registry_remove_clears_its_run_log (f_sync_remove: an admin can take a mis-registered
+// sync off the page; its Run-now receipts go with it, the cron job stays). Claude desk. Tamper seal.
+const expectedMigrationTreeDigest = "d14c2306b6498fd9311769dc35b9f96fdfe6e85455f5b2661991fa5ed246339e";
 const actualMigrationTreeDigest = migrationTreeDigest(migrationEntries);
 if (actualMigrationTreeDigest !== expectedMigrationTreeDigest) {
   console.error(`money-grain: FAIL — migration tree differs from the independently reviewed ${files.length}-file manifest (${actualMigrationTreeDigest}).`);

@@ -1790,13 +1790,19 @@ button.narrblock:hover { outline: 1px solid var(--line); }
 
 /* ═══ SYNC & CONNECTIONS — the dynamic page ══════════════════════════════
  * Owner, 13 Sep 2026: "this is not dynamic — how do I add, edit, modify,
- * see status, each, all the details … make those on top dynamic."
- * The summary numbers are now buttons that filter the table; a row opens
- * to its full detail; every field edits in place. The global td rule keeps
- * cells on one line (styles.css sets nowrap on every td), which squeezed
- * the "what it does" column into a strip — .wrap lets the long cells
- * breathe. Tokens only; the theme is untouched.
+ * see status, each, all the details … make those on top dynamic", then
+ * "buttons not working, not fully dynamic, not like a professional page."
+ * The summary numbers are buttons that filter the table; a row expands in
+ * place, directly under itself (the first cut opened it above the table,
+ * off-screen); every field edits in place. The global td rule keeps cells
+ * on one line (styles.css sets nowrap on every td), which squeezed the
+ * "what it does" column into a strip — .wrap lets the long cells breathe.
+ * Every class here is sync-prefixed: no other page is touched. Tokens only.
  */
+.synchead{align-items:flex-start}
+.synchead-acts{display:flex;align-items:center;gap:8px;white-space:nowrap;flex-shrink:0}
+.synchead-acts .btn{white-space:nowrap}
+.syncstats{margin-top:12px}
 .syncstats > div, .syncstat{display:flex;flex-direction:column;gap:2px}
 .syncstat{background:transparent;border:1px solid transparent;border-radius:6px;
   padding:6px 10px;margin:-6px -10px;cursor:pointer;text-align:left;color:var(--ink);font-family:inherit}
@@ -1804,14 +1810,49 @@ button.narrblock:hover { outline: 1px solid var(--line); }
 .syncstat.on{border-color:var(--neon);background:var(--neon-soft)}
 .syncstat.on span{color:var(--neon)}
 .syncstat.hot b{color:var(--red)}
+.syncsearch{margin-left:auto;min-width:220px;background:var(--input-bg);border:1px solid var(--line);
+  border-radius:6px;padding:8px 11px;font-size:12.5px;color:var(--ink);font-family:inherit;outline:none}
+.syncsearch:focus{border-color:var(--neon-line)}
 .syncgrid td.wrap, .syncgrid th.wrap{white-space:normal;max-width:460px;line-height:1.4}
 .syncgrid td{vertical-align:top}
+.syncgrid.secrets td.wrap{max-width:320px}
+.syncacts{text-align:right;white-space:nowrap}
+.syncacts .btn{margin-left:4px}
+.syncacts .btn.off{color:var(--muted);border-style:dashed}
 .syncrow{cursor:pointer}
 .syncrow.on{background:var(--neon-soft);box-shadow:inset 3px 0 0 var(--neon)}
 .syncrow.off td{color:var(--muted)}
 .syncrow:focus-visible{outline:2px solid var(--neon);outline-offset:-2px}
-.synccard{border-left:3px solid var(--neon)}
-.synccard label{display:block;margin:8px 0 3px;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
-.synccard input:not([type=number]),.synccard select,.synccard textarea{width:100%;box-sizing:border-box}
-.synccard table td{padding:4px 8px}
+.syncexpand > td{padding:0 !important;background:var(--surface-2);box-shadow:inset 3px 0 0 var(--neon);white-space:normal}
+.syncdetail{padding:14px 16px 16px;border-bottom:1px solid var(--line)}
+.syncdetail-head{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.syncdetail-acts{margin-left:auto;display:flex;gap:6px;white-space:nowrap}
+.synctabs{display:flex;gap:2px;margin:12px 0 10px;border-bottom:1px solid var(--line)}
+.synctab{background:transparent;border:0;border-bottom:2px solid transparent;margin-bottom:-1px;padding:7px 12px;
+  font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);cursor:pointer;font-family:inherit}
+.synctab:hover{color:var(--ink)}
+.synctab.on{color:var(--neon);border-bottom-color:var(--neon)}
+.syncfacts table td{padding:5px 8px;white-space:normal;vertical-align:top}
+.syncfacts table td:first-child{white-space:nowrap;width:130px}
+.syncchip{display:inline-block;padding:2px 8px;margin:0 6px 4px 0;border-radius:4px;font-size:11px;font-weight:700;
+  font-family:ui-monospace,Menlo,Consolas,monospace;background:var(--surface);border:1px solid var(--line);color:var(--ink)}
+.syncchip.missing{color:var(--red);border-color:var(--red)}
+.syncdanger{color:var(--red)}
+.syncform label{display:block;margin:10px 0 3px;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.syncform label .note{text-transform:none;letter-spacing:0;font-weight:400}
+.syncform input,.syncform select,.syncform textarea{width:100%;box-sizing:border-box;background:var(--input-bg);border:1px solid var(--line);
+  border-radius:6px;padding:8px 10px;font-size:13px;color:var(--ink);font-family:inherit;outline:none}
+.syncform input:focus,.syncform select:focus,.syncform textarea:focus{border-color:var(--neon-line)}
+.syncform input:disabled{color:var(--muted)}
+.syncform textarea{resize:vertical;min-height:70px}
+.syncform-row{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.syncform-row > div{flex:1 1 140px}
+.syncform-row input{flex:1 1 160px;min-width:120px;background:var(--input-bg);border:1px solid var(--line);border-radius:6px;padding:7px 10px;
+  font-size:12.5px;color:var(--ink);font-family:inherit;outline:none}
+.syncform-acts{display:flex;gap:8px;margin-top:14px}
+.synclink{background:none;border:0;padding:0;color:var(--neon);cursor:pointer;font:inherit;font-size:inherit}
+.synchelp{margin-top:4px;padding:6px 8px;border-left:2px solid var(--neon-line);background:var(--surface-2);max-width:320px}
+.syncadd{margin-top:14px;border-top:1px solid var(--line);padding-top:12px}
+.synccols{align-items:start}
 .pill.muted{background:var(--surface-2);color:var(--muted);border:1px solid var(--line)}
+@media (max-width:900px){ .synchead{flex-direction:column} .syncsearch{margin-left:0;width:100%} }
