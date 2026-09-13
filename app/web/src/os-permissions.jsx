@@ -1,9 +1,10 @@
 /* Settings → Permissions. Dynamics-style: pick a role, edit every page.
    Menu = nav_role_visibility. Actions = page_permissions (view/edit/approve/export/delete).
    Owner/admin save. Hidden page is not a missing page. */
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "./lib/supabase.js";
 import "./os-desk.css";
+import { readPermissionMatrix, savePermissionMatrix } from "./lib/permission-matrix.js";
 
 const EMPTY = { can_view: false, can_edit: false, can_approve: false, can_export: false, can_delete: false };
 
@@ -16,11 +17,12 @@ function Ico() {
   );
 }
 
-function Cell({ on, label, onClick }) {
+function Cell({ on, label, onClick, disabled }) {
   return (
     <button
       type="button"
       className="osdesk-cellbtn"
+      disabled={disabled}
       aria-pressed={on}
       aria-label={label}
       onClick={onClick}
@@ -47,35 +49,31 @@ export default function OsPermissions({ go, session }) {
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState(null);
   const [notice, setNotice] = useState(null);
+  const [revision, setRevision] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const requestSequence = useRef(0);
 
-  function load(forRole) {
-    Promise.all([
-      supabase.from("nav_registry").select("view_key, label, category, enabled").eq("enabled", true),
-      supabase.from("page_permissions").select("view_key, can_view, can_edit, can_approve, can_export, can_delete").eq("role", forRole),
-      supabase.from("nav_role_visibility").select("view_key, visible").eq("role", forRole),
-      supabase.from("app_roles").select("role, label, rank").order("rank"),
-    ]).then(([n, p, v, a]) => {
-      const e1 = n.error && n.error.message;
-      const e2 = p.error && p.error.message;
-      const e3 = v.error && v.error.message;
-      if (e1 || e2 || e3) {
-        setErr([e1, e2, e3].filter(Boolean).join(" · "));
-        return;
-      }
-      setNav(Array.isArray(n.data) ? n.data : []);
-      const pm = {};
-      (Array.isArray(p.data) ? p.data : []).forEach((row) => { pm[row.view_key] = row; });
-      setPerm(pm);
-      const mv = {};
-      (Array.isArray(v.data) ? v.data : []).forEach((row) => { mv[row.view_key] = !!row.visible; });
-      setMenu(mv);
-      const list = Array.isArray(a.data) ? a.data.filter((r) => String(r.role).indexOf("qb_") !== 0 && r.role !== "guest" && r.role !== "member" && r.role !== "limited") : [];
-      setRoles(list);
-      setErr(null);
-      setDirty(false);
+  const applySnapshot = useCallback((snapshot) => {
+    setNav(snapshot.nav);
+    setPerm(Object.fromEntries(snapshot.permissions.map(row => [row.view_key, row])));
+    setMenu(Object.fromEntries(snapshot.visibility.map(row => [row.view_key, row.visible])));
+    setRoles(snapshot.roles.filter(r => !String(r.role).startsWith("qb_") && !["guest", "member", "limited"].includes(r.role)));
+    setRevision(snapshot.revision);
+    setDirty(false); setErr(null);
+  }, []);
+  useEffect(() => {
+    const sequence = ++requestSequence.current;
+    let active = true;
+    setLoading(true); setRevision(null); setPerm({}); setMenu({}); setNav([]);
+    readPermissionMatrix(supabase, role).then(snapshot => {
+      if (active && sequence === requestSequence.current) applySnapshot(snapshot);
+    }).catch(error => {
+      if (active && sequence === requestSequence.current) setErr(error.message);
+    }).finally(() => {
+      if (active && sequence === requestSequence.current) setLoading(false);
     });
-  }
-  useEffect(() => { load(role); }, [role]);
+    return () => { active = false; };
+  }, [role, session?.user?.id, applySnapshot]);
 
   const groups = useMemo(() => {
     const needle = q.trim().toLowerCase();
@@ -103,6 +101,7 @@ export default function OsPermissions({ go, session }) {
   }
 
   function setRow(viewKey, patch) {
+    if (loading || saving || !revision) return;
     const cur = rowState(viewKey);
     const next = { ...cur, ...patch };
     if (patch.menu === true && !next.can_view) next.can_view = true;
@@ -124,60 +123,30 @@ export default function OsPermissions({ go, session }) {
   }
 
   async function save() {
-    setSaving(true);
-    setNotice(null);
-    const keys = Object.keys({ ...perm, ...menu });
-    const pages = keys.filter((k) => nav.some((n) => n.view_key === k) || perm[k] || menu[k] !== undefined);
-    const permRows = pages.map((k) => {
-      const s = rowState(k);
-      return {
-        role,
-        view_key: k,
-        can_view: s.can_view,
-        can_edit: s.can_edit,
-        can_approve: s.can_approve,
-        can_export: s.can_export,
-        can_delete: s.can_delete,
-        updated_by: session && session.user ? session.user.id : null,
-        updated_at: new Date().toISOString(),
-      };
-    });
-    const visRows = pages.map((k) => ({
-      view_key: k,
-      role,
-      visible: rowState(k).menu,
-      updated_at: new Date().toISOString(),
-    }));
-    const [a, b] = await Promise.all([
-      supabase.from("page_permissions").upsert(permRows, { onConflict: "role,view_key" }),
-      supabase.from("nav_role_visibility").upsert(visRows, { onConflict: "view_key,role" }),
-    ]);
-    setSaving(false);
-    if (a.error || b.error) {
-      const msg = (a.error && a.error.message) || (b.error && b.error.message);
-      setErr(msg);
-      setNotice("Save is owner/admin only. " + msg);
-      return;
-    }
-    setDirty(false);
-    setErr(null);
-    setNotice("Saved. " + role + " — menu visibility and page actions. Hidden is not missing.");
+    if (saving || loading || !revision || !dirty) return;
+    setSaving(true); setNotice(null);
+    const pages = Object.keys({ ...perm, ...menu }).map(view_key => ({ view_key, ...rowState(view_key) }));
+    try {
+      const snapshot = await savePermissionMatrix(supabase, role, revision, pages);
+      applySnapshot(snapshot);
+      setNotice("Saved. " + role + " — menu visibility and page actions confirmed together.");
+    } catch (error) {
+      setErr(error.message);
+      setNotice("Save was not confirmed. Your edits remain here. " + error.message);
+    } finally { setSaving(false); }
   }
 
   async function copyRole() {
-    const { data, error } = await supabase.from("page_permissions")
-      .select("view_key, can_view, can_edit, can_approve, can_export, can_delete")
-      .eq("role", copyFrom);
-    if (error) { setErr(error.message); return; }
-    const pm = {};
-    (Array.isArray(data) ? data : []).forEach((row) => { pm[row.view_key] = row; });
-    setPerm(pm);
-    const { data: vis } = await supabase.from("nav_role_visibility").select("view_key, visible").eq("role", copyFrom);
-    const mv = {};
-    (Array.isArray(vis) ? vis : []).forEach((row) => { mv[row.view_key] = !!row.visible; });
-    setMenu(mv);
-    setDirty(true);
-    setNotice("Copied " + copyFrom + " onto " + role + " in this pane. Save to write it.");
+    if (saving || loading || !revision) return;
+    setLoading(true); setNotice(null);
+    try {
+      const snapshot = await readPermissionMatrix(supabase, copyFrom);
+      setPerm(Object.fromEntries(snapshot.permissions.map(row => [row.view_key, row])));
+      setMenu(Object.fromEntries(snapshot.visibility.map(row => [row.view_key, row.visible])));
+      setDirty(true); setErr(null);
+      setNotice("Copied " + copyFrom + " onto " + role + " in this pane. Save to write it.");
+    } catch (error) { setErr(error.message); }
+    finally { setLoading(false); }
   }
 
   return (
@@ -207,18 +176,18 @@ export default function OsPermissions({ go, session }) {
 
           <div className="osdesk-editor" style={{ marginTop: 12 }}>
             <label className="osdesk-field">Role
-              <select aria-label="Role to edit" value={role} onChange={(e) => { setRole(e.target.value); setNotice(null); }}>
+              <select aria-label="Role to edit" disabled={saving || loading} value={role} onChange={(e) => { if (dirty && !window.confirm("Discard unsaved permission edits for this role?")) return; setRole(e.target.value); setNotice(null); }}>
                 {roles.map((r) => <option key={r.role} value={r.role}>{r.label || r.role}</option>)}
               </select>
             </label>
             <label className="osdesk-field">Copy from
-              <select aria-label="Copy permissions from role" value={copyFrom} onChange={(e) => setCopyFrom(e.target.value)}>
+              <select disabled={saving || loading} aria-label="Copy permissions from role" value={copyFrom} onChange={(e) => setCopyFrom(e.target.value)}>
                 {roles.map((r) => <option key={r.role} value={r.role}>{r.label || r.role}</option>)}
               </select>
             </label>
-            <button type="button" className="osdesk-add" onClick={copyRole}>Copy onto {role}</button>
-            <button type="button" className="osdesk-save" disabled={saving || !session || !dirty} onClick={save}>
-              {saving ? "Saving…" : dirty ? "Save " + role : "Saved"}
+            <button type="button" className="osdesk-add" disabled={saving || loading || !revision} onClick={copyRole}>Copy onto {role}</button>
+            <button type="button" className="osdesk-save" disabled={saving || loading || !session || !dirty || !revision} onClick={save}>
+              {loading ? "Loading…" : saving ? "Saving…" : dirty ? "Save " + role : revision ? "No unsaved changes" : "Unavailable"}
             </button>
           </div>
 
@@ -269,22 +238,22 @@ export default function OsPermissions({ go, session }) {
                                 <div className="osdesk-own" style={{ textAlign: "left" }}>{pg.view_key}</div>
                               </td>
                               <td style={{ textAlign: "center" }}>
-                                <Cell on={s.menu} label={pg.label + " menu"} onClick={() => setRow(pg.view_key, { menu: !s.menu })} />
+                                <Cell disabled={saving || loading || !revision} on={s.menu} label={pg.label + " menu"} onClick={() => setRow(pg.view_key, { menu: !s.menu })} />
                               </td>
                               <td style={{ textAlign: "center" }}>
-                                <Cell on={s.can_view} label={pg.label + " view"} onClick={() => setRow(pg.view_key, { can_view: !s.can_view })} />
+                                <Cell disabled={saving || loading || !revision} on={s.can_view} label={pg.label + " view"} onClick={() => setRow(pg.view_key, { can_view: !s.can_view })} />
                               </td>
                               <td style={{ textAlign: "center" }}>
-                                <Cell on={s.can_edit} label={pg.label + " edit"} onClick={() => setRow(pg.view_key, { can_edit: !s.can_edit })} />
+                                <Cell disabled={saving || loading || !revision} on={s.can_edit} label={pg.label + " edit"} onClick={() => setRow(pg.view_key, { can_edit: !s.can_edit })} />
                               </td>
                               <td style={{ textAlign: "center" }}>
-                                <Cell on={s.can_approve} label={pg.label + " approve"} onClick={() => setRow(pg.view_key, { can_approve: !s.can_approve })} />
+                                <Cell disabled={saving || loading || !revision} on={s.can_approve} label={pg.label + " approve"} onClick={() => setRow(pg.view_key, { can_approve: !s.can_approve })} />
                               </td>
                               <td style={{ textAlign: "center" }}>
-                                <Cell on={s.can_export} label={pg.label + " export"} onClick={() => setRow(pg.view_key, { can_export: !s.can_export })} />
+                                <Cell disabled={saving || loading || !revision} on={s.can_export} label={pg.label + " export"} onClick={() => setRow(pg.view_key, { can_export: !s.can_export })} />
                               </td>
                               <td style={{ textAlign: "center" }}>
-                                <Cell on={s.can_delete} label={pg.label + " delete"} onClick={() => setRow(pg.view_key, { can_delete: !s.can_delete })} />
+                                <Cell disabled={saving || loading || !revision} on={s.can_delete} label={pg.label + " delete"} onClick={() => setRow(pg.view_key, { can_delete: !s.can_delete })} />
                               </td>
                             </tr>
                           );

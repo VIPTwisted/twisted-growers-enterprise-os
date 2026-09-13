@@ -86,9 +86,9 @@ test("saves the preset and both custom endpoints at page or user scope", async (
   const writes = [];
   const client = {
     from: (table) => ({
-      upsert: async (payload, options) => {
+      upsert: (payload, options) => {
         writes.push({ table, payload, options });
-        return { error: null };
+        return { select: () => ({ single: async () => ({ data: payload, error: null }) }) };
       },
     }),
   };

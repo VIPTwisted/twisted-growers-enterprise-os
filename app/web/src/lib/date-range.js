@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { supabase } from "./supabase.js";
+import { upsertConfirmed } from "./save-receipt.js";
 import {
   normaliseDateRange,
   validateDatePresetCatalog,
@@ -92,12 +93,12 @@ export async function saveDateDefault(client, {
     custom_to: range.to || null,
   };
   const write = everywhere
-    ? client.from("user_settings").upsert({
+    ? upsertConfirmed(client, "user_settings", {
         user_id: userId,
         default_date_preset: presetKey,
         ...values,
       }, { onConflict: "user_id" })
-    : client.from("user_page_date_default").upsert({
+    : upsertConfirmed(client, "user_page_date_default", {
         user_id: userId,
         view_key: viewKey,
         preset_key: presetKey,

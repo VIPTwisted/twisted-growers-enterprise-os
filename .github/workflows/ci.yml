@@ -78,6 +78,9 @@ jobs:
       - name: Approved permissions are atomic and reject stale edits
         run: node --test tools/tests/permission-matrix.integration.mjs
 
+      - name: Saves require matching returned rows
+        run: node --test tools/tests/save-receipt.test.mjs tools/tests/date-range.test.mjs tools/tests/permission-matrix.test.mjs tools/tests/config-refresh.test.mjs
+
       - name: Package precision dependency rebuild and rollback (isolated Postgres 17)
         env:
           PRECISION_TEST_PGURL: ${{ env.MONEY_TEST_PGURL }}
