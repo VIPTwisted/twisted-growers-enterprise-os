@@ -24,6 +24,8 @@ import { supabase } from "./lib/supabase.js";
 import { useRole, QrDecode } from "./App.jsx";
 
 const SyncItems = lazy(() => import("./syncitems.jsx"));
+/* One shared empty list for the not-yet-loaded state — stable identity, no silent fallbacks. */
+const NO_ROWS = Object.freeze([]);
 
 const ago = (ts) => {
   if (!ts) return "never";
@@ -80,10 +82,15 @@ export default function SyncCenter({ session }) {
       supabase.from("ai_bridge_heartbeat").select("machine, last_seen, version, operator").order("last_seen", { ascending: false }).limit(1),
       supabase.from("v_all_sync_runs").select("system, endpoint, license, status, records, started_at, error").order("started_at", { ascending: false }).limit(25),
     ]);
-    if (s.error) setErr(s.error.message); else { setRows(s.data ?? []); setErr(null); }
-    if (!sec.error) setSecrets(sec.data ?? []);
+    /* No silent fallbacks: an error is shown, and an answer that is not an array is an error too. */
+    if (s.error) setErr(s.error.message);
+    else if (!Array.isArray(s.data)) setErr("f_sync_status returned no rows — the registry could not be read.");
+    else { setRows(s.data); setErr(null); }
+    if (sec.error) setSecretMsg({ kind: "bad", text: `Secrets could not be listed: ${sec.error.message}` });
+    else if (Array.isArray(sec.data)) setSecrets(sec.data);
     if (!hb.error) setHeartbeat(hb.data?.[0] ?? null);
-    if (!rr.error) setRecent(rr.data ?? []);
+    if (rr.error) setErr((e) => e || `Recent runs could not be read: ${rr.error.message}`);
+    else if (Array.isArray(rr.data)) setRecent(rr.data);
   }, []);
   useEffect(() => { load(); const id = setInterval(load, 30000); return () => clearInterval(id); }, [load]);
 
@@ -133,19 +140,21 @@ export default function SyncCenter({ session }) {
     load();
   };
 
-  const systems = useMemo(() => Array.from(new Set((rows ?? []).map((r) => r.system))), [rows]);
-  const shown = useMemo(() => (rows ?? []).filter((r) => filter === "all" || r.system === filter), [rows, filter]);
+  const list = rows === null ? NO_ROWS : rows;
+  const systems = useMemo(() => Array.from(new Set(list.map((r) => r.system))), [list]);
+  const shown = useMemo(() => list.filter((r) => filter === "all" || r.system === filter), [list, filter]);
   const counts = useMemo(() => {
-    const c = { total: rows?.length ?? 0, failing: 0, stale: 0, missing: 0, ok: 0 };
-    for (const r of rows ?? []) {
+    const c = { total: list.length, failing: 0, stale: 0, missing: 0, ok: 0 };
+    for (const r of list) {
       if (r.health === "failing") c.failing++;
       else if (r.health === "stale" || r.health === "never ran") c.stale++;
       else if (r.health === "missing secret") c.missing++;
       else if (r.health === "ok") c.ok++;
     }
     return c;
-  }, [rows]);
-  const missingSecrets = (secrets ?? []).filter((s) => !s.present);
+  }, [list]);
+  const secretList = secrets === null ? NO_ROWS : secrets;
+  const missingSecrets = secretList.filter((s) => !s.present);
   const extAlive = !!heartbeat && (Date.now() - new Date(heartbeat.last_seen).getTime()) < 15 * 60 * 1000;
   const licences = useMemo(() => {
     /* Metrc licences drive the per-licence buttons below; they are a secret's value,
@@ -177,10 +186,10 @@ export default function SyncCenter({ session }) {
       <div className="mtitle"><span className="sq" /><h2>Syncs</h2><span className="rule" /></div>
       <div className="sbtools" style={{ marginBottom: 10 }}>
         <span className="sblab">System</span>
-        <button type="button" className={`sbchip ${filter === "all" ? "on" : ""}`} onClick={() => setFilter("all")}>All<i>{rows?.length ?? 0}</i></button>
+        <button type="button" className={`sbchip ${filter === "all" ? "on" : ""}`} onClick={() => setFilter("all")}>All<i>{list.length}</i></button>
         {systems.map((s) => (
           <button key={s} type="button" className={`sbchip ${filter === s ? "on" : ""}`} onClick={() => setFilter(s)}>
-            {s}<i>{rows.filter((r) => r.system === s).length}</i>
+            {s}<i>{list.filter((r) => r.system === s).length}</i>
           </button>
         ))}
       </div>
