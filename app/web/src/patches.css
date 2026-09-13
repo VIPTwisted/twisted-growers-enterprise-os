@@ -1787,3 +1787,31 @@ button.narrblock:hover { outline: 1px solid var(--line); }
   width: min(380px, calc(100vw - 24px)); z-index: 80;
 }
 .nav.closed .railfoot .syncpanel { left: 64px; }
+
+/* ═══ SYNC & CONNECTIONS — the dynamic page ══════════════════════════════
+ * Owner, 13 Sep 2026: "this is not dynamic — how do I add, edit, modify,
+ * see status, each, all the details … make those on top dynamic."
+ * The summary numbers are now buttons that filter the table; a row opens
+ * to its full detail; every field edits in place. The global td rule keeps
+ * cells on one line (styles.css sets nowrap on every td), which squeezed
+ * the "what it does" column into a strip — .wrap lets the long cells
+ * breathe. Tokens only; the theme is untouched.
+ */
+.syncstats > div, .syncstat{display:flex;flex-direction:column;gap:2px}
+.syncstat{background:transparent;border:1px solid transparent;border-radius:6px;
+  padding:6px 10px;margin:-6px -10px;cursor:pointer;text-align:left;color:var(--ink);font-family:inherit}
+.syncstat:hover{border-color:var(--neon-line)}
+.syncstat.on{border-color:var(--neon);background:var(--neon-soft)}
+.syncstat.on span{color:var(--neon)}
+.syncstat.hot b{color:var(--red)}
+.syncgrid td.wrap, .syncgrid th.wrap{white-space:normal;max-width:460px;line-height:1.4}
+.syncgrid td{vertical-align:top}
+.syncrow{cursor:pointer}
+.syncrow.on{background:var(--neon-soft);box-shadow:inset 3px 0 0 var(--neon)}
+.syncrow.off td{color:var(--muted)}
+.syncrow:focus-visible{outline:2px solid var(--neon);outline-offset:-2px}
+.synccard{border-left:3px solid var(--neon)}
+.synccard label{display:block;margin:8px 0 3px;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.synccard input:not([type=number]),.synccard select,.synccard textarea{width:100%;box-sizing:border-box}
+.synccard table td{padding:4px 8px}
+.pill.muted{background:var(--surface-2);color:var(--muted);border:1px solid var(--line)}
