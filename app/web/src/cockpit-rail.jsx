@@ -310,7 +310,7 @@ export const COCKPITS = [
       { view_key: "permissions", label: "Permissions", ico: "key" },
       { view_key: "help", label: "Help", ico: "help" },
       { view_key: "business_rules", label: "Rules", ico: "book" },
-      { view_key: "integrations", label: "Connections", ico: "plug" },
+      { view_key: "integrations", label: "Sync — keys & syncs", ico: "plug" },
     ],
   },
 ];

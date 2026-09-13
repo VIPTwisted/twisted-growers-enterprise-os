@@ -823,7 +823,10 @@ const migrationEntries = files.map((name) => ({
 // fresh one (496 tables, 1374 policies) — production builds of main had been red since
 // 13:32 UTC because those objects existed only in production. Claude desk. Tamper seal,
 // not an approval of the SQL. No ledger rewrite.
-const expectedMigrationTreeDigest = "49b47eaccf4ce192acfaa0ff581801a8f58eb5ab7c3df7e7034834fedbe3c304";
+// Re-pinned 13 Sep 2026, 1102 -> 1103 files. Recorded the live rename of the Sync page's
+// menu row (claude_nav_sync_page_named_as_the_owner_calls_it) — caught by migration-drift on
+// PR #241 twenty minutes after I applied it. Claude desk. Tamper seal, not an approval.
+const expectedMigrationTreeDigest = "67eb924e1f6ea4ec4c8483e19b7ca3e5233e13eed036c8b4a8599a3fdd77f55e";
 const actualMigrationTreeDigest = migrationTreeDigest(migrationEntries);
 if (actualMigrationTreeDigest !== expectedMigrationTreeDigest) {
   console.error(`money-grain: FAIL — migration tree differs from the independently reviewed ${files.length}-file manifest (${actualMigrationTreeDigest}).`);
