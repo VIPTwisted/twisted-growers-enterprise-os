@@ -262,7 +262,7 @@ export default function SyncCenter({ session }) {
                     </td>
                     <td className="note">{s.used_by?.length ? s.used_by.join(", ") : "—"}</td>
                     <td style={{ whiteSpace: "nowrap" }}>
-                      <input type="password" autoComplete="off" value={secretDraft[s.name] || ""} onChange={(e) => setSecretDraft((d) => ({ ...d, [s.name]: e.target.value }))} placeholder={s.present ? "paste to replace" : "paste value"} style={{ width: 200, marginRight: 6 }} />
+                      <input type="password" autoComplete="off" aria-label={`New value for ${s.name}`} value={secretDraft[s.name] || ""} onChange={(e) => setSecretDraft((d) => ({ ...d, [s.name]: e.target.value }))} placeholder={s.present ? "paste to replace" : "paste value"} style={{ width: 200, marginRight: 6 }} />
                       <button type="button" className="btn small" disabled={!(secretDraft[s.name] || "").trim()} onClick={() => saveSecret(s.name)}>Store</button>
                     </td>
                   </tr>
