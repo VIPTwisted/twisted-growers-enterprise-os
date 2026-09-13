@@ -826,7 +826,9 @@ const migrationEntries = files.map((name) => ({
 // Re-pinned 13 Sep 2026, 1102 -> 1103 files. Recorded the live rename of the Sync page's
 // menu row (claude_nav_sync_page_named_as_the_owner_calls_it) — caught by migration-drift on
 // PR #241 twenty minutes after I applied it. Claude desk. Tamper seal, not an approval.
-const expectedMigrationTreeDigest = "67eb924e1f6ea4ec4c8483e19b7ca3e5233e13eed036c8b4a8599a3fdd77f55e";
+// Re-pinned 13 Sep 2026, 1103 -> 1104 files. Recorded claude_sync_registry_retire_clickup_rows
+// (owner: ClickUp is a clone inside the OS, not one of our syncs). Claude desk. Tamper seal.
+const expectedMigrationTreeDigest = "59a4fb6f04be401432836589c9c74d88b9579a90a19ee007e9b3560404da4a32";
 const actualMigrationTreeDigest = migrationTreeDigest(migrationEntries);
 if (actualMigrationTreeDigest !== expectedMigrationTreeDigest) {
   console.error(`money-grain: FAIL — migration tree differs from the independently reviewed ${files.length}-file manifest (${actualMigrationTreeDigest}).`);

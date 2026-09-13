@@ -3846,7 +3846,7 @@ function parseSyncResponse(src, j) {
   if (item.errors.length && !item.details.length) item.ok = false;
   return item;
 }
-function SyncCenter({ session }) {
+function SyncCenter({ session, go }) {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(null);
   const [report, setReport] = useState(null);
@@ -3869,9 +3869,13 @@ function SyncCenter({ session }) {
     setOpen(false);
     setReport({ when: new Date().toLocaleTimeString(), items });
   };
+  /* THE SYNC BUTTON OPENS THE SYNC PAGE. Owner, 13 Sep 2026: "when you hit Sync it had its own
+     dedicated page" — not a drop-up in the side menu. The button now goes straight to Sync &
+     Connections (view "integrations"): every sync site-wide, every token and key, Run now on
+     each, recent runs. The drop-up stays reachable only from that page's own controls. */
   return (
     <div className="syncwrap">
-      <button className="btn syncbtn" onClick={() => setOpen((v) => !v)}>{I.plug}<span className="synclbl"> Sync</span></button>
+      <button className="btn syncbtn" onClick={() => { if (typeof go === "function") go("integrations"); else setOpen((v) => !v); }} title="Sync & Connections — every sync, token and key">{I.plug}<span className="synclbl"> Sync</span></button>
       {open && (
         <div className="syncpanel">
           <div className="sphead">
@@ -12383,7 +12387,7 @@ export default function App() {
               <img src="/bots/topg.gif" alt="" width="28" height="28" />
               <span className="railbots-lbl">Bots</span>
             </button>
-            {session && <SyncCenter session={session} />}
+            {session && <SyncCenter session={session} go={setView} />}
             <RailMetrc />
           </div>
           {!prefs.collapsed && (
