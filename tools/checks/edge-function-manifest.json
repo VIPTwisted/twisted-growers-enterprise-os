@@ -49,10 +49,10 @@
       "note": "Recovered from production with the shared admin key redacted. Production is the source of record; deploying this copy would break the function."
     },
     "clickup-sync": {
-      "deployed_version": 2,
-      "sha256": "fb2c37d292f7a432d99f797b03d66325d39a21e96ea74f26108f7a9cc3671390",
-      "redacted": true,
-      "note": "Recovered from production with the shared admin key redacted. Production is the source of record; deploying this copy would break the function."
+      "deployed_version": 3,
+      "sha256": "dae2d29827e205d6360a207edc7437acdf68201dd28ee059102026f53eb92462",
+      "redacted": false,
+      "note": "Real source. Deployed v3 on 13 Sep 2026: admin key looked up from integration_secrets (v2 compared against a baked-in literal, so every machine call was a 403); run row opened first and always closed (v2 wrote it last, so a killed run left only a stuck row); soft deadline (configurations.clickup_sync_soft_deadline_ms, default 100 s) checked between lists and pages; list cursor (configurations.clickup_sync_cursor) so the next run continues; batched upserts. Every run since 5 Sep had been killed at 30 minutes."
     },
     "coa-extract": {
       "deployed_version": 2,
