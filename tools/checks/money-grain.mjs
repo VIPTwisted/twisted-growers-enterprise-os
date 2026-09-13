@@ -817,7 +817,13 @@ const migrationEntries = files.map((name) => ({
 // Approved settings transaction and bounded lock wait; no financial definition change.
 // Records five concurrently applied HR/navigation migrations without reapplying them.
 // Also records concurrent HR navigation reversal and owner tracker updates.
-const expectedMigrationTreeDigest = "67871d56bf1dbb5c1711fca5336449143860136c87bb6dabbe2237cba2f57566";
+// Re-pinned 13 Sep 2026, 1097 -> 1102 files. Recorded the five Sync & Connections
+// migrations applied live that morning (sync_registry / f_sync_status / f_sync_run /
+// tracker rows / registry refresh jobs) and replaced the 12 Sep baseline dump with a
+// fresh one (496 tables, 1374 policies) — production builds of main had been red since
+// 13:32 UTC because those objects existed only in production. Claude desk. Tamper seal,
+// not an approval of the SQL. No ledger rewrite.
+const expectedMigrationTreeDigest = "49b47eaccf4ce192acfaa0ff581801a8f58eb5ab7c3df7e7034834fedbe3c304";
 const actualMigrationTreeDigest = migrationTreeDigest(migrationEntries);
 if (actualMigrationTreeDigest !== expectedMigrationTreeDigest) {
   console.error(`money-grain: FAIL — migration tree differs from the independently reviewed ${files.length}-file manifest (${actualMigrationTreeDigest}).`);
