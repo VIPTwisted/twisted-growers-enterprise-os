@@ -1,0 +1,14 @@
+node_modules
+dist
+.env
+.env.local
+.env.*.local
+
+# Secrets — has a live Netlify token
+deploy_dist.py
+
+# OS / editor
+.DS_Store
+Thumbs.db
+*.log
+.netlify/
