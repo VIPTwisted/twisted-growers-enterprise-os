@@ -7,152 +7,13 @@ import { sb } from '../lib/supabase'
 // HANDBOOK CONTENT — Twisted Growers starter skeleton (DRAFT until published in the Handbook Builder)
 // ─────────────────────────────────────────────────────────────────────────────
 
-const HANDBOOK_SECTIONS = [
-  {
-    id: 'hb-overview', title: 'Company Overview', icon: '🏢',
-    content: [
-      { type: 'heading', text: 'About Twisted Growers' },
-      { type: 'para', text: 'Twisted Growers is a licensed Massachusetts cannabis cultivator (MC281714) and product manufacturer (MP281909) at 415 Millennium Circle, Lakeville, MA, with a dispensary planned. Every plant and package we touch is tracked in Metrc, the Commonwealth\'s seed-to-sale system.' },
-      { type: 'heading', text: 'Our Mission' },
-      { type: 'para', text: 'DRAFT — to be written and approved by Twisted Growers HR. Nothing here is company policy until it is published in the Handbook Builder.' },
-    ],
-  },
-  {
-    id: 'hb-employment', title: 'Employment Basics', icon: '📋',
-    content: [
-      { type: 'heading', text: 'At-Will Employment' },
-      { type: 'para', text: 'Employment with Twisted Growers is at-will under Massachusetts law: either the employee or the company may end the relationship at any time, with or without cause or notice, subject to applicable law. Nothing in this handbook creates a contract of employment. DRAFT — to be written and approved by Twisted Growers HR. Nothing here is company policy until it is published in the Handbook Builder.' },
-      { type: 'heading', text: 'Equal Employment Opportunity' },
-      { type: 'para', text: 'Twisted Growers does not discriminate on any basis protected by M.G.L. c.151B or federal law, including hair texture and protective hairstyles (CROWN Act, 2022). DRAFT — to be written and approved by Twisted Growers HR. Nothing here is company policy until it is published in the Handbook Builder.' },
-      { type: 'heading', text: 'Agent Registration' },
-      { type: 'para', text: 'Every employee must hold a Cannabis Control Commission agent registration before working with product and must wear the agent badge on shift (935 CMR 500.030). A lapsed registration means no floor work until it is renewed. DRAFT — to be written and approved by Twisted Growers HR. Nothing here is company policy until it is published in the Handbook Builder.' },
-    ],
-  },
-  {
-    id: 'hb-attendance', title: 'Attendance & Scheduling', icon: '🕒',
-    content: [
-      { type: 'heading', text: 'Schedules' },
-      { type: 'para', text: 'Schedules are drafted in the HR platform and posted a week at a time by a sign-off role. Swaps, call-outs and availability changes are made in the app so the floor is never short without notice. DRAFT — to be written and approved by Twisted Growers HR. Nothing here is company policy until it is published in the Handbook Builder.' },
-      { type: 'heading', text: 'Call-outs' },
-      { type: 'para', text: 'Call out through the app as early as you can; the notice window is set in Settings › Attendance. A no-call/no-show is recorded against the attendance policy. DRAFT — to be written and approved by Twisted Growers HR. Nothing here is company policy until it is published in the Handbook Builder.' },
-    ],
-  },
-  {
-    id: 'hb-pay', title: 'Pay & Time', icon: '💵',
-    content: [
-      { type: 'heading', text: 'Wages & Overtime' },
-      { type: 'para', text: 'Massachusetts minimum wage is $15.00 per hour (M.G.L. c.151 §1). Overtime is paid at 1.5× for hours over 40 in a week (c.151 §1A). Wages are paid on the schedule set in Settings and within the timing M.G.L. c.149 §148 requires. DRAFT — to be written and approved by Twisted Growers HR. Nothing here is company policy until it is published in the Handbook Builder.' },
-      { type: 'heading', text: 'Meal Breaks' },
-      { type: 'para', text: 'A 30-minute unpaid meal break is provided on any shift longer than six hours (M.G.L. c.149 §100); breaks run in two waves so the floor is never empty. DRAFT — to be written and approved by Twisted Growers HR. Nothing here is company policy until it is published in the Handbook Builder.' },
-      { type: 'heading', text: 'Time Clock' },
-      { type: 'para', text: 'Clock in and out at the kiosk or in the app with your Employee ID and PIN. Edits to a punch are requested through your manager and are kept in the audit trail. DRAFT — to be written and approved by Twisted Growers HR. Nothing here is company policy until it is published in the Handbook Builder.' },
-    ],
-  },
-  {
-    id: 'hb-timeoff', title: 'Time Off & Leave', icon: '🏖️',
-    content: [
-      { type: 'heading', text: 'Earned Sick Time' },
-      { type: 'para', text: 'Under M.G.L. c.149 §148C employees accrue one hour of earned sick time for every 30 hours worked, up to 40 hours per year. DRAFT — to be written and approved by Twisted Growers HR. Nothing here is company policy until it is published in the Handbook Builder.' },
-      { type: 'heading', text: 'Paid Family & Medical Leave' },
-      { type: 'para', text: 'Massachusetts PFML (M.G.L. c.175M) provides paid family and medical leave through the Department of Family and Medical Leave; the notice of rights is provided at hire. DRAFT — to be written and approved by Twisted Growers HR. Nothing here is company policy until it is published in the Handbook Builder.' },
-      { type: 'heading', text: 'PTO' },
-      { type: 'para', text: 'DRAFT — to be written and approved by Twisted Growers HR. Nothing here is company policy until it is published in the Handbook Builder.' },
-    ],
-  },
-  {
-    id: 'hb-conduct', title: 'Conduct, Safety & Drug-Free Workplace', icon: '🛡️',
-    content: [
-      { type: 'heading', text: 'Drug-Free Workplace' },
-      { type: 'para', text: 'No cannabis or alcohol may be consumed on the premises or during a shift, and no employee may work impaired (935 CMR 500.105). DRAFT — to be written and approved by Twisted Growers HR. Nothing here is company policy until it is published in the Handbook Builder.' },
-      { type: 'heading', text: 'Safety' },
-      { type: 'para', text: 'Gloves, eye protection and closed-toe footwear are required in grow and production rooms; extraction rooms follow their own written safety procedures. Report every injury the same day. DRAFT — to be written and approved by Twisted Growers HR. Nothing here is company policy until it is published in the Handbook Builder.' },
-      { type: 'heading', text: 'Anti-Harassment' },
-      { type: 'para', text: 'Twisted Growers maintains a written sexual-harassment policy distributed annually as M.G.L. c.151B §3A requires. DRAFT — to be written and approved by Twisted Growers HR. Nothing here is company policy until it is published in the Handbook Builder.' },
-    ],
-  },
-  {
-    id: 'hb-compliance', title: 'Compliance & Metrc', icon: '🏷️',
-    content: [
-      { type: 'heading', text: 'Metrc is the Record of Truth' },
-      { type: 'para', text: 'Every plant, harvest and package carries a Metrc tag. If it is not tagged, it does not exist. Any difference between a spreadsheet and Metrc is resolved in Metrc\'s favour and logged for review. Diversion is grounds for immediate termination and is reported to the Commission. DRAFT — to be written and approved by Twisted Growers HR. Nothing here is company policy until it is published in the Handbook Builder.' },
-      { type: 'heading', text: 'Security & Confidentiality' },
-      { type: 'para', text: 'Access-controlled rooms and video surveillance are required by 935 CMR 500.110. Standard operating procedures, yields, pricing and customer information are confidential. Nothing in this section limits your right to discuss wages or working conditions with coworkers. DRAFT — to be written and approved by Twisted Growers HR. Nothing here is company policy until it is published in the Handbook Builder.' },
-    ],
-  },
-]
-
-// ─────────────────────────────────────────────────────────────────────────────
-// OPERATIONS MANUAL CONTENT
-// ─────────────────────────────────────────────────────────────────────────────
-
-const OPS_SECTIONS = [
-  { id: 'ops-opening', title: 'Opening — Grow & Production', icon: '🌅', steps: [
-    { num: 1, text: 'Badge in at the kiosk; agent badge visible. DRAFT — to be written and approved by Twisted Growers HR. Nothing here is company policy until it is published in the Handbook Builder.' },
-    { num: 2, text: 'Walk every room: temperature, humidity, lights, fans, doors. Log anything off.' },
-    { num: 3, text: 'Check the day\'s posted schedule and your zone in the app.' },
-  ]},
-  { id: 'ops-closing', title: 'Closing', icon: '🌙', steps: [
-    { num: 1, text: 'Rooms tidy, tools cleaned, waste logged in Metrc. DRAFT — to be written and approved by Twisted Growers HR. Nothing here is company policy until it is published in the Handbook Builder.' },
-    { num: 2, text: 'Leave zero surprises for the opener: restock, label, note.' },
-    { num: 3, text: 'Badge out. Do not leave with product, tags or notes.' },
-  ]},
-  { id: 'ops-harvest', title: 'Harvest Day', icon: '✂️', steps: [
-    { num: 1, text: 'Confirm the harvest batch and plant tags in Metrc before the first cut. DRAFT — to be written and approved by Twisted Growers HR. Nothing here is company policy until it is published in the Handbook Builder.' },
-    { num: 2, text: 'Weigh wet at the room; weights are entered once, at the scale.' },
-    { num: 3, text: 'Hang in the assigned dry room; label the rack with the harvest name.' },
-  ]},
-  { id: 'ops-trim', title: 'Trim Room', icon: '🌿', steps: [
-    { num: 1, text: 'Gloves on, station wiped, scale zeroed. DRAFT — to be written and approved by Twisted Growers HR. Nothing here is company policy until it is published in the Handbook Builder.' },
-    { num: 2, text: 'One harvest per table at a time; never mix tags.' },
-  ]},
-  { id: 'ops-extraction', title: 'Extraction', icon: '🧪', steps: [
-    { num: 1, text: 'Follow the room\'s written safety procedure; never work alone in the hydrocarbon room. DRAFT — to be written and approved by Twisted Growers HR. Nothing here is company policy until it is published in the Handbook Builder.' },
-  ]},
-  { id: 'ops-packaging', title: 'Packaging & Labelling', icon: '📦', steps: [
-    { num: 1, text: 'Every finished unit carries the Metrc package tag and the required Massachusetts label. DRAFT — to be written and approved by Twisted Growers HR. Nothing here is company policy until it is published in the Handbook Builder.' },
-  ]},
-]
-
-// ─────────────────────────────────────────────────────────────────────────────
-// QUICK REFERENCE CONTENT
-// ─────────────────────────────────────────────────────────────────────────────
-
-const CONTACTS = [
-  // Filled in Settings › Locations once HR enters Twisted Growers contacts. Emergency: 911.
-  { name: 'Police / Fire / EMS', role: 'Emergency', phone: '911', email: '—' },
-]
-
-const HOLIDAYS_2026 = [
-  { date: 'January 1',    holiday: 'New Year\'s Day',        status: 'To be set by HR' },
-  { date: 'January 19',   holiday: 'Martin Luther King Jr.',  status: 'To be set by HR' },
-  { date: 'February 16',  holiday: 'Presidents\' Day',        status: 'To be set by HR' },
-  { date: 'April 3',      holiday: 'Good Friday',             status: 'Open – Normal Hours' },
-  { date: 'May 25',       holiday: 'Memorial Day',            status: 'To be set by HR' },
-  { date: 'July 4',       holiday: 'Independence Day',        status: 'To be set by HR' },
-  { date: 'September 7',  holiday: 'Labor Day',               status: 'To be set by HR' },
-  { date: 'November 26',  holiday: 'Thanksgiving',            status: 'To be set by HR' },
-  { date: 'November 27',  holiday: 'Black Friday',            status: 'Open – Extended Hours' },
-  { date: 'December 24',  holiday: 'Christmas Eve',           status: 'Open – 10am–6pm' },
-  { date: 'December 25',  holiday: 'Christmas Day',           status: 'To be set by HR' },
-  { date: 'December 31',  holiday: 'New Year\'s Eve',         status: 'Open – 10am–8pm' },
-]
-
-const PAY_PERIODS_2026 = [
-  { period: 'PP-01', start: 'Jan 4',  end: 'Jan 17',  payday: 'Jan 23' },
-  { period: 'PP-02', start: 'Jan 18', end: 'Jan 31',  payday: 'Feb 6' },
-  { period: 'PP-03', start: 'Feb 1',  end: 'Feb 14',  payday: 'Feb 20' },
-  { period: 'PP-04', start: 'Feb 15', end: 'Feb 28',  payday: 'Mar 6' },
-  { period: 'PP-05', start: 'Mar 1',  end: 'Mar 14',  payday: 'Mar 20' },
-  { period: 'PP-06', start: 'Mar 15', end: 'Mar 28',  payday: 'Apr 3' },
-  { period: 'PP-07', start: 'Mar 29', end: 'Apr 11',  payday: 'Apr 17' },
-  { period: 'PP-08', start: 'Apr 12', end: 'Apr 25',  payday: 'May 1' },
-  { period: 'PP-09', start: 'Apr 26', end: 'May 9',   payday: 'May 15' },
-  { period: 'PP-10', start: 'May 10', end: 'May 23',  payday: 'May 29' },
-  { period: 'PP-11', start: 'May 24', end: 'Jun 6',   payday: 'Jun 12' },
-  { period: 'PP-12', start: 'Jun 7',  end: 'Jun 20',  payday: 'Jun 26' },
-  { period: 'PP-13', start: 'Jun 21', end: 'Jul 4',   payday: 'Jul 10' },
-  { period: 'PP-14', start: 'Jul 5',  end: 'Jul 18',  payday: 'Jul 24' },
-]
+// NOTHING IS TYPED IN HERE (Bible §12g, 14 Sep 2026). The handbook is hr.handbook_documents /
+// hr_policies through get_employee_manual; procedures, contacts, holidays and pay periods come from
+// hr.manual_reference() — published procedures (hr.hr_policies), the company's support contacts
+// (hr.company_branding), the OS holiday calendar (public.holidays) and pay periods
+// (public.pay_periods). An empty list is shown as empty with the place HR enters it.
+const HANDBOOK_SECTIONS = []
+const OPS_SECTIONS = []
 
 const BENEFIT_DATES = []  // HR sets Twisted Growers enrollment windows in Benefits › Administration
 
@@ -425,8 +286,30 @@ export default function Manual() {
     return () => { cancelled = true }
   }, [locationIds])
 
-  // Use live handbook content when available; otherwise fall back to the mock.
+  // Live handbook only — no typed-in fallback. Empty means HR has not published one yet.
   const handbookSections = liveHandbook && liveHandbook.length ? liveHandbook : HANDBOOK_SECTIONS
+
+  // Quick reference and procedures: rows from hr.manual_reference()
+  const [ref, setRef] = useState(null)
+  const [refError, setRefError] = useState('')
+  useEffect(() => {
+    let live = true
+    sb.rpc('manual_reference', { p_node_ids: locationIds || null, p_year: null }).then(({ data, error }) => {
+      if (!live) return
+      if (error) { setRefError(error.message); setRef({ procedures: [], contacts: [], holidays: [], pay_periods: [] }); return }
+      setRef(data || { procedures: [], contacts: [], holidays: [], pay_periods: [] })
+    })
+    return () => { live = false }
+  }, [JSON.stringify(locationIds)])
+  const opsSections = useMemo(() => (ref?.procedures || []).map(p => ({
+    id: 'ops-' + p.id, title: p.title, icon: '📋', version: p.version, effective_date: p.effective_date,
+    steps: String(p.content || '').split(/\n+/).map(t => t.trim()).filter(Boolean).map((text, i) => ({ num: i + 1, text })),
+  })), [ref])
+  const CONTACTS = ref?.contacts || []
+  const HOLIDAYS = ref?.holidays || []
+  const PAY_PERIODS = ref?.pay_periods || []
+  const refYear = ref?.year || new Date().getFullYear()
+  const todayIso = new Date().toISOString().slice(0, 10)
 
   const searchRef = useRef(null)
 
@@ -463,13 +346,13 @@ export default function Manual() {
   }, [search, handbookSections])
 
   const filteredOps = useMemo(() => {
-    if (!search.trim()) return OPS_SECTIONS
+    if (!search.trim()) return opsSections
     const q = search.toLowerCase()
-    return OPS_SECTIONS.filter(s =>
+    return opsSections.filter(s =>
       s.title.toLowerCase().includes(q) ||
       s.steps.some(st => st.text.toLowerCase().includes(q))
     )
-  }, [search])
+  }, [search, opsSections])
 
   // Auto-expand search hits
   useEffect(() => {
@@ -564,7 +447,7 @@ export default function Manual() {
         {search && (
           <div style={{ fontSize: 11, color: 'var(--t-text-muted)', marginTop: 6 }}>
             {tab === 'Employee Handbook' && `${filteredHandbook.length} of ${handbookSections.length} sections match`}
-            {tab === 'Operations Manual' && `${filteredOps.length} of ${OPS_SECTIONS.length} sections match`}
+            {tab === 'Operations Manual' && `${filteredOps.length} of ${opsSections.length} procedures match`}
           </div>
         )}
       </div>
@@ -620,7 +503,12 @@ export default function Manual() {
             </button>
           </div>
 
-          {filteredHandbook.length === 0 && (
+          {handbookSections.length === 0 && (
+            <div style={{ textAlign: 'center', padding: '48px 0', color: 'var(--t-text-muted)', fontSize: 13 }}>
+              No handbook is published yet. HR writes Twisted Growers&rsquo; handbook in the Handbook Builder and publishes it; nothing here is company policy until then.
+            </div>
+          )}
+          {handbookSections.length > 0 && filteredHandbook.length === 0 && (
             <div style={{ textAlign: 'center', padding: '48px 0', color: 'var(--t-text-muted)', fontSize: 13 }}>
               No sections match "{search}"
             </div>
@@ -645,10 +533,10 @@ export default function Manual() {
         <div>
           <div style={{ display: 'flex', gap: 8, marginBottom: 16, alignItems: 'center' }}>
             <span style={{ fontSize: 12, color: 'var(--t-text-muted)', marginRight: 4 }}>
-              {OPS_SECTIONS.length} procedure sets
+              {opsSections.length} published procedure{opsSections.length === 1 ? '' : 's'}
             </span>
             <button
-              onClick={() => expandAll(OPS_SECTIONS.map(s => s.id))}
+              onClick={() => expandAll(opsSections.map(s => s.id))}
               style={{ background: 'var(--t-surface-2)', border: '1px solid var(--t-line)', color: 'var(--t-text-muted)', padding: '5px 12px', fontSize: 11, cursor: 'pointer', fontFamily: 'inherit' }}
             >
               Expand All
@@ -661,7 +549,13 @@ export default function Manual() {
             </button>
           </div>
 
-          {filteredOps.length === 0 && (
+          {ref === null && <div style={{ textAlign: 'center', padding: '48px 0', color: 'var(--t-text-faint)', fontSize: 13 }}>Reading procedures…</div>}
+          {ref !== null && opsSections.length === 0 && (
+            <div style={{ textAlign: 'center', padding: '48px 0', color: 'var(--t-text-muted)', fontSize: 13 }}>
+              No procedures are published yet. HR writes them in the Policies hub (category “Procedure”) and publishes; they appear here the moment they are published.{refError && ` (${refError})`}
+            </div>
+          )}
+          {ref !== null && opsSections.length > 0 && filteredOps.length === 0 && (
             <div style={{ textAlign: 'center', padding: '48px 0', color: 'var(--t-text-muted)', fontSize: 13 }}>
               No procedures match "{search}"
             </div>
@@ -702,6 +596,7 @@ export default function Manual() {
                   </tr>
                 </thead>
                 <tbody>
+                  {CONTACTS.length <= 1 && <tr><td colSpan={4} style={{ padding: '10px 16px', color: 'var(--t-text-faint)', fontSize: 11 }}>HR / support contacts are entered in Settings › Company (support phone and email).</td></tr>}
                   {CONTACTS.map((c, i) => (
                     <tr key={i} style={{ borderBottom: '1px solid var(--t-line)', background: c.role === 'Emergency' ? 'rgba(255,82,82,.06)' : 'transparent' }}>
                       <td style={{ padding: '10px 16px', fontWeight: c.role === 'Emergency' ? 700 : 500, color: 'var(--t-text)' }}>{c.name}</td>
@@ -725,25 +620,21 @@ export default function Manual() {
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
                 <thead>
                   <tr style={{ background: 'rgba(0,229,255,.07)' }}>
-                    {['Date', 'Holiday', 'Status'].map(h => (
+                    {['Date', 'Holiday', 'Paid'].map(h => (
                       <th key={h} style={{ padding: '9px 16px', textAlign: 'left', fontWeight: 700, color: 'var(--t-accent)', letterSpacing: '.04em', borderBottom: '1px solid var(--t-line)' }}>{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
-                  {HOLIDAYS_2026.map((h, i) => (
+                  {ref !== null && HOLIDAYS.length === 0 && <tr><td colSpan={3} style={{ padding: '10px 16px', color: 'var(--t-text-faint)', fontSize: 11 }}>No holidays are set for {refYear}. The calendar is entered in the OS (Settings › Holidays) and appears here.</td></tr>}
+                  {HOLIDAYS.map((h, i) => (
                     <tr key={i} style={{ borderBottom: '1px solid var(--t-line)' }}>
                       <td style={{ padding: '10px 16px', fontWeight: 600, color: 'var(--t-text)', whiteSpace: 'nowrap' }}>{h.date}</td>
-                      <td style={{ padding: '10px 16px', color: 'var(--t-text-muted)' }}>{h.holiday}</td>
+                      <td style={{ padding: '10px 16px', color: 'var(--t-text-muted)' }}>{h.holiday}{h.department ? ` · ${h.department}` : ''}</td>
                       <td style={{ padding: '10px 16px' }}>
-                        <span style={{
-                          padding: '2px 8px',
-                          fontSize: 10,
-                          fontWeight: 700,
-                          background: h.status === 'Closed' ? 'rgba(255,82,82,.15)' : h.status.includes('Extended') ? 'rgba(0,230,118,.15)' : 'rgba(255,149,0,.12)',
-                          color: h.status === 'Closed' ? 'var(--t-danger)' : h.status.includes('Extended') ? 'var(--t-success)' : 'var(--t-warn)',
-                          letterSpacing: '.04em',
-                        }}>{h.status}</span>
+                        <span style={{ padding: '2px 8px', fontSize: 10, fontWeight: 700, background: h.paid ? 'rgba(0,230,118,.15)' : 'rgba(255,149,0,.12)', color: h.paid ? 'var(--t-success)' : 'var(--t-warn)', letterSpacing: '.04em' }}>
+                          {h.paid ? `PAID${h.hours ? ` · ${h.hours} h` : ''}` : 'UNPAID'}{h.multiplier_if_worked ? ` · ×${h.multiplier_if_worked} if worked` : ''}
+                        </span>
                       </td>
                     </tr>
                   ))}
@@ -756,8 +647,8 @@ export default function Manual() {
           <div style={cardStyle}>
             <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--t-line)', display: 'flex', alignItems: 'center', gap: 10 }}>
               <span style={{ fontSize: 18 }}>💳</span>
-              <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--t-text)' }}>Pay Period Calendar 2026</span>
-              <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--t-text-muted)' }}>Bi-weekly · Payday = Friday</span>
+              <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--t-text)' }}>Pay Period Calendar {refYear}</span>
+              <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--t-text-muted)' }}>{PAY_PERIODS[0]?.frequency ? `${PAY_PERIODS[0].frequency} · from the OS pay periods` : 'from the OS pay periods'}</span>
             </div>
             <div style={{ overflowX: 'auto' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
@@ -769,15 +660,16 @@ export default function Manual() {
                   </tr>
                 </thead>
                 <tbody>
-                  {PAY_PERIODS_2026.map((p, i) => {
-                    const isCurrent = p.period === 'PP-12' || p.period === 'PP-13'
+                  {ref !== null && PAY_PERIODS.length === 0 && <tr><td colSpan={4} style={{ padding: '10px 16px', color: 'var(--t-text-faint)', fontSize: 11 }}>No pay periods are set for {refYear}. They are entered in the OS (Finance › Pay Periods) and appear here.</td></tr>}
+                  {PAY_PERIODS.map((p, i) => {
+                    const isCurrent = p.start <= todayIso && todayIso <= p.end
                     return (
                       <tr key={i} style={{ borderBottom: '1px solid var(--t-line)', background: isCurrent ? 'rgba(0,229,255,.05)' : 'transparent' }}>
                         <td style={{ padding: '10px 16px', fontFamily: 'monospace', fontWeight: 700, color: isCurrent ? 'var(--t-accent)' : 'var(--t-text-muted)' }}>{p.period}</td>
-                        <td style={{ padding: '10px 16px', color: 'var(--t-text-muted)' }}>{p.start}, 2026</td>
-                        <td style={{ padding: '10px 16px', color: 'var(--t-text-muted)' }}>{p.end}, 2026</td>
+                        <td style={{ padding: '10px 16px', color: 'var(--t-text-muted)' }}>{p.start}</td>
+                        <td style={{ padding: '10px 16px', color: 'var(--t-text-muted)' }}>{p.end}</td>
                         <td style={{ padding: '10px 16px', fontWeight: 600, color: isCurrent ? 'var(--t-accent)' : 'var(--t-text)' }}>
-                          {p.payday}, 2026
+                          {p.payday}
                           {isCurrent && <span style={{ marginLeft: 8, fontSize: 9, fontWeight: 700, color: 'var(--t-accent)', letterSpacing: '.06em' }}>CURRENT</span>}
                         </td>
                       </tr>

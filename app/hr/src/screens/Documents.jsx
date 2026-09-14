@@ -1,14 +1,15 @@
-﻿import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { sb } from '../lib/supabase'
 import { useAuth } from '../lib/auth.jsx'
 import { useScope } from '../lib/scope.jsx'
 import DrillDown from '../components/DrillDown.jsx'
 
-// ── Deterministic seed ────────────────────────────────────────────────────────
-function seed(a, b) { return ((a * 31 + b) * 17 + a * b) % 100 }
-
-// ── Today helpers ─────────────────────────────────────────────────────────────
-const TODAY = new Date('2026-06-27')
+// EVERY LIST IS A READ (Bible §12g, 14 Sep 2026): my documents = get_my_assigned_documents, the
+// company library = doccenter_list_documents (hr.hr_documents), signatures required and the
+// signature history = get_sign_requests for the signed-in person (hr.sign_requests); signing
+// calls set_sign_request_status. Empty lists are empty — there are no sample rows and the
+// clock is today's, not a fixed date.
+const TODAY = new Date()
 function daysAgo(n) {
   const d = new Date(TODAY); d.setDate(d.getDate() - n); return d.toISOString().slice(0, 10)
 }
@@ -24,11 +25,6 @@ const LOCATIONS = ['Lakeville — Cultivation (MC281714)', 'Lakeville — Manufa
 
 const MY_DOCS = []  // no sample rows — real records only
 
-const COMPANY_LIBRARY = []  // no sample rows — real records only
-
-const SIG_REQUIRED = []  // no sample rows — real records only
-
-const SIG_HISTORY = []  // no sample rows — real records only
 
 // ── Shared styles ─────────────────────────────────────────────────────────────
 const S = {
@@ -339,10 +335,11 @@ function MyDocuments({ myDocs, onDocStatusChange }) {
 // ── Tab 2: Company Library ────────────────────────────────────────────────────
 const LIB_CATS = ['All', 'Policies', 'Handbooks', 'Forms', 'Training Materials', 'Benefits', 'Operations']
 
-function CompanyLibrary() {
+function CompanyLibrary({ library, loading, loadError }) {
   const [catTab, setCatTab] = useState('All')
   const [search, setSearch] = useState('')
   const [expandedId, setExpandedId] = useState(null)
+  const COMPANY_LIBRARY = library
 
   const isNew = (added) => {
     const addedDate = new Date(added)
@@ -353,12 +350,13 @@ function CompanyLibrary() {
   const visible = useMemo(() => {
     return COMPANY_LIBRARY.filter(d => {
       const catMatch = catTab === 'All' || d.category === catTab
-      const searchMatch = !search || d.title.toLowerCase().includes(search.toLowerCase()) || d.desc.toLowerCase().includes(search.toLowerCase())
+      const searchMatch = !search || (d.title || '').toLowerCase().includes(search.toLowerCase()) || (d.desc || '').toLowerCase().includes(search.toLowerCase())
       return catMatch && searchMatch
     })
-  }, [catTab, search])
+  }, [catTab, search, COMPANY_LIBRARY])
 
   function handleDownload(doc) {
+    if (doc.file_url) { window.open(doc.file_url, '_blank', 'noopener'); return }
     const content = DOC_CONTENT[doc.contentKey] || `Twisted Growers — ${doc.title}\n\n${doc.desc || ''}\n\nThe full document is available from HR.`
     const blob = new Blob([content], { type: 'text/plain' })
     const url = URL.createObjectURL(blob)
@@ -456,14 +454,16 @@ function CompanyLibrary() {
 }
 
 // ── Tab 3: Signatures Required ────────────────────────────────────────────────
-function SignaturesRequired() {
-  const [required, setRequired] = useState(SIG_REQUIRED)
+function SignaturesRequired({ required, history, reload, personId, personName, onError }) {
   const [signingDoc, setSigningDoc] = useState(null)
+  const SIG_HISTORY = history
 
-  function handleSignConfirm() {
+  async function handleSignConfirm() {
     if (!signingDoc) return
-    setRequired(prev => prev.filter(d => d.id !== signingDoc.id))
+    const { data, error } = await sb.rpc('set_sign_request_status', { p_id: signingDoc.id, p_status: 'signed', p_actor_id: personId || null, p_actor_name: personName || null })
+    if (error || (data && data.ok === false)) { onError?.(error?.message || data?.error || 'not signed'); return }
     setSigningDoc(null)
+    reload()
   }
 
   const isDaysOverdue = (due) => {
@@ -591,17 +591,40 @@ export default function Documents() {
     return () => clearTimeout(t)
   }, [])
 
-  // Try real RPC, fall back to mock
+  const [library, setLibrary] = useState([])
+  const [signReqs, setSignReqs] = useState([])
+  const [readError, setReadError] = useState('')
+  const [tick, setTick] = useState(0)
+  const reload = useCallback(() => setTick(t => t + 1), [])
   useEffect(() => {
-    if (!locationIds?.length) return
-    sb.rpc('get_my_assigned_documents', { p_person_id: session?.person?.id })
-      .then(({ data, error }) => {
-        if (!error && data?.length) {
-          setMyDocs(data)
-        }
-      })
-      .catch(() => {/* keep mock */})
-  }, [locationIds, session?.person?.id])
+    if (!locationIds?.length) return undefined
+    let live = true
+    const me = session?.person?.id
+    Promise.all([
+      sb.rpc('get_my_assigned_documents', { p_person_id: me }),
+      sb.rpc('doccenter_list_documents', { p_node_ids: locationIds }),
+      sb.rpc('get_sign_requests', { p_node_ids: null, p_signer_id: me }),
+    ]).then(([mine, lib, sig]) => {
+      if (!live) return
+      const errs = [mine.error, lib.error, sig.error].filter(Boolean).map(e => e.message)
+      setReadError(errs.join(' · '))
+      setMyDocs(Array.isArray(mine.data) ? mine.data : [])
+      setLibrary((Array.isArray(lib.data) ? lib.data : []).filter(d => !d.archived).map(d => ({
+        id: d.id, title: d.title, category: d.category || 'Policies', desc: d.description || '', version: d.version || '1', added: d.updated,
+        file_url: d.file_url, author: d.author, location: d.location, required: d.required,
+      })))
+      setSignReqs(Array.isArray(sig.data) ? sig.data : [])
+    })
+    return () => { live = false }
+  }, [locationIds, session?.person?.id, tick])
+  const sigRequired = useMemo(() => signReqs.filter(r => (r.status || 'pending') !== 'signed' && (r.status || '') !== 'declined' && (r.status || '') !== 'void').map(r => ({
+    id: r.id, title: r.template_name || r.template_id || 'Document', category: 'Forms', version: '—', due: (r.sent_at || r.created_at || '').slice(0, 10), isOverdue: false, fields: r.fields,
+  })), [signReqs])
+  const sigHistory = useMemo(() => signReqs.filter(r => r.status === 'signed').map(r => ({
+    id: r.id, title: r.template_name || r.template_id || 'Document', version: '—', signed: (r.signed_at || '').slice(0, 10),
+  })).sort((a, b) => (b.signed || '').localeCompare(a.signed || '')), [signReqs])
+  const COMPANY_LIBRARY = library
+  const SIG_HISTORY = sigHistory
 
   function handleDocStatusChange(id, newStatus) {
     setMyDocs(prev => prev.map(d => d.id === id ? { ...d, status: newStatus } : d))
@@ -723,10 +746,10 @@ export default function Documents() {
         <MyDocuments myDocs={myDocs} onDocStatusChange={handleDocStatusChange} />
       )}
       {activeTab === 'library' && (
-        <CompanyLibrary />
+        <CompanyLibrary library={library} loading={false} loadError={readError} />
       )}
       {activeTab === 'signatures' && (
-        <SignaturesRequired />
+        <SignaturesRequired required={sigRequired} history={sigHistory} reload={reload} personId={session?.person?.id} personName={session?.person?.full_name} onError={setReadError} />
       )}
     </div>
   )
