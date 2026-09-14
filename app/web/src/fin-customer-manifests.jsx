@@ -47,10 +47,13 @@ import {
   grab, listOf, DkTag, DkErr, DkEmpty, DkHead, DkDrill, DrillRoot, DkCaret, DkDocButton,
   Widget, WidgetBoard, WidgetBarControls, useWidgetLayout, useSectionStore,
   TagEvidence, TagEvidenceProvider, DkNarrative, DkReports, DkTasks,
-  useDefaultRange,
+  useDefaultRange, DkFrameNote,
 } from "./dashkit.jsx";
 /* The one date control the rest of the OS already uses — imported, not rebuilt. */
 import { DateRangeSelect } from "./App.jsx";
+/* The range/search rule, written once and unit-tested. This page used to
+   spell it out inline. */
+import { rangeSearch } from "./lib/range-search.js";
 import {
   FinKpiStrip, FinQty, FinMoney, FinBasis, FinDefect, FinActions, FinAnswer,
   FinReading, FinCapped, finReadAll, useFinTargets, useFinRead,
@@ -312,25 +315,23 @@ export default function CustomerManifestsPage({ go, session, reports, role, view
 
   /* Compared as ISO text so no timezone can shift a manifest out of its own day —
      created_on already begins with YYYY-MM-DD and so does the bus. */
-  const searching = q.trim().length > 0;
-  const inPeriod = (m) => {
-    if (!range.from && !range.to) return true;
-    /* A manifest with no created_on is unplaceable, not excluded. Spec:
-       "Undated rows are not dropped." */
-    if (!m.created_on) return true;
-    const d0 = String(m.created_on).slice(0, 10);
-    if (range.from && d0 < range.from) return false;
-    if (range.to && d0 > range.to) return false;
-    return true;
-  };
+  /* ONE DATE SYSTEM. This page spelled the rules out itself — an `inPeriod` and
+     a search filter that reimplemented rules 1 and 2 of lib/range-search.js in
+     this file's own words. They agreed with the shared rule, which is the good
+     case and still the wrong shape: two copies of a rule are one edit away from
+     disagreeing, and nothing would report it.
+
+     Behaviour is unchanged. A search still asks about one manifest rather than
+     a period and sets the range aside, and a manifest with no created_on is
+     still unplaceable rather than excluded. */
+  const rs = rangeSearch(manifests, {
+    from: range.from, to: range.to, dateField: "created_on", q,
+    fields: ["manifest_number", "destination_facility", "destination_licence", "invoice_number"],
+  });
+  const searching = rs.searching;
   const periodNarrowed = Boolean(range.from || range.to);
-  /* A search asks about one manifest, not about a period, so it sets the range
-     aside and the toolbar says so — the same rule Orders already follows. */
-  const rangeSetAside = searching && periodNarrowed;
-  const filtered = searching
-    ? manifests.filter((m) => `${m.manifest_number} ${m.destination_facility ?? ""} ${m.destination_licence ?? ""} ${m.invoice_number ?? ""}`
-        .toLowerCase().includes(q.trim().toLowerCase()))
-    : manifests.filter(inPeriod);
+  const rangeSetAside = rs.setAside;
+  const filtered = rs.rows;
 
   const openTasks = d.tasks.rows.filter((t) => t.department === DEPT);
   const T = (k) => tile === k;
@@ -496,6 +497,20 @@ export default function CustomerManifestsPage({ go, session, reports, role, view
                       presetKey={dateDefault.presetKey} session={session}
                       viewKey={VIEW_KEY} allowSave />
                     {dateDefault.error && <span className="note bad" role="alert">{dateDefault.error}</span>}
+                    {/* WHAT THE FRAME MOVES HERE, AND WHAT IT CANNOT.
+                        This is a DOCUMENT ROOM. The manifest list narrows on
+                        created_on — when the shipment was raised — because that
+                        is the event a reader means by "created between".
+                        Whether we HOLD the paperwork is not an event in a
+                        period: a manifest from May with no stored copy is still
+                        missing its copy today, and narrowing the document
+                        figures to this month would report it as fine. */}
+                    <DkFrameNote basis="period" range={range}
+                      what="Which manifests are listed"
+                      why="Narrowed on created_on, the date the shipment was raised. A manifest carrying no created_on is unplaceable rather than excluded, so it is kept and counted rather than quietly dropped from the total." />
+                    <DkFrameNote basis="queue" range={range}
+                      what="Manifests with no document copy held"
+                      why="A missing document does not stop being missing because the shipment was last month. This is open work and is never narrowed to a period — doing so would report the gap as closed the moment the frame moved past it." />
                     {periodNarrowed && !searching && (
                       <button className="cc-btn" onClick={() => setRange({ from: "", to: "" })}
                         title="Show every period again. Every manifest is already loaded — the range only decides what is shown.">show all periods</button>
