@@ -132,12 +132,18 @@ export default function RoomTurnAudit({ go, session, role, viewAs, reports }) {
       t.push(cultTile(n++, "Turns the view could not judge", unjudged.length, "turns", "warn",
         "No pass or fail was served for these, usually because there is no previous take-down to measure the gap from. They are shown rather than dropped."));
     }
+    const on70 = rows.filter((r) => String(r.verdict_vs_observed_70 || "").startsWith("ON CADENCE"));
+    const late70 = rows.filter((r) => String(r.verdict_vs_observed_70 || "").startsWith("LATE"));
+    t.push(cultTile(n++, "On the observed 70-day cadence", on70.length, "turns", "ok",
+      "Harvest-to-harvest sits on the observed 70-day mode. Not a rule. Not a grade."));
+    t.push(cultTile(n++, "Late versus observed 70", late70.length, "turns", late70.length ? "warn" : "ok",
+      "Harvest-to-harvest later than the observed 70-day mode. Not a rule. Not a grade."));
     if (slowest) {
       t.push(cultTile(n++, "Slowest turn on record", Number(slowest.room_turn_days), "days", "warn",
         "The largest gap between one take-down and the next in the same room, taken from the rows below."));
     }
     return t;
-  }, [failed, passed, unjudged, slowest]);
+  }, [failed, passed, unjudged, slowest, rows]);
 
   const inPlace = useMemo(() => cultInPlace(tiles, openKpi, (k) => setOpenKpi((c) => (c === k ? null : k))), [tiles, openKpi]);
   const drillRows = useMemo(() => {
@@ -202,7 +208,7 @@ export default function RoomTurnAudit({ go, session, role, viewAs, reports }) {
         {/* LIVE GRAIN. v_room_turn_audit is pull-grain as of 20260904184006.
             Consecutive harvest dates in the same room are one pull. */}
         <div className="cc-quarantine" role="status">
-          Counts pulls, not takedown days. Consecutive harvest dates in a room are one pull. Grade the cycle against the required days on the row. EXCEPTION is not FAIL and is not a grade.
+          Two clocks. The verdict column is scored against the 56-day flowering rule. The interval on the row is harvest-to-harvest; the observed mode is 70 days, which is not a rule. Do not grade staff LATE on 56 until the owner names the interval. EXCEPTION is not FAIL.
         </div>
 
         <div className="cc-tools">
@@ -251,7 +257,7 @@ export default function RoomTurnAudit({ go, session, role, viewAs, reports }) {
               : <div className="tablewrap">
                   <table>
                     <thead><tr><th>Room</th><th>Take-down</th><th>Cultivars</th><th>Plants</th>
-                      <th>Wet weight</th><th>Turn</th><th>Required</th><th>Verdict</th></tr></thead>
+                      <th>Wet weight</th><th>Turn</th><th>Required</th><th>Verdict vs 56</th><th>Vs observed 70</th></tr></thead>
                     <tbody>
                       {drillRows.map((r, i) => (
                         <tr key={`${r.room_qualified}|${r.harvest_started}|${i}`}>
@@ -263,6 +269,7 @@ export default function RoomTurnAudit({ go, session, role, viewAs, reports }) {
                           <td>{r.room_turn_days === null || r.room_turn_days === undefined ? "not measured" : `${cultNum(r.room_turn_days, 0)} days`}</td>
                           <td>{r.required_days === null || r.required_days === undefined ? "not stated" : `${cultNum(r.required_days, 0)} days`}</td>
                           <td>{r.verdict ? r.verdict : "none served"}</td>
+                          <td>{r.verdict_vs_observed_70 ? r.verdict_vs_observed_70 : "not served"}</td>
                         </tr>
                       ))}
                     </tbody>
