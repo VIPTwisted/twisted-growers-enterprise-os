@@ -29,11 +29,8 @@ if (!sha) { console.log("record-run: no GITHUB_SHA — not in CI; nothing record
 try {
   const client = await openClient("record-run", ROOT);
   try {
-    await client.query(
-      `insert into public.deploy_state (deploy_id, source, site, branch, commit_ref, state, title, created_at, published_at)
-       values ($1, 'ci', 'twisted-growers-enterprise-os', $2, $3, $4, $5, now(), now())
-       on conflict (deploy_id) do update set state = excluded.state, last_seen_at = now()`,
-      [`ci-${runId}`, branch || null, sha, verdict, `${title} ${verdict} for ${sha.slice(0, 7)}`]);
+    /* One narrow SECURITY DEFINER function: the gates role stays read-only on every table. */
+    await client.query("select public.f_ci_record($1::jsonb)", [JSON.stringify({ run_id: runId, sha, branch, verdict, title })]);
     console.log(`record-run: recorded ci-${runId} ${branch}@${sha.slice(0, 7)} = ${verdict}`);
   } finally { await client.end(); }
 } catch (e) {
