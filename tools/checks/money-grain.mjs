@@ -848,7 +848,9 @@ const migrationEntries = files.map((name) => ({
 // Re-pinned 14 Sep 2026 -> 1124 files. Recorded: watchers queue jobs as 'pending', health maps failed → failing, and
 // tg_call_function back to ONE signature (my 13 Sep overload broke three cron jobs; found by the sync watch). Claude desk.
 // Re-pinned 14 Sep 2026 -> 1125 files. Recorded claude_report_issue_bp_17_1 (f_report_issue; qa:human, qa:bot registered). Claude desk.
-const expectedMigrationTreeDigest = "9b48c4fe66d96f72831b2889d71736f8e266bf85bb114ce357e097aeee29c54b";
+// Re-pinned 14 Sep 2026 -> 1127 files. Recorded claude_finding_resolve_bp_12b_2 and claude_column_roles_for_archetype_layouts;
+// baseline regenerated (column_roles table). Claude desk.
+const expectedMigrationTreeDigest = "0a80a2d1fc12364d3177c747a7cc96f84fae3627c391f3da9fe6b994144cf3de";
 const actualMigrationTreeDigest = migrationTreeDigest(migrationEntries);
 if (actualMigrationTreeDigest !== expectedMigrationTreeDigest) {
   console.error(`money-grain: FAIL — migration tree differs from the independently reviewed ${files.length}-file manifest (${actualMigrationTreeDigest}).`);
