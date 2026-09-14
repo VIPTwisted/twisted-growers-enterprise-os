@@ -36447,23 +36447,43 @@ create or replace view public.v_pnl_live as
          SELECT j.book,
             date_trunc('month'::text, j.event_at)::date AS month,
             a.kind,
+            a.role,
             l.side,
             l.amount,
             j.indicative
            FROM journal_line l
              JOIN journal j ON j.id = l.journal_id
              JOIN gl_account a ON a.code = l.account_code
+        ), b AS (
+         SELECT (EXISTS ( SELECT 1
+                   FROM journal j
+                     JOIN gl_account a ON (a.code IN ( SELECT journal_line.account_code
+                           FROM journal_line
+                          WHERE journal_line.journal_id = j.id))
+                  WHERE a.role = 'cost'::text AND (j.rule_key = ANY (ARRAY['payroll'::text, 'purchase_received'::text])))) AS has_cost_basis
         )
  SELECT book,
     month,
     COALESCE(sum(amount) FILTER (WHERE kind = 'revenue'::text AND side = 'C'::bpchar), 0::numeric) - COALESCE(sum(amount) FILTER (WHERE kind = 'revenue'::text AND side = 'D'::bpchar), 0::numeric) AS revenue,
     COALESCE(sum(amount) FILTER (WHERE kind = 'cogs'::text AND side = 'D'::bpchar), 0::numeric) - COALESCE(sum(amount) FILTER (WHERE kind = 'cogs'::text AND side = 'C'::bpchar), 0::numeric) AS cogs,
     COALESCE(sum(amount) FILTER (WHERE kind = 'expense'::text AND side = 'D'::bpchar), 0::numeric) - COALESCE(sum(amount) FILTER (WHERE kind = 'expense'::text AND side = 'C'::bpchar), 0::numeric) AS expenses,
-    COALESCE(sum(amount) FILTER (WHERE kind = 'revenue'::text AND side = 'C'::bpchar), 0::numeric) - COALESCE(sum(amount) FILTER (WHERE kind = 'revenue'::text AND side = 'D'::bpchar), 0::numeric) - (COALESCE(sum(amount) FILTER (WHERE kind = 'cogs'::text AND side = 'D'::bpchar), 0::numeric) - COALESCE(sum(amount) FILTER (WHERE kind = 'cogs'::text AND side = 'C'::bpchar), 0::numeric)) AS gross_margin,
-    COALESCE(sum(amount) FILTER (WHERE kind = 'revenue'::text AND side = 'C'::bpchar), 0::numeric) - COALESCE(sum(amount) FILTER (WHERE kind = 'revenue'::text AND side = 'D'::bpchar), 0::numeric) - (COALESCE(sum(amount) FILTER (WHERE kind = 'cogs'::text AND side = 'D'::bpchar), 0::numeric) - COALESCE(sum(amount) FILTER (WHERE kind = 'cogs'::text AND side = 'C'::bpchar), 0::numeric)) - (COALESCE(sum(amount) FILTER (WHERE kind = 'expense'::text AND side = 'D'::bpchar), 0::numeric) - COALESCE(sum(amount) FILTER (WHERE kind = 'expense'::text AND side = 'C'::bpchar), 0::numeric)) AS operating_result,
+        CASE
+            WHEN ( SELECT b.has_cost_basis
+               FROM b) THEN COALESCE(sum(amount) FILTER (WHERE kind = 'revenue'::text AND side = 'C'::bpchar), 0::numeric) - COALESCE(sum(amount) FILTER (WHERE kind = 'revenue'::text AND side = 'D'::bpchar), 0::numeric) - (COALESCE(sum(amount) FILTER (WHERE kind = 'cogs'::text AND side = 'D'::bpchar), 0::numeric) - COALESCE(sum(amount) FILTER (WHERE kind = 'cogs'::text AND side = 'C'::bpchar), 0::numeric))
+            ELSE NULL::numeric
+        END AS gross_margin,
+        CASE
+            WHEN ( SELECT b.has_cost_basis
+               FROM b) THEN COALESCE(sum(amount) FILTER (WHERE kind = 'revenue'::text AND side = 'C'::bpchar), 0::numeric) - COALESCE(sum(amount) FILTER (WHERE kind = 'revenue'::text AND side = 'D'::bpchar), 0::numeric) - (COALESCE(sum(amount) FILTER (WHERE kind = 'cogs'::text AND side = 'D'::bpchar), 0::numeric) - COALESCE(sum(amount) FILTER (WHERE kind = 'cogs'::text AND side = 'C'::bpchar), 0::numeric)) - (COALESCE(sum(amount) FILTER (WHERE kind = 'expense'::text AND side = 'D'::bpchar), 0::numeric) - COALESCE(sum(amount) FILTER (WHERE kind = 'expense'::text AND side = 'C'::bpchar), 0::numeric))
+            ELSE NULL::numeric
+        END AS operating_result,
     bool_or(indicative) FILTER (WHERE kind = ANY (ARRAY['cogs'::text, 'expense'::text])) AS cogs_indicative,
     bool_or(indicative) FILTER (WHERE kind = 'revenue'::text) AS revenue_indicative,
-    'Revenue: Apex recognized totals of MATCHED orders (certified, order grain). COGS: pounds sold × valuation rate for the stream (INDICATIVE until actual cost posts). Expenses: loss at valuation basis, labour when pay runs exist. Overhead is not posted here — see cost per pound.'::text AS how_to_read_it
+        CASE
+            WHEN ( SELECT b.has_cost_basis
+               FROM b) THEN 'Revenue: Apex recognized totals of MATCHED orders (certified, order grain). COGS: tag cost at the moment of sale. Expenses: labour, loss, supplies as posted.'::text
+            ELSE 'Revenue: Apex recognized totals of MATCHED orders (certified, order grain). cogs here is INVENTORY RELIEVED AT THE VALUATION RATE — what the material is worth, not what it cost — so gross_margin and operating_result are deliberately NULL until a cost basis posts (pay runs, purchases, overhead). expenses: loss at valuation basis. See v_spine_coverage for what is and is not posted.'::text
+        END AS how_to_read_it
    FROM m
   GROUP BY book, month;
 create or replace view public.v_policy_conformance as
