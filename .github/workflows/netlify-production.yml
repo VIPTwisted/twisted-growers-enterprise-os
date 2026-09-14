@@ -1,0 +1,30 @@
+# ONE PRODUCTION BUILD PER MERGE (Bible §16.3; owner, 14 Sep 2026).
+#
+# Measured 14 Sep 03:34 UTC: the repository's push webhook posts EVERY push — feature
+# branches and branch deletions included — to Netlify's build hook, so production was
+# rebuilt 14 times in 45 minutes and every merge built twice. Each rebuild retires the
+# previous chunk filenames, and every tab open across it met "Failed to fetch dynamically
+# imported module". This workflow calls the build hook only on a push to main, once.
+#
+# It does nothing until the repository secret NETLIFY_BUILD_HOOK exists (the owner's
+# call — the same URL that sits in the webhook today). When it does, the owner deletes
+# the push webhook and each merge builds exactly once. Board row owner.bp_one_build_per_merge.
+name: netlify-production
+on:
+  push:
+    branches: [main]
+jobs:
+  trigger:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger one Netlify production build for this main commit
+        env:
+          HOOK: ${{ secrets.NETLIFY_BUILD_HOOK }}
+        run: |
+          if [ -z "$HOOK" ]; then
+            echo "NETLIFY_BUILD_HOOK is not set — the push webhook is still the trigger. Nothing done (by design)."
+            exit 0
+          fi
+          code=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$HOOK?trigger_title=main+${GITHUB_SHA::7}")
+          echo "Netlify answered $code for main@${GITHUB_SHA::7}"
+          [ "$code" = "200" ] || [ "$code" = "201" ] || [ "$code" = "204" ]
