@@ -496,6 +496,13 @@ jobs:
       # reason. If the placement is wrong, move it — the point was not to leave it unwired.
       - name: No duplicate rows against a registered key
         run: node tools/checks/no-duplicate-rows.mjs
+      # ---- The Bible (BP-16-2), owner 14 Sep 2026 ----------------------------------
+      # brain/BLUEPRINT_2026_BEAT_THEM_ALL.md is the one build plan. This guard fails a commit
+      # that touches a frozen surface (theme, Facility Map, Top G/bots, Budz, rail) without
+      # "OWNER-APPROVED:" in its message, a destructive migration in go-live week, or a
+      # board row whose BP id the Bible does not carry (verified against the live tracker).
+      - name: The Bible — frozen surfaces, additive migrations, board in sync
+        run: node tools/checks/blueprint-in-sync.mjs
       - run: node tools/checks/all-checks-wired.mjs
 
       # ---- Rule E1 / E6 / H2: dangerous SQL must not reach a migration ---------------

@@ -11,7 +11,7 @@
 
 ---
 
-## 0a. Delivery governance revision — GPT's review of 14 Sep 2026, reconciled (one document, no drift)
+## 0a. Delivery governance revision — GPT's review of 14 Sep 2026, reconciled (one document, no drift) (BP-0a)
 
 GPT reviewed v2 and returned a "Part I — controlling enterprise delivery revision" (owner: *"review this from GPT and share thoughts — collaborate"*). The Bible stays one document (§16.1): every point is adopted, adapted or rejected **here**, with the reason. Owner decisions incorporated: **QuickBooks → phase 2; the advanced security program → phase 2** (board rows marked *PHASE 2 (owner 14 Sep)*).
 
@@ -37,7 +37,7 @@ GPT reviewed v2 and returned a "Part I — controlling enterprise delivery revis
 
 **Rejected:** nothing of substance. GPT's Part I is folded in here rather than kept as a separate "controlling" document, because two controlling documents is the drift §16.1 forbids.
 
-## 0. The bar — who we beat and how
+## 0. The bar — who we beat and how (BP-0)
 
 | Rival | What it owns | What we take from it | Where we beat it |
 |---|---|---|---|
@@ -61,7 +61,7 @@ GPT reviewed v2 and returned a "Part I — controlling enterprise delivery revis
 
 ---
 
-## 1. What TG already holds (measured 14 Sep 2026 01:30 UTC)
+## 1. What TG already holds (measured 14 Sep 2026 01:30 UTC) (BP-1)
 
 | Asset | Measured | Role in this build |
 |---|---|---|
@@ -83,7 +83,7 @@ GPT reviewed v2 and returned a "Part I — controlling enterprise delivery revis
 
 ---
 
-## 2. Non-negotiables — the complete register of owner rulings this build obeys
+## 2. Non-negotiables — the complete register of owner rulings this build obeys (BP-2)
 
 **Dashboards (owner, 5 Aug 2026 — hard rules 1–10):** every category has a dashboard · every dashboard is actionable to ClickUp standard (assign from any tile, named person, due date, priority, number captured as it stood) · extensive reporting and KPIs with drill from any tile and the full report set on the page · everything replicates up to Control Tower and the Chief Executive Dashboard · users personalise the two master dashboards (toggle, drag, saved per user) · nothing omitted, sacrificed or shortened when consolidating · never assume how the business works — owner-set field defaulting to "not recorded" · never a benchmark without a real source · **theme is locked** (neon green; no greys on icons, no pastels, bright reds) · **dashboard standard set in stone**: live KPI tiles with target on the tile, trend sparkline from real snapshots, change since yesterday in words, forensic drill on every tile, assign from the tile, entity cards, live activity feed, collapsible sections with counts remembered per user, action bar, honest empty states. Reference: the VIP CEO platform — match or beat.
 
@@ -113,7 +113,7 @@ GPT reviewed v2 and returned a "Part I — controlling enterprise delivery revis
 - Parse the manual before guessing; always check, verify, confirm (derive a second way, then challenge).
 - ClickUp is a clone inside the OS (Workspace), not one of our syncs.
 
-### 2b. Frozen surfaces and the speed rule (14 Sep 2026)
+### 2b. Frozen surfaces and the speed rule (14 Sep 2026) (BP-2b)
 - **Untouchable:** theme and colours (`styles.css` locked; `patches.css` only), Facility Map, Top G / Bots desk, Budz, TG Brain, side rail, top bar (Finance / Tax / HR / Reports), department dashboards unless the owner names one.
 - **Menus:** child entries may be added under a cockpit (Budz chat, TG Brain, My dashboard, Chief Executive were added 13 Sep). Nothing renamed, moved or removed.
 - **New work = database/agents first, or new pages from existing primitives** (dashkit tiles/wells, `.panel`, `.pill`, `.sbtotals`, `.sbchip`, report table, expand-in-place row). No new primitive, no new colour.
@@ -121,7 +121,7 @@ GPT reviewed v2 and returned a "Part I — controlling enterprise delivery revis
 
 ---
 
-## 3. Architecture — six layers and the outside
+## 3. Architecture — six layers and the outside (BP-3)
 
 ```
 6 · OUTSIDE ─────── dispensary portal · supplier portal · regulator audit pack · employee phone
@@ -145,7 +145,7 @@ GPT reviewed v2 and returned a "Part I — controlling enterprise delivery revis
 
 ---
 
-## 4. The Ontology — objects, not tables
+## 4. The Ontology — objects, not tables (BP-4)
 
 One row per object in `object_registry` (key, label, identity, sources, states, timeline events, money, documents, actions, owner agent). One `f_<object>_360(id)` per object (`security invoker` — the caller's RLS applies). One `f_<object>_<action>()` per action, gated, logged.
 
@@ -176,25 +176,25 @@ One row per object in `object_registry` (key, label, identity, sources, states, 
 | Journal / Account | journal id | new | posted · reversed | post (engine), reverse | Cash | §6 |
 | Sync · Secret · Rule · Metric | key | sync_registry, stores, policy tables, metric_registry | — | Sync page (done); rules editor; certify/challenge | Integrations / owner / Verifier | 6 |
 
-### Package (Tag) 360 — the built specification (live 14 Sep, `f_package_360(p_tag)`)
+### Package (Tag) 360 — the built specification (BP-4-1) (live 14 Sep, `f_package_360(p_tag)`)
 Sections and sources: **identity & state** (`v_tag_master`, `v_package_dossier`) · **timeline** (every `tag_event` + `v_package_events`, one stream, newest first) · **dwell** by location (`v_tag_dwell`) · **lifecycle** six stages (`v_tag_lifecycle`: harvest → packaged → tested → shipped → invoiced → finished) · **lab & sellability** (COA, analytes, lab state, why-no-certificate from `v_tag_evidence`, `v_tag_certificate_final`) · **provenance & ownership** (`v_tag_provenance`, cultivator/manufacturer/packager licences) · **documents** (COA link, manifest link, Apex invoice — `v_package_documents`) · **money** (value at our cost, cost basis, declared transfer price, Apex USD) · **gaps** (`v_tag_gap` rule codes with required action) · **custody alerts** · **Apex reconciliation verdict** · **findings** touching the tag · **tasks** on the tag · **actions**: Assign task (captures on-hand lb), flag finding, open in Metrc (screen named), copy tag. Reached from: any table cell that is a tag (shared `cellView` link), Spotlight (`f_package_search`), a scanned tag, the Package list.
 
 ---
 
-## 5. Agents that own processes — mandates as data
+## 5. Agents that own processes — mandates as data (BP-5)
 
-| Agent | Mandate | Runs on | Alone | Needs approval | Beats | Hours (v1 → full) |
+| Agent (BP-5-0 = the first connection: one agent, one real task, verified result — GPT lane) | Mandate | Runs on | Alone | Needs approval | Beats | Hours (v1 → full) |
 |---|---|---|---|---|---|---|
-| **Compliance** | Metrc vs sheets vs OS agree always; licences/credentials current; audit pack any second | every delta sync (5 min); hourly sweep | file finding; annotate sheet (neon note) per "Metrc overrides"; assemble audit pack | any Metrc-side adjustment proposal | Canix, Simplifya, BioTrack | 12 → 30 |
-| **Harvest & Rooms** | takedown calendar, dry/cure capacity, room turns, crew per zone | cycle day; harvest_alert_rules | draft calendar; propose crew via `f_schedule_candidates` | post schedule; move takedown | Trym, AROYA | 10 → 30 |
-| **Sales desk** | order → allocation → manifest → COA → Apex → invoice | Apex pull; order events | draft manifest; attach COA; allocate sellable tags | post to Apex; ship; price change | Distru, LeafLink | 14 → 36 |
-| **Cash** | live P&L, cost per pound, inventory value, cash forecast, collections | every posting | post journals from events; flag overdue | write-off; credit hold | NetSuite, 365 | §6 → +20 |
-| **People** | schedules, credentials, onboarding, labour cost | shift calendar; credential dates | draft schedule; block on expired credential | post/sign; offboard | Würk, Trym | 8 → 24 |
-| **Watchdog / Verifier / Challenger** | nothing silent; every figure two ways; every finding earns survival | continuous | file, refute, certify | close a finding | nobody | exist; +8 for decision hooks |
+| BP-5-1 **Compliance** | Metrc vs sheets vs OS agree always; licences/credentials current; audit pack any second | every delta sync (5 min); hourly sweep | file finding; annotate sheet (neon note) per "Metrc overrides"; assemble audit pack | any Metrc-side adjustment proposal | Canix, Simplifya, BioTrack | 12 → 30 |
+| BP-5-2 **Harvest & Rooms** | takedown calendar, dry/cure capacity, room turns, crew per zone | cycle day; harvest_alert_rules | draft calendar; propose crew via `f_schedule_candidates` | post schedule; move takedown | Trym, AROYA | 10 → 30 |
+| BP-5-3 **Sales desk** | order → allocation → manifest → COA → Apex → invoice | Apex pull; order events | draft manifest; attach COA; allocate sellable tags | post to Apex; ship; price change | Distru, LeafLink | 14 → 36 |
+| BP-5-4 **Cash** | live P&L, cost per pound, inventory value, cash forecast, collections | every posting | post journals from events; flag overdue | write-off; credit hold | NetSuite, 365 | §6 → +20 |
+| BP-5-5 **People** | schedules, credentials, onboarding, labour cost | shift calendar; credential dates | draft schedule; block on expired credential | post/sign; offboard | Würk, Trym | 8 → 24 |
+| BP-5-6 **Watchdog / Verifier / Challenger** | nothing silent; every figure two ways; every finding earns survival | continuous | file, refute, certify | close a finding | nobody | exist; +8 for decision hooks |
 
 ---
 
-## 6. The money spine — posting map at tag grain (beats NetSuite)
+## 6. The money spine — posting map at tag grain (beats NetSuite) (BP-6)
 
 Event-sourced. Every event in `tag_event` (or arriving through the syncs) produces a journal at tag grain; cost basis from `valuation_rates` / actuals; one book per licence (MC281714, MP281909, retail to come), consolidated. **TG is the book of record; QuickBooks becomes the mirror** (the sync flips direction).
 
@@ -219,7 +219,7 @@ Acceptance (phase 1): harvest/package/sale/payroll/purchase post within 60 s; ev
 
 ---
 
-## 7. Navigation — nothing moves; the doors are pages inside the menus that stay
+## 7. Navigation — nothing moves; the doors are pages inside the menus that stay (BP-7)
 
 | Door | Where | Menu change | Hours |
 |---|---|---|---|
@@ -234,21 +234,21 @@ Acceptance (phase 1): harvest/package/sale/payroll/purchase post within 60 s; ev
 
 ---
 
-## 8. The decision stream
+## 8. The decision stream (BP-8)
 `decision` object: what · why (finding / rule / agent) · the number captured as it stood · cash impact · options with recommendation · who may take it (role) · due-by · outcome · reversal. Ranked per person (severity × money × age). Push to phone (recipients are rows — `alert_recipient`). One tap executes the effect (sheet annotated, schedule posted, manifest signed, journal reversed) with provenance. **Acceptance:** owner's routine day ≤ 25 decisions; every effect in the object's timeline within 60 s. **Hours:** 20 (v1 10).
 
-## 9. The generative interface
+## 9. The generative interface (BP-9)
 Ask (words/voice → governed view from registered measures; save, pin, alert) 8 h service + Grok front · Scanner-first phone (scan tag/room QR → 360 → actions; offline reads) 10 h · Object 360 generic renderer (one component, thirty objects) 12 h · Today (§8). **Acceptance:** 360 < 1.5 s from a scan on floor Wi-Fi; Ask answers the twelve owner benchmark questions with certified figures; zero hand-built pages after the object layer (gate).
 
-## 10. The twin as a model — simulation
+## 10. The twin as a model — simulation (BP-10)
 Cycle compare on actuals by strain × room × cycle (10 h) → scenario engine: harvest timing, room allocation, price, labour → yield, labour, cash, compliance (40 h) → three owner-named back-tests certified by Verifier before any forward scenario (12 h). Sensors (AROYA/Growlink) ingest into the same model when installed (8 h ingest).
 
-## 11. Outside the walls
+## 11. Outside the walls (BP-11)
 Dispensary portal (customer role, RLS: COAs, orders, manifests, invoices, payments) 16 h · Supplier portal (POs, receipts, bills) 12 h · Regulator audit pack on demand for any as-of range (tags, movements, weights, COAs, manifests, licences, SOP training) 10 h · Employee phone (Today, my shift, scan, tasks, credentials, pay) in scanner + HR · Retail door (POS, purchase limits, patient, excise, delivery — 100× spec Part 5) when the licence lands: every table/view/tile carries `licence` from today.
 
 ---
 
-## 12. Beat-them-all acceptance (measured live, certified by Verifier)
+## 12. Beat-them-all acceptance (measured live, certified by Verifier) (BP-12)
 
 | Rival | Test |
 |---|---|
@@ -268,7 +268,7 @@ Dispensary portal (customer role, RLS: COAs, orders, manifests, invoices, paymen
 
 ---
 
-## 12b. The design programme and the page-decision register (owner decides page by page)
+## 12b. The design programme and the page-decision register (owner decides page by page) (BP-12b)
 
 Of 694 pages, 621 are `page_kind = report` (heading + table). One excellent layout per **archetype**, designed on an exemplar, rolled to every page of that archetype by data. **The owner goes through this register and marks each page: upgrade now · upgrade later · leave · retire (disable, restorable).** Nothing is changed without a mark.
 
@@ -276,19 +276,19 @@ Functional floor on every upgraded archetype: filters + saved views · expand-in
 
 | # | Archetype | Pages | Exemplar | The upgrade | Hours (exemplar + rollout) |
 |---|---|---|---|---|---|
-| 1 | Package 360 (new) | 1 → all | Package 360 | the record every list opens into | 8 |
-| 2 | `issue_queue` | 60 | Findings | queue by owner/age/severity, decide in place, cash impact, detection anatomy (100× #5) | 10 + 2 |
-| 3 | `data_browser` | 251 | Valuation rates | Setup form: list + edit-in-place, validation, history, impact-before-save (100× #8) | 12 + 3 |
-| 4 | `stock_position` | 29 | Stock & location | position by room/strain/state, as-of, drill to tags, allocate | 8 + 2 |
-| 5 | `custody_chain` | 24 | Package custody | timeline with gaps, manifest/COA attached | 8 + 2 |
-| 6 | `cost_sheet` | 29 | Cost per pound | basis shown, journal drill, cycle compare | 8 + 2 |
-| 7 | `schedule` | 36 | Harvest schedule | calendar + list, drag to reschedule (rules enforced), crew and rooms | 12 + 2 |
-| 8 | `document_register` | 24 | COA register | preview, parse status, attach to object, missing-document queue | 8 + 2 |
-| 9 | `reconciliation` | 16 | Sheet vs Metrc | side-by-side, one-tap "Metrc overrides", neon note, weekly review, three-stage reconciliation (100× #9) | 10 + 2 |
-| 10 | `scorecard` | 16 | Goals & scorecards | targets vs actuals with trend, owner per line, drill (big-fifteen #13) | 8 + 2 |
-| 11 | `rules_editor` | 39 | Business rules | edit with history, who/when, where used | 8 + 2 |
-| 12 | `catalogue` / `roster` / `punch_log` | 23 | Strains · Employees · Timesheets | cards; roster with skills/credentials; punch log with exceptions | 10 + 2 |
-| 13 | unclassified | 107 | — | classify (data), inherit | 4 |
+| BP-12b-1 | Package 360 (new) | 1 → all | Package 360 | the record every list opens into | 8 |
+| BP-12b-2 | `issue_queue` | 60 | Findings | queue by owner/age/severity, decide in place, cash impact, detection anatomy (100× #5) | 10 + 2 |
+| BP-12b-3 | `data_browser` | 251 | Valuation rates | Setup form: list + edit-in-place, validation, history, impact-before-save (100× #8) | 12 + 3 |
+| BP-12b-4 | `stock_position` | 29 | Stock & location | position by room/strain/state, as-of, drill to tags, allocate | 8 + 2 |
+| BP-12b-5 | `custody_chain` | 24 | Package custody | timeline with gaps, manifest/COA attached | 8 + 2 |
+| BP-12b-6 | `cost_sheet` | 29 | Cost per pound | basis shown, journal drill, cycle compare | 8 + 2 |
+| BP-12b-7 | `schedule` | 36 | Harvest schedule | calendar + list, drag to reschedule (rules enforced), crew and rooms | 12 + 2 |
+| BP-12b-8 | `document_register` | 24 | COA register | preview, parse status, attach to object, missing-document queue | 8 + 2 |
+| BP-12b-9 | `reconciliation` | 16 | Sheet vs Metrc | side-by-side, one-tap "Metrc overrides", neon note, weekly review, three-stage reconciliation (100× #9) | 10 + 2 |
+| BP-12b-10 | `scorecard` | 16 | Goals & scorecards | targets vs actuals with trend, owner per line, drill (big-fifteen #13) | 8 + 2 |
+| BP-12b-11 | `rules_editor` | 39 | Business rules | edit with history, who/when, where used | 8 + 2 |
+| BP-12b-12 | `catalogue` / `roster` / `punch_log` | 23 | Strains · Employees · Timesheets | cards; roster with skills/credentials; punch log with exceptions | 10 + 2 |
+| BP-12b-13 | unclassified | 107 | — | classify (data), inherit | 4 |
 | — | `dashboard` | 30 | frozen unless named | KPI standard (§12c) applied only where the owner names the dashboard | per dashboard 6 |
 | | **Total** | | | | **≈ 160** |
 
@@ -296,7 +296,7 @@ Functional floor on every upgraded archetype: filters + saved views · expand-in
 
 ---
 
-## 12c. KPI catalogue — what exists, what each dashboard still needs (dashboard rule 10)
+## 12c. KPI catalogue — what exists, what each dashboard still needs (dashboard rule 10) (BP-12c)
 
 **Exists:** 43 registered metrics — Command 8 (failed testing on hand, harvests open too long, in the rooms dry-equivalent, moisture loss not recorded, never submitted for testing, open watchdog findings, out at the laboratory no result, total on hand dry-equivalent) · Cultivation 6 · Finance 3 (failed testing value, untested stock value, value of stock on hand) · HR 1 · Pre-Rolls 3 · Inventory 5 · Manufacturing 5 · Metrc 4 · Quality 4 · Settings 2 · Workspace 2; 20 `kpi_targets` rows. Every registered metric has a drill view and a target rule key.
 
@@ -322,7 +322,7 @@ Functional floor on every upgraded archetype: filters + saved views · expand-in
 
 ---
 
-## 12d. The Work layer — the ClickUp clone (CODE-023), plan unchanged
+## 12d. The Work layer — the ClickUp clone (CODE-023), plan unchanged (BP-12d)
 
 **Exists:** `tasks` (statuses, priority, assignee, watchers, due/start, recurrence, subtasks via parent, source_view/kpi/value/snapshot — rule 2), `task_activity`, `task_attachment`, `task_checklist_item`, `task_comment`, `task_dependencies`, `task_list`, `task_standards`, `task_time_log`, `spaces`, `saved_views`, `forms`, `form_responses`, `whiteboards`, `workspace_view`, `time_entries`; `tg_task_from_dashboard`; `AssignTask` on tiles; Workspace cockpit (Assignments, Whiteboards). The external ClickUp connector is retired from the sync registry (ruling 13 Sep).
 
@@ -343,7 +343,7 @@ Functional floor on every upgraded archetype: filters + saved views · expand-in
 
 ---
 
-## 12e. Sheets — tracker section 16, every item (owner ruling 12 Sep: Metrc overrides)
+## 12e. Sheets — tracker section 16, every item (owner ruling 12 Sep: Metrc overrides) (BP-12e)
 
 | Item | Status | Hours |
 |---|---|---|
@@ -360,7 +360,7 @@ Functional floor on every upgraded archetype: filters + saved views · expand-in
 | **IT health page** on the side menu: every sync, AI/bots/extensions, data certification, wiring & mapping, staleness, alert-count badge, audit trail | PENDING | Sync page covers syncs/secrets/AI (done); add certification, wiring/mapping, staleness, badge: 10 |
 | | **Total** | **≈ 55** |
 
-## 12f. Scheduling & zones — tracker section 17, every open item
+## 12f. Scheduling & zones — tracker section 17, every open item (BP-12f)
 
 | Item | Status | Hours |
 |---|---|---|
@@ -382,7 +382,7 @@ Functional floor on every upgraded archetype: filters + saved views · expand-in
 | Owner: shift 08:00–16:30 · 30 min unpaid · waves 12:00 / 13:30 · three zone→department maps · weekend flower cover · who may edit settings | OWNER | decisions |
 | | **Total** | **≈ 85** |
 
-## 12g. HR platform — tracker section 18, every open item
+## 12g. HR platform — tracker section 18, every open item (BP-12g)
 
 | Item | Status | Hours |
 |---|---|---|
@@ -400,16 +400,16 @@ Functional floor on every upgraded archetype: filters + saved views · expand-in
 | HR → OS people sync direction settled | — | 4 |
 | | **Total** | **≈ 60** |
 
-## 12h. Sync & IT — section 11 (done) + IT health page (12e)
+## 12h. Sync & IT — section 11 (done) + IT health page (12e) (BP-12h)
 Sync & Connections live 13 Sep (registry, secrets, add/edit/switch/reschedule/remove, Run now). Remaining: `sync.keys_page_consolidated` (nav row at deploy, 1 h); IT health page additions (10 h, in 12e).
 
-## 12i. The 100× primitives and the big fifteen — where each lands
+## 12i. The 100× primitives and the big fifteen — where each lands (BP-12i)
 Certainty chip + propagation (every tile, 12 h) · period state machine (Command, Cultivation, Inventory, Finance; 10 h) · answer-first band (every dashboard, powered by Budz — Grok; 6 h Claude service) · detection anatomy (Findings exemplar) · exposure vs confirmed (Finance + Command; 6 h) · materiality + disclosed suppression (`data_assertion` config; 4 h) · impact before save (Setup-form archetype) · three-stage reconciliation (Sheet vs Metrc exemplar) · preserved export history `report_export_log` (6 h) · connected intelligence (Control Tower + CEO; 8 h) · ALERTS & ACTIONS consolidation (nav rows; 3 h) · planning rituals (Monday review, Thu/Fri plan-ahead, monthly, quarterly; 12 h) · expenses / AP (in the spine) · dispensary licence dimension (everything carries `licence`; audit 6 h).
 Big fifteen not already above: create/edit/approve UI (the Setup form + object actions cover it) · testing & COA ship-gate (COA object + sellability; 8 h) · per-employee actual pay rates (HR data + spine) · production planner/daily scheduler (Harvest & Rooms + schedule archetype) · M2 data loads (lots, standards, SKU master, BOMs, POs, cash, overhead, licences — 16 h loads, owner supplies) · mobile capture (scanner phone) · universal DataGrid + unified Tile (the archetype programme) · Metrc reports module ("every single report Metrc offers" — Report Vault exists; 12 h to finish coverage) · adoption telemetry (freshness SLAs, heartbeats, readiness gate; 8 h) · AI layer (Ask).
 
 ---
 
-## 13. Schedule — nine days to go-live, three agents, with hours
+## 13. Schedule — nine days to go-live, three agents, with hours (BP-13)
 
 **Corrected 14 Sep (GPT's review, §0a):** the table below lists **412 engineer-hours** (Claude 242 · Grok 86 · GPT 84), not ≈330, against 135 h per lane at 15 h/day; Claude's lane is over by 107 h and Monday carries 43 h. Two corrections apply: (1) **rebalance** — scorecards, rules editor and document register move to Grok; cost sheet and custody move to GPT (Claude ≈ 190 · Grok ≈ 110 · GPT ≈ 112); (2) **measure, don't assume** — night one delivered 16 estimated hours in 4 wall-clock hours, certified (Package 360, board, deploy watch); every lane's real throughput is re-measured after day 2 and the table re-estimated from it. QuickBooks reconciliation (10 h, GPT, Thu) is **phase 2** and struck. Sept 18 and 23 remain targets subject to demonstrated readiness: a journey that cannot pass gets a **documented** scope or date change from the owner — never a silent deferral, never relabelled complete.
 
@@ -447,7 +447,7 @@ Big fifteen not already above: create/edit/approve UI (the Setup form + object a
 
 ---
 
-## 14. Risks and dependencies (named, owned)
+## 14. Risks and dependencies (named, owned) (BP-14)
 
 | Risk | Owner | Mitigation |
 |---|---|---|
@@ -461,22 +461,22 @@ Big fifteen not already above: create/edit/approve UI (the Setup form + object a
 | Scope creep into pages | everyone | the nav gate; views not pages; the page-decision register |
 | Go-live data not certified | Verifier | an uncertified line is shown as uncertified, never hidden |
 
-## 15. Decisions the owner takes now
+## 15. Decisions the owner takes now (BP-15)
 1. Go on the nine-day schedule and the three-lane split. 2. Role list, alert recipients. 3. Section 17/16/18 owner rows (shift, zones, weekend, edit roles, sheet day, unit exceptions, Supabase switches, Netlify link). 4. Reconciliation tolerance (suggest 0.5 %). 5. Twelve Ask benchmark questions. 6. Three simulation scenarios. 7. Page-decision marks — as many as you can each evening; unmarked pages are not touched.
 
 ---
 
-## 16. THE BIBLE — governance, enforcement, no drift (owner, 14 Sep 2026)
+## 16. THE BIBLE — governance, enforcement, no drift (owner, 14 Sep 2026) (BP-16)
 
 *"Must be organised — no room for drifting or leaving anything to another AI to interpret. This must become the Bible: reviewers, watchers and the guard all agree, as we have for every aspect. Agents cannot allow stale content or overlook anything. All deployments must be watched — if one fails the agent fixes it immediately. All data must be certified; all syncs must sync without issue and be addressed the moment there is an issue."*
 
-### 16.1 One source, one identity per item
+### 16.1 One source, one identity per item (BP-16-1)
 - **This file is the Bible.** `CLAUDE.md` holds the rules; `HANDOFF.md` holds state; this file holds the build. Nothing about the build is decided anywhere else — not in chat, not in another agent's notes, not in a PR description. If it is not here, it is not the plan; if it is here, it is not open to interpretation.
 - **Every item carries an ID** — `BP-<section>-<n>` (e.g. `BP-12b-3` = Setup form archetype) — and lives as a `deployment_check` row `bp.<section>.<slug>` in tracker section **19 Blueprint 2026** with: owner lane (Claude / Grok / GPT / owner), hours, acceptance test (verbatim from this file), status. **The tracker row is the only place status changes, and only by a measurement**, never by hand, never by an agent's claim.
 - **No agent re-interprets.** An agent that believes an item is wrong files a *finding* against it (`agent_findings`, scope `BP-…`). If the item is merely doubtful, the agent continues on the written item until the owner rules; if the agent believes it is **harmful**, it **pauses that item** and files the evidence — a written instruction is never a reason to continue a known harm. Silence means *bound by the text*, never *approved*; deviation without a finding is a defect. (Wording corrected 14 Sep after GPT's review.)
 - **Stale is a defect.** Any section of this file older than its items' last measurement is flagged by the gate below. A number in this file that disagrees with the tracker is a finding.
 
-### 16.2 Reviewers, watchers, the guard — who agrees, and how it is enforced
+### 16.2 Reviewers, watchers, the guard — who agrees, and how it is enforced (BP-16-2)
 | Role | Who | Agrees to what | Mechanism |
 |---|---|---|---|
 | **Reviewers** | Verifier (derives every figure a second way) · Challenger (refutes before it ships) · Inspector (cross-checks agents against each other and this file) | every item's acceptance test before its row flips to PASS; every phase before it is declared delivered | `f_bp_review(item)` writes the reviewer's verdict on the row; three verdicts required for a phase |
@@ -484,7 +484,7 @@ Big fifteen not already above: create/edit/approve UI (the Setup form + object a
 | **The guard** | the 46 CI gates + the pre-push hooks + the SQL guards + **`blueprint-in-sync`** (new) | that no change lands outside the Bible | `tools/checks/blueprint-in-sync.mjs`: every `BP-` ID in this file has a tracker row and every section-19 row has an ID here; hours and owners match; a PR that touches a frozen surface fails; a PR without a `BP-` ID in its title fails. Runs in CI and in the Netlify build |
 | **Owner** | Vinny | the plan, the marks in the page-decision register, the owner rows | the only hand that changes this file's rulings |
 
-### 16.3 Deploy watch — every deployment watched; a failure is fixed immediately
+### 16.3 Deploy watch — every deployment watched; a failure is fixed immediately (BP-16-3)
 - **Mechanism (live 14 Sep, PR #249):** `f_deploy_watch` (cron, every 2 min, pg_net → Netlify deploys API for both sites, GitHub Actions runs; tokens `NETLIFY_AUTH_TOKEN` / `GITHUB_TOKEN` stored on the Sync page) records every deploy in `deploy_state`. **A branch failure is a finding; only `main` raises the alarm** — candidate build state and production health are separate facts (GPT, §0a). Until the tokens exist the tracker row `deploy.watch_alive` says FAIL — no token, never "watching".
 - **Recovery is three procedures, not one:** application rollback (previous Netlify deploy, one click), database recovery (migrations this week are **additive only**; an app rollback must stay schema-compatible — confirmed in the Tue 22 drill), and reversal of external effects (Apex posts are under human review; none are automatic in phase 1). A Netlify republish alone never reverses a migration or a business effect.
 - **Outside-in probe:** an availability check of the published site from outside the platform (cron → HTTP GET, recorded), so the monitor is not the component it monitors.
@@ -492,36 +492,36 @@ Big fifteen not already above: create/edit/approve UI (the Setup form + object a
 - **The fix is the agent's, immediately:** the on-call agent reverts or repairs within the hour, opens the PR, and certifies the green deploy; the finding closes only when `deploy_state` shows `ready` for `main` and the live check passes. Rollback is always available: the previous Netlify deploy, one click.
 - **Hours:** 6 (Claude, Day 1 night). Acceptance: kill a build on a branch → finding + push + bridge job within 2 min.
 
-### 16.4 Sync watch — every sync syncs; an issue is addressed the moment it appears
+### 16.4 Sync watch — every sync syncs; an issue is addressed the moment it appears (BP-16-4)
 - **Mechanism:** the sync registry's `f_sync_status()` swept every 5 min (`sync_watch`): a sync whose health is `failing`, `stale` or `missing secret` for the first time → finding (severity by lane), push to recipients, **automatic first response**: re-run once via `f_sync_run`; if the re-run fails or the secret is missing → `ai_bridge_jobs` "repair sync <key>" to the on-call agent and the tracker row `sync.all_green` FAILs.
 - **No sync may be off without a reason row:** a switched-off sync needs `note` filled; the watcher flags an off sync with no note.
 - **Hours:** 5 (Claude, Day 1 night). Acceptance: break a secret on a test sync → finding + re-run + bridge job within 5 min; restore → row green within one sweep.
 
-### 16.5 Data certification — all data certified, continuously
+### 16.5 Data certification — all data certified, continuously (BP-16-5)
 - **Every figure the customer sees is certified two independent ways or is labelled uncertified on the page** — the certification board (section 15) is the register; `f_certify(metric)` records both derivations, the tolerance and the verdict; a certified figure that drifts outside tolerance is re-opened by the watcher within one sweep (hourly) and the tile shows *uncertified — re-checking* until it passes again.
 - **Population certificates** (GPT lane): plants, packages, harvests, transfers, COAs, employees — signed by Friday 18 Sep; re-measured hourly.
 - **Nothing is hidden:** an uncertified line is shown as uncertified, never removed.
 - **Hours:** 8 (Claude framework) + GPT's certificates. Acceptance: every metric in `metric_registry` has a certification row with two derivations; the board shows zero unlabelled figures.
 
-### 16.6 Organisation — how the work is kept in lanes, in order, in sight
+### 16.6 Organisation — how the work is kept in lanes, in order, in sight (BP-16-6)
 - **One board:** tracker section 19, grouped by day and lane, read every morning in chat by all three agents; every evening the owner reviews production.
 - **One order:** the day-by-day schedule in §13. An agent does not start a later item while an earlier one of its own is red.
 - **One definition of done:** on `main` · Netlify published · live check passed · reviewer verdicts recorded · row flipped by measurement.
 - **One place for questions:** the owner rows in the tracker. An agent that needs a decision files an owner row; it does not guess.
 - **Lanes are files:** an agent touching a file outside its lane is a finding; the frozen list is absolute.
 
-## 17. The bots work with us — testing, calling out what needs fixing, reporting issues (owner, 14 Sep 2026)
+## 17. The bots work with us — testing, calling out what needs fixing, reporting issues (owner, 14 Sep 2026) (BP-17)
 
 *"I want my bots on the platform now to work too, with us, as humans — testing and calling out shit that needs to be fixed, enhanced, and reporting issues."*
 
 | Piece | What it does | Lane | Hours | Acceptance |
 |---|---|---|---|---|
-| **Report an issue — on every page** | one control in the page chrome (no design change: it sits in the existing action bar) for humans and bots: page, view_key, role, what's wrong / what would be better, screenshot (browser capture), the figures on screen captured as they stood → `agent_findings` scope `qa:<view_key>`, kind `defect` / `enhancement`, with a link back to the page | Claude | 6 | an issue filed from any page appears in Today and on the Findings queue within 60 s with its page and figures |
-| **Bot page-walk (nightly and on every deploy)** | the TG bots extension, on the owner's session, opens every enabled page in `nav_registry` (694), records: load time, console errors, error boundaries hit, empty states without a reason, a figure with no provenance, a control that does nothing, a tile without a drill; files one finding per defect with the screenshot; re-tests after each deploy and closes what passed | Grok (bots) + Claude (intake, dedupe by fingerprint) | 12 + 4 | after a deploy, every page has a fresh walk result within 2 h; a broken page is a finding before a human sees it |
-| **Bot role tests** | the walk repeated as each role (`viewAsRole` lens for admins; real role accounts for the rest): a page a role should not see, or should see and can't, is a finding | GPT (role QA) + Grok | 8 | the role matrix signed with zero unexplained differences |
-| **Top G / Budz call-outs** | in chat: "Top G, what's broken on Cultivation?" answers from the QA findings; "report: the harvest tile is wrong" files a finding with the figures on screen | Grok | 6 | a spoken/typed report lands as a finding with page and figures |
-| **Enhancement queue** | bot and human enhancement reports ranked (impact × frequency × cost) on Today for the owner to mark: build now / later / no — feeds the page-decision register | Claude | 4 | owner marks; marks flow to `nav_registry.upgrade_decision` |
-| **Triage loop** | defects go to the lane that owns the file (§16.6) as bridge jobs; the owning agent fixes, deploys, certifies; the bot re-walks; the finding closes by measurement | all | in §16 | mean time from finding to certified fix ≤ 1 day for NO-GO, ≤ 3 days for WATCH |
+| BP-17-1 **Report an issue — on every page** | one control in the page chrome (no design change: it sits in the existing action bar) for humans and bots: page, view_key, role, what's wrong / what would be better, screenshot (browser capture), the figures on screen captured as they stood → `agent_findings` scope `qa:<view_key>`, kind `defect` / `enhancement`, with a link back to the page | Claude | 6 | an issue filed from any page appears in Today and on the Findings queue within 60 s with its page and figures |
+| BP-17-2 **Bot page-walk (nightly and on every deploy)** | the TG bots extension, on the owner's session, opens every enabled page in `nav_registry` (694), records: load time, console errors, error boundaries hit, empty states without a reason, a figure with no provenance, a control that does nothing, a tile without a drill; files one finding per defect with the screenshot; re-tests after each deploy and closes what passed | Grok (bots) + Claude (intake, dedupe by fingerprint) | 12 + 4 | after a deploy, every page has a fresh walk result within 2 h; a broken page is a finding before a human sees it |
+| BP-17-3 **Bot role tests** | the walk repeated as each role (`viewAsRole` lens for admins; real role accounts for the rest): a page a role should not see, or should see and can't, is a finding | GPT (role QA) + Grok | 8 | the role matrix signed with zero unexplained differences |
+| BP-17-4 **Top G / Budz call-outs** | in chat: "Top G, what's broken on Cultivation?" answers from the QA findings; "report: the harvest tile is wrong" files a finding with the figures on screen | Grok | 6 | a spoken/typed report lands as a finding with page and figures |
+| BP-17-5 **Enhancement queue** | bot and human enhancement reports ranked (impact × frequency × cost) on Today for the owner to mark: build now / later / no — feeds the page-decision register | Claude | 4 | owner marks; marks flow to `nav_registry.upgrade_decision` |
+| BP-17-6 **Triage loop** | defects go to the lane that owns the file (§16.6) as bridge jobs; the owning agent fixes, deploys, certifies; the bot re-walks; the finding closes by measurement | all | in §16 | mean time from finding to certified fix ≤ 1 day for NO-GO, ≤ 3 days for WATCH |
 
 The bots never guess: a call-out cites the page, the figure and the source, or it is not filed.
 
