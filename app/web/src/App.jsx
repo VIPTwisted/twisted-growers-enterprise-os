@@ -441,6 +441,18 @@ const METRIC_GROUPS = [
       hr_docs_pending_ack: { label: "Docs Pending Acknowledgement", icon: I.clip, drill: "hr_platform:/documents" },
     },
   },
+  /* Owner ruling 14 Sep 2026: bought-in material is product we buy and turn around in 30–45 days — tracked
+     site-wide. One derivation (v_bought_in_register) feeds the Inventory dashboard tiles, these figures and
+     the hourly watch whose findings land on Today. */
+  {
+    title: "Inventory — bought-in (30–45 day turn)",
+    items: {
+      bought_in_on_hand_lb: { label: "Bought-in on hand (lb)", icon: I.box, drill: "bought_in_turnaround" },
+      bought_in_overdue: { label: "Bought-in past the 45-day limit", icon: I.shield, drill: "bought_in_turnaround" },
+      bought_in_due: { label: "Bought-in past the 30-day target", icon: I.clock, drill: "bought_in_turnaround" },
+      bought_in_no_purchase_price: { label: "Bought-in with no purchase price on file", icon: I.clip, drill: "bought_in_turnaround" },
+    },
+  },
 ];
 
 /* ---------- Hooks ---------- */
