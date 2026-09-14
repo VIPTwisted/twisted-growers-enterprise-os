@@ -27,6 +27,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState, lazy, Suspense } from "react";
 import { supabase } from "./lib/supabase.js";
 import { useRole, QrDecode } from "./App.jsx";
+import { AssistantAdmin, RedGreen } from "./budz.jsx";
 
 const SyncItems = lazy(() => import("./syncitems.jsx"));
 /* One shared empty list for the not-yet-loaded state — stable identity, no silent fallbacks. */
@@ -320,6 +321,81 @@ Only the registry row goes: the cron job${row.cron_jobname ? ` ${row.cron_jobnam
   );
 }
 
+function AiApprovalControls({ session, canAdmin }) {
+  const [policies, setPolicies] = useState([]);
+  const [grants, setGrants] = useState([]);
+  const [msg, setMsg] = useState("");
+  const [busy, setBusy] = useState("");
+  const uid = session?.user?.id;
+
+  const load = useCallback(async () => {
+    if (!uid) return;
+    const [p, g] = await Promise.all([
+      supabase.from("ai_write_policy").select("system,label,kind,writes_allowed,requires_approval,manual_only,never_allowed,company_enabled,why").order("label"),
+      supabase.from("ai_write_approval").select("id,system,action,granted_at,expires_at,revoked_at").eq("user_id", uid).is("revoked_at", null),
+    ]);
+    if (p.error || g.error) setMsg(`Approval rules could not be read: ${p.error?.message || g.error?.message}`);
+    else { setPolicies(p.data || []); setGrants(g.data || []); }
+  }, [uid]);
+  useEffect(() => { load(); }, [load]);
+
+  const activeSystemGrants = (system) => grants.filter((g) => g.system === system && (!g.expires_at || new Date(g.expires_at) > new Date()));
+  const sessionAllowed = (system) => activeSystemGrants(system).some((g) => g.action == null);
+  const anyAllowed = (system) => activeSystemGrants(system).length > 0;
+  const setSession = async (policy, allow) => {
+    setBusy(policy.system); setMsg("");
+    let result;
+    if (allow) {
+      result = await supabase.from("ai_write_approval").insert({
+        user_id: uid, system: policy.system, action: null,
+      }).select("id,system,action,granted_at,expires_at,revoked_at").maybeSingle();
+      if (!result.error && !result.data?.id) result.error = new Error("zero rows returned");
+    } else {
+      result = await supabase.from("ai_write_approval").update({ revoked_at: new Date().toISOString() })
+        .eq("user_id", uid).eq("system", policy.system).is("revoked_at", null)
+        .select("id");
+      if (!result.error && !result.data?.length) result.error = new Error("zero active approvals were changed");
+    }
+    setMsg(result.error ? `Not changed: ${result.error.message}` : `${policy.label}: ${allow ? "allowed for this sign-in session" : "ask every time"}. Saved and re-read.`);
+    await load(); setBusy("");
+  };
+  const setCompany = async (policy, enabled) => {
+    setBusy(policy.system); setMsg("");
+    const { data, error } = await supabase.from("ai_write_policy")
+      .update({ company_enabled: enabled, updated_at: new Date().toISOString() })
+      .eq("system", policy.system).select("system,company_enabled").maybeSingle();
+    setMsg(error || !data?.system ? `Not changed: ${error?.message || "zero rows returned"}` : `${policy.label}: company access ${enabled ? "enabled" : "disabled"}. Saved and re-read.`);
+    await load(); setBusy("");
+  };
+
+  return (
+    <div className="asetgrp">
+      <h3>Agent action review <span className="note" style={{ fontWeight: 400 }}>— existing f_ai_may authority</span></h3>
+      <span className="note">Choose whether each permitted system asks on every action or is allowed for this sign-in session. Signing out ends every session approval. Metrc stays manual-only; HR always requires a person.</span>
+      {policies.filter((p) => p.kind === "write_target").map((policy) => {
+        const maySession = policy.writes_allowed && !policy.manual_only && !policy.never_allowed && policy.system !== "human_resources";
+        return (
+          <div className="asetrow" key={policy.system} style={{ alignItems: "flex-start" }}>
+            <div style={{ flex: 1 }}>
+              <div className="asetlab">{policy.label}</div>
+              <div className="asetwhy">{policy.why}</div>
+              <div className="note" style={{ marginTop: 4 }}>
+                {policy.manual_only ? "Manual only" : policy.never_allowed ? "Refused" : !policy.company_enabled ? "Disabled for company" : maySession ? (sessionAllowed(policy.system) ? "Allowed for this sign-in session" : anyAllowed(policy.system) ? "Specific actions allowed; switch off to restore ask every time" : "Ask every time") : "Human review every time"}
+              </div>
+            </div>
+            {maySession && policy.company_enabled && <RedGreen on={anyAllowed(policy.system)} busy={busy === policy.system}
+              title={`${policy.label}: ${anyAllowed(policy.system) ? "revoke all approvals and ask every time" : "allow for this sign-in session"}`}
+              onChange={() => setSession(policy, !anyAllowed(policy.system))} />}
+            {canAdmin && !policy.manual_only && !policy.never_allowed && <button type="button" className="btn ghost small" disabled={busy === policy.system}
+              onClick={() => setCompany(policy, !policy.company_enabled)}>{policy.company_enabled ? "Company on" : "Company off"}</button>}
+          </div>
+        );
+      })}
+      {msg && <div className={`msg ${msg.startsWith("Not changed") || msg.includes("could not") ? "err" : "ok"}`}>{msg}</div>}
+    </div>
+  );
+}
+
 export default function SyncCenter({ session }) {
   const { role } = useRole(session);
   const canRun = ["owner", "executive"].includes(role);
@@ -334,6 +410,9 @@ export default function SyncCenter({ session }) {
   const [helpOpen, setHelpOpen] = useState({});
   const [newSecret, setNewSecret] = useState({ name: "", value: "" });
   const [heartbeat, setHeartbeat] = useState(null);
+  const [desktopHeartbeat, setDesktopHeartbeat] = useState(null);
+  const [runtimeCfg, setRuntimeCfg] = useState({ parallel_enabled: false, concurrency: 1 });
+  const [runtimeMsg, setRuntimeMsg] = useState("");
   const [recent, setRecent] = useState(NO_ROWS);
   const [cronJobs, setCronJobs] = useState(NO_ROWS);
   const [filter, setFilter] = useState("all");
@@ -347,11 +426,13 @@ export default function SyncCenter({ session }) {
 
   const load = useCallback(async () => {
     setLoading(true);
-    const [s, reg, sec, hb, rr, cj] = await Promise.all([
+    const [s, reg, sec, hb, desktopHb, runtime, rr, cj] = await Promise.all([
       supabase.rpc("f_sync_status"),
       supabase.from("sync_registry").select("key, cron_jobname, run_source, created_at, updated_at"),
       supabase.rpc("f_secret_inventory"),
-      supabase.from("ai_bridge_heartbeat").select("machine, last_seen, version, operator").order("last_seen", { ascending: false }).limit(1),
+      supabase.from("ai_bridge_heartbeat").select("machine, last_seen, version, operator").eq("machine", "tg-bots-ext").order("last_seen", { ascending: false }).limit(1),
+      supabase.from("ai_bridge_heartbeat").select("machine, last_seen, version, operator").eq("version", "3.0-codex-subscription").order("last_seen", { ascending: false }).limit(1),
+      supabase.from("configurations").select("value").eq("key", "topg_runtime").maybeSingle(),
       supabase.from("v_all_sync_runs").select("system, endpoint, license, status, records, started_at, error").order("started_at", { ascending: false }).limit(25),
       supabase.rpc("f_cron_jobs"),
     ]);
@@ -366,6 +447,11 @@ export default function SyncCenter({ session }) {
     if (sec.error) setSecretMsg({ kind: "err", text: `Secrets could not be listed: ${sec.error.message}` });
     else if (Array.isArray(sec.data)) setSecrets(sec.data);
     if (!hb.error && Array.isArray(hb.data)) setHeartbeat(hb.data[0] || null);
+    if (!desktopHb.error && Array.isArray(desktopHb.data)) setDesktopHeartbeat(desktopHb.data[0] || null);
+    if (!runtime.error && runtime.data?.value) setRuntimeCfg({
+      parallel_enabled: runtime.data.value.parallel_enabled === true,
+      concurrency: Math.max(1, Number(runtime.data.value.concurrency || 1)),
+    });
     if (rr.error) setErr((e) => e || `Recent runs could not be read: ${rr.error.message}`);
     else if (Array.isArray(rr.data)) setRecent(rr.data);
     if (!cj.error && Array.isArray(cj.data)) setCronJobs(cj.data);
@@ -449,7 +535,28 @@ export default function SyncCenter({ session }) {
   const missingSecrets = secretList.filter((s) => !s.present);
   const aiKeys = secretList.filter((s) => s.present && /^(ANTHROPIC|OPENAI|XAI|GOOGLE_AI|BOTS)/.test(s.name)).map((s) => s.name);
   const extAlive = !!heartbeat && (Date.now() - new Date(heartbeat.last_seen).getTime()) < 15 * 60 * 1000;
+  const desktopAlive = !!desktopHeartbeat && (Date.now() - new Date(desktopHeartbeat.last_seen).getTime()) < 90 * 1000;
   const afterChange = (key) => { setAdding(false); if (key) setOpenKey(key); load(); };
+  const saveRuntime = async (next) => {
+    if (!canRun) return;
+    const value = {
+      parallel_enabled: next.parallel_enabled === true,
+      concurrency: Math.max(1, Math.min(8, Math.floor(Number(next.concurrency || 1)))),
+    };
+    const { data: auth } = await supabase.auth.getUser();
+    const { data, error } = await supabase.from("configurations").upsert({
+      key: "topg_runtime",
+      value,
+      updated_by: auth?.user?.id || null,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: "key" }).select("key, value").maybeSingle();
+    if (error || !data?.key) {
+      setRuntimeMsg(`Not saved: ${error?.message || "zero rows returned"}`);
+      return;
+    }
+    setRuntimeCfg(data.value);
+    setRuntimeMsg("Saved and re-read. The desktop bridge applies it on its next queue claim.");
+  };
   const FILTER_LABEL = { ok: "healthy", failing: "failing", stale: "stale or never ran", missing: "missing a secret", off: "switched off" };
 
   const stat = (id, n, label, hot) => (
@@ -481,6 +588,7 @@ export default function SyncCenter({ session }) {
         {stat("missing", counts.missing, "missing a secret", counts.missing > 0)}
         {stat("off", counts.off, "switched off", false)}
         <div className={missingSecrets.length ? "hot" : ""}><b>{missingSecrets.length}</b><span>secrets missing</span></div>
+        <div><b>{desktopAlive ? "on" : "off"}</b><span>desktop Codex {desktopHeartbeat ? `v${desktopHeartbeat.version}` : ""}</span></div>
         <div><b>{extAlive ? "on" : "off"}</b><span>AI extension {heartbeat ? `v${heartbeat.version}` : ""}</span></div>
       </div>
       {err && <div className="msg err">{err}</div>}
@@ -544,6 +652,52 @@ export default function SyncCenter({ session }) {
       </div>
       {role !== null && !canRun && <div className="msg" style={{ marginTop: 10 }}>Running a sync or changing a schedule is limited to owner and executive. Your role is <b>{role}</b>.</div>}
 
+      {/* ai_settings remains the one company configuration authority. This
+          mounts the existing control here instead of creating a second bot
+          settings table or changing the locked Top G page. */}
+      <div className="mtitle" style={{ marginTop: 22 }}><span className="sq" /><h2>Top G AI connection</h2><span className="rule" /></div>
+      <div className="panel" style={{ maxWidth: "none" }}>
+        <div className="ptitle">Desktop Codex</div>
+        <div className="sub">
+          Top G remains the coordinator. Codex is one selectable engine beneath the existing Top G, Budz,
+          Brain, specialist and routine paths. It uses the desktop ChatGPT subscription; no API key or
+          browser cookie is used, and no paid fallback is permitted on the Codex route.
+        </div>
+        <table style={{ marginTop: 8 }}>
+          <tbody>
+            <tr><td className="note">Runtime</td><td>{desktopHeartbeat ? `${desktopHeartbeat.machine} · v${desktopHeartbeat.version}` : "no desktop heartbeat yet"}</td></tr>
+            <tr><td className="note">Last seen</td><td>{desktopHeartbeat ? <>{ago(desktopHeartbeat.last_seen)} <span className={`pill ${desktopAlive ? "ok" : "run"}`}>{desktopAlive ? "connected" : "desktop closed or idle"}</span></> : "—"}</td></tr>
+            <tr><td className="note">Authentication</td><td>ChatGPT subscription is required and was verified during the local installation test. The heartbeat proves this bridge version is alive; it does not expose credentials or continuously re-authenticate.</td></tr>
+            <tr><td className="note">OS access</td><td>Read-only TG database role. Authorized writes return through existing signed-in OS controls and tasks.</td></tr>
+            <tr><td className="note">Conversation</td><td>Budz, Top G, TG Brain and Ask share the existing OS conversation id. This does not synchronize a chatgpt.com thread.</td></tr>
+          </tbody>
+        </table>
+        {canRun && (
+          <div className="asetgrp" style={{ marginTop: 14 }}>
+            <div className="asetrow">
+              <div>
+                <div className="asetlab">Parallel specialist execution</div>
+                <div className="asetwhy">Keep off until the single-agent Budz → Top G persistence test passes. Intake remains multitasking either way.</div>
+              </div>
+              <RedGreen on={runtimeCfg.parallel_enabled} title="Run independent Top G tasks in parallel"
+                onChange={() => saveRuntime({ ...runtimeCfg, parallel_enabled: !runtimeCfg.parallel_enabled })} />
+            </div>
+            <div className="asetrow">
+              <div>
+                <div className="asetlab">Maximum concurrent subscription turns</div>
+                <div className="asetwhy">The desktop also enforces its own local subscription ceiling. Extra tasks stay queued.</div>
+              </div>
+              <input className="inp" type="number" min="1" max="8" value={runtimeCfg.concurrency}
+                onChange={(e) => setRuntimeCfg({ ...runtimeCfg, concurrency: Number(e.target.value || 1) })}
+                onBlur={() => saveRuntime(runtimeCfg)} style={{ maxWidth: 90 }} />
+            </div>
+            {runtimeMsg && <div className={`msg ${runtimeMsg.startsWith("Not saved") ? "err" : "ok"}`}>{runtimeMsg}</div>}
+          </div>
+        )}
+      </div>
+      <AssistantAdmin />
+      <AiApprovalControls session={session} canAdmin={canRun} />
+
       {/* 2. tokens, keys & secrets — everything, and anything an admin adds */}
       <div className="mtitle" style={{ marginTop: 22 }}><span className="sq" /><h2>Tokens, keys &amp; secrets</h2><span className="rule" /></div>
       <div className="cols2 synccols">
@@ -602,13 +756,15 @@ export default function SyncCenter({ session }) {
         <div>
           <div className="panel" style={{ maxWidth: "none" }}>
             <div className="ptitle">AI &amp; bots</div>
-            <div className="sub">AI runs on the owner&rsquo;s subscription through the TG bots browser extension — tokenless. Keys stored on the left are used only when a sync or the Bots desk names them.</div>
+            <div className="sub">AI runs on the owner&rsquo;s desktop subscriptions. Desktop Codex is the ChatGPT-subscription route; the existing browser extension remains available for the other providers.</div>
             <table style={{ marginTop: 8 }}>
               <tbody>
+                <tr><td className="note">Desktop Codex</td><td>{desktopHeartbeat ? `${desktopHeartbeat.machine} · v${desktopHeartbeat.version}` : "no heartbeat yet"}</td></tr>
+                <tr><td className="note">Codex last seen</td><td>{desktopHeartbeat ? <>{ago(desktopHeartbeat.last_seen)} <span className={`pill ${desktopAlive ? "ok" : "run"}`}>{desktopAlive ? "connected" : "not reporting"}</span></> : "—"}</td></tr>
                 <tr><td className="note">Extension</td><td>{heartbeat ? `${heartbeat.machine} · v${heartbeat.version}` : "no heartbeat yet"}</td></tr>
                 <tr><td className="note">Last seen</td><td>{heartbeat ? <>{ago(heartbeat.last_seen)} <span className={`pill ${extAlive ? "ok" : "run"}`}>{extAlive ? "connected" : "not seen in 15 min"}</span></> : "—"}</td></tr>
                 <tr><td className="note">AI keys stored</td><td>{aiKeys.length ? aiKeys.join(", ") : "none — tokenless"}</td></tr>
-                <tr><td className="note">Settings</td><td className="note">Bots desk (side menu) — model, who may use AI, spending caps.</td></tr>
+                <tr><td className="note">Settings</td><td className="note">This Sync page is the company control point. Individual model preference remains on each user&apos;s account.</td></tr>
               </tbody>
             </table>
           </div>

@@ -31,10 +31,10 @@
       "note": "Version 7 deployed with verify_jwt=true. Both deployment files re-read and matched byte for byte. Source page preservation, record verification and atomic cursor/run completion; no vendor writes. API-to-storage evidence is scoped to the requested interval and does not assert independent population certification."
     },
     "bridge-queue": {
-      "deployed_version": 1,
-      "sha256": "9e28707226cbef4beb8a4207d781cc79fc25fd6526c122c717ad3f13f332156d",
+      "deployed_version": 3,
+      "sha256": "8de138bc2a591c36f8d2e0661cd57c275bd8c1a6feee26179fa1faeb1f11fbdc",
       "redacted": false,
-      "note": "Real source. If the hash changes, deploy it or record why not."
+      "note": "Real source. Deployed v3 on 14 Sep 2026 with verify_jwt=false and the existing constant-time bridge-token gate. Re-read after deploy matched the committed source after line-ending normalization. Provider/model/asked_by receipts, revision-safe claim/answer, cancellation-state reads, native Codex thread receipt, runtime priority settings, and blank-success refusal. Wrong-token probe returned 401."
     },
     "budz-chat": {
       "deployed_version": 6,

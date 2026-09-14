@@ -162,7 +162,15 @@ export default function OsStaff({ go }) {
       .slice(-8)
       .map((m) => ({ who: m.role === "user" ? "me" : "bot", text: m.text }));
     try {
-      const out = await askBudzFull(asked, history, { surface: "staff-" + desk.id, desk });
+      const out = await askBudzFull(asked, history, {
+        surface: "staff-" + desk.id,
+        desk,
+        attachments: uploaded,
+        onQueued: ({ jobId }) => setThread((m) => [...m, {
+          role: "agent",
+          text: `Accepted as task ${jobId}. You can keep chatting while it runs.`,
+        }]),
+      });
       const fromLive = (out.headline && out.facts && out.facts.length)
         ? [out.headline, ...out.facts.map((r) => [r.label, r.detail, r.meta].filter(Boolean).join(" — "))].join("\n")
         : "";

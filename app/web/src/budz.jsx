@@ -129,8 +129,10 @@ it before every action. It answers allowed, ask, manual_only or refused,
 and it is the same answer for every runtime. If this text and that function
 ever disagree, THE FUNCTION IS RIGHT and the disagreement is a bug worth
 reporting - a rule that lives in four prompts is four rules the moment one
-is edited. Every action, proposed or performed, is written to
-ai_action_log, including the ones refused.
+is edited. Task writes are evidenced by the existing audit_events trigger and
+task_activity. The current schema exposes no authenticated insert path into
+ai_action_log, so never claim a proposed or refused action was recorded there;
+report that enforcement gap until the schema owner supplies the approved path.
 
 =========================================================================
 YOU HOLD EVERY SEAT IN THIS COMPANY. Owner, 8 August 2026: "he is the COO
@@ -579,7 +581,7 @@ export async function getAiCfg() {
   if (_aiCfg) return _aiCfg;
   const { data } = await supabase
     .from("ai_settings")
-    .select("local_model_url, local_model_name, paid_model_enabled, local_model_enabled, bridge_enabled, bridge_url, bridge_token")
+    .select("local_model_url, local_model_name, paid_model_enabled, local_model_enabled, bridge_enabled, bridge_url, bridge_token, provider, model")
     .eq("id", 1).maybeSingle();
   _aiCfg = data ?? { local_model_url: "http://localhost:11434", local_model_name: "qwen2.5:14b" };
   return _aiCfg;
@@ -1831,18 +1833,26 @@ export function useChatFiles(surface) {
   const [warn, setWarn] = useState("");
 
   const add = (list) => {
-    const incoming = Array.from(list ?? []);
+    const incoming = Array.from(list ?? []).map((item) => item?.file
+      ? item
+      : { file: item, relativePath: item?.webkitRelativePath || item?.name || "attachment" });
     if (!incoming.length) return;
     const room = CHAT_MAX_FILES - files.length;
-    const tooBig = incoming.filter((f) => f.size > CHAT_MAX_BYTES);
-    const ok = incoming.filter((f) => f.size <= CHAT_MAX_BYTES).slice(0, Math.max(0, room));
+    const tooBig = incoming.filter((f) => f.file?.size > CHAT_MAX_BYTES);
+    const ok = incoming.filter((f) => f.file?.size <= CHAT_MAX_BYTES).slice(0, Math.max(0, room));
     /* Say what was dropped and why. Silently taking four of nine files is how
        somebody sends a partial set and believes all of it arrived. */
     const notes = [];
-    if (tooBig.length) notes.push(`${tooBig.map((f) => f.name).join(", ")} — this browser could not hold those bytes. Split the drop.`);
+    if (tooBig.length) notes.push(`${tooBig.map((f) => f.relativePath || f.file?.name).join(", ")} — this browser could not hold those bytes. Split the drop.`);
     if (incoming.length - tooBig.length > ok.length) notes.push(`A hundred files at a time; drop the rest next.`);
     setWarn(notes.join(" "));
-    if (ok.length) setFiles((cur) => [...cur, ...ok.map((f) => ({ name: f.name, type: f.type, size: f.size, file: f }))]);
+    if (ok.length) setFiles((cur) => [...cur, ...ok.map((entry) => ({
+      name: entry.relativePath || entry.file.name,
+      type: entry.file.type,
+      size: entry.file.size,
+      file: entry.file,
+      relativePath: entry.relativePath || entry.file.name,
+    }))]);
   };
 
   const remove = (i) => setFiles((cur) => cur.filter((_, n) => n !== i));
@@ -1850,10 +1860,39 @@ export function useChatFiles(surface) {
 
   /* Spread onto the chat box. onDragOver MUST preventDefault or the browser
      navigates away to the dropped file instead of handing it over. */
+  const droppedEntries = async (items) => {
+    const found = [];
+    const walk = async (entry, prefix = "") => {
+      if (!entry || found.length >= CHAT_MAX_FILES) return;
+      if (entry.isFile) {
+        const file = await new Promise((resolve, reject) => entry.file(resolve, reject));
+        found.push({ file, relativePath: prefix + file.name });
+        return;
+      }
+      if (!entry.isDirectory) return;
+      const reader = entry.createReader();
+      let batch;
+      do {
+        batch = await new Promise((resolve, reject) => reader.readEntries(resolve, reject));
+        for (const child of batch) await walk(child, `${prefix}${entry.name}/`);
+      } while (batch.length && found.length < CHAT_MAX_FILES);
+    };
+    for (const item of Array.from(items || [])) {
+      const entry = item.webkitGetAsEntry?.();
+      if (entry) await walk(entry);
+    }
+    return found;
+  };
+
   const dropProps = {
     onDragOver: (e) => { e.preventDefault(); setDropping(true); },
     onDragLeave: () => setDropping(false),
-    onDrop: (e) => { e.preventDefault(); setDropping(false); add(e.dataTransfer?.files); },
+    onDrop: async (e) => {
+      e.preventDefault();
+      setDropping(false);
+      const walked = await droppedEntries(e.dataTransfer?.items).catch(() => []);
+      add(walked.length ? walked : e.dataTransfer?.files);
+    },
     onPaste: (e) => { const f = e.clipboardData?.files; if (f?.length) { e.preventDefault(); add(f); } },
   };
 
@@ -1863,15 +1902,25 @@ export function useChatFiles(surface) {
     if (!files.length) return [];
     const stamp = Date.now();
     const out = await Promise.all(files.map(async (f, i) => {
-      const path = `chat/${surface}/${stamp}-${i}-${f.name.replace(/[^a-zA-Z0-9._-]/g, "")}`;
+      const relative = String(f.relativePath || f.name).split(/[\\/]+/)
+        .map((part) => part.replace(/[^a-zA-Z0-9._-]/g, "_").replace(/^\.+$/, "_"))
+        .filter(Boolean).join("/");
+      const path = `chat/${surface}/${stamp}-${i}/${relative || "attachment"}`;
       const { error } = await supabase.storage.from("assistant")
         .upload(path, f.file, { upsert: true, contentType: f.type || "application/octet-stream" });
       if (error) return { name: f.name, error: error.message };
       const url = supabase.storage.from("assistant").getPublicUrl(path).data.publicUrl;
-      await supabase.from("assistant_uploads").insert({
-        surface, file_name: f.name, content_type: f.type || null,
+      const { data: recorded, error: recordError } = await supabase.from("assistant_uploads").insert({
+        surface, file_name: f.relativePath || f.name, content_type: f.type || null,
         size_bytes: f.size ?? null, storage_path: path, url, question: question || null,
-      });
+      }).select("id, storage_path").maybeSingle();
+      if (recordError || !recorded?.id) {
+        return {
+          name: f.name,
+          url,
+          error: `The original file was stored, but its OS evidence row was not saved: ${recordError?.message || "zero rows returned"}`,
+        };
+      }
       return { name: f.name, url, type: f.type, size: f.size };
     }));
     clear();
@@ -2129,6 +2178,504 @@ function osInWindow(value, from, to) {
   return day >= from && day <= to;
 }
 
+/* One durable transport conversation for the signed-in owner's subscription
+   bridge. Budz, Top G, TG Brain, the pet and the page-wide Ask bar all call
+   askBudzFull, so this key deliberately is not surface-specific. This is not a
+   second coordinator or a second Brain: Top G remains the coordinator,
+   brain_conversation remains the conversation record, and ai_bridge_jobs is the
+   existing transport/receipt the desktop runner already consumes. */
+const BRIDGE_CONVERSATION_KEY = "tg-codex-conversation-v1";
+const BRIDGE_PENDING_STATUS = "pending";
+const activeDesktopJobs = new Map();
+
+function platformApprovalMessage(action, detail, decision) {
+  const verdict = decision?.verdict || "ask";
+  const why = decision?.why ? ` ${decision.why}` : "";
+  if (verdict === "manual_only") {
+    return `${detail} was not performed. This action is manual-only.${why}`;
+  }
+  if (verdict === "refused") {
+    return `${detail} was not performed because company policy refused it.${why}`;
+  }
+  return `${detail} is ready but was not performed. Open Sync → AI & Bots → Agent action review and choose “Allow for this sign-in”, then send the command again.${why}`;
+}
+
+async function platformTaskCommand(raw, surface = "assistant") {
+  const text = String(raw || "").trim();
+  const create = text.match(/^(?:create|add)\s+(?:a\s+)?task\s*:\s*(.+)$/i);
+  const complete = text.match(new RegExp(`^(?:complete|finish|mark done)\\s+(?:task\\s+)?${PLATFORM_TASK_ID}$`, "i"));
+  if (!create && !complete) return null;
+
+  const { data: auth, error: authError } = await supabase.auth.getUser();
+  const uid = auth?.user?.id;
+  if (authError || !uid) {
+    return { composed: `The task was not changed because TG OS could not verify the signed-in user${authError?.message ? `: ${authError.message}` : "."}`, via: "TG OS task write-back" };
+  }
+
+  const action = create ? "tasks.create" : "tasks.complete";
+  const { data: may, error: mayError } = await supabase.rpc("f_ai_may", {
+    p_user: uid,
+    p_system: "platform",
+    p_action: action,
+  });
+  if (mayError) {
+    return { composed: `The task was not changed because the live approval rule could not be read: ${mayError.message}`, via: "TG OS task write-back" };
+  }
+  if (may?.verdict !== "allowed") {
+    const detail = create
+      ? `Create task “${create[1].trim().slice(0, 180)}” in TG OS with status todo and priority P2`
+      : `Mark task ${complete[1]} done in TG OS`;
+    return { composed: platformApprovalMessage(action, detail, may), via: "TG OS f_ai_may" };
+  }
+
+  if (create) {
+    const title = create[1].trim().slice(0, 500);
+    if (!title) return { composed: "A task needs a title after the colon.", via: "TG OS task write-back" };
+    const receipt = {
+      source: "topg_subscription_bridge",
+      surface,
+      conversation_id: bridgeConversationId(uid),
+      requested_by: uid,
+      approval: "f_ai_may:allowed",
+      requested_at: new Date().toISOString(),
+    };
+    const { data: inserted, error: insertError } = await supabase.from("tasks").insert({
+      title,
+      status: "todo",
+      priority: "P2",
+      tags: ["topg", "desktop-codex"],
+      created_by: uid,
+      source_view: "topg",
+      source_kpi: "authorized_chat_task",
+      source_snapshot: receipt,
+    }).select("id,title,status,priority,created_by,source_snapshot,created_at").single();
+    if (insertError || !inserted?.id) {
+      return { composed: `The approved task was not created: ${insertError?.message || "zero rows were written"}.`, via: "TG OS task write-back" };
+    }
+    const { data: activity, error: activityError } = await supabase.from("task_activity").insert({
+      task_id: inserted.id,
+      actor: uid,
+      what: "created",
+      new_value: title,
+    }).select("id,task_id,what,new_value,at").single();
+    const { data: reread, error: rereadError } = await supabase.from("tasks")
+      .select("id,title,status,priority,created_by,source_snapshot,created_at")
+      .eq("id", inserted.id)
+      .eq("created_by", uid)
+      .maybeSingle();
+    if (activityError || rereadError || !reread?.id || reread.title !== title || activity?.task_id !== inserted.id) {
+      return {
+        composed: `Task ${inserted.id} was created, but verification failed. Task receipt: ${rereadError?.message || "task re-read mismatch"}. Activity receipt: ${activityError?.message || "activity re-read mismatch"}.`,
+        via: "TG OS task write-back",
+      };
+    }
+    return {
+      composed: `Created task ${reread.id}: “${reread.title}”. Verified write-back: status ${reread.status}, priority ${reread.priority}, activity ${activity.id}. Send “complete task ${reread.id}” when the work is verified.`,
+      via: "TG OS task write-back · f_ai_may allowed · exact re-read",
+    };
+  }
+
+  const id = complete[1];
+  const completedAt = new Date().toISOString();
+  const { data: before, error: beforeError } = await supabase.from("tasks")
+    .select("id,title,status,created_by")
+    .eq("id", id)
+    .maybeSingle();
+  if (beforeError || !before?.id) {
+    return { composed: `Task ${id} was not found or could not be read: ${beforeError?.message || "zero rows"}.`, via: "TG OS task write-back" };
+  }
+  const { data: updated, error: updateError } = await supabase.from("tasks")
+    .update({ status: "done", completed_at: completedAt, updated_at: completedAt })
+    .eq("id", id)
+    .select("id,title,status,completed_at,updated_at")
+    .maybeSingle();
+  if (updateError || !updated?.id) {
+    return { composed: `Task ${id} was not completed: ${updateError?.message || "zero rows were written"}.`, via: "TG OS task write-back" };
+  }
+  const { data: activity, error: activityError } = await supabase.from("task_activity").insert({
+    task_id: id,
+    actor: uid,
+    what: "changed",
+    field: "status",
+    old_value: before.status,
+    new_value: "done",
+  }).select("id,task_id,what,field,new_value,at").single();
+  const { data: reread, error: rereadError } = await supabase.from("tasks")
+    .select("id,title,status,completed_at,updated_at")
+    .eq("id", id)
+    .maybeSingle();
+  if (activityError || rereadError || reread?.status !== "done" || activity?.task_id !== id) {
+    return {
+      composed: `Task ${id} changed to done, but verification failed. Task receipt: ${rereadError?.message || "task re-read mismatch"}. Activity receipt: ${activityError?.message || "activity re-read mismatch"}.`,
+      via: "TG OS task write-back",
+    };
+  }
+  return {
+    composed: `Completed task ${reread.id}: “${reread.title}”. Verified write-back at ${reread.completed_at}; activity ${activity.id}.`,
+    via: "TG OS task write-back · f_ai_may allowed · exact re-read",
+  };
+}
+
+function bridgeConversationId(uid = null) {
+  const key = uid ? `${BRIDGE_CONVERSATION_KEY}:${uid}` : BRIDGE_CONVERSATION_KEY;
+  try {
+    const saved = localStorage.getItem(key);
+    if (saved) return saved;
+    const cryptoApi = globalThis.crypto;
+    let id;
+    if (typeof cryptoApi?.randomUUID === "function") {
+      id = cryptoApi.randomUUID();
+    } else if (typeof cryptoApi?.getRandomValues === "function") {
+      const bytes = new Uint8Array(16);
+      cryptoApi.getRandomValues(bytes);
+      id = `tg-${Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("")}`;
+    } else {
+      id = `tg-session-${Date.now()}`;
+    }
+    localStorage.setItem(key, id);
+    return id;
+  } catch {
+    return `tg-session-${Date.now()}`;
+  }
+}
+
+export function resetDesktopBridgeConversation() {
+  try {
+    for (let i = localStorage.length - 1; i >= 0; i -= 1) {
+      const key = localStorage.key(i);
+      if (key === BRIDGE_CONVERSATION_KEY || key?.startsWith(`${BRIDGE_CONVERSATION_KEY}:`)) localStorage.removeItem(key);
+    }
+  } catch { /* private mode */ }
+}
+
+export async function stopActiveDesktopBridgeJobs(reason = "signed-out") {
+  const { data: auth } = await supabase.auth.getUser();
+  const uid = auth?.user?.id;
+  if (!uid) {
+    resetDesktopBridgeConversation();
+    return { requested: 0, stopped: 0, results: [] };
+  }
+  const { data: jobs, error } = await supabase.from("ai_bridge_jobs")
+    .select("id,status,context")
+    .eq("asked_by", uid)
+    .in("status", ["pending", "running"])
+    .order("created_at", { ascending: false })
+    .limit(100);
+  if (error) {
+    resetDesktopBridgeConversation();
+    return { requested: 0, stopped: 0, remaining: null, results: [{ ok: false, reason: error.message }] };
+  }
+  const results = await Promise.all((jobs || []).map(async (job) => {
+    const context = { ...(job.context || {}), control_state: "cancelled" };
+    let write = supabase.from("ai_bridge_jobs").update({
+      status: "error",
+      error: reason === "signed-out" ? "Interrupted because the OS user signed out." : "Interrupted by the signed-in OS user.",
+      answered_at: new Date().toISOString(),
+      context,
+    }).eq("id", job.id).eq("asked_by", uid).eq("status", job.status);
+    if (Number.isFinite(Number(job.context?.revision))) write = write.contains("context", { revision: Number(job.context.revision) });
+    const { data, error: writeError } = await write.select("id,status").maybeSingle();
+    activeDesktopJobs.delete(job.id);
+    return data?.id ? { ok: true, jobId: data.id } : { ok: false, jobId: job.id, reason: writeError?.message || "state changed before cancellation" };
+  }));
+  const { data: remainingRows, error: remainingError } = await supabase.from("ai_bridge_jobs")
+    .select("id")
+    .eq("asked_by", uid)
+    .in("status", ["pending", "running"])
+    .limit(100);
+  resetDesktopBridgeConversation();
+  return {
+    requested: (jobs || []).length,
+    stopped: results.filter((r) => r.ok).length,
+    remaining: remainingError ? null : (remainingRows || []).length,
+    results,
+  };
+}
+
+export async function interruptDesktopBridge(jobId = null, reason = "cancelled") {
+  const active = jobId
+    ? activeDesktopJobs.get(jobId)
+    : [...activeDesktopJobs.values()].at(-1);
+  const { data: auth } = active?.uid ? { data: { user: { id: active.uid } } } : await supabase.auth.getUser();
+  const uid = active?.uid || auth?.user?.id;
+  const id = active?.id || jobId;
+  if (!id || !uid) return { ok: false, reason: "no-active-job" };
+  const { data, error } = await supabase.from("ai_bridge_jobs")
+    .update({
+      status: "error",
+      error: reason === "paused" ? "Paused by the signed-in OS user." : "Interrupted by the signed-in OS user.",
+      answered_at: new Date().toISOString(),
+    })
+    .eq("id", id)
+    .eq("asked_by", uid)
+    .in("status", ["pending", "running"])
+    .select("id, status")
+    .maybeSingle();
+  if (error || !data?.id) return { ok: false, reason: error?.message || "job-already-finished" };
+  activeDesktopJobs.delete(id);
+  return { ok: true, jobId: data.id };
+}
+
+/* ai_bridge_jobs is the existing transport and uses bigint ids. The separate
+   OS tasks table uses UUID ids. Treating them as one shape made every real
+   queue-control command miss and fall through as a brand-new AI question. */
+const BRIDGE_JOB_ID = "([0-9]+)";
+const PLATFORM_TASK_ID = "([0-9a-f]{8}-[0-9a-f-]{27,})";
+
+async function bridgeTaskCommand(raw) {
+  const text = String(raw || "").trim();
+  const { data: auth } = await supabase.auth.getUser();
+  const uid = auth?.user?.id;
+  if (!uid) return null;
+
+  if (/^stop\s+everything[.!]?$/i.test(text)) {
+    const result = await stopActiveDesktopBridgeJobs("stop-everything");
+    const failed = result.results.filter((r) => !r.ok);
+    return {
+      composed: `Stop requested for ${result.requested} pending or running task${result.requested === 1 ? "" : "s"}; ${result.stopped} were cancelled.${failed.length ? ` ${failed.length} changed state before cancellation and must be checked.` : ""}${result.remaining === 0 ? " Exact re-read found zero pending or running tasks for this signed-in user." : result.remaining == null ? " The final re-read failed and must be checked." : ` Exact re-read still found ${result.remaining} pending or running.`}`,
+      via: "TG OS shared task queue · compare-and-set",
+    };
+  }
+
+  if (/^(?:show|list|what(?:'s| is))\s+(?:my\s+)?(?:top g\s+|budz\s+)?(?:tasks|jobs)|^task status\b/i.test(text)) {
+    const { data, error } = await supabase.from("ai_bridge_jobs")
+      .select("id, question, status, context, created_at, answered_at, seconds, error")
+      .eq("asked_by", uid)
+      .order("created_at", { ascending: false })
+      .limit(20);
+    if (error) return { composed: `Task state could not be read: ${error.message}`, via: "TG OS task queue" };
+    const rows = data || [];
+    const body = rows.length ? rows.map((job) => {
+      const state = job.context?.control_state || job.status;
+      const priority = job.context?.priority || "P2";
+      return `${job.id} · ${priority} · ${state} · ${String(job.question || "").slice(0, 100)}`;
+    }).join("\n") : "No tracked Top G or Budz tasks yet.";
+    return { composed: body, via: "TG OS shared task queue" };
+  }
+
+  const command = text.match(new RegExp(`^(cancel|stop|pause|resume|prioriti[sz]e|revise)\\s+(?:task|job)?\\s*${BRIDGE_JOB_ID}(?:\\s+(?:to|as|:)\\s*(.*))?$`, "i"));
+  if (!command) return null;
+  const verb = command[1].toLowerCase();
+  const id = command[2];
+  const argument = String(command[3] || "").trim();
+  const { data: job, error: readError } = await supabase.from("ai_bridge_jobs")
+    .select("id, question, status, context")
+    .eq("id", id)
+    .eq("asked_by", uid)
+    .maybeSingle();
+  if (readError || !job) return { composed: `Task ${id} was not found under this signed-in account.`, via: "TG OS task control" };
+  if (job.status === "done") return { composed: `Task ${id} is already complete and was not changed.`, via: "TG OS task control" };
+
+  const context = { ...(job.context || {}) };
+  const expectedRevision = Number(context.revision);
+  let patch;
+  let outcome;
+  if (verb === "cancel" || verb === "stop") {
+    context.control_state = "cancelled";
+    patch = { status: "error", error: "Cancelled by the signed-in OS user.", answered_at: new Date().toISOString(), context };
+    outcome = "cancelled";
+  } else if (verb === "pause") {
+    context.control_state = "paused";
+    patch = { status: "error", error: "Paused by the signed-in OS user.", answered_at: new Date().toISOString(), context };
+    outcome = "paused";
+  } else if (verb === "resume") {
+    context.control_state = "queued";
+    context.revision = Number(context.revision || 1) + 1;
+    patch = { status: "pending", error: null, answer: null, answered_at: null, context };
+    outcome = "resumed and queued";
+  } else if (verb.startsWith("prioriti")) {
+    const named = argument.match(/P[0-3]/i)?.[0]?.toUpperCase();
+    const words = { urgent: "P0", critical: "P0", high: "P1", normal: "P2", low: "P3" };
+    const priority = named || words[argument.toLowerCase()];
+    if (!priority) return { composed: `Name P0, P1, P2, P3, urgent, high, normal or low for task ${id}.`, via: "TG OS task control" };
+    context.priority = priority;
+    patch = { context };
+    outcome = `reprioritized to ${priority}`;
+  } else {
+    if (!argument) return { composed: `Give the revised instruction after task ${id}.`, via: "TG OS task control" };
+    context.control_state = "queued";
+    context.revision = Number(context.revision || 1) + 1;
+    context.user_question = argument;
+    patch = { question: argument.slice(0, 20000), status: "pending", error: null, answer: null, answered_at: null, context };
+    outcome = "revised and queued";
+  }
+
+  let write = supabase.from("ai_bridge_jobs").update(patch)
+    .eq("id", id)
+    .eq("asked_by", uid)
+    .eq("status", job.status);
+  if (Number.isFinite(expectedRevision)) write = write.contains("context", { revision: expectedRevision });
+  const { data: saved, error } = await write.select("id, status, question, context")
+    .maybeSingle();
+  if (error || !saved?.id) return { composed: `Task ${id} was not changed: ${error?.message || "zero rows were written"}.`, via: "TG OS task control" };
+  const { data: reread, error: rereadError } = await supabase.from("ai_bridge_jobs")
+    .select("id,status,question,context")
+    .eq("id", id)
+    .eq("asked_by", uid)
+    .maybeSingle();
+  const expectedState = patch.context?.control_state || patch.status || saved.context?.control_state || saved.status;
+  if (rereadError || !reread?.id || (patch.context && Number(reread.context?.revision) !== Number(patch.context.revision)) || (patch.question && reread.question !== patch.question)) {
+    return { composed: `Task ${id} changed, but the exact result could not be verified: ${rereadError?.message || "re-read mismatch"}.`, via: "TG OS task control" };
+  }
+  activeDesktopJobs.delete(id);
+  return { composed: `Task ${id} ${outcome}. Verified state: ${expectedState}.`, via: "TG OS task control · compare-and-set · exact re-read" };
+}
+
+if (typeof window !== "undefined") {
+  window.addEventListener("tg-bots-new-chat", () => {
+    stopActiveDesktopBridgeJobs("new-conversation").catch(() => resetDesktopBridgeConversation());
+  });
+}
+
+const bridgeWait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+function topGOrchestrationSnapshot(desk) {
+  let routines = [];
+  try {
+    const saved = JSON.parse(localStorage.getItem("tg-os-routines") || "[]");
+    if (Array.isArray(saved)) {
+      routines = saved.slice(0, 30).map((r) => ({
+        id: r.id,
+        name: r.name,
+        specialist: r.botId,
+        when: r.when,
+        intent: r.intent,
+        enabled: r.enabled !== false,
+      }));
+    }
+  } catch { /* private mode or an old malformed preference */ }
+
+  return {
+    coordinator: { id: "topg", name: "Top G", role: "Chief of Staff", reports_to: "buddy" },
+    requested_desk: desk ? { id: desk.id, name: desk.name, role: desk.role, reports_to: desk.reportsTo } : null,
+    specialists: CORE_BOTS.map((b) => ({ id: b.id, name: b.name, role: b.role, reports_to: b.reportsTo, job: b.job })),
+    routines,
+    governing_path: "Owner -> Top G -> specialist desks -> Top G consolidated verified answer",
+    memory: "TG Brain and the existing on-disk Brain/Second Brain; ai_bridge_jobs is transport only",
+  };
+}
+
+async function askDesktopSubscription(question, history, details) {
+  const { data: userData, error: userError } = await supabase.auth.getUser();
+  if (userError) return { ok: false, error: `Could not verify the signed-in OS user: ${userError.message}` };
+  const uid = userData?.user?.id;
+  if (!uid) return { ok: false, error: "Sign in to TG OS before using the desktop subscription bridge." };
+
+  const { data: heartbeat, error: heartbeatError } = await supabase
+    .from("v_bridge_status")
+    .select("machine, online, last_seen, version")
+    .neq("machine", "tg-bots-ext")
+    .order("last_seen", { ascending: false })
+    .limit(1);
+  if (heartbeatError) return { ok: false, error: `Could not verify the desktop bridge: ${heartbeatError.message}` };
+  if (!heartbeat?.[0]?.online) {
+    return { ok: false, offline: true, error: "Desktop Codex is closed or has stopped reporting. The question was not queued and no paid fallback was used." };
+  }
+
+  const conversationId = bridgeConversationId(uid);
+  const [previousResult, brainMemoryResult, governedBrainResult] = await Promise.all([
+    supabase
+      .from("ai_bridge_jobs")
+      .select("question, answer, context, created_at")
+      .eq("asked_by", uid)
+      .eq("status", "done")
+      .contains("context", { conversation_id: conversationId })
+      .order("created_at", { ascending: false })
+      .limit(6),
+    supabase.from("configurations").select("value").eq("key", "brain_memory").maybeSingle(),
+    supabase.rpc("f_brain_memory_for", { p_user: uid }),
+  ]);
+  const { data: previous, error: previousError } = previousResult;
+  if (previousError) return { ok: false, error: `Could not re-read the shared conversation: ${previousError.message}` };
+  if (governedBrainResult.error || !governedBrainResult.data) {
+    return { ok: false, error: `Could not assemble TG Brain's approved facts and corrections: ${governedBrainResult.error?.message || "no memory bundle returned"}` };
+  }
+
+  const durableHistory = [...(previous || [])].reverse().flatMap((row) => [
+    { who: "me", text: row.context?.user_question || row.question },
+    { who: "bot", text: row.answer },
+  ]).filter((item) => item.text);
+  const surfaceHistory = (history || [])
+    .filter((item) => item?.text && !item?.rows)
+    .slice(-8)
+    .map((item) => ({ who: item.who === "me" || item.role === "user" ? "me" : "bot", text: String(item.text).slice(0, 12000) }));
+  const sharedHistory = [...durableHistory, ...surfaceHistory].slice(-12);
+  const priorCodexThread = (previous || []).find((row) => row.context?.codex_thread_id)?.context?.codex_thread_id || null;
+
+  const context = {
+    conversation_id: conversationId,
+    codex_thread_id: priorCodexThread,
+    revision: 1,
+    priority: "P2",
+    user_question: question,
+    surface: details.surface,
+    provider: "gpt",
+    model: details.model || "gpt-current",
+    desk: details.desk ? { name: details.desk.name, role: details.desk.role } : null,
+    history: sharedHistory,
+    summary: details.summary || "",
+    records: (details.facts || []).slice(0, 40),
+    attachments: (details.attachments || []).slice(0, CHAT_MAX_FILES).map((file) => ({
+      name: String(file.name || "attachment").slice(0, 260),
+      url: String(file.url || ""),
+      type: String(file.type || "application/octet-stream").slice(0, 200),
+      size: Number.isFinite(Number(file.size)) ? Number(file.size) : null,
+    })).filter((file) => file.url),
+    instructions: String(details.instructions || "").slice(0, 20000),
+    orchestration: topGOrchestrationSnapshot(details.desk),
+    brain_memory: {
+      governed: governedBrainResult.data,
+      freeform: brainMemoryResult.error ? null : brainMemoryResult.data?.value || null,
+    },
+  };
+  const { data: inserted, error: insertError } = await supabase
+    .from("ai_bridge_jobs")
+    .insert({
+      asked_by: uid,
+      question: String(question).slice(0, 20000),
+      context,
+      model: details.model || null,
+      provider: "gpt",
+      status: BRIDGE_PENDING_STATUS,
+    })
+    .select("id, status, created_at")
+    .single();
+  if (insertError || !inserted?.id) {
+    return { ok: false, error: `The question was not saved to the desktop queue: ${insertError?.message || "no row was returned"}` };
+  }
+  activeDesktopJobs.set(inserted.id, { id: inserted.id, uid, conversationId });
+  details.onQueued?.({ jobId: inserted.id, conversationId, status: inserted.status || BRIDGE_PENDING_STATUS });
+
+  const deadline = Date.now() + 5 * 60 * 1000;
+  while (Date.now() < deadline) {
+    const { data: job, error: readError } = await supabase
+      .from("ai_bridge_jobs")
+      .select("id, status, answer, error, seconds, answered_at, provider, model")
+      .eq("id", inserted.id)
+      .eq("asked_by", uid)
+      .maybeSingle();
+    if (readError) {
+      activeDesktopJobs.delete(inserted.id);
+      return { ok: false, jobId: inserted.id, error: `The question was saved, but its answer could not be re-read: ${readError.message}` };
+    }
+    if (!job) {
+      activeDesktopJobs.delete(inserted.id);
+      return { ok: false, jobId: inserted.id, error: "The saved bridge job could not be re-read under this signed-in account." };
+    }
+    if (job.status === "done" && String(job.answer || "").trim()) {
+      activeDesktopJobs.delete(job.id);
+      return { ok: true, reply: String(job.answer).trim(), jobId: job.id, seconds: job.seconds, conversationId, reread: true };
+    }
+    if (job.status === "error") {
+      activeDesktopJobs.delete(job.id);
+      return { ok: false, jobId: job.id, error: job.error || "Desktop Codex returned an error." };
+    }
+    await bridgeWait(900);
+  }
+  activeDesktopJobs.delete(inserted.id);
+  return { ok: false, jobId: inserted.id, error: `Desktop Codex is still working. Saved queue receipt: ${inserted.id}. No paid fallback was used.` };
+}
+
 let _navCache = { at: 0, rows: null, error: null };
 async function searchLiveViews(question) {
   const q = String(question || "").toLowerCase();
@@ -2241,8 +2788,16 @@ async function liveWeather(question) {
   }
 }
 
-export async function askBudzFull(question, history = [], { onFacts, surface = "assistant", desk } = {}) {
+export async function askBudzFull(question, history = [], { onFacts, onQueued, surface = "assistant", desk, attachments = [] } = {}) {
   const askedAt = Date.now();
+  if (/^(?:create|add)\s+(?:a\s+)?task\s*:|^(?:complete|finish|mark done)\s+(?:task\s+)?[0-9a-f]{8}-/i.test(String(question || "").trim())) {
+    const written = await platformTaskCommand(question, surface);
+    if (written) return { headline: "", facts: [], askErr: null, ...written };
+  }
+  if (/^stop\s+everything[.!]?$|^(?:show|list|what(?:'s| is))\s+(?:my\s+)?(?:top g\s+|budz\s+)?(?:tasks|jobs)|^task status\b|^(?:cancel|stop|pause|resume|prioriti[sz]e|revise)\s+(?:task|job)?\s*\d+\b/i.test(String(question || "").trim())) {
+    const controlled = await bridgeTaskCommand(question);
+    if (controlled) return { headline: "", facts: [], askErr: null, ...controlled };
+  }
   const hello = /^(hi|hey|hello|yo|hi there|good morning|good afternoon|howdy)[\s!.?]*$/i.test(String(question || "").trim());
   if (hello) {
     return {
@@ -2254,8 +2809,17 @@ export async function askBudzFull(question, history = [], { onFacts, surface = "
     };
   }
 
-  /* Warm settings in the background. Do not block the first word on them. */
-  getAiCfg();
+  /* The company default chooses the engine. A saved browser preference still
+     wins because the selector belongs to this signed-in workstation. */
+  const cfg = _aiCfg || await Promise.race([
+    getAiCfg(),
+    new Promise((r) => setTimeout(() => r({
+      provider: "openai", model: "gpt-current", bridge_enabled: true,
+      paid_model_enabled: false, local_model_enabled: false,
+    }), 1500)),
+  ]);
+  const extProv = extProviderNow(cfg.provider);
+  const pickModel = extModelNow();
 
   const wx = await liveWeather(question);
   if (wx) {
@@ -2286,7 +2850,10 @@ export async function askBudzFull(question, history = [], { onFacts, surface = "
   const fromRecords = !a.askClaude && facts.length
     ? [a.headline, ...facts.map((r) => [r.label, r.detail, r.meta].filter(Boolean).join(" — "))].filter(Boolean).join("\n")
     : null;
-  if (needsRecords) {
+  /* Preserve the established record-only response for the other providers.
+     Codex is Top G's engine, so it receives the same records and applies the
+     coordinator/specialist rules instead of being bypassed by a lookup. */
+  if (needsRecords && extProv !== "gpt") {
     const composed = fromRecords || a.headline || "No live rows for that.";
     return { headline: a.headline || "", facts, composed, via: "Live OS records", askErr: null };
   }
@@ -2296,8 +2863,9 @@ export async function askBudzFull(question, history = [], { onFacts, surface = "
   let askErr = null;
   const log = history;
   const asked = [
-    `You are Grok — a full AI assistant — working inside Twisted Growers Enterprise OS as ${desk?.name || "Top G"}, ${desk?.role || "Chief of Staff"}. Buddy on Grok Bots is the ultimate boss. You never outrank Buddy.`,
-    `Work exactly as you work on grok.com. Same engagement. Same capability. Ordinary language. Typos, shorthand, half sentences. Answer what they meant. There is no required phrasing and no topic is off limits. You are not a harvest lookup and you are not limited to this OS. Weather, code, money, writing, news, strategy, IT, cultivation, anything a person would ask Grok — answer it. Collaborate. Do the work.`,
+    `You are the selected engine inside Twisted Growers Enterprise OS. Top G is the owner's main point of contact and Chief of Staff. Preserve Top G's existing orchestration, loop, TG Brain, Second Brain, specialist delegation, routines and agent hierarchy. Do not create a competing coordinator or memory.`,
+    `The owner addressed ${desk?.name || "Top G"}, ${desk?.role || "Chief of Staff"}. Top G coordinates the appropriate specialist desks, verifies their work, and returns one consolidated answer. If a specialist was addressed directly, respect that optional route while keeping Top G's governance. Buddy on Grok Bots remains above Top G; the selected engine never changes the hierarchy.`,
+    `Act as full AI inside that existing system. Ordinary language, typos, shorthand and half-sentences are normal. Answer what was meant. You are not a harvest lookup and are not limited to this OS. Weather, code, money, writing, news, strategy, IT, cultivation and any other authorized work are in scope. Collaborate and do the work.`,
     `When the question is this business, use the live records below. Metrc is read-only. Apex invoice is money source of record. Do not invent a certified number. If a figure is not in the records, say so and name the report. When it is not this business, answer as Grok on grok.com — full knowledge.`,
     `OS desks: ${CORE_BOTS.map((b) => `${b.name} (${b.role})`).join(", ")}. Buddy is boss. Top G is chief of staff.`,
     desk?.job ? `This desk: ${desk.job}` : "",
@@ -2321,13 +2889,36 @@ export async function askBudzFull(question, history = [], { onFacts, surface = "
     return bits.join("\n");
   })();
 
-  /* One hop to the add-on. Do not ping first — a sleeping worker would eat
-     the status timeout and skip ASK_NOW. Provider is this computer's last tap. */
-  const extProv = extProviderNow();
-  const pickModel = extModelNow();
+  /* Codex is a supported desktop CLI route, not a browser-cookie route. The
+     other providers keep their existing add-on path unchanged. */
   const canExt = typeof globalThis !== "undefined" && !!(globalThis.chrome && globalThis.chrome.runtime && globalThis.chrome.runtime.sendMessage);
   let live = { installed: false, ok: false, error: "" };
-  if (canExt) {
+  if (extProv === "gpt") {
+    if (cfg.bridge_enabled === false) {
+      askErr = "The desktop subscription bridge is switched off in company settings. Nothing was sent to a paid API.";
+    } else {
+      /* A browser preference belongs to the provider it names. If someone used
+         Claude last, its model must never be forwarded to Codex. Null means
+         "the currently installed Codex default", so new subscription models
+         do not require a frontend deploy. */
+      const codexModel = /^(?:gpt(?:-|$)|o\d(?:-|$))/i.test(String(pickModel || ""))
+        ? pickModel
+        : (/^(?:gpt(?:-|$)|o\d(?:-|$))/i.test(String(cfg.model || "")) ? cfg.model : null);
+      const desktop = await askDesktopSubscription(question, history, {
+        surface, desk, summary: a.headline, facts,
+        model: codexModel,
+        attachments,
+        onQueued,
+        instructions: asked,
+      });
+      if (desktop.ok) {
+        composed = desktop.reply;
+        via = "Codex (ChatGPT subscription)";
+      } else {
+        askErr = desktop.error;
+      }
+    }
+  } else if (canExt) {
     live = await askTgBotsNow(extQuestion, { provider: extProv, model: pickModel });
     if (!live.ok && live.installed && /tap grok/i.test(String(live.error || ""))) {
       await pushButtonSetup({ provider: extProv, model: pickModel }).catch(() => {});
@@ -2341,7 +2932,7 @@ export async function askBudzFull(question, history = [], { onFacts, surface = "
 
   /* 1.2.0 has no ASK_NOW. Queue for the desktop without waiting — the UI
      already has a fallback. 1.3+ already tried the signed-in tab. */
-  if (!composed && live.installed === false) {
+  if (!composed && extProv !== "gpt" && live.installed === false) {
     supabase.auth.getUser().then(({ data: u }) => {
       const uid = u?.user?.id;
       if (!uid) return;
@@ -2363,10 +2954,6 @@ export async function askBudzFull(question, history = [], { onFacts, surface = "
   }
 
   if (!composed) {
-    const cfg = _aiCfg || await Promise.race([
-      getAiCfg(),
-      new Promise((r) => setTimeout(() => r({ paid_model_enabled: false, local_model_enabled: false }), 1500)),
-    ]);
     if (cfg.local_model_enabled && cfg.local_model_url) {
       try {
         const hist = [...log, { who: "me", text: question }]
@@ -2404,7 +2991,7 @@ export async function askBudzFull(question, history = [], { onFacts, surface = "
         }
       } catch { /* local model down */ }
     }
-    if (!composed && cfg.paid_model_enabled) {
+    if (!composed && extProv !== "gpt" && cfg.paid_model_enabled) {
       try {
         const hist2 = [...log, { who: "me", text: asked }]
           .filter((m) => m.text && !m.rows)
@@ -2435,12 +3022,21 @@ export async function askBudzFull(question, history = [], { onFacts, surface = "
   }
 
   if (composed) {
-    supabase.from("brain_conversation").insert({
+    const answer = String(composed);
+    const { data: savedConversation, error: saveError } = await supabase.from("brain_conversation").insert({
       surface, question,
-      answer: String(composed).slice(0, 20000),
+      answer,
       answered_by: via,
       seconds: Math.round((Date.now() - askedAt) / 1000),
-    }).then(() => {}).catch(() => {});
+    }).select("id, surface, question, answer").maybeSingle();
+    if (saveError || !savedConversation?.id) {
+      throw new Error(`Top G answered, but the shared conversation was not saved: ${saveError?.message || "zero rows returned"}`);
+    }
+    const { data: reread, error: rereadError } = await supabase.from("brain_conversation")
+      .select("id, surface, question, answer").eq("id", savedConversation.id).maybeSingle();
+    if (rereadError || reread?.answer !== answer || reread?.question !== question) {
+      throw new Error(`Top G answered, but the saved conversation could not be verified: ${rereadError?.message || "re-read did not match"}`);
+    }
   }
 
   if (!composed && !facts.length && !needsRecords) {
@@ -2460,14 +3056,16 @@ export async function askBudzFull(question, history = [], { onFacts, surface = "
   if (!composed) {
     composed = fromRecords
       || a.headline
-      || (canExt
+      || askErr
+      || (extProv === "gpt"
+        ? "Desktop Codex did not answer. No paid API fallback was used."
+        : canExt
         ? "Grok tab did not answer. Stay signed in on grok.com and send it again."
-        : "Company records answer here on the phone. Stocks, code, and long writing use the computer that has the Grok tab.");
+        : "Company records answer here on the phone. Full AI uses the selected subscription on the company computer.");
     via = fromRecords || facts.length ? "Live OS records" : (via || "Top G");
-    askErr = null;
   }
 
-  return { headline: a.headline, facts, composed, via, askErr: null };
+  return { headline: a.headline, facts, composed, via, askErr };
 }
 
 export function useAssistantProfile() {
@@ -2651,8 +3249,6 @@ export function AssistantSettings() {
       </div>
 
       <ModelChoice />
-
-      <AssistantAdmin />
 
       <div className="asetwrap">
         <div className="asetprev">
@@ -2939,10 +3535,12 @@ export function BudzPet({ go, onClose, view }) {
     setLog((l) => [...l, { who: "me", text: question || "(sent files)", files: sending }]);
     setQ("");
     setBusy(true);
+    let uploaded = [];
     try {
     if (sending.length) {
       const up = await bag.upload(question);
       const good = up.filter((u) => !u.error);
+      uploaded = good;
       const bad = up.filter((u) => u.error);
       if (good.length) setLog((l) => [...l, { who: "budz", text: `Got ${good.length} file${good.length > 1 ? "s" : ""}. Saved and searchable.`, links: good.map((u) => u.url) }]);
       /* A failed upload used to vanish - the loop skipped it and the count was
@@ -2959,6 +3557,10 @@ export function BudzPet({ go, onClose, view }) {
         const { composed, via, askErr } = await askBudzFull(question, log, {
           surface: "pet-" + (view || "os"),
           desk: deskForView(view),
+          attachments: uploaded,
+          onQueued: ({ jobId }) => setLog((l) => [...l, {
+            who: "budz", text: `Accepted as task ${jobId}. Keep chatting while I work.`,
+          }]),
           onFacts: (a, rows) =>
             setLog((l) => [...l, { who: "budz", text: a.headline, rows, stamp, pending: true }]),
         });
@@ -3297,10 +3899,23 @@ export function AssistantAdmin() {
 
   const write = async (patch) => {
     setBusy(true);
-    const { error } = await supabase.from("ai_settings")
-      .update({ ...patch, updated_at: new Date().toISOString() }).eq("id", cfg.id);
-    setMsg(error ? error.message : "Saved for everyone.");
-    if (!error) setCfg({ ...cfg, ...patch });
+    const { data, error } = await supabase.from("ai_settings")
+      .update({ ...patch, updated_at: new Date().toISOString() })
+      .eq("id", cfg.id)
+      .select("*")
+      .maybeSingle();
+    if (error || !data?.id) {
+      setMsg(error?.message || "Nothing was changed; the settings write returned zero rows.");
+    } else {
+      const { data: reread, error: rereadError } = await supabase.from("ai_settings")
+        .select("*").eq("id", cfg.id).maybeSingle();
+      if (rereadError || !reread?.id || Object.entries(patch).some(([key, value]) => JSON.stringify(reread[key]) !== JSON.stringify(value))) {
+        setMsg(rereadError?.message || "The setting changed but its exact saved value could not be verified.");
+      } else {
+        setCfg(reread);
+        setMsg("Saved for everyone and re-read.");
+      }
+    }
     setBusy(false);
   };
   const allowed = cfg.ai_allowed_roles ?? [];
@@ -3320,8 +3935,9 @@ export function AssistantAdmin() {
           <div className="asetlab">Answer through the desktop bridge</div>
           <div className="asetwhy">
             Questions run on an admin&apos;s own computer against the Claude or GPT subscription
-            already paid for, so there is no per-question bill and no cap. Switch it off and
-            questions go to the metered API instead.
+            already paid for, so there is no per-question API bill. Subscription service limits
+            still apply. If this is off, the Codex route stays unavailable and never falls back
+            to a paid API; other providers continue under their own saved settings.
           </div>
         </div>
         <RedGreen on={!!cfg.bridge_enabled} busy={busy} title="Answer through the desktop bridge"
@@ -3643,10 +4259,12 @@ export function BudzScreen({ go }) {
     setLog((l) => [...l, { who: "me", text: question || "(sent files)", files: sending }]);
     setQ("");
     setBusy(true);
+    let uploaded = [];
     try {
     if (sending.length) {
       const up = await bag.upload(question);
       const good = up.filter((u) => !u.error);
+      uploaded = good;
       const bad = up.filter((u) => u.error);
       if (good.length) setLog((l) => [...l, { who: "budz", text: `Got ${good.length} file${good.length > 1 ? "s" : ""}. Saved and searchable.`, links: good.map((u) => u.url) }]);
       /* A failed upload used to vanish - the loop skipped it and the count was
@@ -3657,6 +4275,10 @@ export function BudzScreen({ go }) {
     try {
       const stamp = Date.now();
       const { facts, composed, via, askErr } = await askBudzFull(question, log, {
+        attachments: uploaded,
+        onQueued: ({ jobId }) => setLog((l) => [...l, {
+          who: "budz", text: `Accepted as task ${jobId}. Keep chatting while I work.`,
+        }]),
         onFacts: (a, rows) =>
           setLog((l) => [...l, { who: "budz", text: a.headline, rows, stamp, pending: true }]),
       });

@@ -6,10 +6,12 @@
  * and no way to rebuild it if the project were lost. Every question the
  * assistant answers passes through it.
  *
- * Recovered verbatim from the live deployment (version 1, sha256
- * dacd9188b35f0e992b1e0b796639ef278732fb480065847218735d3e733c77e4) rather than
- * rewritten from memory, so what is committed is exactly what is running. Not
- * one character of behaviour changed in this commit; only this header was added.
+ * Version 1 was recovered verbatim from the live deployment (sha256
+ * dacd9188b35f0e992b1e0b796639ef278732fb480065847218735d3e733c77e4). This
+ * source now advances that recovered baseline with provider/model receipts,
+ * revision-safe claims and answers, cancellation-state reads, and the existing
+ * topg_runtime configuration. DEPLOYED.json must be updated only after the
+ * deployed function is re-read and matches this source.
  *
  * WHY THIS EXISTS.
  *
@@ -59,13 +61,9 @@
  *
  * A NOTE FOR WHOEVER CHANGES THIS NEXT.
  *
- * `claim` returns only id, question and context. On 8 Aug 2026 the per-user
- * model choice was added to the desktop bridge and a `model` column was written
- * to ai_bridge_jobs — which this function does not return, so the desktop would
- * never have seen it. The choice rides inside `context` (jsonb, already
- * returned) instead of widening this response. If you widen the select here,
- * that workaround can be simplified; until then, do not "tidy it up" at the
- * caller without changing this first.
+ * `claim` now returns id, question, context, provider, model and immutable
+ * asked_by. The provider/model columns are authoritative routing receipts;
+ * context retains compatibility for jobs created by older UI versions.
  */
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
@@ -78,6 +76,7 @@ const j = (b: unknown, s = 200) =>
   new Response(JSON.stringify(b), { status: s, headers: { ...CORS, 'Content-Type': 'application/json' } });
 
 const sb = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
+const REVISION_BRIDGE_VERSION = '3.0-codex-subscription';
 
 /* Constant-time compare. A plain !== leaks the token one character at a time to
  * anyone patient enough to measure the difference. */
@@ -114,24 +113,47 @@ Deno.serve(async (req) => {
 
       const { data: pending, error: readErr } = await sb
         .from('ai_bridge_jobs')
-        .select('id, question, context')
+        .select('id, question, context, provider, model, asked_by')
         .eq('status', 'pending')
         .order('created_at', { ascending: true })
-        .limit(1);
+        .limit(100);
       if (readErr) return j({ ok: false, error: readErr.message }, 500);
-      if (!pending?.length) return j({ ok: true, job: null });
+      const { data: runtimeRow } = await sb.from('configurations').select('value').eq('key', 'topg_runtime').maybeSingle();
+      const runtime = runtimeRow?.value && typeof runtimeRow.value === 'object' ? runtimeRow.value : null;
+      if (!pending?.length) return j({ ok: true, job: null, runtime });
+
+      /* Priority rides in the existing context JSON so no parallel queue or
+         schema is created. FIFO is preserved within P0..P3. */
+      const priorityRank: Record<string, number> = { P0: 0, P1: 1, P2: 2, P3: 3 };
+      const candidate = [...pending].sort((a, b) =>
+        (priorityRank[String(a.context?.priority || 'P2').toUpperCase()] ?? 2) -
+        (priorityRank[String(b.context?.priority || 'P2').toUpperCase()] ?? 2)
+      )[0];
+
+      /* A pre-revision bridge can claim a revised job but cannot return the
+         revision receipt. Refuse before claiming so an installed old copy
+         cannot strand or overwrite work created by the new UI. */
+      if (String(body.version || '') !== REVISION_BRIDGE_VERSION) {
+        return j({ ok: false, error: `Desktop bridge upgrade required (${REVISION_BRIDGE_VERSION}).` }, 426);
+      }
+
+      const currentRevision = Number(candidate.context?.revision);
+      const claimedContext = {
+        ...(candidate.context && typeof candidate.context === 'object' ? candidate.context : {}),
+        revision: Number.isFinite(currentRevision) && currentRevision > 0 ? currentRevision : 1,
+      };
 
       /* Claim by moving pending -> running and requiring it to STILL be pending.
          Two bridges racing: one update matches, the other returns no rows and
          gets nothing, instead of both answering the same question twice. */
       const { data: claimed, error: claimErr } = await sb
         .from('ai_bridge_jobs')
-        .update({ status: 'running', claimed_at: new Date().toISOString() })
-        .eq('id', pending[0].id)
+        .update({ status: 'running', claimed_at: new Date().toISOString(), context: claimedContext })
+        .eq('id', candidate.id)
         .eq('status', 'pending')
-        .select('id, question, context');
+        .select('id, question, context, provider, model, asked_by');
       if (claimErr) return j({ ok: false, error: claimErr.message }, 500);
-      return j({ ok: true, job: claimed?.length ? claimed[0] : null });
+      return j({ ok: true, job: claimed?.length ? claimed[0] : null, runtime });
     }
 
     /* ---- answer: write the result onto a job that is running -------------- */
@@ -143,18 +165,50 @@ Deno.serve(async (req) => {
       const answer = body.ok === true ? String(body.answer ?? '').slice(0, 200000) : null;
       const error = body.ok === true ? null : String(body.answer ?? body.error ?? 'no reason given').slice(0, 4000);
       const seconds = Number.isFinite(Number(body.seconds)) ? Math.min(Number(body.seconds), 100000) : null;
+      if (body.ok === true && !String(body.answer ?? '').trim()) return j({ ok: false, error: 'A successful answer cannot be blank.' }, 400);
 
-      /* .eq('status','running') is the narrowing that matters: a stolen token
-         cannot rewrite the answer on a job that has already been delivered. */
-      const { data, error: upErr } = await sb
+      const { data: current, error: currentErr } = await sb.from('ai_bridge_jobs')
+        .select('id,status,context').eq('id', id).maybeSingle();
+      if (currentErr) return j({ ok: false, error: currentErr.message }, 500);
+      if (!current || current.status !== 'running') {
+        return j({ ok: false, error: 'That job is not running — it was cancelled, revised, already answered, or timed out.' }, 409);
+      }
+      const expectedRevision = Number(current.context?.revision);
+      const answerRevision = Number(body.revision);
+      if (!Number.isFinite(expectedRevision) || !Number.isFinite(answerRevision) || expectedRevision !== answerRevision) {
+        return j({ ok: false, error: 'That answer does not carry the exact claimed revision.' }, 409);
+      }
+
+      /* .eq('status','running') plus the exact revision is the narrowing that
+         matters: a stolen token cannot rewrite an answer already delivered,
+         and superseded work cannot overwrite a new instruction. */
+      const codexThreadId = typeof body.codexThreadId === 'string' && body.codexThreadId.trim()
+        ? body.codexThreadId.trim().slice(0, 200)
+        : null;
+      const answeredContext = codexThreadId
+        ? { ...(current.context || {}), codex_thread_id: codexThreadId }
+        : current.context;
+      const write = sb
         .from('ai_bridge_jobs')
-        .update({ status, answer, error, seconds, answered_at: new Date().toISOString() })
+        .update({ status, answer, error, seconds, answered_at: new Date().toISOString(), context: answeredContext })
         .eq('id', id)
         .eq('status', 'running')
-        .select('id');
+        .contains('context', { revision: answerRevision });
+      const { data, error: upErr } = await write.select('id');
       if (upErr) return j({ ok: false, error: upErr.message }, 500);
-      if (!data?.length) return j({ ok: false, error: 'That job is not running — it was already answered, or it timed out.' }, 409);
+      if (!data?.length) return j({ ok: false, error: 'That job is not running at the claimed revision — it was cancelled, revised, already answered, or timed out.' }, 409);
       return j({ ok: true, id: data[0].id });
+    }
+
+    /* Lets the desktop interrupt a turn the signed-in owner stopped in the OS.
+       It returns no prompt, context or answer and cannot mutate anything. */
+    if (action === 'state') {
+      const id = body.id;
+      if (!id) return j({ ok: false, error: 'No job id.' }, 400);
+      const { data, error } = await sb.from('ai_bridge_jobs').select('id, status, context').eq('id', id).maybeSingle();
+      if (error) return j({ ok: false, error: error.message }, 500);
+      if (!data) return j({ ok: false, error: 'Job not found.' }, 404);
+      return j({ ok: true, job: { id: data.id, status: data.status, revision: data.context?.revision ?? null } });
     }
 
     /* ---- heartbeat: alive, with no job to do ------------------------------ */
@@ -167,7 +221,7 @@ Deno.serve(async (req) => {
       return j({ ok: true });
     }
 
-    return j({ ok: false, error: 'Unknown action. Use claim, answer or heartbeat.' }, 400);
+    return j({ ok: false, error: 'Unknown action. Use claim, answer, state or heartbeat.' }, 400);
   } catch (e) {
     return j({ ok: false, error: String(e).slice(0, 300) }, 500);
   }

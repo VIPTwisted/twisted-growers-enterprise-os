@@ -69,7 +69,7 @@ import BotsPaidKey from "./bots-paid-key.jsx";
 import { supabase, FUNCTIONS_URL } from "./lib/supabase.js";
 import { BudzScreen, CeoDashboard, AssistantSettings, BudzPet, useBudzPet, RedGreen,
          askBudzFull, useChatFiles, ChatFiles, Thinking,
-         useVoice, VoiceButtons } from "./budz.jsx";
+         useVoice, VoiceButtons, stopActiveDesktopBridgeJobs } from "./budz.jsx";
 /* Clean-slate Command Center (owner pivot, 12 Aug 2026): a new tree in its own
    module, mounted at dept_dash_command below. It imports shared primitives and
    the frozen keep-list components back from this file — the import cycle is
@@ -6056,10 +6056,12 @@ function BrainScreen({ session, go, isExec, dictation }) {
     const term = String(termArg ?? q).replace(/[%,()]/g, " ").trim();
     if ((!term && !bag.files.length) || searching) return;
     const sending = bag.files.map((f) => f.name);
+    let uploaded = [];
     if (sending.length) {
       setLog((l) => [...l, { who: "me", text: term || "(sent files)", files: sending }]);
       const up = await bag.upload(term);
       const good = up.filter((u) => !u.error);
+      uploaded = good;
       const bad = up.filter((u) => u.error);
       if (good.length) setLog((l) => [...l, { who: "brain", text: `Got ${good.length} file${good.length > 1 ? "s" : ""}. Saved and searchable.`, links: good.map((u) => u.url) }]);
       if (bad.length) setLog((l) => [...l, { who: "brain", text: `Could not take ${bad.map((b) => b.name).join(", ")}: ${bad[0].error}` }]);
@@ -6075,6 +6077,11 @@ function BrainScreen({ session, go, isExec, dictation }) {
         catch { return { f, rows: [] }; }
       })),
       askBudzFull(term, log, {
+        surface: "brain",
+        attachments: uploaded,
+        onQueued: ({ jobId }) => setLog((l) => [...l, {
+          who: "brain", text: `Accepted as task ${jobId}. You can keep working while it runs.`,
+        }]),
         onFacts: (a, rows) => setLog((l) => [...l, { who: "brain", text: a.headline, rows, stamp, pending: true }]),
       }).then(({ composed, via, askErr }) => (voice.say(composed), true) &&
         setLog((l) => l.map((m) => m.stamp === stamp
@@ -11759,6 +11766,7 @@ function ForcePasswordChange({ email, onDone }) {
    whatever else breaks - a person trying to leave a shared machine is not made
    to wait on a permissions table. */
 async function signOutEverywhere() {
+  try { await stopActiveDesktopBridgeJobs("signed-out"); } catch { /* never block sign-out */ }
   try { await supabase.rpc("f_ai_end_session"); } catch { /* never block sign-out */ }
   await supabase.auth.signOut();
 }

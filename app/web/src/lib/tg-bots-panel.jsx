@@ -6,7 +6,7 @@ import React, { useEffect, useState } from "react";
 import {
   PROVIDERS, TG_BOTS_ZIP, MODEL_CATALOG, extProviderNow, extTooOld, providerLabel,
   pushButtonSetup, savePreferred, saveExtModel, tgBotsModels, tgBotsNewThread, tgBotsSetModel,
-  tgBotsStatus, extModelNow,
+  tgBotsStatus, extModelNow, desktopCodexStatus, rememberDesktopTopGConnected,
 } from "./topg-connect.js";
 
 export default function TgBotsPanel({ compact = false, onReady }) {
@@ -20,7 +20,8 @@ export default function TgBotsPanel({ compact = false, onReady }) {
   const [botsUrl, setBotsUrl] = useState("");
 
   async function refresh() {
-    const status = await tgBotsStatus();
+    const selected = extProviderNow();
+    const status = selected === "gpt" ? await desktopCodexStatus() : await tgBotsStatus();
     const installed = !!status.installed;
     const next = { installed, version: status.version, ...(status.installed ? status : {}) };
     setSt(next);
@@ -44,6 +45,26 @@ export default function TgBotsPanel({ compact = false, onReady }) {
     }
     setBusy(true);
     setMsg("");
+    if (key === "gpt") {
+      const r = await desktopCodexStatus();
+      if (!r.ok) {
+        setSt(r);
+        setProvider("gpt");
+        rememberDesktopTopGConnected(false);
+        setMsg(r.error || "Desktop Codex is not available.");
+        setBusy(false);
+        return;
+      }
+      await savePreferred("gpt");
+      rememberDesktopTopGConnected(true);
+      setProvider("gpt");
+      setModels([]);
+      setSt(r);
+      if (!compact) setMsg("On. Codex answers as Top G from your ChatGPT subscription on this computer. No API key or browser extension is used.");
+      onReady?.(r);
+      setBusy(false);
+      return;
+    }
     const r = await pushButtonSetup({
       provider: key,
       model,
@@ -72,6 +93,12 @@ export default function TgBotsPanel({ compact = false, onReady }) {
 
   async function loadVersions() {
     setBusy(true);
+    if (provider === "gpt") {
+      setModels([]);
+      if (!compact) setMsg("Desktop Codex is using its current ChatGPT-subscription model. Tab default follows the supported Codex configuration on this computer.");
+      setBusy(false);
+      return;
+    }
     const r = await tgBotsModels(provider);
     if (r && r.ok) {
       setModels(r.models || []);
@@ -96,6 +123,10 @@ export default function TgBotsPanel({ compact = false, onReady }) {
   async function pickVersion(value) {
     setModel(value);
     saveExtModel(value);
+    if (provider === "gpt") {
+      if (!compact) setMsg("Using " + (value || "the current desktop Codex model") + ".");
+      return;
+    }
     if (!st?.installed) return;
     const r = await tgBotsSetModel(provider, value);
     if (r && r.ok === false) {
