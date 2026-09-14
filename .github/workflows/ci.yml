@@ -602,3 +602,13 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         continue-on-error: true   # advisory until the historical finding is resolved
+
+      # ---- The Bible §16.3: CI records its own verdict per commit (token-free deploy watch) --
+      # The database sweep compares this with what production serves (build stamp). Runs on
+      # red and green alike; never fails the build it records.
+      - name: Record this run's verdict for the deploy watch
+        if: always()
+        env:
+          TG_CI_VERDICT: ${{ job.status }}
+          TG_CI_TITLE: Gates
+        run: node tools/ci/record-run.mjs

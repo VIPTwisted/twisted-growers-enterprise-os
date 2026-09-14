@@ -850,7 +850,9 @@ const migrationEntries = files.map((name) => ({
 // Re-pinned 14 Sep 2026 -> 1125 files. Recorded claude_report_issue_bp_17_1 (f_report_issue; qa:human, qa:bot registered). Claude desk.
 // Re-pinned 14 Sep 2026 -> 1127 files. Recorded claude_finding_resolve_bp_12b_2 and claude_column_roles_for_archetype_layouts;
 // baseline regenerated (column_roles table). Claude desk.
-const expectedMigrationTreeDigest = "0a80a2d1fc12364d3177c747a7cc96f84fae3627c391f3da9fe6b994144cf3de";
+// Re-pinned 14 Sep 2026 -> 1128 files. Recorded claude_deploy_watch_token_free_probe (site_probe; the published build stamp
+// replaces the API tokens) and regenerated the baseline. Claude desk.
+const expectedMigrationTreeDigest = "49819965a93b5bb5d0c7d25ce72b0fc721d1e5d1e2daef33606034891b8178ed";
 const actualMigrationTreeDigest = migrationTreeDigest(migrationEntries);
 if (actualMigrationTreeDigest !== expectedMigrationTreeDigest) {
   console.error(`money-grain: FAIL — migration tree differs from the independently reviewed ${files.length}-file manifest (${actualMigrationTreeDigest}).`);
