@@ -847,7 +847,8 @@ const migrationEntries = files.map((name) => ({
 // agent key, alert days_open, sync watch BP-16-4, alert e-mail allow-list) and regenerated the baseline. Claude desk. Tamper seal.
 // Re-pinned 14 Sep 2026 -> 1124 files. Recorded: watchers queue jobs as 'pending', health maps failed → failing, and
 // tg_call_function back to ONE signature (my 13 Sep overload broke three cron jobs; found by the sync watch). Claude desk.
-const expectedMigrationTreeDigest = "9ab80c34cd78a114fb76f1011091242cca47f6547913565fe134d0a8b9366a8d";
+// Re-pinned 14 Sep 2026 -> 1125 files. Recorded claude_report_issue_bp_17_1 (f_report_issue; qa:human, qa:bot registered). Claude desk.
+const expectedMigrationTreeDigest = "9b48c4fe66d96f72831b2889d71736f8e266bf85bb114ce357e097aeee29c54b";
 const actualMigrationTreeDigest = migrationTreeDigest(migrationEntries);
 if (actualMigrationTreeDigest !== expectedMigrationTreeDigest) {
   console.error(`money-grain: FAIL — migration tree differs from the independently reviewed ${files.length}-file manifest (${actualMigrationTreeDigest}).`);
