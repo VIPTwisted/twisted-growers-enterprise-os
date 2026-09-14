@@ -100,7 +100,12 @@ jobs:
       - name: Apex verification, failure recovery and concurrency (isolated Postgres)
         env:
           APEX_TEST_PGURL: ${{ env.MONEY_TEST_PGURL }}
-        run: node --test tools/tests/apex-verification.integration.mjs tools/tests/apex-verified-pull.test.mjs tools/tests/apex-empty-history.integration.mjs
+        # Three files, ONE isolated Postgres: run one file at a time. In parallel they
+        # create the same functions in the same catalog and one of them dies with
+        # "tuple concurrently updated" — twice on 14 Sep 2026 (main 02:36, PR #257 04:08),
+        # green on re-run both times. A flake that fails a red-or-green gate teaches
+        # everyone to press re-run, which is how a real failure gets pressed through.
+        run: node --test --test-concurrency=1 tools/tests/apex-verification.integration.mjs tools/tests/apex-verified-pull.test.mjs tools/tests/apex-empty-history.integration.mjs
 
       - name: Metrc atomic cursor completion (isolated Postgres)
         env:
