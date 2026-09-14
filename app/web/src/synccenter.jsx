@@ -42,7 +42,7 @@ const ago = (ts) => {
   return `${Math.round(s / 86400)} d ago`;
 };
 const when = (ts) => (ts ? new Date(ts).toLocaleString() : "—");
-const HEALTH_TONE = { ok: "ok", failing: "err", "missing secret": "err", stale: "run", "never ran": "run", off: "muted", partial: "run", running: "run" };
+const HEALTH_TONE = { ok: "ok", failing: "err", failed: "err", error: "err", "missing secret": "err", stale: "run", "never ran": "run", off: "muted", partial: "run", running: "run" };
 const pillFor = (status) => (status === "ok" || status === "succeeded" ? "ok" : status === "error" || status === "failed" ? "err" : "run");
 const cronWords = (s) => {
   if (!s) return "—";
