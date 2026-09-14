@@ -103,6 +103,7 @@ on prompts.
 ### The brain (this folder)
 | File | What it holds |
 |---|---|
+| [BLUEPRINT_2026_BEAT_THEM_ALL.md](BLUEPRINT_2026_BEAT_THEM_ALL.md) | **The governing build plan, owner-confirmed 14 Sep 2026.** Beat NetSuite, 365 Cannabis, Canix, Flourish, Trym, Distru, AROYA, Simplifya, Confident, Würk: six layers (truth · ontology · agents · decision stream · interface · simulation), the posting map, the object list, agent mandates, the per-archetype design programme, phases with live acceptance tests. Frozen surfaces and menus untouched. |
 | [hot.md](hot.md) | **Read first.** Live platform pulse — security posture, vitals, open money findings, page health — measured directly against the database, timestamped. Regenerate when stale. |
 | [CONTRADICTIONS.md](CONTRADICTIONS.md) | **The owner's arbitration queue.** Every place two sources disagree — including two locked facts — with both sides and what settling each unlocks. |
 | [BACKLOG.md](BACKLOG.md) | Planned but not built, ranked — the big fifteen plus the fastest-moving open P0s, from a full read of every design doc and gap register. |
