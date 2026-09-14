@@ -49,7 +49,7 @@ import { supabase } from "./lib/supabase.js";
 import { rowsOr } from "./App.jsx";
 import {
   grab, listOf, DkTag, DkErr, DkEmpty, DkHead, DkDrill, DrillRoot, DkCaret,
-  useDefaultRange, DkFrameNote,
+  useDefaultRange, DkFrameNote, DkOpenCase,
   Widget, WidgetBoard, WidgetBarControls, useWidgetLayout, useSectionStore,
   TagEvidence, TagEvidenceProvider, DkNarrative, DkReports, DkTasks,
 } from "./dashkit.jsx";
@@ -106,6 +106,29 @@ function FinAnswers({ live, apex, wholesaleErr }) {
         <b> do not quote a revenue figure until they reconcile.</b> The largest single named reason they
         differ is directly below: value consigned to a transporter is not a sale.
       </div>
+      {/* OPEN A CASE ON THE GAP THIS STRIP IS ABOUT.
+          The three answers are never added, and the reason they differ IS the
+          case: Apex says one thing about the period and Metrc's wholesale report
+          says another. This records both, each with its system of record.
+
+          IT CHANGES NO FIGURE ON THIS PAGE. The recon maths above is untouched
+          by opening a case — a case is a record that two systems disagree, not
+          an adjustment to either of them.
+
+          It sits on the UNEXPLAINED value, not the matched one. Matched orders
+          are the part that agrees; a case belongs where they do not. */}
+      {apex.unexplained > 0 && (
+        <div className="cc-tools-l" style={{ marginTop: 8 }}>
+          <DkOpenCase
+            subjectKind="apex_sales_strip"
+            subjectKey="apex_unexplained_vs_wholesale"
+            headline={`${apex.unexplained.toLocaleString()} Apex orders match no Metrc manifest`}
+            ours={{ figure: apex.unexplainedValue, unit: "USD",
+                    source: "Apex order book — v_apex_order_metrc_link, link_status APEX ONLY — UNEXPLAINED" }}
+            theirs={{ figure: null, unit: "USD",
+                      source: "Metrc wholesale report — no manifest carries these invoice numbers" }} />
+        </div>
+      )}
     </>
   );
 }

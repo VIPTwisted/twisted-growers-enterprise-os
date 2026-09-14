@@ -48,7 +48,7 @@ import {
   grab, listOf, DkTag, DkErr, DkEmpty, DkHead, DkDrill, DrillRoot, DkCaret,
   Widget, WidgetBoard, WidgetBarControls, useWidgetLayout, useSectionStore,
   TagEvidence, TagEvidenceProvider, DkNarrative, DkReports, DkTasks,
-  useDefaultRange, DkFrameNote,
+  useDefaultRange, DkFrameNote, DkOpenCase,
 } from "./dashkit.jsx";
 /* The range/search rule itself, written once and unit-tested. This page used to
    spell it out inline — a `matchesQ` and an `inPeriod` that reimplemented rules
@@ -71,6 +71,25 @@ const digits = (v) => {
   const s = String(v ?? "").replace(/\D/g, "");
   return s === "" ? null : s;
 };
+/* AN UNSETTLED GROUP, BY THE VIEW'S OWN NAMING — not a list of today's status
+   strings retyped into JSX. v_apex_order_metrc_link names every settled state
+   MATCHED or EXPLAINED and every unsettled one otherwise, so reading the prefix
+   means a new exception state gets its button the day it appears.
+
+   APEX ONLY is in this list deliberately, and it was nearly left out. The
+   owner's ticket named VALUE DIFFERS, FALSE MATCH, UNMATCHED and PRE-KEY, and a
+   prefix rule built from those four silently excludes APEX ONLY — UNEXPLAINED:
+   288 orders, the largest exception group there is, and the one this page's own
+   tile tones "bad" and calls order value with no shipment behind it. An
+   unexplained order is the definition of unsettled.
+
+   AMBIGUOUS INVOICE NUMBER is here for the same reason: two orders sharing one
+   invoice number is unresolved, not explained.
+
+   Measured 29 Aug 2026: ten states served, six unsettled, four settled. */
+const isException = (status) =>
+  /^(EXCEPTION|UNMATCHED|AMBIGUOUS|APEX ONLY)/.test(String(status ?? ""));
+
 const money = (rows, f) => listOf(rows).reduce((a, r) => a + Number(r[f] ?? 0), 0);
 
 /* The platform's own order tables, counted rather than assumed. Rendered as a
@@ -578,9 +597,32 @@ export default function OrdersPage({ go, session, reports, role, viewAs, onViewA
                         sub={`${s.orders.length.toLocaleString()} orders`}
                         title={`Open the orders in the state “${s.status}”. It opens above the sections, under the key figures.`}
                         figures={[{ k: "value on the orders", v: s.value, money: true }, { k: "orders", v: s.orders.length.toLocaleString() }]}
-                        chips={s.status === "APEX ONLY — UNEXPLAINED"
-                          ? <DkTag tone="crit" title="Not cancelled, not empty, not zero — and nothing on the Metrc side carries its invoice number.">unexplained</DkTag>
-                          : null} />
+                        chips={<>
+                          {s.status === "APEX ONLY — UNEXPLAINED" && (
+                            <DkTag tone="crit" title="Not cancelled, not empty, not zero — and nothing on the Metrc side carries its invoice number.">unexplained</DkTag>
+                          )}
+                          {/* OPEN A CASE FROM THE GROUP THAT DISAGREES.
+                              Only on the exception groups, and that is the whole
+                              point: MATCHED and the two EXPLAINED states are
+                              settled, and a button offering to open a case on a
+                              settled group teaches people to ignore the button.
+
+                              The group name is the subject key, so the case can
+                              be reopened against the same population later even
+                              though the orders inside it change. Both figures
+                              travel: the Apex value on the group, and Metrc's
+                              side, which for these states is precisely what is
+                              absent — recorded as a null figure with its source
+                              named, never as a zero. */}
+                          {isException(s.status) && (
+                            <DkOpenCase
+                              subjectKind="apex_order_exception"
+                              subjectKey={s.status}
+                              headline={`${s.orders.length.toLocaleString()} Apex orders in “${s.status}”`}
+                              ours={{ figure: s.value, unit: "USD", source: "Apex order book (v_apex_order_metrc_link.total_dollars)" }}
+                              theirs={{ figure: null, unit: "USD", source: "Metrc wholesale report — no matching manifest value for this group" }} />
+                          )}
+                        </>} />
                     ))}
                   </div>
                 </Widget>
