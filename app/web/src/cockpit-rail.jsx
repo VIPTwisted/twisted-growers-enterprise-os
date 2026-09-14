@@ -146,6 +146,9 @@ export const COCKPITS = [
       /* Owner, 13 Sep 2026, after the 8 Sep side-to-deep move: "I don't want to
          lose any pages that I need … go with your recommendations." The two
          personal cockpits come back; the thin admin pages stay on the face. */
+      /* Bible §7 (BP-7), owner 14 Sep 2026: Today, the decision stream, is the one
+         child entry Command Center gains — nothing else moves. */
+      { view_key: "today", label: "Today", ico: "clipboard" },
       { view_key: "my_dashboard", label: "My dashboard", ico: "dash" },
       { view_key: "ceo_dashboard", label: "Chief Executive", ico: "gauge" },
       { view_key: "inventory_alerts", label: "Alerts", ico: "bell" },

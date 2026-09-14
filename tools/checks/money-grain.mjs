@@ -863,7 +863,10 @@ const migrationEntries = files.map((name) => ({
 // Re-pinned 14 Sep 2026 -> 1143 files. Recorded hr_one_pin_both_doors (one bcrypt PIN serves the OS wall terminal and the HR kiosk). Claude desk.
 // Re-pinned 14 Sep 2026 -> 1144 files. Recorded hr_compliance_reference_by_state (statutory reference is rows for MA, not CT text). Claude desk.
 // Re-pinned 14 Sep 2026 -> 1145 files. Recorded hr_payroll_and_training_track_rows (Payroll and Training Progress read rows). Claude desk.
-const expectedMigrationTreeDigest = "c3f2e24fbf9a4264f3db2a9962d39db2cf73bb077b3aeb476ed4176b4a087759";
+// Re-pinned 14 Sep 2026 -> 1147 files. Recorded today_decision_stream_v1 (BP-8 Today: decisions table, f_today_feed / f_decide /
+// f_reverse_decision / f_today_push, the Command Center child, tg_task_from_dashboard fixed — it never worked) and
+// today_family_names_and_numbers_collapse; baseline regenerated (decisions table + policy). Claude desk.
+const expectedMigrationTreeDigest = "1eb2cfe1f5e9639088a674439ac69985e8035c0e5cc13b4fdc4a4be9e94218a7";
 const actualMigrationTreeDigest = migrationTreeDigest(migrationEntries);
 if (actualMigrationTreeDigest !== expectedMigrationTreeDigest) {
   console.error(`money-grain: FAIL — migration tree differs from the independently reviewed ${files.length}-file manifest (${actualMigrationTreeDigest}).`);

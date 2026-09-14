@@ -73,6 +73,8 @@ const SyncConnections = lazy(() => import("./synccenter.jsx"));
 /* Blueprint 2026 §4 (BP-4-1): the first object page. The address carries the
    record after a colon — #package_360:<tag> — so a tag is a link anywhere. */
 const Package360 = lazy(() => import("./package-360.jsx"));
+/* TODAY — the decision stream (Bible §8), a child of Command Center (BP-7). */
+const TodayScreen = lazy(() => import("./today.jsx"));
 const METRC_TAG_RE = /^1A4[0-9A-F]{21}$/;
 const SettingsDash = lazy(() => import("./settings-dash.jsx"));
 const WidgetCanvas = lazy(() => import("./wcanvas.jsx").then((m) => ({ default: m.WidgetCanvas })));
@@ -10607,14 +10609,18 @@ export function AssignTask({ dept, kpi, value, unit, drill, onDone }) {
     setTitle(`${kpi}: ${Number(value ?? 0).toLocaleString()} ${unit ?? ""}`.trim());
   }, [open]);
   const save = async () => {
-    const { error } = await supabase.rpc("tg_task_from_dashboard", {
+    /* employees.id is a uuid — Number(who) was NaN, so no assignee ever reached the
+       function; the function itself took a bigint for a uuid column and inserted a status
+       and priority the table refuses (measured 14 Sep 2026: zero tasks ever raised from a
+       tile). Both fixed together; the task id comes back so the caller can link it. */
+    const { data, error } = await supabase.rpc("tg_task_from_dashboard", {
       p_title: title, p_description: `Raised from the ${dept} dashboard. ${kpi} stood at ${value} ${unit ?? ""} when this was assigned.`,
       p_department: dept, p_kpi: kpi, p_value: value, p_unit: unit, p_drill: drill,
-      p_assignee: who ? Number(who) : null, p_due: due || null, p_priority: pri,
+      p_assignee: who || null, p_due: due || null, p_priority: pri,
     });
     if (error) return setMsg(error.message);
     setMsg("Assigned.");
-    setTimeout(() => { setOpen(false); setMsg(""); onDone && onDone(); }, 900);
+    setTimeout(() => { setOpen(false); setMsg(""); onDone && onDone(data); }, 900);
   };
   return (
     <>
@@ -12042,6 +12048,7 @@ export default function App() {
        (both components stay in this file until the menu consolidation deploys). */
     integrations: <SyncConnections session={session} />,
     package_360: <Package360 session={session} tag={viewArg} go={setView} />,
+    today: <TodayScreen entry={current} session={session} />,
     /* A credential vault is not a report. Routed through the report archetype this page
        inherited a search box, an export row and a date range defaulted to THIS MONTH, so a
        key set in July read as not set — on the one screen where that conclusion makes
