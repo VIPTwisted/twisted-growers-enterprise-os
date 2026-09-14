@@ -10495,7 +10495,7 @@ begin
         from public.alert_recipient r where r.active;
       insert into public.ai_bridge_jobs (question, context, status)
       values ('FIX PRODUCTION BUILD NOW (Bible §16.3): ' || site.source || ' ' || site.site || ' ' || coalesce(site.branch,'') || ' @ ' || left(coalesce(site.commit_ref,''),7) || ' failed: ' || coalesce(site.error_message, site.title, 'see log'),
-              jsonb_build_object('deploy_id', site.deploy_id, 'site', site.site, 'commit', site.commit_ref, 'source', site.source, 'rule', 'BP-16-3'), 'queued')
+              jsonb_build_object('deploy_id', site.deploy_id, 'site', site.site, 'commit', site.commit_ref, 'source', site.source, 'rule', 'BP-16-3'), 'pending')
       returning id into jid;
     end if;
     update public.deploy_state set finding_filed_at = now(), alerted_at = case when site.branch = 'main' then now() end, bridge_job_id = jid where deploy_id = site.deploy_id;
@@ -15795,7 +15795,7 @@ begin
     last_error := l.last_error; runs_24h := coalesce(l.runs_24h, 0); failed_24h := coalesce(l.failed_24h, 0);
     health := case when not r.enabled then 'off'
                    when cardinality(miss) > 0 then 'missing secret'
-                   when l.last_status = 'error' then 'failing'
+                   when l.last_status in ('error', 'failed', 'failure') then 'failing'
                    when r.cron_jobname is not null and l.last_started is null then 'never ran'
                    when r.cron_jobname is not null and l.last_started < now() - interval '2 days' then 'stale'
                    when l.last_status in ('ok','succeeded','partial') or l.last_status is null then 'ok'
@@ -15846,7 +15846,7 @@ declare s record; st public.sync_watch_state%rowtype; n_red int := 0; n_new int 
 begin
   for s in select * from public.f_sync_status() loop
     select * into st from public.sync_watch_state w where w.key = s.key;
-    if s.enabled and s.health in ('failing', 'stale', 'missing secret', 'never ran') then
+    if s.enabled and s.health in ('failing', 'stale', 'missing secret', 'never ran', 'partial') then
       n_red := n_red + 1;
       if st.key is null or st.cleared_at is not null then
         n_new := n_new + 1;
@@ -15869,7 +15869,7 @@ begin
         n_escalated := n_escalated + 1;
         insert into public.ai_bridge_jobs (question, context, status)
         values ('REPAIR SYNC NOW (Bible §16.4): ' || s.label || ' (' || s.key || ') is ' || s.health || ' — ' || coalesce(s.last_error, 'no error text') || '. The automatic re-run did not clear it.',
-                jsonb_build_object('sync_key', s.key, 'health', s.health, 'kind', s.kind, 'runner', s.runner, 'rule', 'BP-16-4'), 'queued')
+                jsonb_build_object('sync_key', s.key, 'health', s.health, 'kind', s.kind, 'runner', s.runner, 'rule', 'BP-16-4'), 'pending')
         returning id into jid;
         update public.sync_watch_state set bridge_job_id = jid, health = s.health, updated_at = now() where key = s.key;
       else
@@ -17826,30 +17826,6 @@ begin
         errcode = 'raise_exception';
     end if;
   end loop;
-end $function$
-;
-CREATE OR REPLACE FUNCTION public.tg_call_function(p_path text, p_body jsonb DEFAULT '{}'::jsonb)
- RETURNS bigint
- LANGUAGE plpgsql
- SECURITY DEFINER
- SET search_path TO 'public'
-AS $function$
-declare anon text; req bigint;
-begin
-  select value into anon from integration_secrets where name = 'SUPABASE_ANON_KEY';
-  if anon is null then
-    raise exception 'SUPABASE_ANON_KEY is not stored. Every scheduled call to an Edge '
-      'Function needs it: the gateway checks a bearer token before the function''s own '
-      'admin key is ever seen.';
-  end if;
-  select net.http_post(
-    url := 'https://fxetuqjryttnypgepsru.supabase.co/functions/v1/' || p_path,
-    headers := jsonb_build_object(
-      'x-admin-key', (select value from integration_secrets where name = 'TG_ADMIN_KEY'),
-      'Authorization', 'Bearer ' || anon,
-      'Content-Type', 'application/json'),
-    body := p_body) into req;
-  return req;
 end $function$
 ;
 CREATE OR REPLACE FUNCTION public.tg_call_function(p_path text, p_body jsonb DEFAULT '{}'::jsonb, p_timeout_ms integer DEFAULT 5000)
@@ -25421,16 +25397,6 @@ begin
     'note', 'Values restored and overrides withdrawn. Any metrc_corrections raised by the posting stay open - the divergence was real when it was seen, and unposting does not undo that.');
 end $function$
 ;
-CREATE OR REPLACE FUNCTION public.tg_verification_checks_sane()
- RETURNS TABLE(check_key text, problem text, severity text, detail text)
- LANGUAGE sql
- SECURITY DEFINER
- SET search_path TO 'public', 'pg_temp'
-AS $function$
-  select s.check_key, s.problem, s.severity, s.detail
-  from public.tg_verification_checks_sane(null::text) s
-$function$
-;
 CREATE OR REPLACE FUNCTION public.tg_verification_checks_sane(p_key_like text)
  RETURNS TABLE(check_key text, problem text, severity text, detail text)
  LANGUAGE plpgsql
@@ -25542,6 +25508,16 @@ begin
   return query select s.check_key, s.problem, s.severity, s.detail from _sane s
     order by case s.severity when 'critical' then 0 else 1 end, s.check_key;
 end $function$
+;
+CREATE OR REPLACE FUNCTION public.tg_verification_checks_sane()
+ RETURNS TABLE(check_key text, problem text, severity text, detail text)
+ LANGUAGE sql
+ SECURITY DEFINER
+ SET search_path TO 'public', 'pg_temp'
+AS $function$
+  select s.check_key, s.problem, s.severity, s.detail
+  from public.tg_verification_checks_sane(null::text) s
+$function$
 ;
 CREATE OR REPLACE FUNCTION public.tg_verification_checks_sane_selftest()
  RETURNS TABLE(fixture text, expected_problem text, caught boolean)

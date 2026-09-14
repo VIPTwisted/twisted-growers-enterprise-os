@@ -845,7 +845,9 @@ const migrationEntries = files.map((name) => ({
 // f_deploy_watch every 2 min, tracker deploy.watch_alive) and the baseline regenerated. Claude desk. Tamper seal.
 // Re-pinned 14 Sep 2026, 1118 -> 1122 files. Recorded the watchers (register watch:deploy + watch:sync, deploy watch
 // agent key, alert days_open, sync watch BP-16-4, alert e-mail allow-list) and regenerated the baseline. Claude desk. Tamper seal.
-const expectedMigrationTreeDigest = "3bc0c2c136ef83f2ebb2d4040dd6afb15160f19522719653012cb3e7158a360f";
+// Re-pinned 14 Sep 2026 -> 1124 files. Recorded: watchers queue jobs as 'pending', health maps failed → failing, and
+// tg_call_function back to ONE signature (my 13 Sep overload broke three cron jobs; found by the sync watch). Claude desk.
+const expectedMigrationTreeDigest = "9ab80c34cd78a114fb76f1011091242cca47f6547913565fe134d0a8b9366a8d";
 const actualMigrationTreeDigest = migrationTreeDigest(migrationEntries);
 if (actualMigrationTreeDigest !== expectedMigrationTreeDigest) {
   console.error(`money-grain: FAIL — migration tree differs from the independently reviewed ${files.length}-file manifest (${actualMigrationTreeDigest}).`);
