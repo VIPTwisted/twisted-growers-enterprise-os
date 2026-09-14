@@ -3382,8 +3382,11 @@ function ReportScreen({ entry, actions, session }) {
    its kind by data. A page with no archetype, or one not yet designed, renders
    the generic report screen exactly as before. */
 const IssueQueueScreen = lazy(() => import("./issue-queue.jsx"));
+const SetupFormScreen = lazy(() => import("./setup-form.jsx"));
 function ModuleScreen({ entry, actions, session }) {
   if (entry?.archetype === "issue_queue" && entry?.page_kind !== "custom") return <IssueQueueScreen entry={entry} actions={actions} session={session} />;
+  /* BP-12b-3: set-up data edits in place with a reason, impact before save, history in the ledger. */
+  if (entry?.archetype === "data_browser" && entry?.page_kind !== "custom" && entry?.table_ref) return <SetupFormScreen entry={entry} actions={actions} session={session} />;
   return <ReportScreen entry={entry} actions={actions} session={session} />;
 }
 

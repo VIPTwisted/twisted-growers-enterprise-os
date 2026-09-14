@@ -866,7 +866,9 @@ const migrationEntries = files.map((name) => ({
 // Re-pinned 14 Sep 2026 -> 1147 files. Recorded today_decision_stream_v1 (BP-8 Today: decisions table, f_today_feed / f_decide /
 // f_reverse_decision / f_today_push, the Command Center child, tg_task_from_dashboard fixed — it never worked) and
 // today_family_names_and_numbers_collapse; baseline regenerated (decisions table + policy). Claude desk.
-const expectedMigrationTreeDigest = "1eb2cfe1f5e9639088a674439ac69985e8035c0e5cc13b4fdc4a4be9e94218a7";
+// Re-pinned 14 Sep 2026 -> 1148 files. Recorded setup_form_archetype_bp_12b_3 (f_setup_shape / impact / save / insert / history —
+// the data_browser archetype edits in place with a reason, as the caller, history in audit_events). Claude desk.
+const expectedMigrationTreeDigest = "e4a4770cfa6a644cf8a4a9906eace38dc1396aa194e5234707d2eae7baa6ee90";
 const actualMigrationTreeDigest = migrationTreeDigest(migrationEntries);
 if (actualMigrationTreeDigest !== expectedMigrationTreeDigest) {
   console.error(`money-grain: FAIL — migration tree differs from the independently reviewed ${files.length}-file manifest (${actualMigrationTreeDigest}).`);
