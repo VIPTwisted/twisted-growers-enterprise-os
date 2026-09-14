@@ -18,61 +18,8 @@ const PROMO_COLS = [
   { key: 'goal', label: 'Goal %', value: p => (p.goal > 0 ? `${Math.round(p.revenue / p.goal * 100)}%` : '—'), align: 'right', sortKey: p => (p.goal > 0 ? p.revenue / p.goal : 0) },
 ]
 
-function seed(a,b){ return ((a*31+b)*17+a*b)%100 }
-const isHR = r => ['ceo','hr','manager','coo','admin','owner'].some(x=>(r||'').toLowerCase().includes(x))
-const LOCS = getLocationNames()
 const CATEGORIES = ['Seasonal','Product Launch','Clearance','Bundle Deal','Holiday','Flash Sale','Loyalty','Cross-Sell']
-const STATUSES = ['active','upcoming','expired','draft','paused']
-
-const PROMO_NAMES = [
-  'Summer Pleasure Pack',
-  'Couples Weekend Bundle',
-  'New Arrivals 20% Off',
-  'Wellness Wednesday',
-  'Twisted Growers Member Flash Sale',
-  'Holiday Romance Kit',
-  'Clearance Blowout',
-  'Buy 2 Get 1 Lubes',
-  'Fall Fantasy Collection',
-  'Loyalty Reward Week',
-  'First Visit Discount',
-  'Spring Awakening Sale',
-]
-
-function buildMockPromos() {
-  const now = new Date()
-  return PROMO_NAMES.map((name, i) => {
-    const start = new Date(now); start.setDate(start.getDate() - seed(i,0)%20)
-    const end = new Date(now); end.setDate(end.getDate() + seed(i,1)%30 - 5)
-    const expired = end < now
-    const upcoming = start > now
-    const status = i===6?'draft':i===7?'paused':expired?'expired':upcoming?'upcoming':'active'
-    const discount = [10,15,20,25,30,40,50][(seed(i,2))%7]
-    const revenue = 3000 + seed(i,3)*400
-    const transactions = 20 + seed(i,4)*8
-    const avgTicket = Math.round(revenue/transactions)
-    const goal = 5000 + seed(i,5)*500
-    return {
-      id: `promo-${i+1}`,
-      name,
-      category: CATEGORIES[i%CATEGORIES.length],
-      status,
-      discount_pct: discount,
-      start_date: start.toISOString().slice(0,10),
-      end_date: end.toISOString().slice(0,10),
-      locations: LOCS.filter((_,li)=>seed(i,li+6)%3!==0),
-      revenue,
-      transactions,
-      avg_ticket: avgTicket,
-      goal,
-      redemptions: 10 + seed(i,7)*15,
-      description: `Special promotion: ${name}. ${discount}% off eligible products.`,
-      products: ['All Categories','Intimate Accessories','Lubricants & Massage','Apparel','Wellness'][seed(i,8)%5],
-      promo_code: name.toUpperCase().replace(/[^A-Z]/g,'').slice(0,6) + discount,
-      created_by: 'HR Manager',
-    }
-  })
-}
+// Promotions are rows (hr.sales_promotions via get_promotions). An empty list is empty — the clone drew eight typed-in promotions with seeded revenue when the read was empty.
 
 function KTile({label,value,sub,color,alert,onClick}) {
   return (
@@ -102,6 +49,7 @@ export default function Promotions() {
   const canManage = isHR(role)
 
   const [promos, setPromos] = useState([])
+  const [loadError, setLoadError] = useState('')
   const [loading, setLoading] = useState(true)
   const [tab, setTab] = useState('active')
   const [selected, setSelected] = useState(null)
@@ -117,10 +65,10 @@ export default function Promotions() {
   useEffect(()=>{
     const load = async () => {
       try {
-        const {data} = await sb.rpc('get_promotions',{p_node_ids:locationIds})
-        if (data?.length){ setPromos(data); setLoading(false); return }
-      } catch {}
-      setPromos(buildMockPromos())
+        const {data, error} = await sb.rpc('get_promotions',{p_node_ids:locationIds})
+        if (error) setLoadError(error.message)
+        setPromos(Array.isArray(data) ? data : [])
+      } catch (e) { setLoadError(e?.message || 'read failed'); setPromos([]) }
       setLoading(false)
     }
     load()
@@ -205,7 +153,8 @@ export default function Promotions() {
                 const locRev = locPromos.reduce((s,p)=>s+p.revenue,0)
                 const locTx = locPromos.reduce((s,p)=>s+p.transactions,0)
                 const locAvg = locTx>0?Math.round(locRev/locTx):0
-                const goalPct = 60+seed(i,10)*30
+                const locGoal = locPromos.reduce((s,p)=>s+(p.goal||0),0)
+                const goalPct = locGoal>0?Math.round(locRev/locGoal*100):null
                 return (
                   <tr key={loc} style={{borderBottom:'1px solid var(--t-line)'}}>
                     <td style={{padding:'8px 12px',fontWeight:700,color:'var(--t-text)'}}>{loc}</td>
@@ -213,7 +162,7 @@ export default function Promotions() {
                     <td style={{padding:'8px 12px',color:'var(--t-success)',fontWeight:700}}>${locRev.toLocaleString()}</td>
                     <td style={{padding:'8px 12px',color:'var(--t-text)'}}>{locTx}</td>
                     <td style={{padding:'8px 12px',color:'var(--t-text)'}}>${locAvg}</td>
-                    <td style={{padding:'8px 12px'}}><span style={{fontWeight:700,color:goalPct>=80?'var(--t-success)':goalPct>=60?'var(--t-warn)':'var(--t-danger)'}}>{goalPct}%</span></td>
+                    <td style={{padding:'8px 12px'}}><span style={{fontWeight:700,color:goalPct==null?'var(--t-text-faint)':goalPct>=80?'var(--t-success)':goalPct>=60?'var(--t-warn)':'var(--t-danger)'}}>{goalPct==null?'—':`${goalPct}%`}</span></td>
                   </tr>
                 )
               })}
@@ -363,21 +312,8 @@ export default function Promotions() {
               </div>
             )}
 
-            {/* MINI PERFORMANCE CHART */}
-            <div style={{marginTop:16}}>
-              <div style={{fontSize:10,fontWeight:700,color:'var(--t-text-muted)',textTransform:'uppercase',marginBottom:8}}>Daily Revenue (Last 7 Days)</div>
-              <div style={{display:'flex',alignItems:'flex-end',gap:4,height:60}}>
-                {Array.from({length:7},(_,d)=>{
-                  const val = 200+seed(selected.id.length,d)*80
-                  const maxVal = 800
-                  return (
-                    <div key={d} style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',gap:2}}>
-                      <div style={{background:'var(--t-accent)',width:'100%',height:`${(val/maxVal)*50}px`,opacity:.8}}/>
-                      <div style={{fontSize:8,color:'var(--t-text-faint)',fontFamily:'monospace'}}>{['M','T','W','T','F','S','S'][d]}</div>
-                    </div>
-                  )
-                })}
-              </div>
+            {/* Daily revenue by promotion is not a series the promotion row carries — nothing is drawn from a seed here. */}
+            <div style={{marginTop:16,fontSize:11,color:'var(--t-text-faint)'}}>Daily revenue per promotion is not recorded on the platform; the totals above are the row's figures.
             </div>
           </div>
         )}
