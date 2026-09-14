@@ -3383,7 +3383,10 @@ function ReportScreen({ entry, actions, session }) {
    the generic report screen exactly as before. */
 const IssueQueueScreen = lazy(() => import("./issue-queue.jsx"));
 const SetupFormScreen = lazy(() => import("./setup-form.jsx"));
+const ScheduleScreen = lazy(() => import("./schedule.jsx"));
 function ModuleScreen({ entry, actions, session }) {
+  /* BP-12b-7: calendar + list; the harvest calendar moves pulls under the rules (rows). */
+  if (entry?.archetype === "schedule" && entry?.page_kind !== "custom" && entry?.table_ref) return <ScheduleScreen entry={entry} actions={actions} session={session} />;
   if (entry?.archetype === "issue_queue" && entry?.page_kind !== "custom") return <IssueQueueScreen entry={entry} actions={actions} session={session} />;
   /* BP-12b-3: set-up data edits in place with a reason, impact before save, history in the ledger. */
   if (entry?.archetype === "data_browser" && entry?.page_kind !== "custom" && entry?.table_ref) return <SetupFormScreen entry={entry} actions={actions} session={session} />;
