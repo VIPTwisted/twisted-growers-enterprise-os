@@ -1,5 +1,9 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useAuth } from '../lib/auth.jsx'
+import { ensureSession } from '../lib/supabase'
+
+// The floor path (Employee ID + PIN) runs as an anonymous auth session. That switch lives in
+// the Supabase dashboard (owner). Until it is on, say so instead of "Invalid ID or PIN".
 
 export default function Login() {
   const { login, ssoTried } = useAuth()
@@ -8,6 +12,13 @@ export default function Login() {
   const [err, setErr]         = useState('')
   const [busy, setBusy]       = useState(false)
   const [showPin, setShowPin] = useState(false)
+  const [kiosk, setKiosk]     = useState(null)   // null = unknown, true = anonymous session available, false = refused
+  useEffect(() => {
+    if (!ssoTried) return
+    let live = true
+    ensureSession().then(r => { if (live) setKiosk(r?.session ? true : false) })
+    return () => { live = false }
+  }, [ssoTried])
 
   async function submit(e) {
     e.preventDefault()
@@ -16,9 +27,9 @@ export default function Login() {
     setBusy(true)
     try {
       const res = await login(loginId.trim(), pin)
-      if (!res.ok) { setErr('Invalid ID or PIN'); setBusy(false) }
+      if (!res.ok) { setErr(kiosk === false ? 'Kiosk sign-in is not enabled on this project yet' : 'Invalid ID or PIN'); setBusy(false) }
     } catch (e2) {
-      setErr('Login error: ' + (e2.message || e2)); setBusy(false)
+      setErr((kiosk === false ? 'Kiosk sign-in is not enabled on this project yet — ' : 'Login error: ') + (e2.message || e2)); setBusy(false)
     }
   }
 
@@ -107,9 +118,15 @@ export default function Login() {
           TWISTED GROWERS · LAKEVILLE, MA
         </div>
 
-        <div style={{ minHeight: 20, marginBottom: 14, fontSize: 13, color: '#00e5ff', fontWeight: 600 }}>
+        <div style={{ minHeight: 20, marginBottom: 14, fontSize: 13, color: err ? '#ffb347' : '#00e5ff', fontWeight: 600 }}>
           {err || (!ssoTried ? 'Checking for your Twisted Growers OS sign-in…' : '')}
         </div>
+        {ssoTried && !err && (
+          <div style={{ fontSize: 12, color: 'rgba(120,170,230,.75)', marginBottom: 16, lineHeight: 1.6 }}>
+            Signed in to the Twisted Growers OS? <a href="/" style={{ color: '#00e5ff' }}>Open the OS</a> and come back — the same sign-in works here.
+            {kiosk === false && <div style={{ marginTop: 6, color: '#ffb347' }}>Employee ID + PIN (kiosk) needs anonymous sign-ins switched on in the Supabase dashboard (Auth → Providers) — an owner setting, not yet on.</div>}
+          </div>
+        )}
 
         <div style={{ position: 'relative', marginBottom: 12 }}>
           <input

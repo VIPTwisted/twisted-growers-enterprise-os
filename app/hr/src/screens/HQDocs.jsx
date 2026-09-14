@@ -12,12 +12,15 @@ let scriptsLoading = null
 function loadHqScripts() {
   if (window.VIP_DOC_VAULT && window.VIP_ONBOARDING) return Promise.resolve()
   if (scriptsLoading) return scriptsLoading
+  // Served under the app's base (/hr/ on the OS origin) — a root-absolute path would hit the
+  // OS catch-all and load the OS index.html as a script.
+  const base = (import.meta.env.BASE_URL || '/').replace(/\/$/, '')
   const files = [
-    '/hqdocs/data-io.js',
-    '/hqdocs/filter-bar.js',
-    '/hqdocs/signature-pad.js',
-    '/hqdocs/doc-vault.js',
-    '/hqdocs/onboarding-admin.js',
+    `${base}/hqdocs/data-io.js`,
+    `${base}/hqdocs/filter-bar.js`,
+    `${base}/hqdocs/signature-pad.js`,
+    `${base}/hqdocs/doc-vault.js`,
+    `${base}/hqdocs/onboarding-admin.js`,
   ]
   scriptsLoading = files.reduce((p, src) => p.then(() => new Promise((res, rej) => {
     if (document.querySelector(`script[data-hq="${src}"]`)) return res()

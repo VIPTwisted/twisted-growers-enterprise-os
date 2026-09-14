@@ -48,7 +48,7 @@ export default class ErrorBoundary extends Component {
           }}>
             ↺ Retry
           </button>
-          <button onClick={() => { window.location.href = '/' }} style={{
+          <button onClick={() => { window.location.href = import.meta.env.BASE_URL || '/' }} style={{
             fontSize: 12, fontWeight: 600, padding: '9px 18px', background: 'var(--t-surface)',
             border: '1px solid var(--t-line)', color: 'var(--t-text-muted)', borderRadius: 0, cursor: 'pointer',
           }}>
