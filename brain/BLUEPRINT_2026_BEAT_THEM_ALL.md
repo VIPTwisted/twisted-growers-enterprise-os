@@ -1,296 +1,421 @@
 # TWISTED GROWERS ENTERPRISE OS — BLUEPRINT 2026: BEAT THEM ALL
+## The total, detailed build plan — every ruling, every item, every KPI, every page decision, every hour
 
-**Ruling:** owner, 13 Sep 2026 — *"I want the best of the best for 2026 … NetSuite, beat it … the best cannabis platforms, beat them too."* Confirmed 14 Sep 2026 01:30 UTC: *"I confirmed — now blueprint beating them all."*
-**Author:** Claude desk (Agent I, Database COO). **Status:** governing document. Every phase below is a row in the deployment tracker, section **19 Blueprint 2026**, and is not "done" until it is on `main`, published by Netlify, and measured live (hard rule, 13 Sep 2026).
+**Rulings this document encodes (owner, 13–14 Sep 2026):**
+- *"I want the best of the best for 2026 … NetSuite, beat it … the best cannabis platforms, beat them too. I confirmed — now blueprint beating them all."*
+- *"Use what we have and our design so we don't lose days. No changes to theme colours, Facility Map, Top G bot page, Budz, most dashboards. Side menu and top menu stay. Design this page by page. Build fast."*
+- *"So many pages — I want major design and user functionality majorly improved. I still need KPIs and design upgrades — not every single page, I will go through each and decide. Plan remains the same for cloning ClickUp too. Do not omit any of my details for this build."*
+- *"Delivery was the 15th; Friday 18 Sep is the latest. Delivery is to the customer for onboarding; go-live is Wednesday 23 Sep in their facility. We work 7 am to midnight. I will use Claude, Grok and GPT. Estimated time for each — I want to push to the maximum."*
+
+**Author:** Claude desk (Agent I, Database COO). **Status:** governing document, v2 (total). **Governance:** every item below is a row in the deployment tracker (sections 1–19); an item is *done* only when it is on `main`, published by Netlify, and measured live (hard rule 13 Sep 2026). **Hours** are agent-hours at the 7 am–midnight cadence (≈15 productive hours per agent-day); three agents in parallel where lanes allow.
 
 ---
 
-## 0. The bar
+## 0. The bar — who we beat and how
 
 | Rival | What it owns | What we take from it | Where we beat it |
 |---|---|---|---|
-| **NetSuite** (+ cannabis partner suites) | The money spine: every operational event posts; saved searches; role centres; self-customisation; system notes | Posting engine, views-for-everyone, role home, custom fields/rules as data, field-level audit | Posting at **tag grain**; provenance and disagreements, not just notes; Metrc/COA/rooms native; no seats; no consultants |
-| **365 Cannabis** (Dynamics 365 BC) | Real GL, closed books, multi-entity | One book per licence, consolidated | Cannabis objects first-class instead of bolted on; 2026 interface |
+| **NetSuite** (+ cannabis partner suites) | Money spine (every event posts), saved searches, role centres, self-customisation, system notes | Posting engine, views-for-everyone, role home, rules as data, field-level audit | Posting at **tag grain**; provenance and disagreements, not just notes; Metrc/COA/rooms native; no seats, no consultants |
+| **365 Cannabis** (Dynamics 365 BC) | Real GL, closed books, multi-entity | One book per licence, consolidated | Cannabis objects first-class; 2026 interface |
 | **Canix** | Floor: RFID/barcode scanning, Metrc sync, COGS by batch | Scanner-first phone | Reasoning over the sync (Compliance agent), Tag 360, COGS by tag |
-| **Flourish** | Seed-to-sale ERP breadth, manufacturing BOM/work orders, multi-facility | Work orders, BOM, yield | True cost per unit at run close, posting live |
+| **Flourish** | Seed-to-sale breadth, BOM/work orders, multi-facility | Work orders, BOM, yield | True cost per unit at run close, posting live |
 | **Trym** | Crew tasks, labour by plant/room, sensors, harvest analytics, mobile | Crew day | Rules-driven drafter + training matrix + sensors in the twin; not cultivation-only |
-| **Distru** | Orders, manifests, e-sign, invoicing/AR, routes, QuickBooks | Sales ops | Agent-built orders and manifests, COA attached automatically, Apex + LeafLink, portal |
-| **AROYA** | Crop steering from sensors | Sensor ingest, steering charts | Simulation on **your** yield history: harvest timing, room allocation, price |
-| **Simplifya** | Compliance program (SOPs, audits, licences) | Licences, SOPs, audits as objects | Tied to real events: expiry blocks a schedule, SOP rides the task, audit pack from the ledger |
-| **Confident Cannabis** | COA data and lab ordering | COA feed | COA parsed per tag → sellability state, strain/product library |
-| **Würk** | Cannabis HR/payroll | HR platform (cloned) | Same database: labour cost flows into cost per pound |
-| **LeafLink / Apex Trading** | Wholesale marketplace, buyer network, payments | Order intake | Marketplaces feed the OS; the OS is the record |
-| **Headset / BDSA** | Retail sell-through, benchmarks | Benchmarks as an input | Your own sell-through + price simulation |
-| **Dutchie / BioTrack / MJ Freeway** | Retail POS; old-guard traceability | — | Dispensary-ready when the retail licence lands (portal + POS door) |
+| **Distru** | Orders, manifests, e-sign, invoicing/AR, routes, QuickBooks | Sales ops | Agent-built orders/manifests, COA attached automatically, Apex + LeafLink, portal |
+| **AROYA** | Crop steering from sensors | Sensor ingest, steering charts | Simulation on **your** yield history |
+| **Simplifya** | Compliance program (SOPs, audits, licences) | Licences, SOPs, audits as objects | Tied to real events; audit pack from the ledger |
+| **Confident Cannabis** | COA data, lab ordering | COA feed | COA parsed per tag → sellability state; strain/product library |
+| **Würk** | Cannabis HR/payroll | HR platform (cloned) | Same database: labour cost → cost per pound |
+| **LeafLink / Apex Trading** | Wholesale marketplace | Order intake | Marketplaces feed the OS; the OS is the record |
+| **Headset / BDSA** | Retail sell-through, benchmarks | Benchmarks as an input | Own sell-through + price simulation |
+| **Dutchie / Treez / BioTrack / MJ Freeway** | Retail POS; old-guard traceability | — | Dispensary-ready when the retail licence lands |
+| **ClickUp** (the work layer) | Tasks, views, docs, automations, forms, goals, dashboards, time | The full capability class, re-engineered natively (CODE-023) | Tasks attach to regulated objects with gates; automations enforce compliance; time costs batches at real rates |
+| **Reference standard (owner's DDC / VIP CEO platform)** | Certainty chips, period state, answer-first, detection anatomy, impact-before-save | The 11 primitives (100× spec) | Every primitive at tag granularity, carrying licence, reconciled to Metrc |
 
-**The tell:** a cultivator-manufacturer of TG's size runs six to ten of these plus NetSuite or QuickBooks, stitched with exports. Every seam leaks money or compliance. **Nobody owns the whole company. Nobody has agents that do the work. Nobody audits its own numbers.** That is the gap this blueprint closes.
+**The tell:** a cultivator-manufacturer of TG's size runs six to ten of these plus NetSuite/QuickBooks, stitched with exports. Nobody owns the whole company; nobody has agents that do the work; nobody audits its own numbers.
 
 ---
 
 ## 1. What TG already holds (measured 14 Sep 2026 01:30 UTC)
 
-| Asset | Measured | Blueprint role |
+| Asset | Measured | Role in this build |
 |---|---|---|
-| Seed-to-sale ledger `tag_event` | 64,856 events | Layer 0 truth; the posting engine's input |
-| Metrc mirror (read-only, legal record) | 20,506 distinct package tags · 59,615 plant rows · 389 harvests · 4,097 transfers | Ontology sources |
+| Seed-to-sale ledger `tag_event` | 64,856 events | Truth layer; posting engine input |
+| Metrc mirror (legal record, read-only) | 20,506 package tags · 59,615 plant rows · 389 harvests · 4,097 transfers | Object sources |
 | COA parser (Agent P) | 983 COAs parsed | COA object → sellability |
-| Apex Trading (sales source of record; writes authorised 12 Sep under human review) | live sync, 46 entities | Sales desk agent |
-| Facility twin from the blueprint (A1.1) | 30 rooms generated, never typed | Map door; simulation model |
-| Scheduling foundation (owner rulings 12 Sep) | policy rows, shift templates, zone staffing, training matrix, `f_draft_schedule` | Crew day; People agent |
-| HR platform (vip-hr-hub clone, schema `hr`) | 251 tables, `/hr`, PR #238 pending | People objects; labour cost |
-| Agents | 12 desks + 3 reviewers (Verifier, Watchdog, Challenger) | Layer 2 |
-| Findings loop | 3,680 agent findings; `finding_state`, `issue_decisions` | Decision stream |
-| Sync & Connections (13 Sep) | 34 syncs, 79 active cron jobs, both secret stores, editable | Periodic tasks; Sync object |
-| Metric registry / provenance | `metric_registry`, `figure_of_record`, `metric_provenance`, `money_provenance` | Governed views |
-| Deployment tracker | 18 sections, ~120 checks, hourly auto-runs | Governance of this blueprint |
+| Apex Trading (sales SoR; writes authorised 12 Sep under review) | 46 entities synced | Sales desk |
+| Facility twin from blueprint A1.1 | 30 rooms generated | Map door; simulation |
+| Scheduling foundation (rulings 12 Sep) | policy rows, shift templates, zone staffing, training matrix, `f_draft_schedule`, `f_schedule_candidates` | Crew day; People agent |
+| HR platform (vip-hr-hub clone, schema `hr`) | 251 tables; PR #238 | People objects; labour cost |
+| Work layer tables (ClickUp clone, CODE-023) | `tasks`, `task_activity`, `task_attachment`, `task_checklist_item`, `task_comment`, `task_dependencies`, `task_list`, `task_standards`, `task_time_log`, `spaces`, `saved_views`, `forms`, `form_responses`, `whiteboards`, `workspace_view`, `time_entries`; `tg_task_from_dashboard` RPC; `AssignTask` primitive | §12d |
+| Metric spine | `metric_registry` 43 metrics across 11 departments; `kpi_targets` 20 rows; `figure_of_record`, `metric_provenance`, `money_provenance` | §12c |
+| Agents | 12 desks + Verifier, Watchdog, Challenger; 3,680 findings; `finding_state`, `issue_decisions` | Layer 2/3 |
+| Sync & Connections (13 Sep) | 34 syncs, 79 active cron jobs, both secret stores, editable | Periodic tasks |
+| Deployment tracker | 18 sections, ~120 checks, hourly auto-runs | Governance |
 | Schema | 496 tables · 557 views · 30 matviews · 1,374 RLS policies · 27 edge functions | — |
-| Budz / TG Brain / bots extension | tokenless AI on the owner's subscription; `ANTHROPIC_API_KEY` optional fallback | Ask door; agents' reasoning (Grok's surface for settings) |
-
-We are not starting. We are assembling.
+| Budz / TG Brain / bots extension | tokenless AI on the owner's subscription; API key optional fallback (Sync page) | Ask door; agent reasoning |
+| Navigation | 694 enabled pages; 14 cockpits; 14 archetypes tagged | §12b |
 
 ---
 
-## 2. Non-negotiables (owner rulings, encoded)
+## 2. Non-negotiables — the complete register of owner rulings this build obeys
 
-1. **Metrc is the legal record and stays read-only.** The OS mirrors it; it never writes to it.
-2. **Apex writes happen only under human review** with the 12 Sep guardrails.
-3. **Every number is a registered measure with provenance and an as-of date.** No page defines its own figure. Two people can never get two numbers.
-4. **Nothing silent.** A read that fails says so; a sync that dies is a finding; an agent that stops says why.
-5. **No fake data, no placeholders.** Empty is shown as empty with the reason.
-6. **RLS on every table; never grant to `anon`.**
-7. **No hardwired recipients, thresholds or rules** — rows the owner edits.
-8. **One definition per primitive** (DDC discipline); share primitives, never layouts.
-9. **AI is tokenless by default**; keys are an optional fallback stored on the Sync page. Bots/AI settings remain Grok's surface — this blueprint coordinates, it does not take them.
-10. **Certified deploys only.** Fixed = on main + Netlify published + measured live. Every phase has a live acceptance test named below.
-11. **Metrc overrides spreadsheets**; the sheet's figure is kept as a neon-yellow note; weekly review.
-12. **Track third party separately from ours** on every metric.
+**Dashboards (owner, 5 Aug 2026 — hard rules 1–10):** every category has a dashboard · every dashboard is actionable to ClickUp standard (assign from any tile, named person, due date, priority, number captured as it stood) · extensive reporting and KPIs with drill from any tile and the full report set on the page · everything replicates up to Control Tower and the Chief Executive Dashboard · users personalise the two master dashboards (toggle, drag, saved per user) · nothing omitted, sacrificed or shortened when consolidating · never assume how the business works — owner-set field defaulting to "not recorded" · never a benchmark without a real source · **theme is locked** (neon green; no greys on icons, no pastels, bright reds) · **dashboard standard set in stone**: live KPI tiles with target on the tile, trend sparkline from real snapshots, change since yesterday in words, forensic drill on every tile, assign from the tile, entity cards, live activity feed, collapsible sections with counts remembered per user, action bar, honest empty states. Reference: the VIP CEO platform — match or beat.
 
-### 2b. Frozen surfaces and the speed rule (owner, 14 Sep 2026)
+**Every tile must prove itself (6 Aug 2026):** a tile is a claim; it opens to every item behind it (tag, product, cultivar, stream, source harvest, cut date, drying room, parents, batch, where/when/how long, quantity in its own UoM, testing dates and days at lab, test status plainly, THC/TAC/terpenes or why absent, COA link or why none, manifest or why none, origin, rate and value, traceability sentence); totals reconcile to items; absence explained; never invent a number. `v_stock_proof`.
 
-*"Use what we have and our design so we don't lose days … no changes to theme colours, Facility Map, Top G bot page, Budz, most dashboards … side menu and top menu stay … design this page by page … build this fast."*
+**The lettered hard rules (CLAUDE.md A–L):** A data honesty · B weights, units and conversions (a count is never a mass) · C traceability and proof · D Metrc (legal record, read-only mirror) · E database safety (RLS on every table, never grant to anon, no `drop view … cascade`) · F front-end safety (nothing silent, error boundaries) · G configuration (nothing hardwired) · H issues and accountability (every discrepancy named, owned, closeable, re-tested) · I brand and voice · J data intake and guards · K checks about checks · L CCC compliance and real seed-to-sale.
 
-- **Untouchable:** theme and colours (styles.css locked), Facility Map, Top G / Bots desk, Budz, TG Brain, the side rail and the top bar (Finance / Tax / HR / Reports), and the department dashboards unless the owner names one.
-- **Allowed on menus:** add a child entry under an existing cockpit (as Budz chat, TG Brain, My dashboard, Chief Executive were added 13 Sep). Nothing renamed, moved or removed.
-- **New work = new pages, or no page at all.** Agents, the posting engine, the object layer and the decision feed are database and functions first; where a screen is needed it is a *new* page built from the primitives already in the OS (dashkit tiles and wells, `.panel`, `.pill`, `.sbtotals`, `.sbchip`, the report table, the Sync page's expand-in-place row) — never a new primitive, never a new colour.
-- **Page by page, owner in the loop:** each page is agreed as a one-screen wire made from existing components before it is built, then built, driven in the browser, and certified. One page at a time, in the order the owner sets.
-- **§7 (navigation) is therefore reduced** to what fits inside the menus that stay — see the revised §7.
+**Rulings from the build (all still in force):**
+- Identity is the tag; names resolve Metrc → COA → manifest (D4). A blend has no single strain.
+- A close certifies tags, never weight — capture weight at the close.
+- A takedown spans 1–2 days — normal, not an artefact.
+- R&D tests do not set a compliance lab state.
+- Track third party separately from ours on every metric (split on destination licence).
+- Metrc overrides spreadsheets; the sheet's figure kept as a neon-yellow note; logged; weekly review.
+- No hardwired recipients, thresholds or rules — rows the owner edits.
+- Apex is the sales source of record; **Apex writes are authorised under human review** with the 12 Sep guardrails; Metrc stays read-only.
+- No credential rotation before a live test.
+- Every item tested or sold carries its COA **and** its manifest.
+- Ownership methodology (7 Aug) applies on any doubt; ownership figures suspended until certified.
+- Frozen surfaces (11 Aug): menu entries may be renamed/consolidated/added/removed; surfaces frozen.
+- Bots and AI are not Claude's lane (Top G, Budz, Brain, AI settings = Grok).
+- AI is tokenless by default; keys optional on the Sync page; HR AI uses the same gateway.
+- HR platform = vip-hr-hub cloned in full, retail kept, zero VIP data, schema `hr`, never anon, Netlify builds it.
+- Scheduling: rooms from the blueprint; floater = trained/in-training in 2+ departments; sign-off CEO/CFO/HR; every rule a `scheduling_policy` row; drafter places only through `f_schedule_candidates`.
+- Never claim fixed before a certified deploy; drive the page before shipping it.
+- Code meets a senior engineering bar; share primitives, never layouts; one definition per primitive (DDC discipline); MIT/Google/Microsoft standard or beat it — name the gate and the number.
+- Parse the manual before guessing; always check, verify, confirm (derive a second way, then challenge).
+- ClickUp is a clone inside the OS (Workspace), not one of our syncs.
+
+### 2b. Frozen surfaces and the speed rule (14 Sep 2026)
+- **Untouchable:** theme and colours (`styles.css` locked; `patches.css` only), Facility Map, Top G / Bots desk, Budz, TG Brain, side rail, top bar (Finance / Tax / HR / Reports), department dashboards unless the owner names one.
+- **Menus:** child entries may be added under a cockpit (Budz chat, TG Brain, My dashboard, Chief Executive were added 13 Sep). Nothing renamed, moved or removed.
+- **New work = database/agents first, or new pages from existing primitives** (dashkit tiles/wells, `.panel`, `.pill`, `.sbtotals`, `.sbchip`, report table, expand-in-place row). No new primitive, no new colour.
+- **Page by page:** the owner goes through the page-decision register (§12b) and decides; each decided page is built, driven in the browser, certified, then rolled to its archetype by data.
 
 ---
 
 ## 3. Architecture — six layers and the outside
 
 ```
-┌─ 6 · OUTSIDE ──────── dispensary portal · supplier portal · regulator audit pack · employee phone ─┐
-│ 5 · SIMULATION ────── the twin as a model: harvest timing · room allocation · price · labour · cash │
-│ 4 · INTERFACE ─────── TODAY (decisions) · MAP (rooms→tags) · ASK (question→view) · Object 360    │
-│ 3 · DECISION STREAM ─ ranked approvals / decisions / exceptions with $ impact, one tap, push     │
-│ 2 · AGENTS ────────── Compliance · Harvest&Rooms · Sales desk · Cash · People · Watchdog/V/X     │
-│ 1 · ONTOLOGY ──────── ~30 objects with state, timeline, money, documents, ACTIONS                │
-│ 0 · TRUTH ─────────── tag_event ledger · registered measures · provenance · as-of · Metrc mirror │
-└──────────────────────────────────────────────────────────────────────────────────────────────────┘
+6 · OUTSIDE ─────── dispensary portal · supplier portal · regulator audit pack · employee phone
+5 · SIMULATION ──── the twin as a model: harvest timing · room allocation · price · labour · cash
+4 · INTERFACE ───── TODAY (decisions) · MAP (rooms→tags) · ASK (question→view) · Object 360 · Work layer
+3 · DECISIONS ───── ranked approvals / decisions / exceptions with $ impact, one tap, push
+2 · AGENTS ──────── Compliance · Harvest&Rooms · Sales desk · Cash · People · Watchdog/Verifier/Challenger
+1 · ONTOLOGY ────── ~30 objects with state, timeline, money, documents, ACTIONS
+0 · TRUTH ───────── tag_event · registered measures · provenance · as-of · Metrc mirror · certainty chips
 ```
 
-| Layer | Exists | Build |
-|---|---|---|
-| 0 Truth | ledger, mirror, registry, provenance, PIT as-of | as-of on every list; posting engine (§6) |
-| 1 Ontology | tables and views for every object; no object layer | `object_registry` + one 360 view + one action set per object (§4) |
-| 2 Agents | 12 desks, 3 reviewers, findings | mandates as data; five process agents (§5) |
-| 3 Decision stream | findings, finding_state, issue_decisions | `decision` object, ranked feed, push, one-tap (§8) |
-| 4 Interface | facility twin, Spotlight, Budz/Brain, cockpits | Today, Ask→view, Tag 360, scanner phone (§7, §9) |
-| 5 Simulation | yield history, cycle data, cost per pound | scenario engine on the twin (§10) |
-| 6 Outside | `/hr` proxy, Apex | portals, audit pack (§11) |
+| Layer | Exists | Build | Hours |
+|---|---|---|---|
+| 0 Truth | ledger, mirror, registry, provenance, PIT as-of | as-of on every list (2 h primitive); certainty chip + propagation on every tile (100× #1, 12 h); posting engine (§6) | 14 + §6 |
+| 1 Ontology | tables/views for every object | `object_registry` (3 h) + one `f_<object>_360` per object (2–6 h each; Package done 14 Sep) | 3 + ~90 |
+| 2 Agents | 12 desks, 3 reviewers | `agent_mandate` (3 h); five process agents (§5) | 3 + §5 |
+| 3 Decisions | findings, finding_state, issue_decisions | `decision` object (4 h), Today feed (10 h), push (6 h) | 20 |
+| 4 Interface | twin, Spotlight, Budz/Brain, cockpits, AssignTask | Package 360 page (8 h), scanner phone (10 h), Ask→view service (8 h), work layer (§12d) | 26 + §12d |
+| 5 Simulation | yield history, cycle data | cycle compare (10 h), scenario engine (40 h), back-tests (Verifier 12 h) | 62 |
+| 6 Outside | `/hr`, Apex | dispensary portal (16 h), supplier portal (12 h), audit pack (10 h), employee phone (in scanner) | 38 |
 
 ---
 
 ## 4. The Ontology — objects, not tables
 
-One row per object in `object_registry` (key, label, identity, sources, states, timeline events, money, documents, actions, owner agent). One `v_<object>_360(id)` per object. One `f_<object>_<action>()` per action, RLS-gated, every call logged. **Every page above this layer is generated from it; nobody hand-builds a page again.**
+One row per object in `object_registry` (key, label, identity, sources, states, timeline events, money, documents, actions, owner agent). One `f_<object>_360(id)` per object (`security invoker` — the caller's RLS applies). One `f_<object>_<action>()` per action, gated, logged.
 
-| Object | Identity | Sources | States | Actions (human / agent) | Owner |
+| Object | Identity | Sources | States | Actions | Owner agent | Hours |
+|---|---|---|---|---|---|---|
+| **Package (Tag)** | 24-char Metrc tag | metrc_packages, tag_event, COA, manifests, sheets, Apex | active · in testing · sellable · on hold · transferred · finished | attach COA, allocate, quarantine, assign task, flag finding | Compliance | **done 14 Sep** (`f_package_360`, `f_package_search`); page 8 h |
+| Room / Zone | blueprint id | facility_room, twin, zone_staffing, sensors | in cycle · turning · idle · quarantine | schedule turn, assign crew, set staffing | Harvest & Rooms | 6 |
+| Plant / Plant batch | Metrc tag / batch | metrc_plants, plantbatches, tag_event | immature · veg · flowering · harvested · destroyed | move room (recorded), flag | Harvest & Rooms | 5 |
+| Harvest | Metrc harvest id | metrc_harvests, tag_event, PIT | drying · curing · closed · certified | schedule takedown, weight at close, certify | Harvest & Rooms | 6 |
+| Strain | name (D4) | metrc_strains, strain_rule, COA | active · retired | set rule, map alias | Agent H | 3 |
+| Item / Product | Metrc item + SKU | metrc_items, sku_pack_sizes, product_inventory | listed · discontinued | pack size, price | Sales desk | 3 |
+| COA | lab + sample | coa_extract, documents | received · parsed · passed · failed · R&D | attach, dispute | Agent P | 4 |
+| Transfer / Manifest | manifest number | metrc_transfers, manifest_extract, Apex | draft · outgoing · received · rejected | build, attach COAs, sign, reconcile | Sales desk | 6 |
+| Order | Apex order | apex_orders, lines | quote · confirmed · allocated · shipped · invoiced | allocate, ship, post (review) | Sales desk | 6 |
+| Customer | Apex customer | customers | active · hold | terms, hold | Sales desk | 3 |
+| Invoice / Payment | invoice no | invoices, Apex payments, journals | open · partial · paid · overdue | send, record, write off | Cash | 4 |
+| Supplier / Purchase | vendor | vendors, PO lines, material_purchases | open · received · billed | receive, bill | Cash | 4 |
+| Work order / Run | run id | flow, runs, turnaround | planned · running · closed | start, close with yield, cost | Manufacturing | 6 |
+| BOM | product + version | bom | draft · active | version, cost | Manufacturing | 4 |
+| Person | employees ↔ hr.people ↔ app_users | employees, hr.*, credentials, skills | active · leave · offboarded | schedule, certify skill, offboard | People | 5 |
+| Shift / Schedule | schedule id | shift_templates, drafts, sign-offs | draft · posted · signed | draft, post, sign | People | 5 |
+| Credential | person + type | credential_reminder | valid · due · expired | renew, block schedule | People | 2 |
+| SOP | sop id | sop_training | draft · active | attach to task, train | Compliance | 3 |
+| Audit | audit id | forensic_audits, certification board | open · signed | run pack, sign | Verifier | 3 |
+| Finding | finding id | agent_findings, finding_state | open · challenged · decided · closed | assign, decide, refute | Watchdog / Challenger | 4 |
+| Decision | decision id | issue_decisions + `decision` | pending · taken · reversed | take, reverse, delegate | owner/role | 4 |
+| Task (work item) | task id | tasks + task_* | configurable pipeline | full work layer (§12d) | any | §12d |
+| Journal / Account | journal id | new | posted · reversed | post (engine), reverse | Cash | §6 |
+| Sync · Secret · Rule · Metric | key | sync_registry, stores, policy tables, metric_registry | — | Sync page (done); rules editor; certify/challenge | Integrations / owner / Verifier | 6 |
+
+### Package (Tag) 360 — the built specification (live 14 Sep, `f_package_360(p_tag)`)
+Sections and sources: **identity & state** (`v_tag_master`, `v_package_dossier`) · **timeline** (every `tag_event` + `v_package_events`, one stream, newest first) · **dwell** by location (`v_tag_dwell`) · **lifecycle** six stages (`v_tag_lifecycle`: harvest → packaged → tested → shipped → invoiced → finished) · **lab & sellability** (COA, analytes, lab state, why-no-certificate from `v_tag_evidence`, `v_tag_certificate_final`) · **provenance & ownership** (`v_tag_provenance`, cultivator/manufacturer/packager licences) · **documents** (COA link, manifest link, Apex invoice — `v_package_documents`) · **money** (value at our cost, cost basis, declared transfer price, Apex USD) · **gaps** (`v_tag_gap` rule codes with required action) · **custody alerts** · **Apex reconciliation verdict** · **findings** touching the tag · **tasks** on the tag · **actions**: Assign task (captures on-hand lb), flag finding, open in Metrc (screen named), copy tag. Reached from: any table cell that is a tag (shared `cellView` link), Spotlight (`f_package_search`), a scanned tag, the Package list.
+
+---
+
+## 5. Agents that own processes — mandates as data
+
+| Agent | Mandate | Runs on | Alone | Needs approval | Beats | Hours (v1 → full) |
+|---|---|---|---|---|---|---|
+| **Compliance** | Metrc vs sheets vs OS agree always; licences/credentials current; audit pack any second | every delta sync (5 min); hourly sweep | file finding; annotate sheet (neon note) per "Metrc overrides"; assemble audit pack | any Metrc-side adjustment proposal | Canix, Simplifya, BioTrack | 12 → 30 |
+| **Harvest & Rooms** | takedown calendar, dry/cure capacity, room turns, crew per zone | cycle day; harvest_alert_rules | draft calendar; propose crew via `f_schedule_candidates` | post schedule; move takedown | Trym, AROYA | 10 → 30 |
+| **Sales desk** | order → allocation → manifest → COA → Apex → invoice | Apex pull; order events | draft manifest; attach COA; allocate sellable tags | post to Apex; ship; price change | Distru, LeafLink | 14 → 36 |
+| **Cash** | live P&L, cost per pound, inventory value, cash forecast, collections | every posting | post journals from events; flag overdue | write-off; credit hold | NetSuite, 365 | §6 → +20 |
+| **People** | schedules, credentials, onboarding, labour cost | shift calendar; credential dates | draft schedule; block on expired credential | post/sign; offboard | Würk, Trym | 8 → 24 |
+| **Watchdog / Verifier / Challenger** | nothing silent; every figure two ways; every finding earns survival | continuous | file, refute, certify | close a finding | nobody | exist; +8 for decision hooks |
+
+---
+
+## 6. The money spine — posting map at tag grain (beats NetSuite)
+
+Event-sourced. Every event in `tag_event` (or arriving through the syncs) produces a journal at tag grain; cost basis from `valuation_rates` / actuals; one book per licence (MC281714, MP281909, retail to come), consolidated. **TG is the book of record; QuickBooks becomes the mirror** (the sync flips direction).
+
+| Event | Debit | Credit | Grain | Basis | Hours |
 |---|---|---|---|---|---|
-| **Licence** | MC281714, MP281909 (+ retail to come) | company_licenses, Metrc | active · renewal due · expired | renew, attach document | Compliance |
-| **Facility / Room / Zone** | blueprint id | facility_room, twin, zone_staffing, sensors | in cycle · turning · idle · quarantine | schedule turn, assign crew, set staffing | Harvest & Rooms |
-| **Strain** | name → Metrc → COA → manifest (ruling D4) | metrc_strains, strain_rule, COA | active · retired | set rule, map alias | Agent H |
-| **Plant / Plant batch** | Metrc tag / batch id | metrc_plants, plantbatches, tag_event | immature · vegetative · flowering · harvested · destroyed | move room, flag, destroy (Metrc-side only, recorded) | Harvest & Rooms |
-| **Harvest** | Metrc harvest id | metrc_harvests, tag_event, PIT | drying · curing · closed · certified | schedule takedown, record weight at close, certify | Harvest & Rooms |
-| **Package (Tag)** | 24-char tag | metrc_packages, tag_event, COA, manifests, sheets | active · in testing · sellable · on hold · transferred · finished | adjust (Metrc-side, recorded), attach COA, allocate to order, quarantine | Compliance |
-| **Item / Product** | Metrc item + SKU | metrc_items, sku_pack_sizes, product_inventory | listed · discontinued | set pack size, price | Sales desk |
-| **COA** | lab + sample id | coa_extract, documents | received · parsed · passed · failed · R&D | attach to tag, dispute | Agent P |
-| **Transfer / Manifest** | Metrc manifest number | metrc_transfers, manifest_extract, Apex | draft · outgoing · received · rejected | build, attach COAs, sign, reconcile | Sales desk |
-| **Order** | Apex order id | apex_orders, order lines | quote · confirmed · allocated · shipped · invoiced | allocate tags, ship, post to Apex (review) | Sales desk |
-| **Customer** | Apex customer | customers, apex | active · on hold (credit) | set terms, hold | Sales desk |
-| **Invoice / Payment** | invoice no | invoices, apex payments, journals | open · partial · paid · overdue | send, record payment, write off | Cash |
-| **Supplier / Purchase** | vendor id | vendors, purchase_order_lines, material_purchases | open · received · billed | receive, bill | Cash |
-| **Work order / Run** | run id | flow, production runs, turnaround | planned · running · closed | start, close with yield, cost | Manufacturing |
-| **BOM** | product + version | bom (disabled page today) | draft · active | version, cost | Manufacturing |
-| **Person** | employees ↔ hr.people ↔ app_users | employees, hr.*, credentials, skills | active · on leave · offboarded | schedule, certify skill, offboard | People |
-| **Shift / Schedule** | schedule id | shift_templates, drafts, sign-offs | draft · posted · signed | draft (f_draft_schedule), post, sign (CEO/CFO/HR) | People |
-| **Credential** | person + type | credential_reminder | valid · due · expired | renew, block schedule | People |
-| **SOP** | sop id | sop_training (disabled page) | draft · active | attach to task, train | Compliance |
-| **Audit** | audit id | forensic_audits, certification board | open · signed | run pack, sign | Verifier |
-| **Finding** | finding id | agent_findings, finding_state | open · challenged · decided · closed | assign, decide, refute | Watchdog / Challenger |
-| **Decision** | decision id | issue_decisions (+ new `decision`) | pending · taken · reversed | take, reverse, delegate | owner / role |
-| **Task** | task id | tasks, dashboard_tasks | open · done | assign, complete | any |
-| **Journal / Account** | journal id | new `journal`, `account` | posted · reversed | post (engine only), reverse | Cash |
-| **Sync** | registry key | sync_registry | ok · failing · off | run, switch, reschedule, remove | Integrations |
-| **Secret** | name | both stores | set · missing | store, rotate, remove | Integrations |
-| **Rule** | rule key | scheduling_policy, notify_rules, strain_rule, thresholds | active · history | edit (history kept) | owner |
-| **Metric** | metric key | metric_registry, provenance | certified · indicative | certify, challenge | Verifier |
+| Plant batch / clones | WIP – cultivation | Supplies / labour | batch · room · cycle | actual inputs | 4 |
+| Harvest closed (weight at close) | Inventory – wet/dry | WIP – cultivation | harvest · strain · room | accumulated cost/g | 4 |
+| Package from harvest | Inventory – FG (tag) | Inventory – bulk | tag | weight share | 4 |
+| Manufacturing run closed | Inventory – FG (tag) | inputs, labour, overhead | run · tag | BOM + actual | 6 |
+| COA failed / R&D | no posting (state only — ruling) | | | | 0 |
+| Transfer out / sale (Apex shipped) | COGS; AR | Inventory – FG; Revenue | tag · order · customer · licence | tag cost; Apex price | 6 |
+| Third-party material movement | memo only (never revenue — ruling) | | tag · destination licence | | 2 |
+| Payment received | Cash | AR | invoice | | 2 |
+| Purchase received / billed | Supplies/Inventory; AP | | PO line | | 4 |
+| Payroll (HR) | Labour by room/zone | Wages payable | person · shift · room | hours × real rate (big-fifteen #5) | 6 |
+| Waste / destruction | Loss | Inventory | tag / plant | basis | 2 |
+| **Engine, accounts, views** (`journal`, `account`, live P&L, cost per pound strain × room × cycle, inventory value, 13-week cash) | | | | | 24 |
+| **QuickBooks mirror** (flip the sync) + reconciliation to tolerance (owner sets, suggest 0.5 %) | | | | | 16 (+ GPT 10 independent) |
+| **Total** | | | | | **≈ 80 (v1 in 40)** |
 
-**Tag 360 (the first object built)** — sections: identity and state · timeline (every `tag_event`, Metrc change, COA, manifest, sheet row, finding, task, decision — one stream) · location and cycle · lab (COA, sellability) · money (cost basis, value, sale) · documents · open findings · **actions** allowed for this role now. Reached by scan, search, map or any list.
+Acceptance: harvest/package/sale/payroll/purchase post within 60 s; live figures reconcile to QuickBooks within tolerance; every figure → journal → `tag_event`. Day-one label: **indicative** until reconciled, then **certified** line by line.
 
 ---
 
-## 5. Agents that own processes
+## 7. Navigation — nothing moves; the doors are pages inside the menus that stay
 
-Each agent is a row in `agent_mandate` (mandate, triggers, autonomous actions, approval-required actions, budget, stop rule, source of truth). Each action it takes is a `decision` or a logged autonomous act. Agents never write to Metrc; they write to Apex only through the human-review path.
-
-| Agent | Mandate | Runs on | Alone | Needs approval | Beats |
-|---|---|---|---|---|---|
-| **Compliance** | Metrc vs sheets vs OS agree, always; licences and credentials current; audit pack ready at any second | every delta sync; hourly sweep | file finding; annotate sheet (neon note) per "Metrc overrides"; assemble audit pack | any adjustment proposal; anything Metrc-side | Canix, Simplifya, BioTrack |
-| **Harvest & Rooms** | takedown calendar, dry/cure capacity, room turns, crew per zone | cycle day; harvest alert rules | draft calendar; propose crew (via `f_schedule_candidates`) | post a schedule; move a takedown | Trym, AROYA |
-| **Sales desk** | orders → allocation → manifest → COA → Apex → invoice | Apex pull; order events | draft manifest; attach COA; allocate sellable tags | post to Apex; ship; price change | Distru, LeafLink |
-| **Cash** | live P&L, cost per pound, inventory value, cash forecast; collections | every posting | post journals from events; flag overdue | write-off; credit hold; payment plan | NetSuite, 365 |
-| **People** | schedules, credentials, onboarding, labour cost | shift calendar; credential dates | draft schedule; block on expired credential | post/sign schedule; offboard | Würk, Trym |
-| **Watchdog / Verifier / Challenger** (exist) | nothing fails silently; every figure derived two ways; every finding earns survival | continuous | file, refute, certify | close a finding | nobody has this |
-
----
-
-## 6. The money spine — posting map (beats NetSuite)
-
-Event-sourced. Every operational event already in `tag_event` (or arriving through the syncs) produces a journal at **tag grain**, with cost basis from `valuation_rates` / actual cost, one book per licence, consolidated. QuickBooks becomes the **mirror** (the existing sync flips direction); TG is the book of record.
-
-| Event (source) | Debit | Credit | Grain | Basis |
-|---|---|---|---|---|
-| Plant batch created / clones | WIP – cultivation | Supplies / labour | batch · room · cycle | actual inputs |
-| Harvest closed (weight captured at close — ruling) | Inventory – wet/dry | WIP – cultivation | harvest · strain · room | cost per gram accumulated |
-| Package created from harvest | Inventory – FG (tag) | Inventory – bulk | tag | weight share |
-| Manufacturing run closed | Inventory – FG (tag) | Inventory – inputs, labour, overhead | run · tag | BOM + actual |
-| COA failed / R&D | (no posting — state only; ruling: R&D leaves lab state alone) | | tag | |
-| Transfer out / sale (Apex order shipped) | COGS; AR | Inventory – FG; Revenue | tag · order · customer · licence | tag cost; Apex price |
-| Third-party material movement | memo only (never revenue — ruling) | | tag · destination licence | |
-| Payment received | Cash | AR | invoice | |
-| Purchase received / billed | Supplies / Inventory; AP | | PO line | |
-| Payroll (HR) | Labour by room/zone | Wages payable | person · shift · room | hours × rate |
-| Waste / destruction | Loss | Inventory | tag / plant | basis |
-
-**Acceptance:** live P&L, cost per pound by strain × room × cycle, inventory value and 13-week cash forecast agree with QuickBooks within the reconciliation tolerance the owner sets in Rules; every figure carries provenance to its journals and every journal to its `tag_event`.
-
----
-
-## 7. Navigation — nothing moves; the three doors are pages inside the menus that stay
-
-The side rail (14 cockpits) and the top bar stay exactly as they are. The three doors land as **child entries and pages**, not as a new menu:
-
-| Door | Where it lives | What changes on the menu |
-|---|---|---|
-| **Today** (decision stream) | new page `today`, child of **Command Center** | one child entry added |
-| **Facility Map** (spatial door) | the existing page, untouched | nothing; Room 360 is reached from search and lists until the owner chooses to link it from the map |
-| **Ask** (question → governed view) | Budz and TG Brain, untouched (Grok's surface) | nothing; Claude supplies `f_ask_view()` as a service the bots may call |
-| **Object 360** (Tag, Room, Order, Person…) | new pages reached from the existing lists, Spotlight search, and the scanner — not from the menu | nothing |
-| **Views for everyone** | new page `my_views`, child of **Command Center** | one child entry added |
-
-- **Sitemap by data (later, optional):** `nav_group` on `nav_registry` classifies the 694 pages for search and for the dashboards' faces; the rail does not change. Consolidating a page family (Findings ×~40 → one) happens **only when the owner picks that family**, one at a time; old `view_key`s redirect.
-- **Gate (now):** a new registry row without `module` and `archetype` fails CI; a second list page for an object that has one fails CI. This stops the sprawl without touching a menu.
+| Door | Where | Menu change | Hours |
+|---|---|---|---|
+| **Today** (decision stream) | new page `today`, child of Command Center | one child entry | 10 |
+| **Facility Map** | untouched | none; Room 360 reached from search/lists until the owner links it from the map | 0 |
+| **Ask** | Budz / TG Brain (Grok) call `f_ask_view()` | none | 8 (Claude service) + Grok front |
+| **Object 360s** | reached from lists, Spotlight, scanner, tag cells | none | in §4 |
+| **My views** (views for everyone) | new page, child of Command Center | one child entry | 14 |
+| **Workspace** (ClickUp clone) | existing Workspace cockpit (Assignments, Whiteboards) + new children as built | child entries | §12d |
+| Sitemap by data (`nav_group` on `nav_registry`, for search and dashboard faces) | later, optional; rail unchanged | none | 6 |
+| Gate: no registry row without `module` + `archetype`; no second list page per object | CI | — | 3 |
 
 ---
 
 ## 8. The decision stream
-
-`decision` object: what, why (the finding / rule / agent), the number that triggered it captured as it stood, cash impact, options with the agent's recommendation, who may take it (role), due-by, outcome, reversal. Ranked per person (severity × money × age). Delivered on the phone by push (recipients are rows). One tap takes it; the effect executes (sheet annotated, schedule posted, manifest signed, journal reversed) and is logged with provenance.
-
-**Acceptance:** an owner's day of routine operations is ≤ 25 decisions; every decision resolvable from the phone without opening a page; every effect visible in the object's timeline within 60 s.
-
----
+`decision` object: what · why (finding / rule / agent) · the number captured as it stood · cash impact · options with recommendation · who may take it (role) · due-by · outcome · reversal. Ranked per person (severity × money × age). Push to phone (recipients are rows — `alert_recipient`). One tap executes the effect (sheet annotated, schedule posted, manifest signed, journal reversed) with provenance. **Acceptance:** owner's routine day ≤ 25 decisions; every effect in the object's timeline within 60 s. **Hours:** 20 (v1 10).
 
 ## 9. The generative interface
+Ask (words/voice → governed view from registered measures; save, pin, alert) 8 h service + Grok front · Scanner-first phone (scan tag/room QR → 360 → actions; offline reads) 10 h · Object 360 generic renderer (one component, thirty objects) 12 h · Today (§8). **Acceptance:** 360 < 1.5 s from a scan on floor Wi-Fi; Ask answers the twelve owner benchmark questions with certified figures; zero hand-built pages after the object layer (gate).
 
-- **Ask** — a question in words or voice (`useVoice` exists) → a governed view (list/chart/tile) from registered measures, with provenance shown; save, pin, alert. Budz and TG Brain are the front of this; the Bots desk (Grok) keeps model, access and spend settings.
-- **Scanner-first phone** — scan a tag or a room QR → its 360 → allowed actions. Works offline for reads; writes queue.
-- **Object 360** — generated from `object_registry`: one component, thirty objects, no page code per object.
-- **Today** — §8, on phone and desktop.
-
-**Acceptance:** Tag 360 opens in < 1.5 s on the floor Wi-Fi from a scan; Ask answers the twelve benchmark questions the owner sets with certified figures; zero hand-built pages added after the object layer ships (gate).
-
----
-
-## 10. The twin as a model — simulation (beats AROYA, nobody else has it)
-
-The facility twin becomes a scenario engine over your own history: cycle length, yield per strain per room per cycle (389 harvests), dry/cure capacity, labour by zone, cost per pound, price by product, sell-through from Apex. Scenarios: *harvest F3 two days early* · *move 400 plants to F1* · *raise pre-roll price 8 %* · *add a second trim shift* → yield, labour, cash, compliance impact before you act. Sensors (AROYA-class or Growlink) ingest into the same model when installed.
-
-**Acceptance:** three owner-named scenarios reproduce last cycle's actuals within the tolerance set in Rules before any forward scenario is trusted (Verifier certifies).
-
----
+## 10. The twin as a model — simulation
+Cycle compare on actuals by strain × room × cycle (10 h) → scenario engine: harvest timing, room allocation, price, labour → yield, labour, cash, compliance (40 h) → three owner-named back-tests certified by Verifier before any forward scenario (12 h). Sensors (AROYA/Growlink) ingest into the same model when installed (8 h ingest).
 
 ## 11. Outside the walls
-
-- **Dispensary portal** — live COAs, order status, manifests, invoices, payments; same objects, customer role, RLS.
-- **Supplier portal** — POs, receipts, bills.
-- **Regulator audit pack** — generated from the ledger on demand: tags, movements, weights, COAs, manifests, licences, SOP training, for any as-of range.
-- **Employee phone** — Today, my shift, scan, tasks, credentials, pay — the OS, not a viewer.
-- **Retail-ready** — when the dispensary licence lands: POS door, menu, sell-through into the same ledger (Dutchie/Treez territory).
+Dispensary portal (customer role, RLS: COAs, orders, manifests, invoices, payments) 16 h · Supplier portal (POs, receipts, bills) 12 h · Regulator audit pack on demand for any as-of range (tags, movements, weights, COAs, manifests, licences, SOP training) 10 h · Employee phone (Today, my shift, scan, tasks, credentials, pay) in scanner + HR · Retail door (POS, purchase limits, patient, excise, delivery — 100× spec Part 5) when the licence lands: every table/view/tile carries `licence` from today.
 
 ---
 
-## 12. Beat-them-all acceptance (measured, live, certified by Verifier)
+## 12. Beat-them-all acceptance (measured live, certified by Verifier)
 
-| Rival | Test that proves we beat it |
+| Rival | Test |
 |---|---|
-| NetSuite / 365 | Harvest, package, sale, payroll, purchase post within 60 s of the event; live P&L + cost per pound + inventory value reconcile to QuickBooks within tolerance; every figure → journal → tag_event |
-| Canix | Scan → Tag 360 < 1.5 s; Compliance agent catches a sheet-vs-Metrc discrepancy within one delta cycle (5 min) and delivers the decision to the phone |
-| Flourish | A closed manufacturing run shows true cost per unit at close, posted |
-| Trym | A posted schedule drafted through `f_schedule_candidates` with zone staffing met and no expired credential; labour by room in cost per pound |
-| Distru | Order → allocation → manifest with COAs → Apex post (under review) → invoice, with no re-keying |
-| AROYA | Simulation reproduces last cycle within tolerance; one forward scenario adopted and measured after the fact |
-| Simplifya | Audit pack for any as-of range generated in < 60 s; a credential expiry blocks a schedule |
-| Confident Cannabis | 100 % of sellable tags carry a parsed COA; a failed COA flips sellability the same cycle |
-| Würk | Payroll hours post as labour by room; HR and OS share one person record |
-| LeafLink / Apex | Both marketplaces feed orders into the same Order object |
-| Headset | Sell-through and price simulation from own data, benchmarks as an input |
-| Everyone | Owner's routine day ≤ 25 decisions; zero silent failures (Watchdog); three reviewer agents green |
+| NetSuite / 365 | events post ≤ 60 s; live P&L + cost per pound + inventory value reconcile to QuickBooks within tolerance; figure → journal → tag_event |
+| Canix | scan → Tag 360 < 1.5 s; Compliance agent catches a sheet-vs-Metrc discrepancy within one delta cycle and delivers the decision to the phone |
+| Flourish | closed run shows true cost per unit at close, posted |
+| Trym | posted schedule via `f_schedule_candidates`, zone staffing met, no expired credential; labour by room in cost per pound |
+| Distru | order → allocation → manifest with COAs → Apex post (review) → invoice, no re-keying |
+| AROYA | simulation reproduces last cycle within tolerance; one forward scenario adopted and measured |
+| Simplifya | audit pack for any as-of range < 60 s; credential expiry blocks a schedule |
+| Confident | 100 % of sellable tags carry a parsed COA; failed COA flips sellability same cycle |
+| Würk | payroll hours post as labour by room; HR and OS share one person record |
+| LeafLink / Apex | both feed the same Order object |
+| Headset | own sell-through + price simulation |
+| ClickUp | a task on a tag knows the tag's COA state; an automation quarantines on failed COA; time on a task costs the batch at the real rate |
+| Everyone | owner's routine day ≤ 25 decisions; zero silent failures; three reviewer agents green; every tile proves itself |
 
 ---
 
-## 12b. The design programme — every page majorly improved, fast, without touching what's frozen (owner, 14 Sep 2026)
+## 12b. The design programme and the page-decision register (owner decides page by page)
 
-*"So many pages — I want major design and user functionality majorly improved."* Of 694 pages, 621 are `page_kind = report`: a heading and a table. The fast lever is not 694 designs and not one template (a roster is not a ledger — ruling). It is **one excellent layout per archetype** — the 14 archetypes already on `nav_registry` — each designed with the owner on one exemplar page from existing primitives, then rolled to every page of that archetype **by data**, the same day. Hundreds of pages improve per exemplar; the theme, the menus and the frozen pages are never touched.
+Of 694 pages, 621 are `page_kind = report` (heading + table). One excellent layout per **archetype**, designed on an exemplar, rolled to every page of that archetype by data. **The owner goes through this register and marks each page: upgrade now · upgrade later · leave · retire (disable, restorable).** Nothing is changed without a mark.
 
-Every archetype layout gets the same functional floor: filters and saved views · the expand-in-place row (the Sync page pattern) opening the record's 360 · actions on the row (assign a task with the number captured — dashboard rule 2) · provenance and as-of on every figure · export · keyboard and phone.
+Functional floor on every upgraded archetype: filters + saved views · expand-in-place row → record 360 · actions on the row (Assign task with the number captured) · certainty chip and as-of on every figure · export · keyboard and phone.
 
-| Order | Archetype | Pages | Exemplar page (owner designs with me) | What "majorly improved" means here |
-|---|---|---|---|---|
-| 1 | *(new)* Tag 360 | 1 → reached from all | Package 360 | the pattern every archetype opens into |
-| 2 | `issue_queue` | 60 | Findings | queue with owner/age/severity views, decide in place, cash impact |
-| 3 | `data_browser` | 251 | Valuation rates | Setup form: list + edit-in-place form, validation, history — not a grid dump |
-| 4 | `stock_position` | 29 | Stock & location | position by room/strain/state with as-of, drill to tags, allocate |
-| 5 | `custody_chain` | 24 | Package custody | timeline view, gaps highlighted, manifest/COA attached |
-| 6 | `cost_sheet` | 29 | Cost per pound | basis shown, journal drill (money spine), compare cycles |
-| 7 | `schedule` | 36 | Harvest schedule | calendar + list, drag to reschedule (rules enforced), crew and rooms |
-| 8 | `document_register` | 24 | COA register | preview, parse status, attach to object, missing-document queue |
-| 9 | `reconciliation` | 16 | Sheet vs Metrc | side-by-side, "Metrc overrides" one tap, neon note, weekly review |
-| 10 | `scorecard` | 16 | Goals & scorecards | targets vs actuals with trend, owner per line, drill |
-| 11 | `rules_editor` | 39 | Business rules | edit with history, who/when, where the rule is used |
-| 12 | `catalogue` / `roster` / `punch_log` | 23 | Strains · Employees · Timesheets | catalogue cards; roster with skills/credentials; punch log with exceptions |
-| 13 | unclassified | 107 | — | classified into the above first (data), then inherit |
-| — | `dashboard` | 30 | frozen unless the owner names one | — |
+| # | Archetype | Pages | Exemplar | The upgrade | Hours (exemplar + rollout) |
+|---|---|---|---|---|---|
+| 1 | Package 360 (new) | 1 → all | Package 360 | the record every list opens into | 8 |
+| 2 | `issue_queue` | 60 | Findings | queue by owner/age/severity, decide in place, cash impact, detection anatomy (100× #5) | 10 + 2 |
+| 3 | `data_browser` | 251 | Valuation rates | Setup form: list + edit-in-place, validation, history, impact-before-save (100× #8) | 12 + 3 |
+| 4 | `stock_position` | 29 | Stock & location | position by room/strain/state, as-of, drill to tags, allocate | 8 + 2 |
+| 5 | `custody_chain` | 24 | Package custody | timeline with gaps, manifest/COA attached | 8 + 2 |
+| 6 | `cost_sheet` | 29 | Cost per pound | basis shown, journal drill, cycle compare | 8 + 2 |
+| 7 | `schedule` | 36 | Harvest schedule | calendar + list, drag to reschedule (rules enforced), crew and rooms | 12 + 2 |
+| 8 | `document_register` | 24 | COA register | preview, parse status, attach to object, missing-document queue | 8 + 2 |
+| 9 | `reconciliation` | 16 | Sheet vs Metrc | side-by-side, one-tap "Metrc overrides", neon note, weekly review, three-stage reconciliation (100× #9) | 10 + 2 |
+| 10 | `scorecard` | 16 | Goals & scorecards | targets vs actuals with trend, owner per line, drill (big-fifteen #13) | 8 + 2 |
+| 11 | `rules_editor` | 39 | Business rules | edit with history, who/when, where used | 8 + 2 |
+| 12 | `catalogue` / `roster` / `punch_log` | 23 | Strains · Employees · Timesheets | cards; roster with skills/credentials; punch log with exceptions | 10 + 2 |
+| 13 | unclassified | 107 | — | classify (data), inherit | 4 |
+| — | `dashboard` | 30 | frozen unless named | KPI standard (§12c) applied only where the owner names the dashboard | per dashboard 6 |
+| | **Total** | | | | **≈ 160** |
 
-One exemplar ≈ 1–2 days (wire from existing components → owner yes → build → drive in the browser → certify → roll by data). Fourteen archetypes ≈ 4–5 weeks, running alongside the backend phases below, which carry no design risk.
+**Page-decision register:** generated from `nav_registry` (module · category · label · archetype · page_kind · surface · last opened) as `docs/PAGE_DECISION_REGISTER.md` with a blank *decision* column for the owner — 2 h to generate; the owner's marks become `nav_registry.upgrade_decision`.
 
-## 13. Phases — order, weeks, deliverables, gates
+---
 
-| Phase | Weeks | Deliverables | Live acceptance | Lane |
-|---|---|---|---|---|
-| **0 · Foundations** (now) | 1 | `object_registry`, `agent_mandate`, `decision` tables + RLS; tracker section 19; nav gate; HR PR #238 merged and the owner's two Supabase switches | tracker rows exist; gate refuses an unclassified page; `/hr` live | Claude · owner |
-| **1 · Floor** | 4 | Tag 360 + Room 360 (generated); scanner-first phone; Compliance agent (Metrc vs sheets, "Metrc overrides" applied, neon note, weekly review); decision stream v1 with push | §12 Canix + Simplifya rows | Claude (TG-01/04), Grok for bots surface |
-| **2 · Money** | 6 | posting engine on `tag_event`; `journal`/`account`; live P&L, cost per pound (strain × room × cycle), inventory value, 13-week cash; QuickBooks mirror; one book per licence | §12 NetSuite row | Claude (TG-06), Verifier |
-| **3 · Sales & outside** | 4 | Sales desk agent; Order/Manifest/Invoice 360; Apex writes under review live; dispensary portal; audit pack | §12 Distru, Confident, LeafLink rows | Claude (TG-07), Agent S |
-| **4 · Crew & rooms** | 4 | Harvest & Rooms agent; People agent; crew day on phone; schedule sign-off; labour into cost; sensor ingest | §12 Trym, Würk rows | Claude (TG-02/05), Grok (HR pages per lane) |
-| **5 · Navigation & views** | 3 | sitemap by data (694 classified); one List + 360 per object; views-for-everyone; role centres; Ask → governed view | §12 Dynamics/NetSuite navigation; zero hand-built pages | Claude (TG-10), Grok (Budz/Brain front) |
-| **6 · Simulation** | 4 | scenario engine on the twin; three certified back-tests; forward scenarios | §12 AROYA row | Claude (TG-02), Verifier |
+## 12c. KPI catalogue — what exists, what each dashboard still needs (dashboard rule 10)
 
-Phases 1 → 2 are strict (the ledger must be trustworthy before it posts money). 3 and 4 can run in parallel after 2. 5 depends on the object layer from 1–4. 6 last.
+**Exists:** 43 registered metrics — Command 8 (failed testing on hand, harvests open too long, in the rooms dry-equivalent, moisture loss not recorded, never submitted for testing, open watchdog findings, out at the laboratory no result, total on hand dry-equivalent) · Cultivation 6 · Finance 3 (failed testing value, untested stock value, value of stock on hand) · HR 1 · Pre-Rolls 3 · Inventory 5 · Manufacturing 5 · Metrc 4 · Quality 4 · Settings 2 · Workspace 2; 20 `kpi_targets` rows. Every registered metric has a drill view and a target rule key.
 
-**Every phase ships through the same pipeline:** migration files recorded byte-for-byte · digest re-pinned · 46 gates · CI · merge · Netlify published · live measurement · tracker row flipped by the measurement, never by hand.
+**Per-KPI requirements (the standard):** owner-set target row (never invented) · daily snapshot for the sparkline (`kpi_snapshots`; "no history yet" until 2 days exist) · change since yesterday in words · forensic drill to items · Assign from the tile · certainty chip · licence dimension · provenance note.
+
+| Dashboard | KPIs to add for go-live (each: metric_key · unit · source view · drill · target rule) | Hours |
+|---|---|---|
+| **Command Center** | decisions pending (count) · discrepancies open sheet-vs-Metrc (count, lb) · sellable on hand (lb, $) · orders open (count, $) · cash position ($) · people on shift today (count) | 8 |
+| **Cultivation** | plants by phase and room (count vs room cap) · cycle day per flower room · harvests due 7 d (count) · wet→dry conversion this cycle (%) vs target · average dry time (days) · yield per plant last closed harvest (g) vs target | 8 |
+| **Manufacturing** | runs open (count) · turnaround days vs policy · fresh-frozen on hand (lb) · concentrate on hand (lb) · cost per unit last closed run ($) · purchased material untouched (lb) | 6 |
+| **Inventory** | on hand dry-equivalent (lb) · sellable now (lb) · ageing > 60 d (lb) · never submitted for testing (lb) · third-party held (lb, separate — ruling) · inventory value ($) | 6 |
+| **Quality** | out for testing (lb) · at lab > 10 d no result (lb) · failed on hand (lb) · sellable tags without COA (count → 0) · R&D tests (count, excluded from state) | 6 |
+| **Sales & Cash** | orders open ($) · shipped this week (lb, $) · AR overdue ($) · manifests unsigned (count) · Apex vs Metrc unreconciled tags (count) · 3rd-party vs ours split | 8 |
+| **Metrc** | mirror freshness per endpoint (min) · packages/plants/harvests mirrored (count) · corrections outstanding (count) · delta sync failures 24 h (count) | 4 |
+| **Human Resources** | headcount (count) · on shift today · credentials expiring 30 d (count) · schedule posted for next week (yes/no) · labour hours this week vs plan · PINs missing (count → 0) | 6 |
+| **Finance** | value of stock ($) · untested value ($) · failed value ($) · cost per pound by stream ($) · cash 13-week (from spine) · AP open ($) | 6 |
+| **Pre-Rolls & Flower** | pre-rolls on hand (lb) · never tested (lb) · shake & trim available (lb) · production this week (units) | 4 |
+| **Workspace** | my tasks due (count) · overdue (count) · go-live items open · open questions | 4 |
+| **Settings** | rules not yet set (count) · syncs failing (count) · secrets missing (count) · pages unclassified (count) | 3 |
+| **Control Tower / Chief Executive** | roll-up of every headline above (rule 4), personalisable (rule 5) | 6 |
+| **Snapshots + sparklines + change-since-yesterday** (one mechanism for all) | | 8 |
+| | **Total** | **≈ 83** |
+
+---
+
+## 12d. The Work layer — the ClickUp clone (CODE-023), plan unchanged
+
+**Exists:** `tasks` (statuses, priority, assignee, watchers, due/start, recurrence, subtasks via parent, source_view/kpi/value/snapshot — rule 2), `task_activity`, `task_attachment`, `task_checklist_item`, `task_comment`, `task_dependencies`, `task_list`, `task_standards`, `task_time_log`, `spaces`, `saved_views`, `forms`, `form_responses`, `whiteboards`, `workspace_view`, `time_entries`; `tg_task_from_dashboard`; `AssignTask` on tiles; Workspace cockpit (Assignments, Whiteboards). The external ClickUp connector is retired from the sync registry (ruling 13 Sep).
+
+| Capability class | Status | Build | Hours |
+|---|---|---|---|
+| 1 Work items everywhere | tables exist; UI partial | task 360 (relationships to ANY object, custom fields, comments with @mentions, attachments, activity) | 16 |
+| 2 Views over the same records | `saved_views` exists | List · Board · Calendar · Timeline · Table (inline edit) · Workload · My Work; saved, shareable, role-scoped | 24 |
+| 3 Docs & wiki | `whiteboards` | rich docs, nesting, templates, versioning, approvals, audience scoping; embeds live views | 20 |
+| 4 Automations | — | trigger → condition → action engine (status, date, field, form, sync events → assign, notify, create, change, checklist); compliance actions (auto-quarantine on failed COA) | 24 |
+| 5 Forms | `forms`, `form_responses` | builder writing into any module; routing rules | 10 |
+| 6 Goals & scorecards | `goals_targets`, `scorecard` archetype | OKRs rolling up from live metrics (never hand-typed) | in §12b #10 + 6 |
+| 7 Dashboards (configurable) | `dashboard_widgets`, `widget_catalog` | widget grid per user/team; Control Tower stays the executive board | 10 |
+| 8 Time tracking | `task_time_log`, `time_entries` | timers + manual on any item → labour cost per task at real rates | 8 |
+| 9 Templates | — | space/list/doc/checklist/automation templates; "New Harvest Cycle", "CAPA", "New Hire Onboarding" | 12 |
+| 10 Collaboration & permissions | RBAC exists | mentions, notifications with preferences and quiet hours, guest roles, space permissions, read receipts on SOPs | 12 |
+| Notifications engine + Inbox (big-fifteen #6; topbar bell) | static today | one engine feeding bell, mail, push, Today | 12 |
+| | **Total** | | **≈ 154 (go-live v1: classes 1, 2-List/Board/My Work, 5, 8 ≈ 40)** |
+
+---
+
+## 12e. Sheets — tracker section 16, every item (owner ruling 12 Sep: Metrc overrides)
+
+| Item | Status | Hours |
+|---|---|---|
+| Metrc's figure overrides the spreadsheet's wherever a row resolves to a tag | PENDING | 6 (in the reconciliation exemplar) |
+| Every sheet-vs-Metrc difference is a logged discrepancy with its details | PENDING | 4 |
+| Weekly review by a team member or Top G, outcome recorded | PENDING | 4 (+ owner names the day) |
+| Discrepant rows and tiles highlighted neon yellow with the note visible | PENDING | 3 |
+| Per-run receipt, locked header fingerprint, hourly certificate per tab | PENDING | 8 |
+| Sheet health every 5 min; alerts to owner-configured recipients | PENDING | 4 |
+| One audit trail for automatic fixes and human decisions | PENDING | 3 (decision object) |
+| Cultivation_Inventory_Sheet delivers on its twice-daily contract | PENDING | 4 |
+| Manufacturing Production worksheet (cost calculator) refreshes on schedule | PENDING | 3 |
+| Each tab's unit rule written and applied (units × size = grams) | PENDING | 6 (+ owner confirms exceptions) |
+| **IT health page** on the side menu: every sync, AI/bots/extensions, data certification, wiring & mapping, staleness, alert-count badge, audit trail | PENDING | Sync page covers syncs/secrets/AI (done); add certification, wiring/mapping, staleness, badge: 10 |
+| | **Total** | **≈ 55** |
+
+## 12f. Scheduling & zones — tracker section 17, every open item
+
+| Item | Status | Hours |
+|---|---|---|
+| Headcount per zone per weekday (recommended, revisable) | WARN | 2 |
+| Settings pages: rooms, zones, staffing, shift model, policy, training & onboarding | PENDING | 16 (Setup-form archetype makes this ≈ 8) |
+| Schedule Builder to the standard of the popular scheduling apps (drag/drop grid) | PENDING | 20 |
+| Call-outs, swaps, open shifts with "who is available" | PENDING | 10 |
+| Facility map reads `facility_room`, not the static file | PENDING | 4 (map untouched visually — data source only, owner to approve) |
+| Trim/dry/packaging headcount driven by harvest calendar and runs | PENDING | 8 |
+| Posting a schedule notifies the people on it | PENDING | 3 (notifications engine) |
+| Onboarding progress tracked per person | WARN | 4 |
+| Every active employee has a primary department (11 missing) | FAIL | owner/HR data, 1 |
+| HR verifies the 17 seeded training rows | FAIL | HR, 1 |
+| Trained-in / in-training recorded — floaters appear | WARN | HR data |
+| First real weekly draft posted (week of 21 Sep) by a sign-off role | PENDING | 2 + owner |
+| AI layer drafts through `f_schedule_candidates` / `f_draft_schedule` | PENDING | 6 (Harvest & Rooms / People agent v1) |
+| My schedule / availability / swap / call-out pages read zones, skills, policy | PENDING | 10 |
+| PR #235 merged | PENDING | 1 |
+| Owner: shift 08:00–16:30 · 30 min unpaid · waves 12:00 / 13:30 · three zone→department maps · weekend flower cover · who may edit settings | OWNER | decisions |
+| | **Total** | **≈ 85** |
+
+## 12g. HR platform — tracker section 18, every open item
+
+| Item | Status | Hours |
+|---|---|---|
+| Owner: expose schema `hr`; enable anonymous sign-ins; link tg-hr to Git in Netlify | OWNER | 3 clicks |
+| First real sign-in from the OS lands on the HR dashboard as the right person/role | PENDING | 3 |
+| Six screens still seed figures (AiScheduler→TG drafter, ComplianceExpirations, FlightRisk, Forms, Huddle, LaborBudget) | PENDING | 18 |
+| HR writes TG handbook, policies, procedures, courses, benefits in the platform | PENDING | HR content; 2 support |
+| Human Resources in the OS side menu opens `/hr` | PENDING | 1 (deploy-time nav row) |
+| PR #238 merged; `/hr` proxy live | PENDING | 2 |
+| Every HR AI feature calls TG's gateway; `hr.ai_providers` holds no keys | PENDING | 4 |
+| Every active employee has a PIN (kiosk) | FAIL | HR data, 1 |
+| Policies & procedures module works on TG content (Handbook Builder, Policies hub, Doc Center, acknowledgments, quizzes) | PENDING | 8 |
+| CEO company strip shows TG revenue (from the spine) | PENDING | 3 |
+| OS HR dashboard, Control Tower, CEO dashboard show the HR platform's own tiles — same labels, numbers, buttons | PENDING | 12 |
+| HR → OS people sync direction settled | — | 4 |
+| | **Total** | **≈ 60** |
+
+## 12h. Sync & IT — section 11 (done) + IT health page (12e)
+Sync & Connections live 13 Sep (registry, secrets, add/edit/switch/reschedule/remove, Run now). Remaining: `sync.keys_page_consolidated` (nav row at deploy, 1 h); IT health page additions (10 h, in 12e).
+
+## 12i. The 100× primitives and the big fifteen — where each lands
+Certainty chip + propagation (every tile, 12 h) · period state machine (Command, Cultivation, Inventory, Finance; 10 h) · answer-first band (every dashboard, powered by Budz — Grok; 6 h Claude service) · detection anatomy (Findings exemplar) · exposure vs confirmed (Finance + Command; 6 h) · materiality + disclosed suppression (`data_assertion` config; 4 h) · impact before save (Setup-form archetype) · three-stage reconciliation (Sheet vs Metrc exemplar) · preserved export history `report_export_log` (6 h) · connected intelligence (Control Tower + CEO; 8 h) · ALERTS & ACTIONS consolidation (nav rows; 3 h) · planning rituals (Monday review, Thu/Fri plan-ahead, monthly, quarterly; 12 h) · expenses / AP (in the spine) · dispensary licence dimension (everything carries `licence`; audit 6 h).
+Big fifteen not already above: create/edit/approve UI (the Setup form + object actions cover it) · testing & COA ship-gate (COA object + sellability; 8 h) · per-employee actual pay rates (HR data + spine) · production planner/daily scheduler (Harvest & Rooms + schedule archetype) · M2 data loads (lots, standards, SKU master, BOMs, POs, cash, overhead, licences — 16 h loads, owner supplies) · mobile capture (scanner phone) · universal DataGrid + unified Tile (the archetype programme) · Metrc reports module ("every single report Metrc offers" — Report Vault exists; 12 h to finish coverage) · adoption telemetry (freshness SLAs, heartbeats, readiness gate; 8 h) · AI layer (Ask).
+
+---
+
+## 13. Schedule — nine days to go-live, three agents, with hours
+
+Capacity: 3 agents × 9 days × 15 h ≈ **405 h**. Committed below ≈ 330 h (Claude ≈ 150, Grok ≈ 90, GPT ≈ 90) — the rest is fixes and the owner's reviews.
+
+| Day | Claude (hours) | Grok (hours) | GPT (hours) |
+|---|---|---|---|
+| **Mon 14** | Package 360 page + tag links + Spotlight (8) · Findings exemplar → 60 (12) · section-19 board (2) · **deploy watch (6) · sync watch (5) · `blueprint-in-sync` gate (4) · Report-an-issue on every page (6)** | bots answer only from certified figures (10) · **bot page-walk v1 (12)** | Metrc population certificates: plants, packages, harvests, transfers (12) |
+| **Tue 15** | Setup form → 251 (15) · HR merge + `/hr` + menu row (4) · Today v1 (8) | dashboards green vs drills (12) | sync liveness + cursor health, all endpoints (10) · role QA matrix design (4) |
+| **Wed 16** | Sheet vs Metrc + override + neon + weekly review (12) · Compliance agent v1 (10) · Harvest schedule → 36 (10) | Ask front on `f_ask_view` (10) | `stock_position` → 29 (10) · certificates continued (4) |
+| **Thu 17** | Money spine v1: journal from tag_event, P&L, cost per pound, inventory value (24) · Cost sheet → 29 (8) | HR module pages → `/hr` (12) | QuickBooks reconciliation, independent (10) |
+| **Fri 18** | Custody + COA register → 48 (12) · certification board signed (4) · **onboarding pack** (6) | scorecards → 16 (8) | per-role QA signed (10) |
+| **Sat 19** | Sales desk v1: allocate → manifest draft + COAs → Apex under review → invoice (14) · Work layer v1: task 360, List/Board/My Work, forms, timers (12) | scoreboards/answer-first band (8) | vault reconciliation (8) |
+| **Sun 20** | Dispensary portal v1 (12) · Rules editor → 39 (8) | — | — |
+| **Mon 21** | My views v1 (10) · Harvest & Rooms v1 + People v1 (12) · cycle compare (6) | Ask in words → saved view in Budz (8) | dry run with customer users (8) |
+| **Tue 22** | **Freeze 12:00.** certification pass, audit pack, runbook, fixes (12) | fixes (6) | second dry run; fixes (8) |
+| **Wed 23** | **Go-live on site.** Watchdog on; on call | on call | on call |
+
+**Owner inputs (each unblocks a row):** role list for every employee · alert recipients · shift/zone/weekend/edit-roles confirmations · sheet review day and unit exceptions · the two Supabase switches + Netlify Git link · reconciliation tolerance · twelve Ask benchmark questions · three simulation scenarios · page-decision marks (§12b).
+
+### After go-live — the remaining hours, pushed to the maximum
+
+| Block | Hours | Weeks at 3 agents |
+|---|---|---|
+| Money spine full + QuickBooks mirror + payroll/purchases | 40 | 1 |
+| Agents full (Compliance, Harvest & Rooms, Sales desk, Cash, People) | 120 | 1.5 |
+| Work layer full (classes 2–4, 6–7, 9–10, notifications engine) | 114 | 1.5 |
+| Remaining archetypes + dashboards the owner names + KPI catalogue | 120 | 1.5 |
+| Scheduling section 17 remainder + HR section 18 remainder | 100 | 1 |
+| Sheets section 16 remainder + IT health page | 45 | 0.5 |
+| 100× primitives + big-fifteen remainder | 110 | 1.5 |
+| Simulation + sensors | 70 | 1 |
+| Portals (supplier), audit pack, retail dimension audit | 40 | 0.5 |
+| **Total after go-live** | **≈ 760 h** | **≈ 6 weeks at three agents, 15 h days** |
 
 ---
 
@@ -298,22 +423,80 @@ Phases 1 → 2 are strict (the ledger must be trustworthy before it posts money)
 
 | Risk | Owner | Mitigation |
 |---|---|---|
-| Metrc API scope: the feed covers ~29 % of tags; grid export is the complete source | Claude | the vault pull and grid export stay in the sync registry; Compliance agent reconciles all three |
-| Apex write guardrails must hold under an agent | Agent S + owner | every post is a decision; dry-run mode first; rotation last |
-| Sensors not installed | owner | simulation runs on history first; sensors are additive |
-| HR platform depends on two owner Supabase switches | owner | Phase 0 item |
-| Bots/AI settings are Grok's surface | Grok | Ask and agents call the same gateway; settings untouched by Claude |
-| Gates fail on Windows only (extzip, secrets stub, licences) | Claude | CI/Netlify are the judges; documented |
-| Scope creep into pages | everyone | the nav gate; the object layer; "views not pages" |
+| Metrc API covers ~29 % of tags; grid export is the complete source | Claude / GPT | vault pull + grid export in the registry; Compliance agent reconciles all three |
+| Apex write guardrails under an agent | Agent S + owner | every post a decision; dry-run first; rotation last |
+| Sensors not installed | owner | simulation on history first |
+| HR platform waits on two owner switches + Netlify Git link | owner | Day-2 item |
+| Bots/AI settings are Grok's surface | Grok | Ask and agents share the gateway; settings untouched by Claude |
+| Three agents, one repo | all | file ownership by lane; ask in chat before crossing; CI on every PR; Netlify is the judge |
+| Windows-only gate artefacts | Claude | CI/Netlify are the judges |
+| Scope creep into pages | everyone | the nav gate; views not pages; the page-decision register |
+| Go-live data not certified | Verifier | an uncertified line is shown as uncertified, never hidden |
+
+## 15. Decisions the owner takes now
+1. Go on the nine-day schedule and the three-lane split. 2. Role list, alert recipients. 3. Section 17/16/18 owner rows (shift, zones, weekend, edit roles, sheet day, unit exceptions, Supabase switches, Netlify link). 4. Reconciliation tolerance (suggest 0.5 %). 5. Twelve Ask benchmark questions. 6. Three simulation scenarios. 7. Page-decision marks — as many as you can each evening; unmarked pages are not touched.
 
 ---
 
-## 15. Decisions the owner takes now
+## 16. THE BIBLE — governance, enforcement, no drift (owner, 14 Sep 2026)
 
-1. **Go on Phase 0 this week** (foundations + HR switches + tracker section 19).
-2. **Tag 360 field list** — I bring it for approval before it's built (Phase 1, first artefact).
-3. **Reconciliation tolerance** for the money spine (Rules row; suggest 0.5 %).
-4. **The twelve benchmark questions** Ask must answer with certified figures.
-5. **Three simulation scenarios** to back-test first.
+*"Must be organised — no room for drifting or leaving anything to another AI to interpret. This must become the Bible: reviewers, watchers and the guard all agree, as we have for every aspect. Agents cannot allow stale content or overlook anything. All deployments must be watched — if one fails the agent fixes it immediately. All data must be certified; all syncs must sync without issue and be addressed the moment there is an issue."*
 
-Everything else in this document is already ruled or already built.
+### 16.1 One source, one identity per item
+- **This file is the Bible.** `CLAUDE.md` holds the rules; `HANDOFF.md` holds state; this file holds the build. Nothing about the build is decided anywhere else — not in chat, not in another agent's notes, not in a PR description. If it is not here, it is not the plan; if it is here, it is not open to interpretation.
+- **Every item carries an ID** — `BP-<section>-<n>` (e.g. `BP-12b-3` = Setup form archetype) — and lives as a `deployment_check` row `bp.<section>.<slug>` in tracker section **19 Blueprint 2026** with: owner lane (Claude / Grok / GPT / owner), hours, acceptance test (verbatim from this file), status. **The tracker row is the only place status changes, and only by a measurement**, never by hand, never by an agent's claim.
+- **No agent re-interprets.** An agent that believes an item is wrong files a *finding* against it (`agent_findings`, scope `BP-…`) and continues on the written item until the owner rules. Silence is agreement; deviation is a defect.
+- **Stale is a defect.** Any section of this file older than its items' last measurement is flagged by the gate below. A number in this file that disagrees with the tracker is a finding.
+
+### 16.2 Reviewers, watchers, the guard — who agrees, and how it is enforced
+| Role | Who | Agrees to what | Mechanism |
+|---|---|---|---|
+| **Reviewers** | Verifier (derives every figure a second way) · Challenger (refutes before it ships) · Inspector (cross-checks agents against each other and this file) | every item's acceptance test before its row flips to PASS; every phase before it is declared delivered | `f_bp_review(item)` writes the reviewer's verdict on the row; three verdicts required for a phase |
+| **Watchers** | Watchdog (nothing fails silently) · deploy watcher (§16.3) · sync watcher (§16.4) · data-certification watcher (§16.5) | that what passed stays passed | cron sweeps every 5 min; a regression re-opens the row and files a finding within one sweep |
+| **The guard** | the 46 CI gates + the pre-push hooks + the SQL guards + **`blueprint-in-sync`** (new) | that no change lands outside the Bible | `tools/checks/blueprint-in-sync.mjs`: every `BP-` ID in this file has a tracker row and every section-19 row has an ID here; hours and owners match; a PR that touches a frozen surface fails; a PR without a `BP-` ID in its title fails. Runs in CI and in the Netlify build |
+| **Owner** | Vinny | the plan, the marks in the page-decision register, the owner rows | the only hand that changes this file's rulings |
+
+### 16.3 Deploy watch — every deployment watched; a failure is fixed immediately
+- **Mechanism:** `deploy_watch` (cron, every 2 min, pg_net → Netlify deploys API for both sites, token `NETLIFY_AUTH_TOKEN` stored on the Sync page): records every deploy (`deploy_state`: id, site, commit, state, error_message, published_at). GitHub Actions status recorded the same way for every PR.
+- **On `error` / `failed`:** within one sweep — (1) `agent_findings` row, severity NO-GO, with the failing gate's name parsed from the log; (2) push to the on-call agent's channel and to the owner's recipients (rows); (3) an `ai_bridge_jobs` row *"fix production build <deploy id>"* dispatched to the on-call agent; (4) the tracker row `deploy.production_green` flips to FAIL and blocks every other section-19 row from flipping to PASS until green.
+- **The fix is the agent's, immediately:** the on-call agent reverts or repairs within the hour, opens the PR, and certifies the green deploy; the finding closes only when `deploy_state` shows `ready` for `main` and the live check passes. Rollback is always available: the previous Netlify deploy, one click.
+- **Hours:** 6 (Claude, Day 1 night). Acceptance: kill a build on a branch → finding + push + bridge job within 2 min.
+
+### 16.4 Sync watch — every sync syncs; an issue is addressed the moment it appears
+- **Mechanism:** the sync registry's `f_sync_status()` swept every 5 min (`sync_watch`): a sync whose health is `failing`, `stale` or `missing secret` for the first time → finding (severity by lane), push to recipients, **automatic first response**: re-run once via `f_sync_run`; if the re-run fails or the secret is missing → `ai_bridge_jobs` "repair sync <key>" to the on-call agent and the tracker row `sync.all_green` FAILs.
+- **No sync may be off without a reason row:** a switched-off sync needs `note` filled; the watcher flags an off sync with no note.
+- **Hours:** 5 (Claude, Day 1 night). Acceptance: break a secret on a test sync → finding + re-run + bridge job within 5 min; restore → row green within one sweep.
+
+### 16.5 Data certification — all data certified, continuously
+- **Every figure the customer sees is certified two independent ways or is labelled uncertified on the page** — the certification board (section 15) is the register; `f_certify(metric)` records both derivations, the tolerance and the verdict; a certified figure that drifts outside tolerance is re-opened by the watcher within one sweep (hourly) and the tile shows *uncertified — re-checking* until it passes again.
+- **Population certificates** (GPT lane): plants, packages, harvests, transfers, COAs, employees — signed by Friday 18 Sep; re-measured hourly.
+- **Nothing is hidden:** an uncertified line is shown as uncertified, never removed.
+- **Hours:** 8 (Claude framework) + GPT's certificates. Acceptance: every metric in `metric_registry` has a certification row with two derivations; the board shows zero unlabelled figures.
+
+### 16.6 Organisation — how the work is kept in lanes, in order, in sight
+- **One board:** tracker section 19, grouped by day and lane, read every morning in chat by all three agents; every evening the owner reviews production.
+- **One order:** the day-by-day schedule in §13. An agent does not start a later item while an earlier one of its own is red.
+- **One definition of done:** on `main` · Netlify published · live check passed · reviewer verdicts recorded · row flipped by measurement.
+- **One place for questions:** the owner rows in the tracker. An agent that needs a decision files an owner row; it does not guess.
+- **Lanes are files:** an agent touching a file outside its lane is a finding; the frozen list is absolute.
+
+## 17. The bots work with us — testing, calling out what needs fixing, reporting issues (owner, 14 Sep 2026)
+
+*"I want my bots on the platform now to work too, with us, as humans — testing and calling out shit that needs to be fixed, enhanced, and reporting issues."*
+
+| Piece | What it does | Lane | Hours | Acceptance |
+|---|---|---|---|---|
+| **Report an issue — on every page** | one control in the page chrome (no design change: it sits in the existing action bar) for humans and bots: page, view_key, role, what's wrong / what would be better, screenshot (browser capture), the figures on screen captured as they stood → `agent_findings` scope `qa:<view_key>`, kind `defect` / `enhancement`, with a link back to the page | Claude | 6 | an issue filed from any page appears in Today and on the Findings queue within 60 s with its page and figures |
+| **Bot page-walk (nightly and on every deploy)** | the TG bots extension, on the owner's session, opens every enabled page in `nav_registry` (694), records: load time, console errors, error boundaries hit, empty states without a reason, a figure with no provenance, a control that does nothing, a tile without a drill; files one finding per defect with the screenshot; re-tests after each deploy and closes what passed | Grok (bots) + Claude (intake, dedupe by fingerprint) | 12 + 4 | after a deploy, every page has a fresh walk result within 2 h; a broken page is a finding before a human sees it |
+| **Bot role tests** | the walk repeated as each role (`viewAsRole` lens for admins; real role accounts for the rest): a page a role should not see, or should see and can't, is a finding | GPT (role QA) + Grok | 8 | the role matrix signed with zero unexplained differences |
+| **Top G / Budz call-outs** | in chat: "Top G, what's broken on Cultivation?" answers from the QA findings; "report: the harvest tile is wrong" files a finding with the figures on screen | Grok | 6 | a spoken/typed report lands as a finding with page and figures |
+| **Enhancement queue** | bot and human enhancement reports ranked (impact × frequency × cost) on Today for the owner to mark: build now / later / no — feeds the page-decision register | Claude | 4 | owner marks; marks flow to `nav_registry.upgrade_decision` |
+| **Triage loop** | defects go to the lane that owns the file (§16.6) as bridge jobs; the owning agent fixes, deploys, certifies; the bot re-walks; the finding closes by measurement | all | in §16 | mean time from finding to certified fix ≤ 1 day for NO-GO, ≤ 3 days for WATCH |
+
+The bots never guess: a call-out cites the page, the figure and the source, or it is not filed.
+
+## Appendix A — Deployment tracker sections (all 18 today + 19)
+2 Doors (3) · 4 Data grain (8) · 5 Owner rules (3, PASS) · 6 Defects (3: sync button PASS; deleted pages restored — Budz, Brain, My dashboard, Chief Executive 13 Sep; save-noop PENDING) · 8 Security (3) · 9 Blockers (4, PASS) · 10 Sign-off (A: 9 Sep snapshot with honest grain / B: full live twin — owner) · 11 Sync liveness (5) + Sync & Integrations (4) · 12 Alert delivery (2) · 13 Deploy drift (1) · 14 Scheduled jobs (1) · 15 Certification (16) · 16 Sheets (13 + 2 owner) · 17 Scheduling & zones (25) · 18 HR platform (22) · **19 Go-live 23 Sep / Blueprint 2026** (this document's rows, added 14 Sep).
+
+## Appendix B — Working agreement for three agents
+Lane = files; the frozen list is absolute; every PR through CI; every deploy certified by the agent that made it; the board every morning; the owner reviews every evening on production; nothing "done" until measured live; a wrong number is a finding, never a footnote.
