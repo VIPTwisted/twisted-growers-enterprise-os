@@ -11,7 +11,6 @@ import { getLocationNames } from '../lib/locations.js'
 
 
 /* ─── deterministic seed ─── */
-function seed(a, b) { return ((a * 31 + b) * 17 + a * b) % 100 }
 
 /* ─── constants ─── */
 const LOCS = getLocationNames()
@@ -24,21 +23,7 @@ const SHIFTS = [
   { id: 'PM', label: 'PM Shift', hours: '1:00p – 9:00p', color: '#00e5ff', endHour: 21 },
 ]
 
-const KEY_HOLDERS = [
-  'Alex Rivera','Jordan Lee','Sam Torres','Morgan Chen',
-  'Casey Park','Riley Kim','Taylor Ng','Drew Patel',
-]
-const ASSOCIATES = [
-  'Chris Wade','Pat Quinn','Dana Mills','Terrell W',
-  'Deon Mitchell','Isabel Reyes','Kyle Brennan','Priya Shah',
-  'Marcus Webb','Sandra Reyes',
-]
-
-const ROLE_MAP = Object.fromEntries([
-  ...KEY_HOLDERS.map(n => [n, 'Key Holder']),
-  ...ASSOCIATES.map(n  => [n, 'Associate']),
-])
-
+// No typed-in people: rows only (get_week_schedule / get_roster).
 // Keyholder if the real role implies it (matches the DB rank<=65 set by name)
 const KH_ROLE_RX = /key|manager|lead|owner|supervisor|director/i
 const isKeyholderRole = (roleName) => KH_ROLE_RX.test(roleName || '')
@@ -84,35 +69,6 @@ function isSameDay(a, b) {
   return a.getFullYear() === b.getFullYear() &&
          a.getMonth()    === b.getMonth()    &&
          a.getDate()     === b.getDate()
-}
-
-function buildShift(locIdx, shiftIdx, dayOffset, weekSeed) {
-  const base  = seed(locIdx * 7 + shiftIdx, dayOffset + weekSeed * 13)
-  let kh1     = KEY_HOLDERS[base % 8]
-  let kh2idx  = (base + 3) % 8
-  if (KEY_HOLDERS[kh2idx] === kh1) kh2idx = (base + 4) % 8
-  const kh2   = KEY_HOLDERS[kh2idx]
-  const assoc = ASSOCIATES[seed(locIdx + shiftIdx * 3, dayOffset + weekSeed * 7) % 10]
-  return [
-    { name: kh1,   role: 'Key Holder' },
-    { name: kh2,   role: 'Key Holder' },
-    { name: assoc, role: 'Associate'  },
-  ]
-}
-
-function buildWeekSchedule(days) {
-  const weekSeed = days[0].getMonth() * 10 + Math.floor(days[0].getDate() / 7)
-  const schedule = {}
-  LOCS.forEach((loc, li) => {
-    schedule[loc] = {}
-    SHIFTS.forEach((shift, si) => {
-      schedule[loc][shift.id] = {}
-      days.forEach((day, di) => {
-        schedule[loc][shift.id][di] = buildShift(li, si, di, weekSeed)
-      })
-    })
-  })
-  return schedule
 }
 
 function transformLiveRows(rows, days) {

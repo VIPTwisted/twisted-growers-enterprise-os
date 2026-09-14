@@ -4,7 +4,6 @@ import { useAuth } from '../lib/auth.jsx'
 import { useScope } from '../lib/scope.jsx'
 
 // ── Deterministic seed ──────────────────────────────────────────────────────
-function seed(a, b) { return ((a * 31 + b) * 17 + a * b) % 100 }
 
 // ── Constants ───────────────────────────────────────────────────────────────
 const CATEGORIES = ['All', 'Policies', 'Forms', 'Compliance', 'Tax Forms', 'Training', 'HR Records', 'Personal']
