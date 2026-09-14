@@ -3,6 +3,7 @@
    Home is the facility map. Command Center is the map's own Home.
    Spotlight reads live nav_registry — no frozen page list. */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { supabase } from "./lib/supabase.js";
 
 export const HOME_VIEW = "facility_twin";
 export const LANDING_VIEW = "facility_twin";
@@ -153,7 +154,23 @@ export function OsNavBtns({ canBack, canForward, goBack, goForward, goHome, onFi
 
 export function OsFind({ open, onClose, go, pages }) {
   const [q, setQ] = useState("");
+  const [tags, setTags] = useState([]);
   const inputRef = useRef(null);
+  /* Blueprint 2026 (BP-4-1): a tag, its last digits, an item or a strain typed
+     here finds packages (f_package_search) and opens the Package 360. Only when
+     the text could be a tag fragment or a name of four characters or more. */
+  useEffect(() => {
+    const s = q.trim();
+    if (!open || s.length < 4) { setTags([]); return undefined; }
+    let live = true;
+    const t = setTimeout(() => {
+      supabase.rpc("f_package_search", { p_q: s }).then(({ data, error }) => {
+        if (!live) return;
+        setTags(!error && Array.isArray(data) ? data.slice(0, 8) : []);
+      });
+    }, 250);
+    return () => { live = false; clearTimeout(t); };
+  }, [q, open]);
   useEffect(() => {
     if (open && inputRef.current) inputRef.current.focus();
     if (!open) setQ("");
@@ -193,11 +210,23 @@ export function OsFind({ open, onClose, go, pages }) {
           onKeyDown={(e) => {
             if (e.key === "Escape") onClose();
             if (e.key === "Enter" && list[0]) pick(list[0].view_key);
+            else if (e.key === "Enter" && tags[0]) pick(`package_360:${tags[0].tag}`);
           }}
         />
         <div className="osfind-list">
-          {list.length === 0 ? (
-            <p className="osfind-empty">No page matches. Nothing invented.</p>
+          {tags.map((t) => (
+            <button
+              key={"tag:" + t.tag}
+              type="button"
+              className="osfind-row"
+              onClick={() => pick(`package_360:${t.tag}`)}
+            >
+              <b>{t.tag}</b>
+              <span>Package · {t.item || "—"}{t.strain ? ` · ${t.strain}` : ""}{t.room ? ` · ${t.room} (${t.licence})` : ""}{t.finished ? " · finished" : ""}</span>
+            </button>
+          ))}
+          {list.length === 0 && tags.length === 0 ? (
+            <p className="osfind-empty">No page or package matches. Nothing invented.</p>
           ) : list.map((p) => (
             <button
               key={p.view_key + (p.label || "")}

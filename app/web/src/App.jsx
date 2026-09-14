@@ -57,6 +57,10 @@ const MySchedule = lazy(() => import("./myschedule.jsx"));
 const SyncItems = lazy(() => import("./syncitems.jsx"));
 const KeysConnections = lazy(() => import("./keysconnections.jsx"));
 const SyncConnections = lazy(() => import("./synccenter.jsx"));
+/* Blueprint 2026 §4 (BP-4-1): the first object page. The address carries the
+   record after a colon — #package_360:<tag> — so a tag is a link anywhere. */
+const Package360 = lazy(() => import("./package-360.jsx"));
+const METRC_TAG_RE = /^1A4[0-9A-F]{21}$/;
 const SettingsDash = lazy(() => import("./settings-dash.jsx"));
 const WidgetCanvas = lazy(() => import("./wcanvas.jsx").then((m) => ({ default: m.WidgetCanvas })));
 const TgWorkspace = lazy(() => import("./tgworkspace.jsx"));
@@ -1486,6 +1490,9 @@ const chipTone = (v) => {
 /* Sitewide color code inside every table: red = issue, green = good, amber = watch, blue = neutral info */
 const ISSUE_COL = /(violation|overdue|blocked|late|missing|error|exception|flag|alert|expired|discrepan)/;
 const cellView = (col, v) => {
+  /* A Metrc tag anywhere in the OS is a door to its Package 360 (BP-4-1). The
+     anchor works with the hash router and the keyboard; nothing else changes. */
+  if (typeof v === "string" && METRC_TAG_RE.test(v)) return <a href={`#package_360:${v}`} className="taglink" title="Open this package">{v}</a>;
   if (v === true || v === false) {
     if (ISSUE_COL.test(col)) return <span className={`schip ${v ? "bad" : "good"}`}>{v ? "ISSUE" : "OK"}</span>;
     return v ? "yes" : "no";
@@ -11932,7 +11939,12 @@ export default function App() {
     if (!c) { c = { name: e.category, items: [] }; cats.push(c); }
     c.items.push(e);
   }
-  const current = routable.find((e) => e.view_key === view);
+  /* An address may carry a record after a colon (#package_360:<tag>). The part
+     before the colon is the page; the rest is handed to it. Pages without an
+     argument behave exactly as before. */
+  const viewBase = view.includes(":") ? view.slice(0, view.indexOf(":")) : view;
+  const viewArg = view.includes(":") ? decodeURIComponent(view.slice(view.indexOf(":") + 1)) : null;
+  const current = routable.find((e) => e.view_key === view) ?? routable.find((e) => e.view_key === viewBase);
   const email = session.user.email ?? "";
   const isOpen = (name) => openCats[name] !== false;
 
@@ -11977,6 +11989,7 @@ export default function App() {
        sync_registry; the older Integrations form and Keys & Connections are superseded by it
        (both components stay in this file until the menu consolidation deploys). */
     integrations: <SyncConnections session={session} />,
+    package_360: <Package360 session={session} tag={viewArg} go={setView} />,
     /* A credential vault is not a report. Routed through the report archetype this page
        inherited a search box, an export row and a date range defaulted to THIS MONTH, so a
        key set in July read as not set — on the one screen where that conclusion makes
@@ -12135,11 +12148,11 @@ export default function App() {
      exactly like landing on the home page on purpose — the same failure shape
      as a query returning [] on error. Say what was asked for and why it is not
      here; the Control Tower is one click away rather than a silent substitute. */
-  const unknownView = !special[view] && !current && view !== "tower";
+  const unknownView = !special[view] && !special[viewBase] && !current && view !== "tower";
   /* The door sign from page_permissions rows. It renders BEFORE the page body so
      a blocked page never flashes its numbers, and it says which role and which
      row blocked it — a silent block is indistinguishable from a broken page. */
-  const viewBlocked = blockedViews?.get(view) === true;
+  const viewBlocked = blockedViews?.get(view) === true || blockedViews?.get(viewBase) === true;
   const blockedBody = (
     <div className="empty">
       <div className="eicon">{I.shield}</div>
@@ -12164,7 +12177,7 @@ export default function App() {
       </div>
     </div>
   );
-  const body = viewBlocked ? blockedBody : special[view] ?? (current
+  const body = viewBlocked ? blockedBody : (special[view] ?? special[viewBase]) ?? (current
     ? <ModuleScreen entry={current} session={session} actions={current.sync_enabled ? <SyncCenter session={session} /> : undefined} />
     : unknownView
       ? (
