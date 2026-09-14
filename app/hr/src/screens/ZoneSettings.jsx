@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react'
 import { rpc, getSession } from '../lib/supabase'
-const HARTFORD='63ec69c7-297b-4c7b-9cd7-c9ffc168ae97'
+
 
 export default function ZoneSettings(){
   const me = getSession()
   const nodes = (me.nodes||[]).filter(n=>n.node_type==='location')
-  const [nodeId,setNodeId] = useState(nodes[0]?.id || HARTFORD)
+  const [nodeId,setNodeId] = useState(nodes[0]?.id || null)
   const [zones,setZones] = useState([])
   const [banner,setBanner] = useState(null)
   const [form,setForm] = useState({label:'',is_register:false,requires_keyholder:false})
@@ -43,7 +43,7 @@ export default function ZoneSettings(){
 
       <div className="row" style={{margin:'14px 0'}}>
         <select style={{width:240}} value={nodeId} onChange={e=>setNodeId(e.target.value)}>
-          {(nodes.length?nodes:[{id:HARTFORD,name:'Hartford'}]).map(n=>(
+          {nodes.map(n=>(
             <option key={n.id} value={n.id}>{n.name}</option>
           ))}
         </select>

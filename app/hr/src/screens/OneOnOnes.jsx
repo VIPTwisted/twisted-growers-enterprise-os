@@ -4,6 +4,8 @@ import { useFeatureFlag } from '../lib/featureFlags.js'
 import { useConfig } from '../lib/config.js'
 import { useAuth } from '../lib/auth.jsx'
 import { sb, getSession } from '../lib/supabase'
+import { locColor as locColorByName } from '../lib/locations.js'
+
 
 // ── FEATURE DISABLED ─────────────────────────────────────────────────────────
 
@@ -66,12 +68,7 @@ function avatarColor(name) {
   return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length]
 }
 
-function locColor(loc) {
-  if (loc === 'Orange')     return 'var(--t-warn)'
-  if (loc === 'Hartford')   return 'var(--t-accent)'
-  if (loc === 'Manchester') return 'var(--t-success)'
-  return 'var(--t-text-muted)'
-}
+function locColor(loc) { return locColorByName(loc) }
 
 function topicColor(topic) {
   const map = {

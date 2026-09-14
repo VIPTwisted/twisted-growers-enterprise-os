@@ -3,6 +3,8 @@ import { useFeatureFlag } from '../lib/featureFlags.js'
 import { useConfig } from '../lib/config.js'
 import { sb, getSession } from '../lib/supabase'
 import DrillDown from '../components/DrillDown.jsx'
+import { locColor as locColorByName } from '../lib/locations.js'
+
 
 // ─── Feature Gate ────────────────────────────────────────────────────────────
 
@@ -68,12 +70,7 @@ function initials(name) {
   return parts.length >= 2 ? (parts[0][0] + parts[parts.length - 1][0]).toUpperCase() : name[0].toUpperCase()
 }
 
-function locColor(loc) {
-  if (loc === 'Orange') return 'var(--t-warn)'
-  if (loc === 'Hartford') return 'var(--t-accent)'
-  if (loc === 'Manchester') return 'var(--t-success)'
-  return 'var(--t-text-muted)'
-}
+function locColor(loc) { return locColorByName(loc) }
 
 function fmtDate(ds) {
   if (!ds) return ''

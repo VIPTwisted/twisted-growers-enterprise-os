@@ -6,12 +6,14 @@ import { useState, useCallback, useMemo, useEffect } from 'react'
 import { useAuth } from '../lib/auth.jsx'
 import { sb, getSession } from '../lib/supabase'
 import DrillDown from '../components/DrillDown.jsx'
+import { getLocationNames } from '../lib/locations.js'
+
 
 const EXEC_RX = /admin|owner|coo|ceo|cfo|president|chief|hr|manager/i
 // Audience picker catalogs + starter templates are static UI config (option lists
 // the author chooses from) — not records. No fabricated data is ever shown as real.
 const ROLES = ['Associate', 'Key Holder', 'Store Manager', 'HR Manager', 'COO']
-const LOCATIONS = ['Orange', 'Hartford', 'Manchester', 'Southington', 'Warehouse / Distribution']
+const LOCATIONS = getLocationNames()
 
 // question types: rating (1-5), nps (0-10), yesno, choice, text
 const TEMPLATES = [

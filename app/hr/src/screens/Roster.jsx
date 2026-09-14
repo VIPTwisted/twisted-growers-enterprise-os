@@ -1,15 +1,17 @@
-﻿// Roster.jsx — Twisted Growers HR
+// Roster.jsx — Twisted Growers HR
 // Aurora midnight theme · inline styles · CSS token vars · no Tailwind
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useAuth } from '../lib/auth.jsx'
 import { useScope } from '../lib/scope.jsx'
 import { sb } from '../lib/supabase'
+import { getLocationNames } from '../lib/locations.js'
+
 
 /* ─────────────────────────────────────────────────────────────────────────────
    CONSTANTS
 ───────────────────────────────────────────────────────────────────────────── */
-const LOCATIONS    = ['All', 'Orange', 'Hartford', 'Manchester', 'Southington', 'Warehouse / Distribution']
-const LOC_NAMES    = ['Orange', 'Hartford', 'Manchester', 'Southington', 'Warehouse / Distribution']
+const LOCATIONS = ['All', ...getLocationNames()]
+const LOC_NAMES = getLocationNames()
 const ROLES        = ['All Roles', 'Associate', 'Key Holder', 'Store Manager', 'HR Manager', 'COO']
 const STATUS_OPTS  = ['All', 'active', 'leave', 'terminated']
 const RISK_OPTS    = ['All', 'critical', 'high', 'medium', 'low']

@@ -1,10 +1,12 @@
-﻿import { useState, useEffect, createContext, useContext } from 'react'
+import { useState, useEffect, createContext, useContext } from 'react'
 import { sb } from '../lib/supabase'
 import { useAuth } from '../lib/auth.jsx'
 import { useScope } from '../lib/scope.jsx'
 import { useConfig } from '../lib/config.js'
 import { useFeatureFlag } from '../lib/featureFlags.js'
 import DrillDown from '../components/DrillDown.jsx'
+import { getLocationNames } from '../lib/locations.js'
+
 
 /* ══════════════════════════════════════════════════════════════
    LIVE DATA CONTEXT — real time entries → roster + hours override
@@ -54,28 +56,10 @@ const tdStyle = { padding: '9px 10px', borderBottom: '1px solid var(--t-line)', 
 ══════════════════════════════════════════════════════════════ */
 function seed(a, b) { return ((a * 31 + b) * 17 + a * b) % 100 }
 
-const LOCATIONS = ['Orange', 'Hartford', 'Manchester', 'Southington', 'Warehouse / Distribution']
+const LOCATIONS = getLocationNames()
 
-const ALL_EMPLOYEES = [
-  { id: 'e01', full_name: 'Jordan Lee',      role_name: 'Key Holder',    location: 'Orange',      idx: 0 },
-  { id: 'e02', full_name: 'Sam Rivera',       role_name: 'Associate',     location: 'Hartford',    idx: 1 },
-  { id: 'e03', full_name: 'Casey Morgan',     role_name: 'HR Manager',    location: 'Manchester',  idx: 2 },
-  { id: 'e04', full_name: 'Alex Chen',        role_name: 'Associate',     location: 'Southington', idx: 3 },
-  { id: 'e05', full_name: 'Dana Kim',         role_name: 'Store Manager', location: 'Orange',      idx: 4 },
-  { id: 'e06', full_name: 'Riley Gomez',      role_name: 'Associate',     location: 'Hartford',    idx: 5 },
-  { id: 'e07', full_name: 'Chris Patel',      role_name: 'Key Holder',    location: 'Orange',      idx: 6 },
-  { id: 'e08', full_name: 'Morgan Wu',        role_name: 'Associate',     location: 'Manchester',  idx: 7 },
-  { id: 'e09', full_name: 'Taylor Brooks',    role_name: 'Associate',     location: 'Southington', idx: 8 },
-  { id: 'e10', full_name: 'Jamie Ortiz',      role_name: 'Key Holder',    location: 'Hartford',    idx: 9 },
-  { id: 'e11', full_name: 'Reese Murphy',     role_name: 'Associate',     location: 'Manchester',  idx: 10 },
-  { id: 'e12', full_name: 'Quinn Nakamura',   role_name: 'Store Manager', location: 'Hartford',    idx: 11 },
-  { id: 'e13', full_name: 'Avery Singh',      role_name: 'Associate',     location: 'Orange',      idx: 12 },
-  { id: 'e14', full_name: 'Blake Torres',     role_name: 'Key Holder',    location: 'Southington', idx: 13 },
-  { id: 'e15', full_name: 'Skyler Johnson',   role_name: 'Associate',     location: 'Manchester',  idx: 14 },
-  { id: 'e16', full_name: 'Parker Williams',  role_name: 'COO',           location: 'Orange',      idx: 15 },
-  { id: 'e17', full_name: 'Drew Ramirez',     role_name: 'Associate',     location: 'Southington', idx: 16 },
-  { id: 'e18', full_name: 'Finley Scott',     role_name: 'Associate',     location: 'Hartford',    idx: 17 },
-]
+// No typed-in employees: the roster is built from time-entry rows; an empty period is empty.
+const ALL_EMPLOYEES = []
 
 /* Build a live roster (mock ALL_EMPLOYEES shape) from real time-entry rows.
    Keeps deterministic `idx` so rate/deduction helpers still work.

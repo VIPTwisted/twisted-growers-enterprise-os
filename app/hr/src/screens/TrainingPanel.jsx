@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react'
 import { rpc, getSession } from '../lib/supabase'
-const HARTFORD='63ec69c7-297b-4c7b-9cd7-c9ffc168ae97'
+
 
 export default function TrainingPanel(){
   const me = getSession()
   const nodes = (me.nodes||[]).filter(n=>n.node_type==='location')
-  const [nodeId,setNodeId] = useState(nodes[0]?.id || HARTFORD)
+  const [nodeId,setNodeId] = useState(nodes[0]?.id || null)
   const [date,setDate] = useState(new Date().toISOString().slice(0,10))
   const [avail,setAvail] = useState(null)
   const [sessions,setSessions] = useState([])
@@ -41,7 +41,7 @@ export default function TrainingPanel(){
       <h1 style={{marginBottom:6}}>Training</h1>
       <div className="row" style={{margin:'14px 0'}}>
         <select style={{width:220}} value={nodeId} onChange={e=>setNodeId(e.target.value)}>
-          {(nodes.length?nodes:[{id:HARTFORD,name:'Hartford'}]).map(n=>(<option key={n.id} value={n.id}>{n.name}</option>))}
+          {nodes.map(n=>(<option key={n.id} value={n.id}>{n.name}</option>))}
         </select>
         <div className="spacer"/>
         <input type="date" style={{width:170}} value={date} onChange={e=>setDate(e.target.value)} />

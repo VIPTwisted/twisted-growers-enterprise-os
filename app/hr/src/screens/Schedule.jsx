@@ -7,12 +7,14 @@ import { useScope } from '../lib/scope.jsx'
 import { sb } from '../lib/supabase'
 import { pushNotification } from '../lib/platform.js'
 import DrillDown from '../components/DrillDown.jsx'
+import { getLocationNames } from '../lib/locations.js'
+
 
 /* ─── deterministic seed ─── */
 function seed(a, b) { return ((a * 31 + b) * 17 + a * b) % 100 }
 
 /* ─── constants ─── */
-const LOCS = ['Orange', 'Hartford', 'Manchester', 'Southington', 'Warehouse / Distribution']
+const LOCS = getLocationNames()
 
 // Shift color code: AM = yellow, PM = blue (theme accent). Used for the
 // AM/PM label band AND the tile outlines in WeeklyGrid. Other color codes
@@ -117,7 +119,7 @@ function transformLiveRows(rows, days) {
   if (!rows || rows.length === 0) return null
   const schedule = {}
   rows.forEach(row => {
-    const loc = row.node_name || 'Orange'
+    const loc = row.node_name || 'Unassigned'
     if (!schedule[loc]) {
       schedule[loc] = {}
       SHIFTS.forEach(sh => {

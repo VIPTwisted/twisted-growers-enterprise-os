@@ -3,6 +3,8 @@ import { useFeatureFlag } from '../lib/featureFlags.js'
 import { useConfig } from '../lib/config.js'
 import { useAuth } from '../lib/auth.jsx'
 import { sb, getSession } from '../lib/supabase'
+import { locColor as locColorByName } from '../lib/locations.js'
+
 
 /* ── helpers ─────────────────────────────────────────────────────────── */
 function fmtDate(ds) {
@@ -27,12 +29,7 @@ function isDecisionTime(hireDate, days) {
   return daysRemaining(hireDate, days) <= 7
 }
 
-function locColor(loc) {
-  if (loc === 'Orange')     return 'var(--t-warn)'
-  if (loc === 'Hartford')   return 'var(--t-accent)'
-  if (loc === 'Manchester') return 'var(--t-success)'
-  return 'var(--t-text-muted)'
-}
+function locColor(loc) { return locColorByName(loc) }
 
 const AVATAR_COLORS = ['#7c4dff', '#2979ff', '#2ad6a0', '#ffb800', '#ff4d7d', '#00e5ff', '#ff6d00', '#aa00ff']
 

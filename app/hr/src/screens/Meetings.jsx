@@ -1,8 +1,10 @@
-﻿import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { sb } from '../lib/supabase'
 import { useAuth } from '../lib/auth.jsx'
 import { useScope } from '../lib/scope.jsx'
 import DrillDown from '../components/DrillDown.jsx'
+import { getLocationNames } from '../lib/locations.js'
+
 
 // ── CONSTANTS ─────────────────────────────────────────────────────────────────
 
@@ -111,15 +113,9 @@ function avatarColor(name) {
 }
 
 // Location chip color
-function locColor(loc) {
-  if (loc === 'Orange')     return 'var(--t-warn)'
-  if (loc === 'Hartford')   return 'var(--t-accent)'
-  if (loc === 'Manchester') return 'var(--t-success)'
-  if (loc === 'Southington') return 'var(--t-text-muted)'
-  return 'var(--t-text-muted)'
-}
+function locColor(loc) { return locColorByName(loc) }
 
-const LOCATIONS = ['Orange', 'Hartford', 'Manchester', 'Southington', 'Warehouse / Distribution']
+const LOCATIONS = getLocationNames()
 
 // ── STYLES ────────────────────────────────────────────────────────────────────
 
@@ -382,13 +378,7 @@ export default function Meetings() {
 
   // ── LOAD ────────────────────────────────────────────────────────────────────
   // Map real Supabase node ids → clean location names (for filters/grouping/display).
-  const NODE_LOCATION = {
-    '63ec69c7-297b-4c7b-9cd7-c9ffc168ae97': 'Hartford',
-    '412af28d-997b-459e-a305-e785f9eac7d0': 'Manchester',
-    '4701a552-e635-4394-a607-a5e1b9aeebbe': 'Orange',
-    '46919412-dcea-422e-89d5-8637891142eb': 'Southington',
-    'b4cb7b65-39e8-48cd-a5e2-35f706ad4d93': 'Warehouse',
-  }
+  const NODE_LOCATION = getNodeNameMap()   // the session's own nodes, never a typed-in map
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -1190,10 +1180,7 @@ export default function Meetings() {
             <label style={S.label}>Location</label>
             <select style={S.select} value={form.location} onChange={e => setForm(f => ({ ...f, location: e.target.value }))}>
               <option value="All">All Locations</option>
-              <option value="Orange">Orange</option>
-              <option value="Hartford">Hartford</option>
-              <option value="Manchester">Manchester</option>
-              <option value="Southington">Southington</option>
+              {LOCATIONS.map(l => <option key={l} value={l}>{l}</option>)}
             </select>
           </div>
         </div>

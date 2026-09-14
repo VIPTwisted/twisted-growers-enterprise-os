@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
 import { rpc, getSession } from '../lib/supabase'
 
-const HARTFORD = '63ec69c7-297b-4c7b-9cd7-c9ffc168ae97'
 
 function CodeBadge({ status }){
   if(!status) return null
@@ -27,7 +26,7 @@ function Legend(){
 export default function ScheduleBuilder(){
   const me = getSession()
   const nodes = (me.nodes||[]).filter(n=>n.node_type==='location')
-  const [nodeId,setNodeId] = useState(nodes[0]?.id || HARTFORD)
+  const [nodeId,setNodeId] = useState(nodes[0]?.id || null)
   const [view,setView] = useState('daily')   // daily | weekly
   const [date,setDate] = useState(new Date().toISOString().slice(0,10))
   const [weekStart,setWeekStart] = useState(mondayOf(new Date()))
@@ -91,7 +90,7 @@ export default function ScheduleBuilder(){
 
       <div className="row" style={{margin:'16px 0'}}>
         <select style={{width:220}} value={nodeId} onChange={e=>setNodeId(e.target.value)}>
-          {(nodes.length?nodes:[{id:HARTFORD,name:'Hartford'}]).map(n=>(
+          {nodes.map(n=>(
             <option key={n.id} value={n.id}>{n.name}</option>
           ))}
         </select>
