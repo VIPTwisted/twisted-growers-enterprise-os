@@ -871,7 +871,10 @@ const migrationEntries = files.map((name) => ({
 // Re-pinned 14 Sep 2026 -> 1152 files. Recorded schedule_archetype_bp_12b_7 (f_harvest_calendar / f_harvest_reschedule — the rules are
 // rows, harvest_alert_rules + cult_cycle_policy), harvest_pulls_plan_date_anchors_the_rules, harvest_calendar_carries_plan_date, harvest_calendar_room_qualified_j7. Claude desk.
 // Re-pinned 14 Sep 2026 -> 1153 files. Recorded today_reports_are_their_own_source (BP-17-1: a reported defect is its own source on Today; top three per source always listed). Claude desk.
-const expectedMigrationTreeDigest = "258cdb7255ab3434ae4187a7a39bfeba612a554328910d0b1a46db0e866e62f4";
+// Re-pinned 14 Sep 2026 -> 1156 files. Recorded money_spine_v1_bp_6 (gl_account, posting_rule, journal + journal_line, f_post_journals, the five
+// spine views, cron journal-post, seven Finance pages), money_spine_engine_one_poster_at_a_time, money_spine_engine_says_no_weight_on_the_event
+// and money_spine_tag_stream_and_reprice (f_tag_stream, the reprice section); baseline regenerated. Claude desk.
+const expectedMigrationTreeDigest = "6b0116596628b4997910e8ee7533f4090407531de3189c21a6b5971cbf8df82f";
 const actualMigrationTreeDigest = migrationTreeDigest(migrationEntries);
 if (actualMigrationTreeDigest !== expectedMigrationTreeDigest) {
   console.error(`money-grain: FAIL — migration tree differs from the independently reviewed ${files.length}-file manifest (${actualMigrationTreeDigest}).`);
