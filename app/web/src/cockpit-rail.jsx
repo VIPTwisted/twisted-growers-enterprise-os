@@ -284,16 +284,17 @@ export const COCKPITS = [
     ],
   },
   {
-    view_key: "dept_dash_hr",
+    /* HUMAN RESOURCES IS THE HR PLATFORM. Owner, 12 Sep 2026: "keep it simple and be taken to the HR
+       platform main Dashboard". The category is a door, not a page: it opens /hr on this origin (the
+       HR platform, same Supabase project, same sign-in) at its Dashboard. The 87 OS HR pages that used
+       to hang here are superseded; the OS-only items among them (QuickBooks, ClickUp, alert recipients,
+       wall terminal and devices, 280E payroll finance) were re-homed to Settings and Finance. */
+    view_key: "hr_platform",
+    href: "/hr/",
     label: "Human Resources",
     short: "HR",
     ico: "users",
-    children: [
-      { view_key: "people", label: "Employees", ico: "users" },
-      { view_key: "employee-work-schedules", label: "Schedule", ico: "calendarClock" },
-      { view_key: "timesheets", label: "Timesheets", ico: "clock" },
-      { view_key: "payroll", label: "Payroll", ico: "banknote" },
-    ],
+    children: [],
   },
   {
     view_key: "dept_dash_workspace",
@@ -340,7 +341,7 @@ export function cockpitViewForCategory(cat) {
   if (cat === "Finance") return "dept_dash_cfo";
   if (cat === "Sales & Cash") return "dept_dash_sales";
   if (cat === "Metrc") return "dept_dash_metrc";
-  if (cat === "Human Resources") return "dept_dash_hr";
+  if (cat === "Human Resources") return "hr_platform";
   if (cat === "Workspace") return "dept_dash_workspace";
   if (cat === "Infused Pre-Rolls & Flower") return "dept_dash_preroll";
   if (cat === "Settings") return "dept_dash_settings";
@@ -395,7 +396,7 @@ export default function CockpitRail({ view, go, collapsed, category, expandAll }
             type="button"
             className={`railcat${ownsView(c, view) || c.view_key === fromCat ? " on" : ""}`}
             title={c.label}
-            onClick={() => go(c.view_key)}
+            onClick={() => (c.href ? window.location.assign(c.href) : go(c.view_key))}
           >
             <span className="rcicon"><RailIco name={c.ico} size={19} /></span>
             <span className="rclabel">{c.short || c.label}</span>

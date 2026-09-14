@@ -42,7 +42,13 @@
   # and page-architecture need a database, there is none here, and they answer PASS
   # without verifying anything. They are honest about it - but that honesty scrolled
   # past unread inside a passing build, which is precisely how a vacuous gate survives.
-  command = "npm install --include=dev --no-audit --no-fund && cd ../.. && npm install --include=dev --no-audit --no-fund && npm run gates && cd app/web && npm run build"
+  # THE HR PLATFORM IS PART OF THIS BUILD. app/hr (Bible §12g) builds LAST, into app/web/dist/hr,
+  # with Vite base /hr/ — one repo, one deploy, one origin. Served on the OS origin the HR
+  # platform shares the OS sign-in (same Supabase project, same auth storage key), which is the
+  # whole point: Human Resources on the rail opens /hr as the person already signed in. It builds
+  # after the OS bundle because the OS build empties dist first. The separate tg-hr Netlify site
+  # was never linked to Git (its bundles were hand-uploaded) and is retired; nothing proxies to it.
+  command = "npm install --include=dev --no-audit --no-fund && cd ../.. && npm install --include=dev --no-audit --no-fund && npm run gates && cd app/web && npm run build && cd ../hr && npm install --include=dev --no-audit --no-fund && npm run build"
   publish = "dist"
 
 [build.environment]
@@ -83,6 +89,25 @@
   from = "/assets/*"
   to = "/assets/:splat"
   status = 404
+
+# THE HR PLATFORM AT /hr — same rule set, one level down. Its hashed chunks live under
+# /hr/assets/ (built into dist/hr by the command above); a missing one 404s for the same reason
+# as the OS's, and every other /hr path is the HR single-page app. Order matters: these sit
+# before the OS catch-all, which would otherwise answer /hr/* with the OS index.html.
+[[redirects]]
+  from = "/hr/assets/*"
+  to = "/hr/assets/:splat"
+  status = 404
+
+[[redirects]]
+  from = "/hr"
+  to = "/hr/"
+  status = 301
+
+[[redirects]]
+  from = "/hr/*"
+  to = "/hr/index.html"
+  status = 200
 
 [[redirects]]
   from = "/*"

@@ -853,7 +853,9 @@ const migrationEntries = files.map((name) => ({
 // Re-pinned 14 Sep 2026 -> 1128 files. Recorded claude_deploy_watch_token_free_probe (site_probe; the published build stamp
 // replaces the API tokens) and regenerated the baseline. Claude desk.
 // Re-pinned 14 Sep 2026 -> 1129 files. Recorded claude_ci_record_verdict_function (the gates role stays read-only). Claude desk.
-const expectedMigrationTreeDigest = "c165f9ccf3daf376fb7763414257dcf6052e9076d09ba0b5dc051624e4a9ccda";
+// Re-pinned 14 Sep 2026 -> 1133 files. Recorded the four hr_* migrations of BP-12g (six HR screens on live rows, huddle day read,
+// drafter wrappers). Claude desk.
+const expectedMigrationTreeDigest = "c4f6fd36891025a0d4f80962324efb843380c4c213531f1326dee083ef07d152";
 const actualMigrationTreeDigest = migrationTreeDigest(migrationEntries);
 if (actualMigrationTreeDigest !== expectedMigrationTreeDigest) {
   console.error(`money-grain: FAIL — migration tree differs from the independently reviewed ${files.length}-file manifest (${actualMigrationTreeDigest}).`);

@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>New Hire Onboarding</title>
+<style>
+  :root{--bg:#0f1419;--panel:#151b2e;--panel2:#1a2236;--border:#363d52;--text:#e8ecf4;--muted:#8a94a8;--accent:#00d4ff;--green:#00e676;--red:#ff1744;--yellow:#ffd600}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;font-size:15px;line-height:1.4}
+  header{position:sticky;top:0;background:linear-gradient(90deg,#0f1419,#1a2236);border-bottom:2px solid var(--border);padding:14px 16px;display:flex;justify-content:space-between;align-items:center;z-index:10}
+  header b{color:var(--accent);letter-spacing:.02em}
+  .wrap{max-width:640px;margin:0 auto;padding:16px}
+  .prog{height:6px;background:var(--panel2);border:1px solid var(--border);margin:10px 0 18px}
+  .prog>div{height:100%;background:var(--accent);width:0;transition:width .3s}
+  .card{background:var(--panel);border:1px solid var(--border);margin-bottom:14px}
+  .card>.hd{padding:12px 14px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center}
+  .card>.hd .t{font-weight:700}
+  .card>.bd{padding:14px}
+  .req{color:var(--red);font-size:12px}
+  .done{color:var(--green);font-weight:700;font-size:13px}
+  label{display:block;font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin:10px 0 4px}
+  input,select{width:100%;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:11px;font-size:16px}
+  input[type=checkbox]{width:auto;transform:scale(1.3);margin-right:8px}
+  .grp{margin-bottom:6px}
+  .grp>.gt{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--accent);margin:14px 0 2px;border-bottom:1px solid var(--border);padding-bottom:4px}
+  button{background:var(--accent);color:#04141c;border:none;padding:12px 16px;font-size:15px;font-weight:700;cursor:pointer;width:100%}
+  button.sec{background:var(--bg);color:var(--text);border:1px solid var(--border)}
+  button:disabled{opacity:.5}
+  .drop{border:1px dashed var(--border);padding:26px;text-align:center;color:var(--muted)}
+  canvas.sig{width:100%;height:180px;background:#fff;border:1px solid var(--border);touch-action:none;display:block}
+  .row{display:flex;gap:8px;align-items:center;margin-top:8px}
+  .consent{display:flex;gap:8px;font-size:13px;color:var(--muted);margin:12px 0}
+  .msg{padding:16px;text-align:center;color:var(--muted)}
+  .ok{color:var(--green)} .err{color:var(--red)}
+  .submit{position:sticky;bottom:0;padding:14px 0;background:linear-gradient(180deg,transparent,var(--bg) 30%)}
+</style>
+</head>
+<body>
+<header><span><b>VIP</b> &nbsp;New-Hire Onboarding</span><span id="pkgName" class="muted"></span></header>
+<div class="wrap">
+  <div class="prog"><div id="progbar"></div></div>
+  <div id="root"><div class="msg">Loading your onboarding packet&hellip;</div></div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+(function(){
+  'use strict';
+  var URL_='https://ewepkpwlotjutbmsczgh.supabase.co';
+  var ANON='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV3ZXBrcHdsb3RqdXRibXNjemdoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI1OTExNzYsImV4cCI6MjA5ODE2NzE3Nn0.-NFb6NKJ8QXKq7m8h-uuo-P-6BMH9U21OKfXGidP8nE';
+  var BUCKET='hr-documents';
+  var sb=window.supabase.createClient(URL_,ANON);
+  var token=new URLSearchParams(location.search).get('token');
+  var root=document.getElementById('root');
+  function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
+  async function rpc(n,a){var r=await sb.rpc(n,a||{});if(r.error)throw new Error(r.error.message);return r.data;}
+  async function sha256(str){try{var b=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(str));return Array.prototype.map.call(new Uint8Array(b),function(x){return x.toString(16).padStart(2,'0');}).join('');}catch(_){return null;}}
+
+  var state={items:[],forms:{},pkt:null};
+
+  if(!token){ root.innerHTML='<div class="msg err">Missing onboarding link token. Please use the link we sent you.</div>'; return; }
+
+  load();
+  async function load(){
+    try{
+      var d=await rpc('onboarding_open_by_token',{p_token:token});
+      state.pkt=d.packet; state.items=d.items||[]; state.forms=d.forms||{};
+      document.getElementById('pkgName').textContent=state.pkt.candidate_name||'';
+      render();
+    }catch(e){ root.innerHTML='<div class="msg err">'+esc(e.message)+'</div>'; }
+  }
+
+  function progress(){
+    var req=state.items.filter(function(i){return i.required;});
+    var done=req.filter(function(i){return i.status==='completed';}).length;
+    document.getElementById('progbar').style.width=(req.length?Math.round(done/req.length*100):0)+'%';
+    return {done:done,total:req.length};
+  }
+
+  function render(){
+    if(state.pkt.status==='submitted'||state.pkt.status==='completed'){
+      root.innerHTML='<div class="card"><div class="bd msg ok"><h2>✓ All done!</h2>Your onboarding packet has been submitted. Welcome aboard, '+esc(state.pkt.candidate_name)+'.</div></div>'; progress(); return;
+    }
+    root.innerHTML=state.items.map(cardHtml).join('')+
+      '<div class="submit"><button id="submitBtn">Submit onboarding packet</button><div id="submitMsg" class="msg"></div></div>';
+    state.items.forEach(wireCard);
+    document.getElementById('submitBtn').addEventListener('click',submit);
+    progress();
+  }
+
+  function cardHtml(it){
+    var badge=it.status==='completed'?'<span class="done">✓ Completed</span>':(it.required?'<span class="req">Required</span>':'<span class="muted">Optional</span>');
+    var body='';
+    if(it.kind==='form') body='<div data-form="'+it.id+'"></div>';
+    else if(it.kind==='upload') body='<div class="drop" data-up="'+it.id+'">Tap to upload a photo or file</div><input type="file" accept="image/*,.pdf" capture="environment" data-file="'+it.id+'" style="display:none"><div class="muted" data-fn="'+it.id+'" style="margin-top:6px"></div>';
+    else if(it.kind==='esign'||it.kind==='ack') body='<div data-sign="'+it.id+'"></div>';
+    return '<div class="card" id="card-'+it.id+'"><div class="hd"><span class="t">'+esc(it.title)+'</span>'+badge+'</div><div class="bd">'+body+'</div></div>';
+  }
+
+  function wireCard(it){
+    if(it.kind==='form') renderForm(it);
+    else if(it.kind==='upload') wireUpload(it);
+    else if(it.kind==='esign'||it.kind==='ack') wireSign(it);
+  }
+
+  // ---- form ----
+  function renderForm(it){
+    var host=document.querySelector('[data-form="'+it.id+'"]'); if(!host) return;
+    var def=state.forms[it.form_key];
+    if(!def){ host.innerHTML='<div class="muted">This form ('+esc(it.form_key)+') is not configured yet.</div>'; return; }
+    var data=it.data||{};
+    var lastGrp=null, html='';
+    (def.schema||[]).forEach(function(f){
+      if(f.group&&f.group!==lastGrp){ html+='<div class="grp"><div class="gt">'+esc(f.group)+'</div></div>'; lastGrp=f.group; }
+      var v=data[f.key]==null?'':data[f.key];
+      html+='<label>'+esc(f.label)+(f.required?' <span class="req">*</span>':'')+'</label>';
+      if(f.type==='select') html+='<select data-k="'+f.key+'"><option value="">— select —</option>'+(f.options||[]).map(function(o){return '<option'+(String(v)===String(o)?' selected':'')+'>'+esc(o)+'</option>';}).join('')+'</select>';
+      else if(f.type==='checkbox') html+='<div><input type="checkbox" data-k="'+f.key+'"'+(v?' checked':'')+'> '+esc(f.label)+'</div>';
+      else html+='<input type="'+(f.type||'text')+'" data-k="'+f.key+'" value="'+esc(v)+'">';
+    });
+    html+='<button style="margin-top:14px" data-save="'+it.id+'">Save '+esc(def.title.split('—')[0].trim())+'</button>';
+    host.innerHTML=html;
+    host.querySelector('[data-save]').addEventListener('click',async function(){
+      var out={}; var ok=true;
+      host.querySelectorAll('[data-k]').forEach(function(n){ out[n.getAttribute('data-k')]=n.type==='checkbox'?n.checked:n.value; });
+      (def.schema||[]).forEach(function(f){ if(f.required&&!out[f.key]){ ok=false; } });
+      if(!ok){ alert('Please fill all required (*) fields.'); return; }
+      var btn=host.querySelector('[data-save]'); btn.disabled=true; btn.textContent='Saving…';
+      try{ await rpc('onboarding_guest_save_item',{p_token:token,p_item_id:it.id,p_data:out,p_complete:true}); it.status='completed'; it.data=out; refreshCard(it); }
+      catch(e){ btn.disabled=false; btn.textContent='Save'; alert(e.message); }
+    });
+  }
+
+  // ---- upload ----
+  function wireUpload(it){
+    var drop=document.querySelector('[data-up="'+it.id+'"]'), inp=document.querySelector('[data-file="'+it.id+'"]'), fn=document.querySelector('[data-fn="'+it.id+'"]');
+    drop.addEventListener('click',function(){inp.click();});
+    inp.addEventListener('change',async function(e){
+      var f=e.target.files[0]; if(!f) return; fn.textContent='Uploading '+f.name+'…';
+      try{
+        var path='guest/'+token+'/'+it.id+'_'+f.name.replace(/[^A-Za-z0-9._-]/g,'_');
+        var up=await sb.storage.from(BUCKET).upload(path,f,{upsert:true}); if(up.error) throw new Error(up.error.message);
+        await rpc('onboarding_guest_attach_upload',{p_token:token,p_item_id:it.id,p_storage_path:path,p_name:f.name,p_mime:f.type,p_size:f.size});
+        it.status='completed'; fn.textContent=f.name+' ✓'; refreshCard(it);
+      }catch(err){ fn.innerHTML='<span class="err">'+esc(err.message)+'</span>'; }
+    });
+  }
+
+  // ---- e-sign (inline canvas, touch+mouse) ----
+  function wireSign(it){
+    var host=document.querySelector('[data-sign="'+it.id+'"]'); if(!host) return;
+    host.innerHTML='<input placeholder="Type your full legal name" data-nm style="margin-bottom:8px">'+
+      '<canvas class="sig" data-cv></canvas><div class="row"><button class="sec" data-clear style="width:auto">Clear</button></div>'+
+      '<label class="consent"><input type="checkbox" data-consent> I agree my electronic signature is the legal equivalent of my handwritten signature.</label>'+
+      '<button data-go disabled>Sign &amp; complete</button>';
+    var cv=host.querySelector('[data-cv]'),ctx=cv.getContext('2d'),ink=false,drawing=false;
+    function size(){cv.width=cv.offsetWidth;cv.height=180;ctx.strokeStyle='#0a0a0a';ctx.lineWidth=2.4;ctx.lineCap='round';ctx.lineJoin='round';}
+    setTimeout(size,0);
+    function pos(e){var r=cv.getBoundingClientRect();var p=e.touches?e.touches[0]:e;return{x:p.clientX-r.left,y:p.clientY-r.top};}
+    function down(e){e.preventDefault();drawing=true;var p=pos(e);ctx.beginPath();ctx.moveTo(p.x,p.y);}
+    function move(e){if(!drawing)return;e.preventDefault();var p=pos(e);ctx.lineTo(p.x,p.y);ctx.stroke();ink=true;upd();}
+    cv.addEventListener('mousedown',down);cv.addEventListener('mousemove',move);window.addEventListener('mouseup',function(){drawing=false;});
+    cv.addEventListener('touchstart',down,{passive:false});cv.addEventListener('touchmove',move,{passive:false});cv.addEventListener('touchend',function(){drawing=false;});
+    host.querySelector('[data-clear]').addEventListener('click',function(){ctx.clearRect(0,0,cv.width,cv.height);ink=false;upd();});
+    var nm=host.querySelector('[data-nm]'),cs=host.querySelector('[data-consent]'),go=host.querySelector('[data-go]');
+    function ready(){return nm.value.trim().length>1&&cs.checked&&ink;}
+    function upd(){go.disabled=!ready();}
+    nm.addEventListener('input',upd);cs.addEventListener('change',upd);
+    go.addEventListener('click',async function(){
+      go.disabled=true;go.textContent='Signing…';
+      try{
+        var blob=await new Promise(function(r){cv.toBlob(r,'image/png');});
+        var path='guest/'+token+'/'+it.id+'_signature.png';
+        var up=await sb.storage.from(BUCKET).upload(path,blob,{upsert:true}); if(up.error) throw new Error(up.error.message);
+        var hash=await sha256(it.id+'|'+nm.value.trim()+'|'+Date.now());
+        var ip=null; try{ip=(await (await fetch('https://api.ipify.org?format=json')).json()).ip;}catch(_){}
+        await rpc('onboarding_guest_sign_item',{p_token:token,p_item_id:it.id,p_signer_name:nm.value.trim(),p_signature_path:path,p_document_hash:hash,p_ip:ip,p_user_agent:navigator.userAgent});
+        it.status='completed'; refreshCard(it);
+      }catch(e){ go.disabled=false;go.textContent='Sign & complete'; alert(e.message); }
+    });
+  }
+
+  function refreshCard(it){
+    var card=document.getElementById('card-'+it.id);
+    if(card){ card.querySelector('.hd').innerHTML='<span class="t">'+esc(it.title)+'</span><span class="done">✓ Completed</span>'; card.querySelector('.bd').innerHTML='<div class="ok">Completed.</div>'; }
+    progress();
+  }
+
+  async function submit(){
+    var msg=document.getElementById('submitMsg'), btn=document.getElementById('submitBtn');
+    btn.disabled=true; msg.textContent='Submitting…';
+    try{ await rpc('onboarding_guest_submit',{p_token:token}); state.pkt.status='submitted'; render(); }
+    catch(e){ btn.disabled=false; msg.innerHTML='<span class="err">'+esc(e.message)+'</span>'; }
+  }
+})();
+</script>
+</body>
+</html>

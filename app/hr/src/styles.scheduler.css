@@ -1,0 +1,86 @@
+/* =====================================================================
+   VIP Scheduler / Training / Zones — SCOPED styles (additive, no bleed)
+   Every rule is namespaced under .vip-sched so it cannot affect any of
+   the other 103 screens. Tokens are defined locally from the locked
+   "Midnight Aurora" theme so the screens render correctly regardless of
+   the host app's token names. Do not remove the .vip-sched prefix.
+   ===================================================================== */
+/* Inherit the host app's ACTIVE theme (violet / aurora / emerald / noir /
+   platinum) — do NOT hardcode colors. DELIVERY defines every token these
+   screens use except --t-muted / --t-faint, which it names --t-text-muted /
+   --t-text-faint. Alias those two so the screens match the live theme exactly. */
+.vip-sched{
+  --t-muted: var(--t-text-muted);
+  --t-faint: var(--t-text-faint);
+  color: var(--t-text);
+}
+.vip-sched h1{font-size:22px;margin:0}
+.vip-sched h3{font-size:16px}
+
+/* cards / grid */
+.vip-sched .card{background:var(--t-surface);border:1px solid var(--t-line);border-radius:14px;padding:18px}
+.vip-sched .grid{display:grid;gap:16px}
+.vip-sched .g4{grid-template-columns:repeat(4,1fr)}
+.vip-sched .g3{grid-template-columns:repeat(3,1fr)}
+.vip-sched .g2{grid-template-columns:repeat(2,1fr)}
+
+/* buttons */
+.vip-sched .btn{background:var(--t-accent);color:#04212a;border:none;padding:10px 16px;border-radius:10px;font-weight:700}
+.vip-sched .btn:hover{filter:brightness(1.08)}
+.vip-sched .btn.ghost{background:transparent;border:1px solid var(--t-line-strong);color:var(--t-text)}
+.vip-sched .btn.alert{background:var(--t-alert);color:#2a0410}
+.vip-sched .btn.sm{padding:6px 11px;font-size:13px;border-radius:8px}
+.vip-sched .btn:disabled{opacity:.55;cursor:default}
+
+/* inputs (scoped — never touches global inputs) */
+.vip-sched label.fld,.vip-sched .fld{display:block;font-size:12px;color:var(--t-faint);margin:10px 0 4px;text-transform:uppercase;letter-spacing:.5px}
+.vip-sched input,.vip-sched select{width:100%;background:var(--t-surface-2);border:1px solid var(--t-line-strong);color:var(--t-text);padding:10px;border-radius:9px;font-size:14px}
+.vip-sched input:focus,.vip-sched select:focus{outline:none;border-color:var(--t-accent)}
+
+/* status code badges */
+.vip-sched .code{display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:999px;font-size:12px;font-weight:700;border:1px solid transparent}
+.vip-sched .code.green{background:rgba(29,233,182,.13);color:var(--t-success);border-color:rgba(29,233,182,.3)}
+.vip-sched .code.amber{background:rgba(255,179,71,.13);color:var(--t-warn);border-color:rgba(255,179,71,.3)}
+.vip-sched .legend{display:flex;flex-wrap:wrap;gap:8px;margin:6px 0 0}
+.vip-sched .legend .item{font-size:11px;color:var(--t-faint)}
+
+/* schedule builder */
+.vip-sched .tabs{display:flex;gap:8px;margin-bottom:16px}
+.vip-sched .tab{padding:8px 14px;border-radius:9px;background:var(--t-surface);border:1px solid var(--t-line);color:var(--t-muted);font-size:13px;cursor:pointer}
+.vip-sched .tab.active{background:var(--t-accent-soft);color:var(--t-text);border-color:var(--t-accent)}
+.vip-sched .slots{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+.vip-sched .slot{background:var(--t-surface);border:1px solid var(--t-line);border-radius:13px;padding:14px;min-height:120px}
+.vip-sched .slot h3{margin:0 0 4px;font-size:15px;text-transform:capitalize}
+.vip-sched .slot .meta{font-size:12px;color:var(--t-faint);margin-bottom:10px}
+.vip-sched .counter{font-size:12px;font-weight:700}
+.vip-sched .counter.short{color:var(--t-alert)}
+.vip-sched .counter.ok{color:var(--t-success)}
+.vip-sched .chip{display:inline-flex;align-items:center;gap:6px;background:var(--t-surface-2);border:1px solid var(--t-line-strong);border-radius:8px;padding:5px 9px;margin:3px 4px 0 0;font-size:13px}
+.vip-sched .chip .x{color:var(--t-faint);cursor:pointer}
+.vip-sched .railbox{margin-top:18px}
+.vip-sched .railbox h4{font-size:12px;color:var(--t-faint);text-transform:uppercase;letter-spacing:.6px;margin:14px 0 6px}
+.vip-sched .person-row{display:flex;justify-content:space-between;align-items:center;padding:8px 10px;border:1px solid var(--t-line);border-radius:9px;margin-bottom:6px;background:var(--t-surface)}
+.vip-sched .person-row.dim{opacity:.5}
+.vip-sched .weekgrid{display:grid;grid-template-columns:repeat(7,1fr);gap:8px}
+.vip-sched .daycol{background:var(--t-surface);border:1px solid var(--t-line);border-radius:11px;padding:9px;min-height:200px}
+.vip-sched .daycol h5{margin:0 0 8px;font-size:12px;color:var(--t-muted);text-align:center}
+.vip-sched .dshift{font-size:11px;padding:5px 7px;border-radius:7px;background:var(--t-surface-2);margin-bottom:5px;border-left:3px solid var(--t-accent)}
+.vip-sched .dshift.key{border-left-color:var(--t-warn)}
+.vip-sched .gapline{font-size:11px;color:var(--t-alert);padding:4px 6px}
+
+/* modal */
+.vip-sched .modal-bg,.modal-bg.vip-sched{position:fixed;inset:0;background:rgba(3,6,12,.7);display:flex;align-items:center;justify-content:center;z-index:50}
+.vip-sched .modal{width:440px;max-height:88vh;overflow:auto}
+.vip-sched .zone-pick{display:flex;flex-wrap:wrap;gap:7px;margin-top:6px}
+.vip-sched .zone-pick .z{padding:6px 11px;border-radius:8px;border:1px solid var(--t-line-strong);background:var(--t-surface-2);font-size:13px;color:var(--t-muted);cursor:pointer}
+.vip-sched .zone-pick .z.on{background:var(--t-accent-soft);border-color:var(--t-accent);color:var(--t-text)}
+.vip-sched .zone-pick .z.reg.on{background:rgba(255,179,71,.14);border-color:var(--t-warn);color:var(--t-warn)}
+
+/* banners / layout */
+.vip-sched .banner{padding:11px 14px;border-radius:10px;font-size:13px;margin-bottom:14px}
+.vip-sched .banner.warn{background:rgba(255,179,71,.1);border:1px solid rgba(255,179,71,.3);color:var(--t-warn)}
+.vip-sched .banner.err{background:rgba(255,77,125,.1);border:1px solid rgba(255,77,125,.3);color:var(--t-alert)}
+.vip-sched .banner.ok{background:rgba(29,233,182,.1);border:1px solid rgba(29,233,182,.3);color:var(--t-success)}
+.vip-sched .row{display:flex;gap:10px;align-items:center}
+.vip-sched .spacer{flex:1}
+.vip-sched .muted{color:var(--t-faint);font-size:13px}

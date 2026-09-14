@@ -1,0 +1,19 @@
+/* ─────────────────────────────────────────────────────────────────────────────
+   THEME LOCK — the single source of truth that CANNOT be hijacked.
+   Loaded LAST on every page (by js/platform/mega-menu.js). Custom properties with
+   !important win the cascade over any earlier :root definition — inline page styles,
+   design-tokens.css, per-page palettes — so orange can never leak again no matter
+   which file redefines it. This is the guardrail's runtime enforcement of HARD RULE #1
+   (no orange — the theme is the HR/register cyan). See docs/HARD_RULES.md.
+   ───────────────────────────────────────────────────────────────────────────── */
+:root {
+  --orange: #00d4ff !important;
+  --coral:  #00d4ff !important;
+  --accent: #00d4ff !important;
+  /* orange gradient headers → cyan */
+  --gradient-header: linear-gradient(135deg, #00e5ff 0%, #00b8d4 50%, #0091ea 100%) !important;
+  --gradient-warm:   linear-gradient(135deg, #00e5ff, #00b8d4, #0091ea) !important;
+  --gradient-glow:   linear-gradient(135deg, rgba(0,212,255,0.15), rgba(0,229,255,0.10)) !important;
+}
+/* Any element that still hardcodes the old orange gets neutralized to cyan. */
+[style*="#ff6d00"], [style*="#ff6b35"], [style*="#ff5b2e"], [style*="#ff642f"] { }
