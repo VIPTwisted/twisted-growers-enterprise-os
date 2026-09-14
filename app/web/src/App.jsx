@@ -84,6 +84,8 @@ import { TagEvidence, TagEvidenceProvider, DkHarvestControlBanner, DkCockpitPage
 import CockpitRail, { cockpitViewForCategory } from "./cockpit-rail.jsx";
 import { HOME_VIEW, useOsHistory, OsNavBtns, OsFind } from "./os-chrome.jsx";
 import OsAsk from "./os-ask.jsx";
+/* Report an issue on every page (Bible §17, BP-17-1) — beside the Ask bar, not inside it. */
+import ReportIssue from "./report-issue.jsx";
 const CultivationDashboard = lazy(() => import("./dash-cultivation.jsx"));
 const ReportVault = lazy(() => import("./report-vault.jsx"));
 const BrandLocker = lazy(() => import("./brand-locker.jsx"));
@@ -12409,6 +12411,7 @@ export default function App() {
         </nav>}
         <main className="main" style={isFacility ? { padding: 0, overflow: "hidden", display: "flex", flexDirection: "column", height: "100%", minHeight: 0 } : undefined}>
           {!isFacility ? <OsAsk view={view} go={setView} /> : null}
+          {!isFacility ? <div className="ri-row"><ReportIssue view={view} /></div> : null}
           {/* Suspense wraps the PAGE only, never the shell. A lazily loaded
               route arrives as a separate chunk, and while it is in flight this
               says so in one honest line — the side menu and the top menu are
