@@ -1,4 +1,10 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+// Forms.jsx — form library, submissions, timesheets, form builder.
+// NOTHING HERE IS SEEDED (Bible §12g, 14 Sep 2026): the catalogue is hr.form_catalog rows
+// (hr.get_form_catalog), submissions are hr.hr_form_submissions (hr.get_form_submissions_v2,
+// joined to the person and their department), timesheets are hr time punches
+// (get_all_time_entries / get_my_time_entries). Departments come from the session's nodes.
+// An empty list is shown as empty — never filled with sample rows.
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { sb } from '../lib/supabase'
 import { useAuth } from '../lib/auth.jsx'
 import { useScope } from '../lib/scope.jsx'
@@ -8,29 +14,6 @@ import DrillDown from '../components/DrillDown.jsx'
 const todayStr = () => new Date().toISOString().split('T')[0]
 const fmtDate  = iso => iso ? new Date(iso).toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' }) : '—'
 const timeAgo  = iso => { if (!iso) return '—'; const s = Math.floor((Date.now()-new Date(iso))/1000); if(s<60)return `${s}s ago`; if(s<3600)return `${Math.floor(s/60)}m ago`; if(s<86400)return `${Math.floor(s/3600)}h ago`; return `${Math.floor(s/86400)}d ago` }
-
-function seed(a,b){ return ((a*31+b)*17+a*b)%100 }
-
-const LOCATIONS = ['Orange','Hartford','Manchester','Southington','Warehouse / Distribution']
-
-const FORM_CATALOG = [
-  { id:'new-hire-packet',       title:'New Hire Packet',                  category:'Onboarding',   required:true,  icon:'📋' },
-  { id:'direct-deposit',        title:'Direct Deposit Authorization',     category:'Payroll',       required:true,  icon:'🏦' },
-  { id:'w4',                    title:'W-4 Tax Withholding',              category:'Payroll',       required:true,  icon:'💰' },
-  { id:'i9',                    title:'I-9 Employment Verification',      category:'Compliance',    required:true,  icon:'🪪' },
-  { id:'emergency-contact',     title:'Emergency Contact Update',         category:'Employee Info', required:false, icon:'🚨' },
-  { id:'pto-request',           title:'PTO Request',                      category:'Time Off',      required:false, icon:'🏖' },
-  { id:'schedule-change',       title:'Schedule Change Request',          category:'Scheduling',    required:false, icon:'📅' },
-  { id:'availability-update',   title:'Availability Update',              category:'Scheduling',    required:false, icon:'🕐' },
-  { id:'disciplinary-ack',      title:'Disciplinary Acknowledgment',      category:'HR Action',     required:false, icon:'⚠️' },
-  { id:'perf-self-assessment',  title:'Performance Review Self-Assessment',category:'Reviews',      required:false, icon:'⭐' },
-  { id:'harassment-complaint',  title:'Harassment Complaint',             category:'Compliance',    required:false, icon:'🛡' },
-  { id:'accommodation-request', title:'Accommodation Request',            category:'HR Action',     required:false, icon:'♿' },
-  { id:'equipment-request',     title:'Equipment Request',                category:'Operations',    required:false, icon:'🖥' },
-  { id:'expense-reimbursement', title:'Expense Reimbursement',            category:'Finance',       required:false, icon:'💳' },
-  { id:'shift-swap',            title:'Shift Swap Request',               category:'Scheduling',    required:false, icon:'🔄' },
-  { id:'reference-request',     title:'Reference Request',                category:'HR Action',     required:false, icon:'📨' },
-]
 
 const STATUSES = ['Pending','Approved','Rejected','Under Review']
 
@@ -60,63 +43,6 @@ function fmtHours(h) {
   const n = parseFloat(h)
   if (isNaN(n)) return '—'
   return `${n.toFixed(2)}h`
-}
-
-/* ── MOCK TIME ENTRIES ───────────────────────────────────────────────── */
-function buildMockTimeEntries(personId) {
-  const names  = ['Alex Rivera','Jordan Smith','Casey Morgan','Dana Webb','Riley Clark']
-  const nodes  = ['Orange','Hartford','Manchester','Southington','Warehouse / Distribution']
-  const rows   = []
-  for (let i = 0; i < 18; i++) {
-    const daysAgo = seed(i+1, i+3) % 14
-    const d = new Date(Date.now() - daysAgo * 86400000)
-    const workDate = d.toISOString().split('T')[0]
-    const inH  = 8 + (seed(i, 2) % 3)
-    const hrs  = 6 + (seed(i+1, 3) % 4)
-    const punchIn  = new Date(d); punchIn.setHours(inH, seed(i,5)*0.6|0, 0, 0)
-    const punchOut = new Date(punchIn.getTime() + hrs*3600000)
-    rows.push({
-      id:             `te-mock-${i}`,
-      person_id:      i === 0 ? personId : `person-mock-${seed(i,7)}`,
-      full_name:      i === 0 ? 'You' : names[seed(i,3) % names.length],
-      node_id:        `node-mock-${seed(i,9) % 4}`,
-      node_name:      nodes[seed(i,9) % nodes.length],
-      work_date:      workDate,
-      punched_in_at:  punchIn.toISOString(),
-      punched_out_at: punchOut.toISOString(),
-      hours_worked:   hrs + (seed(i,11) % 60) / 100,
-      notes:          seed(i,13) > 70 ? 'Approved' : '',
-    })
-  }
-  return rows
-}
-
-/* ── MOCK DATA GENERATORS ────────────────────────────────────────────── */
-function genSubmissions(myId) {
-  const all = []
-  const names = ['Alex Rivera','Jordan Smith','Casey Morgan','Dana Webb','Riley Clark']
-  const locs  = LOCATIONS
-  FORM_CATALOG.forEach((f,fi) => {
-    const count = seed(fi+1, fi+3) % 6
-    for (let i=0; i<count; i++) {
-      const di = seed(fi+1, i+1)
-      const d  = new Date(Date.now() - di*86400000*3)
-      all.push({
-        id:         `sub-${fi}-${i}`,
-        formId:     f.id,
-        formTitle:  f.title,
-        category:   f.category,
-        personId:   i===0 ? myId : `person-${seed(fi,i)}`,
-        personName: i===0 ? 'You' : names[seed(fi,i)%names.length],
-        location:   locs[seed(fi,i)%locs.length],
-        status:     STATUSES[seed(fi+2,i)%STATUSES.length],
-        submittedAt:d.toISOString(),
-        notes:      seed(fi,i)>70 ? 'Reviewed by HR on file.' : '',
-        formData:   { notes:'Sample submission data', requestDate: d.toISOString().split('T')[0] },
-      })
-    }
-  })
-  return all
 }
 
 /* ── KPI TILE ────────────────────────────────────────────────────────── */
@@ -175,7 +101,7 @@ function FormCard({ form, submissionCount, isHR, onFillOut, onViewSubmissions })
       </div>
       <div>
         <div style={{ fontWeight:700, fontSize:13, color:'var(--t-text)', marginBottom:2 }}>{form.title}</div>
-        <div style={{ fontSize:11, color:'var(--t-text-muted)' }}>Updated {fmtDate(new Date(Date.now()-seed(form.id.length,3)*86400000*10).toISOString())}</div>
+        <div style={{ fontSize:11, color:'var(--t-text-muted)' }}>{form.updated_at ? `Updated ${fmtDate(form.updated_at)}` : 'In the catalogue'}</div>
       </div>
       <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
         <span style={{ fontSize:12, color:'var(--t-text-faint)' }}>
@@ -441,7 +367,7 @@ function FormBuilder() {
 }
 
 /* ── TIMESHEET TAB ───────────────────────────────────────────────────── */
-function TimesheetTab({ entries, isHR, live, loading }) {
+function TimesheetTab({ entries, isHR, live, loading, locations = [] }) {
   const [tsSearch, setTsSearch]     = useState('')
   const [tsLocation, setTsLocation] = useState('All')
   const [tsDateFrom, setTsDateFrom] = useState('')
@@ -499,8 +425,8 @@ function TimesheetTab({ entries, isHR, live, loading }) {
         />
         {isHR && (
           <select value={tsLocation} onChange={e => setTsLocation(e.target.value)} style={inputSt}>
-            <option value="All">All Locations</option>
-            {LOCATIONS.map(l => <option key={l} value={l}>{l}</option>)}
+            <option value="All">All Departments</option>
+            {locations.map(l => <option key={l} value={l}>{l}</option>)}
           </select>
         )}
         <input type="date" value={tsDateFrom} onChange={e => setTsDateFrom(e.target.value)} style={inputSt} title="From date" />
@@ -564,7 +490,8 @@ const TAB_BTN  = (active) => ({ padding:'8px 18px', background:'none', border:'n
 /* ── MAIN COMPONENT ──────────────────────────────────────────────────── */
 export default function Forms() {
   const { session }            = useAuth()
-  const { locationIds }        = useScope()
+  const { locationIds, nodes } = useScope()
+  const LOCATIONS = useMemo(() => [...new Set((nodes || []).filter(n => n.node_type === 'department' || n.node_type === 'location').map(n => n.name))].sort(), [nodes])
   const person                 = session?.person || {}
   const role                   = (person.role_name || '').toLowerCase()
   const isHR                   = ['ceo','hr','manager','coo','admin','owner'].some(x => role.includes(x))
@@ -573,6 +500,8 @@ export default function Forms() {
 
   const [tab, setTab]            = useState('library')
   const [allSubs, setAllSubs]    = useState([])
+  const [catalog, setCatalog]    = useState(null)   // null = loading
+  const [loadError, setLoadError] = useState('')
   const [fillModal, setFill]     = useState(null)
   const [submitting, setSubm]    = useState(false)
   const [toast, setToast]        = useState('')
@@ -592,13 +521,22 @@ export default function Forms() {
 
   const showToast = (msg) => { setToast(msg); setTimeout(()=>setToast(''),3000) }
 
-  /* ── FETCH FORM SUBMISSIONS ───────────────────────────────────────── */
+  /* ── FETCH CATALOGUE + SUBMISSIONS (rows, never samples) ──────────── */
   useEffect(() => {
-    const mock = genSubmissions(myId)
-    sb.rpc('get_form_submissions', { p_node_ids: locationIds })
-      .then(({ data }) => { if (data?.length) setAllSubs(data); else setAllSubs(mock) })
-      .catch(() => setAllSubs(mock))
-  }, [locationIds, myId])
+    let live = true
+    sb.rpc('get_form_catalog').then(({ data, error }) => {
+      if (!live) return
+      if (error) { setLoadError(error.message); setCatalog([]); return }
+      setCatalog(Array.isArray(data) ? data : [])
+    })
+    return () => { live = false }
+  }, [])
+  const reloadSubs = useCallback(() => {
+    sb.rpc('get_form_submissions_v2', { p_node_ids: locationIds })
+      .then(({ data, error }) => { if (error) setLoadError(error.message); setAllSubs(Array.isArray(data) ? data : []) })
+  }, [JSON.stringify(locationIds)])
+  useEffect(() => { reloadSubs() }, [reloadSubs])
+  const FORM_CATALOG = catalog || []
 
   /* ── FETCH TIME ENTRIES (lazy — only when Timesheets tab active) ──── */
   useEffect(() => {
@@ -606,7 +544,6 @@ export default function Forms() {
 
     const from = twoWeeksAgo()
     const to   = todayStr()
-    const mock = buildMockTimeEntries(myId)
 
     setTsLoading(true)
 
@@ -648,16 +585,12 @@ export default function Forms() {
           }
         }
 
-        if (data?.length) {
-          setTimeEntries(data)
-          setTsLive(true)
-        } else {
-          setTimeEntries(mock)
-          setTsLive(false)
-        }
-      } catch {
-        setTimeEntries(mock)
+        setTimeEntries(Array.isArray(data) ? data : [])
+        setTsLive(true)
+      } catch (e) {
+        setTimeEntries([])
         setTsLive(false)
+        setLoadError(e?.message || 'time entries unavailable')
       } finally {
         setTsLoading(false)
       }
@@ -709,30 +642,18 @@ export default function Forms() {
   const submitForm = async (fields) => {
     if (!fillModal) return
     setSubm(true)
-    const newSub = {
-      id:          `sub-${Date.now()}`,
-      formId:      fillModal.id,
-      formTitle:   fillModal.title,
-      category:    fillModal.category,
-      personId:    myId,
-      personName:  person.full_name || 'You',
-      location:    LOCATIONS[locationIds ? 0 : 0] || 'Orange',
-      status:      'Pending',
-      submittedAt: new Date().toISOString(),
-      notes:       '',
-      formData:    fields,
-    }
-    await sb.rpc('submit_hr_form', { p_form_id: fillModal.id, p_data: fields, p_person_id: myId })
-      .catch(() => {})
-    setAllSubs(prev => [newSub, ...prev])
+    const { data, error } = await sb.rpc('submit_hr_form', { p_form_id: fillModal.id, p_data: fields, p_person_id: myId, p_node_id: locationIds?.[0] || null })
     setSubm(false)
+    if (error || !data?.ok) { showToast(`Not saved — ${error?.message || data?.error || 'the form could not be recorded'}`); return }
     setFill(null)
-    showToast(`${fillModal.title} submitted successfully`)
+    reloadSubs()
+    showToast(`${fillModal.title} submitted — recorded as ${String(data.id).slice(0, 8)}`)
   }
 
   const updateStatus = (subId, newStatus) => {
     setAllSubs(prev => prev.map(s => s.id===subId ? {...s,status:newStatus} : s))
-    sb.rpc('update_form_submission_status', { p_sub_id: subId, p_status: newStatus }).catch(()=>{})
+    sb.rpc('update_form_submission_status', { p_sub_id: subId, p_status: newStatus })
+      .then(({ error }) => { if (error) showToast(`Not saved — ${error.message}`); reloadSubs() })
     showToast(`Submission marked: ${newStatus}`)
   }
 
@@ -793,6 +714,8 @@ export default function Forms() {
             </div>
           )}
           <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(240px,1fr))', gap:14 }}>
+            {catalog === null && <div style={{ color:'var(--t-text-faint)', fontSize:12 }}>Reading the catalogue…</div>}
+            {catalog !== null && FORM_CATALOG.length === 0 && <div style={{ color:'var(--t-text-faint)', fontSize:12 }}>No forms in the catalogue yet (hr.form_catalog). {loadError && `— ${loadError}`}</div>}
             {FORM_CATALOG.map(form => (
               <FormCard
                 key={form.id}
@@ -861,6 +784,7 @@ export default function Forms() {
           isHR={isHR}
           live={tsLive}
           loading={tsLoading}
+          locations={LOCATIONS}
         />
       )}
 
@@ -875,7 +799,7 @@ export default function Forms() {
               {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
             </select>
             <select value={filterLoc} onChange={e=>setFL(e.target.value)} style={inputSt}>
-              <option value="All">All Locations</option>
+              <option value="All">All Departments</option>
               {LOCATIONS.map(l => <option key={l} value={l}>{l}</option>)}
             </select>
             <input type="date" value={filterDate} onChange={e=>setFD(e.target.value)} style={inputSt} />

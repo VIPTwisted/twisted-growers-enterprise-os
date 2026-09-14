@@ -1,4 +1,14 @@
-﻿import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
+// Huddle.jsx — the daily huddle: board (priorities, goals, notes), who is in, zone coverage,
+// announcements, tasks, team updates, a 14-day archive and the manager's set-up tab.
+// EVERYTHING IS A ROW (Bible §12g, 14 Sep 2026). One read per day — hr.huddle_day() — returns
+// the board (hr.huddle_boards), posts, tasks, announcements, the measured punch board
+// (hr.punch_board: hr.time_punches + the OS clock + the posted schedule), the OS zones with the
+// day's hr.zone_assignments, the day's revenue facts and training completion. Writers are the
+// hr RPCs that already existed (set_huddle_board, post_huddle_post, create_huddle_task,
+// set_huddle_task_complete, delete_huddle_task, post_huddle_announcement,
+// delete_huddle_announcement, set_zone_assignment). Nothing lives in localStorage any more;
+// nothing is drawn from a seed. An empty day says it is empty.
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { sb } from '../lib/supabase'
 import { useAuth } from '../lib/auth.jsx'
 import { useScope } from '../lib/scope.jsx'
@@ -6,24 +16,7 @@ import DrillDown from '../components/DrillDown.jsx'
 
 // ─── CONSTANTS ────────────────────────────────────────────────────────────────
 
-const LOCATIONS = ['Orange', 'Hartford', 'Manchester', 'Southington', 'Warehouse / Distribution']
-
-const ZONES = ['Floor', 'Register', 'Stockroom', 'Entry']
-
-const ALL_EMPLOYEES = [
-  'Alex Rivera', 'Jordan Lee', 'Sam Torres', 'Morgan Chen', 'Casey Park',
-  'Riley Kim', 'Taylor Ng', 'Drew Patel', 'Chris Wade', 'Pat Quinn',
-  'Dana Mills', 'Terrell W', 'Deon Mitchell', 'Isabel Reyes', 'Kyle Brennan',
-  'Priya Shah', 'Marcus Webb', 'Sandra Reyes',
-]
-
 const PUNCH_STATUSES = ['In', 'Out', 'Late', 'Off']
-
-// ─── DETERMINISTIC MOCK ───────────────────────────────────────────────────────
-
-function seed(a, b) {
-  return ((a * 31 + b) * 17 + a * b) % 100
-}
 
 function getInitials(name) {
   return name.split(' ').map(p => p[0]).join('').slice(0, 2).toUpperCase()
@@ -65,80 +58,48 @@ function getPast14Days() {
   return days
 }
 
-// Generate mock employee punch statuses for a given date
-function getMockPunchData(dateKey) {
-  return ALL_EMPLOYEES.map((name, idx) => {
-    const v = seed(idx, dateKey.slice(-2))
-    let status
-    if (v < 5) status = 'Off'
-    else if (v < 15) status = 'Late'
-    else if (v < 55) status = 'In'
-    else status = 'Out'
-    const loc = LOCATIONS[idx % LOCATIONS.length]
-    return { name, initials: getInitials(name), status, location: loc }
-  })
+// ─── THE DAY STORE ────────────────────────────────────────────────────────────
+// One call reads the whole day; every writer calls reload() so the screen shows what the
+// table holds, not what it hoped it wrote.
+function useHuddleDay(locationIds, dateKey) {
+  const [day, setDay] = useState(null)      // null = loading
+  const [error, setError] = useState('')
+  const [tick, setTick] = useState(0)
+  const reload = useCallback(() => setTick(t => t + 1), [])
+  const key = JSON.stringify(locationIds || [])
+  useEffect(() => {
+    let live = true
+    if (!locationIds || !locationIds.length) { setDay({ punches: [], zones: [], posts: [], tasks: [], announcements: [], board: null }); return undefined }
+    sb.rpc('huddle_day', { p_node_ids: locationIds, p_date: dateKey }).then(({ data, error: e }) => {
+      if (!live) return
+      if (e) { setError(e.message); setDay({ punches: [], zones: [], posts: [], tasks: [], announcements: [], board: null }); return }
+      setError('')
+      setDay(data || { punches: [], zones: [], posts: [], tasks: [], announcements: [], board: null })
+    })
+    return () => { live = false }
+  }, [key, dateKey, tick])
+  return { day, error, reload }
 }
+const punchRows = (day) => (day?.punches || []).map(e => ({ ...e, initials: getInitials(e.name || '') }))
+const zoneRows = (day) => (day?.zones || []).map(z => ({ zone: z.zone, department: z.department, employee: z.employee || 'Unassigned', status: z.status }))
+const postRowsOf = (day) => (day?.posts || []).map(p => ({ id: p.id, text: p.body, author: p.author_name || '—', time: p.created_at, displayTime: p.created_at ? fmtTime(p.created_at) : '' }))
+const taskRowsOf = (day) => (day?.tasks || []).map(t => ({ id: t.id, description: t.description, assignee: t.assignee_name || '—', assigneeId: t.assignee_id, due: t.due_label, priority: t.priority || 'normal', complete: !!t.is_complete, createdAt: t.created_at }))
+const annRowsOf = (day) => (day?.announcements || []).map(a => ({ id: a.id, text: a.body, author: a.author_name || '—', time: a.created_at ? fmtTime(a.created_at) : '' }))
+const rpcOk = (res) => !res?.error && (res?.data == null || res.data.ok !== false)
+const rpcWhy = (res) => res?.error?.message || res?.data?.error || 'not saved'
 
-// Generate mock zone assignments for a given date
-function getMockZoneData(dateKey, employees) {
-  return ZONES.map((zone, zi) => {
-    const emp = employees[(zi + parseInt(dateKey.slice(-1), 10)) % employees.length]
-    return {
-      zone,
-      employee: emp?.name || 'Unassigned',
-      status: emp?.status === 'In' ? 'Covered' : emp?.status === 'Late' ? 'Late Arrival' : 'Uncovered',
-    }
-  })
-}
-
-function getMockAnnouncements() {
-  return [
-    { id: 1, text: 'New inventory arriving Thursday — please clear back stockroom by Wednesday close.', time: '8:02 AM', author: 'HR Ops' },
-    { id: 2, text: 'Monthly one-on-ones scheduled for all full-time staff this week. Check your calendar.', time: '7:45 AM', author: 'Manager' },
-    { id: 3, text: 'Loyalty program enrollment is up 18% — keep up the great work!', time: '7:30 AM', author: 'Corporate' },
-    { id: 4, text: 'Dress code reminder: all team members must wear name badges at all times on the floor.', time: '7:15 AM', author: 'HR Ops' },
-  ]
-}
-
-function getMockHuddleForDate(dateKey) {
-  const stored = localStorage.getItem(`vip_huddle_${dateKey}`)
-  if (stored) {
-    try { return JSON.parse(stored) } catch (_) {}
-  }
-  // Deterministic mock for past dates
-  const dayNum = parseInt(dateKey.replace(/-/g, ''), 10)
-  const priorities = [
-    [`Focus on upsell conversations — aim for 1 add-on per ticket`, `Greet every customer within 30 seconds of entry`, `Review today's product push before your shift`],
-    [`Hit ${2200 + (dayNum % 600)} in sales today`, `Cross-sell memberships on every transaction`, `Keep the floor clean and organized at all times`],
-    [`Train new staff on POS system during low-traffic periods`, `Run today's promotion proactively — don't wait to be asked`, `Follow up on last week's layaway orders`],
-  ]
-  const piSet = priorities[dayNum % priorities.length]
-  return {
-    priorities: piSet,
-    sales_goal: 2000 + (dayNum % 1000),
-    training_goal: 70 + (dayNum % 25),
-    zone_assignments: Object.fromEntries(ZONES.map((z, i) => [z, ALL_EMPLOYEES[(i + dayNum) % ALL_EMPLOYEES.length]])),
-    notes: dayNum % 3 === 0 ? 'End of week push — every dollar counts toward monthly ranking.' : '',
-    updated_at: dateKey + 'T08:00:00.000Z',
-    updated_by: 'Manager',
-  }
-}
-
-// Merge a patch into today's huddle record and persist (shared by Set tab + inline edits).
-function saveHuddle(dateKey, patch, userName) {
-  let existing = {}
-  try { const raw = localStorage.getItem(`vip_huddle_${dateKey}`); existing = raw ? JSON.parse(raw) : getMockHuddleForDate(dateKey) }
-  catch { existing = getMockHuddleForDate(dateKey) }
-  const next = { ...existing, ...patch, updated_at: new Date().toISOString(), updated_by: userName || 'Manager' }
-  try { localStorage.setItem(`vip_huddle_${dateKey}`, JSON.stringify(next)) } catch (_) {}
-  return next
-}
-// Manager-posted announcements (persisted separately, merged into the feed on the Today tab).
-function loadLocalAnns(dateKey) {
-  try { const raw = localStorage.getItem(`vip_huddle_ann_${dateKey}`); return raw ? JSON.parse(raw) : [] } catch { return [] }
-}
-function saveLocalAnns(dateKey, list) {
-  try { localStorage.setItem(`vip_huddle_ann_${dateKey}`, JSON.stringify(list)) } catch (_) {}
+// The roster in scope, for assignee pickers (rows, not a list of names in the code).
+function useRoster(locationIds, actorId) {
+  const [roster, setRoster] = useState([])
+  const key = JSON.stringify(locationIds || [])
+  useEffect(() => {
+    let live = true
+    sb.rpc('get_roster', { p_node_ids: locationIds || [], p_actor: actorId || null }).then(({ data }) => {
+      if (live && Array.isArray(data)) setRoster(data.filter(p => p.id && p.is_active !== false))
+    })
+    return () => { live = false }
+  }, [key, actorId])
+  return roster
 }
 
 // Small pencil "Edit" button for inline section editing (managers only).
@@ -248,36 +209,20 @@ function SectionHdr({ children }) {
 
 // ─── POST FEED ────────────────────────────────────────────────────────────────
 
-function PostFeed({ dateKey, userName }) {
-  const storageKey = `vip_huddle_posts_${dateKey}`
-  const [posts, setPosts] = useState([])
+function PostFeed({ dateKey, userName, userId, nodeId, posts, reload }) {
   const [draft, setDraft] = useState('')
   const [posting, setPosting] = useState(false)
+  const [err, setErr] = useState('')
   const inputRef = useRef(null)
 
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem(storageKey)
-      if (raw) setPosts(JSON.parse(raw))
-    } catch (_) {}
-  }, [storageKey])
-
-  const submit = () => {
-    if (!draft.trim()) return
-    setPosting(true)
-    const now = new Date()
-    const post = {
-      id: Date.now(),
-      text: draft.trim(),
-      author: userName,
-      time: now.toISOString(),
-      displayTime: fmtTime(now.toISOString()),
-    }
-    const updated = [post, ...posts]
-    setPosts(updated)
-    try { localStorage.setItem(storageKey, JSON.stringify(updated)) } catch (_) {}
-    setDraft('')
+  const submit = async () => {
+    if (!draft.trim() || posting) return
+    setPosting(true); setErr('')
+    const res = await sb.rpc('post_huddle_post', { p_node_id: nodeId, p_date: dateKey, p_body: draft.trim(), p_author_name: userName, p_author_id: userId || null })
     setPosting(false)
+    if (!rpcOk(res)) { setErr(rpcWhy(res)); return }
+    setDraft('')
+    reload()
     if (inputRef.current) inputRef.current.focus()
   }
 
@@ -327,6 +272,7 @@ function PostFeed({ dateKey, userName }) {
         </button>
       </div>
 
+      {err && <div style={{ fontSize: 11, color: 'var(--t-danger)', marginBottom: 8 }}>Not posted — {err}</div>}
       {posts.length === 0 && (
         <div style={{ color: 'var(--t-text-faint)', fontSize: 12, padding: '16px 0', textAlign: 'center' }}>
           No updates posted yet — be the first to check in.
@@ -362,19 +308,7 @@ const PRIORITY_COLORS = { low: 'var(--t-text-faint)', normal: 'var(--t-accent)',
 
 const DUE_OPTIONS = ['End of shift', 'Before close', 'By 3:00 PM', 'By 5:00 PM', 'By 7:00 PM', 'By 9:00 PM']
 
-function loadTasks(locationId, dateKey) {
-  try {
-    const raw = localStorage.getItem(`vip_huddle_tasks_${locationId}_${dateKey}`)
-    return raw ? JSON.parse(raw) : []
-  } catch (_) { return [] }
-}
-
-function saveTasks(locationId, dateKey, tasks) {
-  try { localStorage.setItem(`vip_huddle_tasks_${locationId}_${dateKey}`, JSON.stringify(tasks)) } catch (_) {}
-}
-
-function HuddleTasks({ isHR, locationId, dateKey }) {
-  const [tasks, setTasks] = useState(() => loadTasks(locationId, dateKey))
+function HuddleTasks({ isHR, locationId, dateKey, tasks, reload, roster, userName, userId }) {
   const [collapsed, setCollapsed] = useState(false)
   const [completedOpen, setCompletedOpen] = useState(false)
   const [addOpen, setAddOpen] = useState(false)
@@ -382,42 +316,37 @@ function HuddleTasks({ isHR, locationId, dateKey }) {
 
   // Add task form state
   const [formDesc, setFormDesc] = useState('')
-  const [formAssignee, setFormAssignee] = useState(ALL_EMPLOYEES[0])
+  const [formAssignee, setFormAssignee] = useState('')
   const [formDue, setFormDue] = useState('End of shift')
   const [formPriority, setFormPriority] = useState('normal')
-
-  const persist = useCallback((next) => {
-    setTasks(next)
-    saveTasks(locationId, dateKey, next)
-  }, [locationId, dateKey])
+  const [busy, setBusy] = useState(false)
 
   const showToast = (msg) => {
     setToast(msg)
     setTimeout(() => setToast(null), 2800)
   }
 
-  const submitTask = () => {
-    if (!formDesc.trim()) return
-    const task = {
-      id: `task-${Date.now()}`,
-      description: formDesc.trim(),
-      assignee: formAssignee,
-      due: formDue,
-      priority: formPriority,
-      complete: false,
-      createdAt: new Date().toISOString(),
-    }
-    persist([...tasks, task])
-    showToast(`Task assigned to ${formAssignee}`)
+  const submitTask = async () => {
+    if (!formDesc.trim() || busy) return
+    const who = roster.find(r => r.id === formAssignee)
+    setBusy(true)
+    const res = await sb.rpc('create_huddle_task', { p_node_id: locationId, p_date: dateKey, p_description: formDesc.trim(), p_assignee_name: who?.full_name || null, p_assignee_id: who?.id || null, p_due_label: formDue, p_priority: formPriority, p_created_by: userName })
+    setBusy(false)
+    if (!rpcOk(res)) { showToast(`Not saved — ${rpcWhy(res)}`); return }
+    showToast(who ? `Task assigned to ${who.full_name}` : 'Task recorded')
     setFormDesc('')
-    setFormAssignee(ALL_EMPLOYEES[0])
+    setFormAssignee('')
     setFormDue('End of shift')
     setFormPriority('normal')
     setAddOpen(false)
+    reload()
   }
 
-  const toggleComplete = (id) => {
-    persist(tasks.map(t => t.id === id ? { ...t, complete: !t.complete } : t))
+  const toggleComplete = async (id) => {
+    const t = tasks.find(x => x.id === id)
+    const res = await sb.rpc('set_huddle_task_complete', { p_id: id, p_complete: !t?.complete })
+    if (!rpcOk(res)) { showToast(`Not saved — ${rpcWhy(res)}`); return }
+    reload()
   }
 
   const open = tasks.filter(t => !t.complete)
@@ -562,7 +491,8 @@ function HuddleTasks({ isHR, locationId, dateKey }) {
                         Assign To
                       </label>
                       <select style={selStyle} value={formAssignee} onChange={e => setFormAssignee(e.target.value)}>
-                        {ALL_EMPLOYEES.map(emp => <option key={emp} value={emp}>{emp}</option>)}
+                        <option value="">— Whole team —</option>
+                        {roster.map(emp => <option key={emp.id} value={emp.id}>{emp.full_name}</option>)}
                       </select>
                     </div>
                     <div>
@@ -746,54 +676,60 @@ function TaskRow({ task, onToggle }) {
 
 // ─── TAB 1: TODAY'S HUDDLE ────────────────────────────────────────────────────
 
-function TodayHuddle({ isHR, userName, locationId, locationIds }) {
+function TodayHuddle({ isHR, userName, userId, locationId, locationIds }) {
   const dk = todayKey()
-  const [huddleData, setHuddleData] = useState(() => getMockHuddleForDate(dk))
-  const punchData = getMockPunchData(dk)
-  const zoneData = getMockZoneData(dk, punchData)
+  const { day, error: dayError, reload } = useHuddleDay(locationIds, dk)
+  const roster = useRoster(locationIds, userId)
+  const huddleData = day?.board || null
+  const punchData = useMemo(() => punchRows(day), [day])
+  const zoneData = useMemo(() => zoneRows(day), [day])
+  const localAnns = useMemo(() => annRowsOf(day), [day])
+  const postRows = useMemo(() => postRowsOf(day), [day])
+  const taskRows = useMemo(() => taskRowsOf(day), [day])
+  const [saveErr, setSaveErr] = useState('')
+  const saveBoard = async (patch) => {
+    setSaveErr('')
+    const res = await sb.rpc('set_huddle_board', { p_node_id: locationId, p_date: dk, p_priorities: patch.priorities ?? null, p_sales_goal: patch.sales_goal ?? null, p_training_goal: patch.training_goal ?? null, p_notes: patch.notes ?? null, p_updated_by: userName, p_updated_by_id: userId || null })
+    if (!rpcOk(res)) { setSaveErr(rpcWhy(res)); return false }
+    reload(); return true
+  }
 
   // ── Inline editing (managers) ──────────────────────────────────────────────
   const [editPri, setEditPri] = useState(false)
   const [priDraft, setPriDraft] = useState([])
   const [editGoals, setEditGoals] = useState(false)
   const [goalDraft, setGoalDraft] = useState({ sales: 0, training: 0 })
-  const [localAnns, setLocalAnns] = useState(() => loadLocalAnns(dk))
   const [annDraft, setAnnDraft] = useState('')
 
   const beginPri = () => { const p = huddleData?.priorities || []; setPriDraft(p.length ? [...p] : ['', '', '']); setEditPri(true) }
-  const savePri = () => { setHuddleData(saveHuddle(dk, { priorities: priDraft.map(s => s.trim()).filter(Boolean) }, userName)); setEditPri(false) }
-  const beginGoals = () => { setGoalDraft({ sales: huddleData?.sales_goal || 2400, training: huddleData?.training_goal || 75 }); setEditGoals(true) }
-  const saveGoals = () => { setHuddleData(saveHuddle(dk, { sales_goal: Number(goalDraft.sales) || 0, training_goal: Math.min(100, Math.max(0, Number(goalDraft.training) || 0)) }, userName)); setEditGoals(false) }
-  const postAnn = () => {
+  const savePri = async () => { if (await saveBoard({ priorities: priDraft.map(s => s.trim()).filter(Boolean) })) setEditPri(false) }
+  const beginGoals = () => { setGoalDraft({ sales: huddleData?.sales_goal ?? '', training: huddleData?.training_goal ?? '' }); setEditGoals(true) }
+  const saveGoals = async () => { if (await saveBoard({ sales_goal: Number(goalDraft.sales) || 0, training_goal: Math.min(100, Math.max(0, Number(goalDraft.training) || 0)) })) setEditGoals(false) }
+  const postAnn = async () => {
     if (!annDraft.trim()) return
-    const next = [{ id: 'la-' + Date.now(), text: annDraft.trim(), time: fmtTime(new Date().toISOString()), author: userName }, ...localAnns]
-    setLocalAnns(next); saveLocalAnns(dk, next); setAnnDraft('')
+    const res = await sb.rpc('post_huddle_announcement', { p_node_id: locationId, p_date: dk, p_body: annDraft.trim(), p_author_name: userName, p_author_id: userId || null })
+    if (!rpcOk(res)) { setSaveErr(rpcWhy(res)); return }
+    setAnnDraft(''); reload()
   }
-  const deleteAnn = (id) => { const next = localAnns.filter(a => a.id !== id); setLocalAnns(next); saveLocalAnns(dk, next) }
+  const deleteAnn = async (id) => {
+    const res = await sb.rpc('delete_huddle_announcement', { p_id: id, p_actor: userId || null })
+    if (!rpcOk(res)) { setSaveErr(rpcWhy(res)); return }
+    reload()
+  }
 
-  // ─── LIVE HUDDLES (Supabase get_huddles) ───────────────────────────────────
-  // Maps real huddle posts into the existing announcements shape.
-  // Falls back to mock announcements on error or empty result.
-  const [announcements, setAnnouncements] = useState(() => getMockAnnouncements())
+  // Standing huddles (hr.get_huddles — pinned notes that are not tied to one day).
+  const [announcements, setAnnouncements] = useState([])
   useEffect(() => {
     let cancelled = false
     const nodeIds = (locationIds && locationIds.length) ? locationIds : undefined
     if (!nodeIds) return
     sb.rpc('get_huddles', { p_node_ids: nodeIds })
       .then(({ data, error }) => {
-        if (cancelled) return
-        if (error || !Array.isArray(data) || data.length === 0) return // keep mock
-        const mapped = data.map((h, i) => ({
-          id: h.id || i,
-          text: h.body || h.title || '',
-          time: h.created_at ? fmtTime(h.created_at) : '',
-          author: h.author_name || 'Team',
-        }))
-        setAnnouncements(mapped)
+        if (cancelled || error || !Array.isArray(data)) return
+        setAnnouncements(data.map((h, i) => ({ id: h.id || i, text: h.body || h.title || '', time: h.created_at ? fmtTime(h.created_at) : '', author: h.author_name || 'Team' })))
       })
-      .catch(() => { /* keep mock */ })
     return () => { cancelled = true }
-  }, [locationIds])
+  }, [JSON.stringify(locationIds)])
 
   const inCount = punchData.filter(e => e.status === 'In').length
   const lateCount = punchData.filter(e => e.status === 'Late').length
@@ -802,51 +738,16 @@ function TodayHuddle({ isHR, userName, locationId, locationIds }) {
   const coveragePct = scheduledCount > 0 ? Math.round(((inCount + lateCount) / scheduledCount) * 100) : 0
 
   const today = new Date()
-  const todayPosts = (() => {
-    try {
-      const raw = localStorage.getItem(`vip_huddle_posts_${dk}`)
-      if (raw) return JSON.parse(raw).length
-    } catch (_) {}
-    return 0
-  })()
-
-  // re-render trigger when posts change
-  const [postCount, setPostCount] = useState(todayPosts)
-  const refreshPosts = useCallback(() => {
-    try {
-      const raw = localStorage.getItem(`vip_huddle_posts_${dk}`)
-      setPostCount(raw ? JSON.parse(raw).length : 0)
-    } catch (_) {}
-  }, [dk])
-
-  // Open huddle tasks count — live from localStorage
-  const [openTaskCount, setOpenTaskCount] = useState(() => {
-    const tasks = loadTasks(locationId, dk)
-    return tasks.filter(t => !t.complete).length
-  })
-  useEffect(() => {
-    const refresh = () => {
-      const tasks = loadTasks(locationId, dk)
-      setOpenTaskCount(tasks.filter(t => !t.complete).length)
-    }
-    window.addEventListener('storage', refresh)
-    return () => window.removeEventListener('storage', refresh)
-  }, [locationId, dk])
-
+  const postCount = postRows.length
+  const openTaskCount = taskRows.filter(t => !t.complete).length
   const activeAlerts = zoneData.filter(z => z.status === 'Uncovered').length
 
-  // participation: employees who posted
-  const participationPct = scheduledCount > 0 ? Math.round((Math.min(postCount + inCount * 0.4, scheduledCount) / scheduledCount) * 100) : 0
+  // participation: people who posted a team update today, over the people scheduled
+  const posters = new Set(postRows.map(p => p.author))
+  const participationPct = scheduledCount > 0 ? Math.round((Math.min(posters.size, scheduledCount) / scheduledCount) * 100) : 0
 
   // ── Drill-down: expose the real records behind each KPI tile ─────────────────
   const [drill, setDrill] = useState(null)
-  const postRows = (() => {
-    try {
-      const raw = localStorage.getItem(`vip_huddle_posts_${dk}`)
-      return raw ? JSON.parse(raw) : []
-    } catch (_) { return [] }
-  })()
-  const taskRows = loadTasks(locationId, dk)
 
   const PUNCH_COLS = [
     { key: 'name', label: 'Employee', value: e => e.name },
@@ -876,12 +777,13 @@ function TodayHuddle({ isHR, userName, locationId, locationIds }) {
   })
 
   const priorities = huddleData?.priorities || []
-  const salesGoal = huddleData?.sales_goal || 2400
-  const trainingGoal = huddleData?.training_goal || 75
+  const salesGoal = huddleData?.sales_goal == null ? null : Number(huddleData.sales_goal)
+  const trainingGoal = huddleData?.training_goal == null ? null : Number(huddleData.training_goal)
 
-  // Mock progress values
-  const salesProgress = Math.min(100, seed(dk.slice(-2), 3) + 30)
-  const trainingProgress = Math.min(100, seed(dk.slice(-2), 7) + 40)
+  // Measured progress: revenue facts recorded for today, training completion across the team
+  const salesActual = day?.sales_actual == null ? null : Number(day.sales_actual)
+  const salesProgress = salesGoal && salesActual != null ? Math.min(100, Math.round(salesActual / salesGoal * 100)) : null
+  const trainingProgress = day?.training_pct == null ? null : Number(day.training_pct)
 
   const statusColor = {
     In:   'rgba(0,229,100,0.12)',
@@ -1104,8 +1006,12 @@ function TodayHuddle({ isHR, userName, locationId, locationIds }) {
         </div>
       )}
       <div style={{ maxHeight: 240, overflowY: 'auto', marginBottom: 4 }}>
+        {day === null && <div style={{ fontSize: 12, color: 'var(--t-text-faint)', padding: '8px 0' }}>Reading today…</div>}
+        {dayError && <div style={{ fontSize: 12, color: 'var(--t-danger)', padding: '8px 0' }}>Could not read the huddle: {dayError}</div>}
+        {saveErr && <div style={{ fontSize: 12, color: 'var(--t-danger)', padding: '8px 0' }}>Not saved — {saveErr}</div>}
+        {day && localAnns.length + announcements.length === 0 && <div style={{ fontSize: 12, color: 'var(--t-text-faint)', padding: '8px 0' }}>No announcements today.</div>}
         {[...localAnns, ...announcements].map(a => {
-          const isLocal = String(a.id).startsWith('la-')
+          const isLocal = localAnns.some(x => x.id === a.id)
           return (
             <div key={a.id} style={{ background: 'var(--t-surface)', border: '1px solid var(--t-line)', borderLeft: '3px solid var(--t-accent)', padding: '10px 14px', marginBottom: 6 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4, gap: 8, alignItems: 'center' }}>
@@ -1122,41 +1028,37 @@ function TodayHuddle({ isHR, userName, locationId, locationIds }) {
       </div>
 
       {/* Huddle Tasks */}
-      <HuddleTasks isHR={isHR} locationId={locationId} dateKey={dk} />
+      <HuddleTasks isHR={isHR} locationId={locationId} dateKey={dk} tasks={taskRows} reload={reload} roster={roster} userName={userName} userId={userId} />
 
       {/* Status Update Feed */}
       <SectionHdr>Team Updates</SectionHdr>
-      <PostFeed dateKey={dk} userName={userName} />
+      <PostFeed dateKey={dk} userName={userName} userId={userId} nodeId={locationId} posts={postRows} reload={reload} />
     </div>
   )
 }
 
 // ─── TAB 2: ARCHIVE ───────────────────────────────────────────────────────────
 
-function ArchiveSnapshot({ dateKey }) {
-  const huddle = getMockHuddleForDate(dateKey)
-  const punchData = getMockPunchData(dateKey)
-  const inCount = punchData.filter(e => e.status === 'In').length
-  const lateCount = punchData.filter(e => e.status === 'Late').length
-
-  let postsCount = 0
-  try {
-    const raw = localStorage.getItem(`vip_huddle_posts_${dateKey}`)
-    if (raw) postsCount = JSON.parse(raw).length
-  } catch (_) {}
-
+function ArchiveSnapshot({ dateKey, locationIds }) {
+  const { day } = useHuddleDay(locationIds, dateKey)
+  const huddle = day?.board || null
+  const punchData = punchRows(day)
+  const inCount = punchData.filter(e => e.status === 'In' || e.status === 'Late' || (e.status === 'Out' && e.in_at)).length
+  const lateCount = punchData.filter(e => e.status === 'Late' || (e.late_minutes || 0) > 0).length
+  const postsCount = (day?.posts || []).length
   const priorities = huddle?.priorities || []
-  const salesGoal = huddle?.sales_goal || 2400
-  const trainingGoal = huddle?.training_goal || 75
+  const salesGoal = huddle?.sales_goal == null ? null : Number(huddle.sales_goal)
+  const trainingGoal = huddle?.training_goal == null ? null : Number(huddle.training_goal)
   const notes = huddle?.notes || ''
   const updatedBy = huddle?.updated_by || '—'
+  if (day === null) return <div style={{ color: 'var(--t-text-faint)', fontSize: 12, padding: '8px 0' }}>Reading {dateKey}…</div>
 
   return (
     <div style={{ padding: '0 0 24px' }}>
       <div style={{ marginBottom: 16, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
         <KTile label="Members In" value={inCount} sub={`${lateCount} late`} color="var(--t-success)" />
-        <KTile label="Sales Goal" value={`$${salesGoal.toLocaleString()}`} sub="set target" color="var(--t-accent)" />
-        <KTile label="Training Goal" value={`${trainingGoal}%`} sub="completion target" color="var(--t-text-muted)" />
+        <KTile label="Sales Goal" value={salesGoal == null ? '—' : `$${salesGoal.toLocaleString()}`} sub={salesGoal == null ? 'not set' : 'set target'} color="var(--t-accent)" />
+        <KTile label="Training Goal" value={trainingGoal == null ? '—' : `${trainingGoal}%`} sub={trainingGoal == null ? 'not set' : 'completion target'} color="var(--t-text-muted)" />
         <KTile label="Posts" value={postsCount} sub="team updates" color="var(--t-text-muted)" />
       </div>
 
@@ -1203,9 +1105,19 @@ function ArchiveSnapshot({ dateKey }) {
   )
 }
 
-function HuddleArchive() {
+function HuddleArchive({ locationIds }) {
   const days = getPast14Days()
   const [selectedDate, setSelectedDate] = useState(days[0])
+  const [counts, setCounts] = useState({})
+  useEffect(() => {
+    let live = true
+    if (!locationIds?.length) return undefined
+    sb.rpc('huddle_archive', { p_node_ids: locationIds, p_from: days[days.length - 1], p_to: days[0] }).then(({ data }) => {
+      if (!live || !Array.isArray(data)) return
+      const m = {}; for (const r of data) m[r.date] = r; setCounts(m)
+    })
+    return () => { live = false }
+  }, [JSON.stringify(locationIds)])
 
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '180px 1fr', gap: 16, alignItems: 'start' }}>
@@ -1247,6 +1159,7 @@ function HuddleArchive() {
                 {isToday ? 'Today' : fmtDate(dk)}
               </div>
               {isToday && <div style={{ fontSize: 10, color: 'var(--t-text-muted)' }}>{dk}</div>}
+              {counts[dk] && (counts[dk].board || counts[dk].posts > 0 || counts[dk].tasks > 0) && <div style={{ fontSize: 10, color: 'var(--t-text-faint)' }}>{counts[dk].board ? 'board · ' : ''}{counts[dk].posts} posts · {counts[dk].tasks} tasks</div>}
             </div>
           )
         })}
@@ -1270,7 +1183,7 @@ function HuddleArchive() {
           </div>
           <span className="badge blue">Archive</span>
         </div>
-        <ArchiveSnapshot dateKey={selectedDate} />
+        <ArchiveSnapshot dateKey={selectedDate} locationIds={locationIds} />
       </div>
     </div>
   )
@@ -1278,19 +1191,35 @@ function HuddleArchive() {
 
 // ─── TAB 3: SET TODAY'S HUDDLE ────────────────────────────────────────────────
 
-function SetHuddle({ isHR, userName }) {
+function SetHuddle({ isHR, userName, userId, locationId, locationIds }) {
   const dk = todayKey()
-  const existing = getMockHuddleForDate(dk)
+  const { day, reload } = useHuddleDay(locationIds, dk)
+  const roster = useRoster(locationIds, userId)
+  const existing = day?.board || null
+  const ZONES = useMemo(() => (day?.zones || []).map(z => z.zone), [day])
 
-  const [priorities, setPriorities] = useState(existing?.priorities || ['', '', ''])
-  const [salesGoal, setSalesGoal] = useState(existing?.sales_goal || 2400)
-  const [trainingGoal, setTrainingGoal] = useState(existing?.training_goal || 75)
-  const [zoneAssignments, setZoneAssignments] = useState(
-    existing?.zone_assignments || Object.fromEntries(ZONES.map(z => [z, '']))
-  )
-  const [notes, setNotes] = useState(existing?.notes || '')
+  const [priorities, setPriorities] = useState(['', '', ''])
+  const [salesGoal, setSalesGoal] = useState('')
+  const [trainingGoal, setTrainingGoal] = useState('')
+  const [zoneAssignments, setZoneAssignments] = useState({})
+  const [notes, setNotes] = useState('')
   const [saved, setSaved] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [saveErr, setSaveErr] = useState('')
+  const [loadedKey, setLoadedKey] = useState('')
+  // fill the form from the rows once per day read (not on every re-render)
+  useEffect(() => {
+    if (!day) return
+    const k = dk + ':' + (existing?.updated_at || 'none')
+    if (k === loadedKey) return
+    setLoadedKey(k)
+    const p = existing?.priorities || []
+    setPriorities(p.length ? [...p] : ['', '', ''])
+    setSalesGoal(existing?.sales_goal ?? '')
+    setTrainingGoal(existing?.training_goal ?? '')
+    setNotes(existing?.notes || '')
+    setZoneAssignments(Object.fromEntries((day.zones || []).map(z => [z.zone, z.person_id || ''])))
+  }, [day, dk])
 
   if (!isHR) {
     return (
@@ -1321,25 +1250,29 @@ function SetHuddle({ isHR, userName }) {
     setZoneAssignments(prev => ({ ...prev, [zone]: emp }))
   }
 
-  const handleSave = () => {
-    setSaving(true)
-    const data = {
-      priorities: priorities.filter(p => p.trim()),
-      sales_goal: salesGoal,
-      training_goal: trainingGoal,
-      zone_assignments: zoneAssignments,
-      notes,
-      updated_at: new Date().toISOString(),
-      updated_by: userName,
+  const handleSave = async () => {
+    if (saving) return
+    setSaving(true); setSaveErr('')
+    const res = await sb.rpc('set_huddle_board', {
+      p_node_id: locationId, p_date: dk,
+      p_priorities: priorities.map(p => p.trim()).filter(Boolean),
+      p_sales_goal: salesGoal === '' ? null : Number(salesGoal),
+      p_training_goal: trainingGoal === '' ? null : Math.min(100, Math.max(0, Number(trainingGoal))),
+      p_notes: notes, p_updated_by: userName, p_updated_by_id: userId || null,
+    })
+    if (!rpcOk(res)) { setSaving(false); setSaveErr(rpcWhy(res)); return }
+    // zone assignments: one row per zone with a person (set_zone_assignment writes hr.zone_assignments)
+    for (const [zone, personId] of Object.entries(zoneAssignments)) {
+      const before = (day?.zones || []).find(z => z.zone === zone)?.person_id || ''
+      if (!personId || personId === before) continue
+      const who = roster.find(r => r.id === personId)
+      const z = await sb.rpc('set_zone_assignment', { p_node_id: locationId, p_zone: zone, p_employee_name: who?.full_name || '', p_date: dk, p_start_time: null, p_end_time: null, p_assigned_by: userId || null, p_person_id: personId })
+      if (!rpcOk(z)) { setSaving(false); setSaveErr(`${zone}: ${rpcWhy(z)}`); return }
     }
-    try {
-      localStorage.setItem(`vip_huddle_${dk}`, JSON.stringify(data))
-    } catch (_) {}
-    setTimeout(() => {
-      setSaving(false)
-      setSaved(true)
-      setTimeout(() => setSaved(false), 3000)
-    }, 400)
+    setSaving(false)
+    setSaved(true)
+    reload()
+    setTimeout(() => setSaved(false), 3000)
   }
 
   const inputStyle = {
@@ -1382,7 +1315,7 @@ function SetHuddle({ isHR, userName }) {
         lineHeight: 1.6,
       }}>
         Setting today's huddle for <strong style={{ color: 'var(--t-text)' }}>{fmtDate(dk)}</strong>.
-        Changes save to localStorage and appear immediately on the Today's Huddle tab.
+        Saved as rows in the HR platform (hr.huddle_boards, hr.zone_assignments) and shown on the Today tab on the next read.
       </div>
 
       {/* Priorities */}
@@ -1485,8 +1418,8 @@ function SetHuddle({ isHR, userName }) {
               onChange={e => setZone(zone, e.target.value)}
             >
               <option value="">— Unassigned —</option>
-              {ALL_EMPLOYEES.map(emp => (
-                <option key={emp} value={emp}>{emp}</option>
+              {roster.map(emp => (
+                <option key={emp.id} value={emp.id}>{emp.full_name}</option>
               ))}
             </select>
           </div>
@@ -1528,9 +1461,10 @@ function SetHuddle({ isHR, userName }) {
         </button>
         {saved && (
           <span style={{ fontSize: 12, color: 'var(--t-success)' }}>
-            Huddle board updated — team will see it immediately.
+            Huddle board recorded — the team sees it on their next read.
           </span>
         )}
+        {saveErr && <span style={{ fontSize: 12, color: 'var(--t-danger)' }}>Not saved — {saveErr}</span>}
       </div>
     </div>
   )
@@ -1545,6 +1479,7 @@ export default function Huddle() {
   const r = (session?.person?.role_name || '').toLowerCase()
   const isHR = ['ceo', 'hr', 'manager', 'coo', 'admin', 'owner'].some(x => (r || '').toLowerCase().includes(x))
   const userName = session?.person?.full_name || session?.person?.name || 'Team Member'
+  const userId = session?.person?.id || null
 
   const [tab, setTab] = useState('today')
 
@@ -1622,9 +1557,9 @@ export default function Huddle() {
 
       {/* Tab Content */}
       <div style={{ padding: '20px 24px' }}>
-        {tab === 'today'   && <TodayHuddle isHR={isHR} userName={userName} locationId={locationIds?.[0] || 'all'} locationIds={locationIds} />}
-        {tab === 'archive' && <HuddleArchive />}
-        {tab === 'set'     && <SetHuddle isHR={isHR} userName={userName} />}
+        {tab === 'today'   && <TodayHuddle isHR={isHR} userName={userName} userId={userId} locationId={locationIds?.[0] || null} locationIds={locationIds} />}
+        {tab === 'archive' && <HuddleArchive locationIds={locationIds} />}
+        {tab === 'set'     && <SetHuddle isHR={isHR} userName={userName} userId={userId} locationId={locationIds?.[0] || null} locationIds={locationIds} />}
       </div>
     </div>
   )

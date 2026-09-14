@@ -37,11 +37,28 @@ export function ScopeProvider({ children }) {
   // The selector drives what every page shows — for EXECS too. Execs are still
   // entitled to every location (RLS-safe), so narrowing here is purely a view
   // preference; they default to 'ALL' and can switch back at any time.
+  // TWISTED GROWERS: people are assigned to DEPARTMENT nodes under the one facility
+  // (hr.sync_person_from_os), not to the location itself as VIP's were. Every RPC scopes
+  // with `node_id = any(p_node_ids)`, so a location id alone reached 11 of 27 people
+  // (measured 14 Sep 2026). The scope therefore carries the location FIRST (screens that
+  // take locationIds[0] as "the" node keep working) and then every node beneath it, read
+  // from the session's own reachable nodes by ltree path — nothing hardwired.
+  const withDescendants = (ids) => {
+    const nodes = session?.nodes || []
+    const out = []
+    for (const id of ids) {
+      const root = nodes.find(n => n.id === id)
+      out.push(id)
+      if (!root?.path) continue
+      for (const n of nodes) if (n.id !== id && n.path && n.path.startsWith(root.path + '.')) out.push(n.id)
+    }
+    return [...new Set(out)]
+  }
   const locationIds = useMemo(() => {
-    if (scope === 'ALL' || scope == null) return locations.map(l => l.id)
+    if (scope === 'ALL' || scope == null) return withDescendants(locations.map(l => l.id))
     const node = (session?.nodes || []).find(n => n.id === scope)
-    if (node && node.node_type === 'location') return [scope]
-    return locations.map(l => l.id) // portfolio/company → all reachable locations
+    if (node && node.node_type === 'location') return withDescendants([scope])
+    return withDescendants(locations.map(l => l.id)) // portfolio/company → all reachable locations
   }, [scope, session, locations])
 
   // The single location currently in focus (null when viewing All). Pages use

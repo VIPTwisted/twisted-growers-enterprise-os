@@ -1,31 +1,34 @@
-// FlightRisk.jsx — retention / flight-risk model. Replaces the hardcoded
-// risk_score badge with a TRANSPARENT weighted score computed from real signals:
-// attendance (callouts/lates), discipline (open DAs), tenure, pulse mood,
-// training gaps, and review recency. Shows each factor's contribution.
+// FlightRisk.jsx — retention / flight-risk model: a TRANSPARENT weighted score computed from
+// measured signals — callouts and lates (30 d), open disciplinary actions, tenure, pulse mood
+// (90 d), training completion, review recency. Shows each factor's contribution.
+// EVERY SIGNAL IS A COUNT FROM A TABLE (Bible §12g, 14 Sep 2026): hr.flight_risk_factors() reads
+// hr.shift_exceptions / attendance_events / attendance_incidents / disciplinary_records /
+// pulse_responses / training_records / performance_reviews and the OS's callouts, attendance
+// occurrences, time entries, hire dates and department skills for the people in scope. A signal
+// with no record is null, shown as "no record" and scored as such — never a seeded number.
 import { useState, useMemo, useEffect } from 'react'
 import { useAuth } from '../lib/auth.jsx'
 import { useScope } from '../lib/scope.jsx'
 import { sb } from '../lib/supabase'
 import DrillDown from '../components/DrillDown.jsx'
 
-const LOCATIONS = ['Orange', 'Hartford', 'Manchester', 'Southington', 'Warehouse / Distribution']
-const NAMES = ['Nicole Warren', 'James Carter', 'Brianna Boyd', 'Marcus Taylor', 'Sofia Reyes', 'Devon Hughes', 'Kayla Morris', 'Terrell Brown', 'Aaliyah Simmons', 'Malik Johnson', 'Priya Patel', 'Tyler Brooks', 'Jasmine Fields', 'Chris Navarro', 'Diana Chen', 'Ray Okafor', 'Megan Walsh', 'Jordan Kim']
-const seed = (a, b) => ((a * 31 + b) * 17 + a * b) % 100
 const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]))
 function ddl(name, content, mime) { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([content], { type: mime })); a.download = name; a.click() }
 
-// weighted model — each factor contributes points (0..weight); sum = risk 0..100
+// weighted model — each factor contributes points (0..weight); sum = risk 0..100.
+// A null signal (no record of that kind yet) scores as the neutral value below and is labelled.
 const FACTORS = [
-  { key: 'callouts', label: 'Callouts (30d)', weight: 22, score: v => Math.min(1, v / 6) },
-  { key: 'lates', label: 'Late arrivals (30d)', weight: 12, score: v => Math.min(1, v / 5) },
-  { key: 'openDAs', label: 'Open disciplinary', weight: 20, score: v => Math.min(1, v / 2) },
-  { key: 'tenureMo', label: 'Short tenure', weight: 14, score: v => v < 3 ? 1 : v < 6 ? 0.6 : v < 12 ? 0.3 : 0 },
+  { key: 'callouts', label: 'Callouts (30d)', weight: 22, score: v => Math.min(1, (v ?? 0) / 6) },
+  { key: 'lates', label: 'Late arrivals (30d)', weight: 12, score: v => Math.min(1, (v ?? 0) / 5) },
+  { key: 'openDAs', label: 'Open disciplinary', weight: 20, score: v => Math.min(1, (v ?? 0) / 2) },
+  { key: 'tenureMo', label: 'Short tenure', weight: 14, score: v => v == null ? 0 : v < 3 ? 1 : v < 6 ? 0.6 : v < 12 ? 0.3 : 0 },
   { key: 'pulseAvg', label: 'Low pulse mood', weight: 16, score: v => v == null ? 0.3 : Math.max(0, (4 - v) / 3) },
-  { key: 'trainingPct', label: 'Training gap', weight: 8, score: v => Math.max(0, (80 - v) / 80) },
-  { key: 'reviewDays', label: 'Review overdue', weight: 8, score: v => Math.min(1, Math.max(0, v - 90) / 90) },
+  { key: 'trainingPct', label: 'Training gap', weight: 8, score: v => v == null ? 0.5 : Math.max(0, (80 - v) / 80) },
+  { key: 'reviewDays', label: 'Review overdue', weight: 8, score: v => v == null ? 0.5 : Math.min(1, Math.max(0, v - 90) / 90) },
 ]
+const fmtSignal = (key, v) => v == null ? 'no record' : key === 'tenureMo' ? `${v} mo` : key === 'pulseAvg' ? `${v} / 5` : key === 'trainingPct' ? `${v}%` : key === 'reviewDays' ? `${v} d ago` : String(v)
 function computeRisk(e) {
-  const parts = FACTORS.map(f => ({ label: f.label, points: +(f.score(e[f.key]) * f.weight).toFixed(1), of: f.weight }))
+  const parts = FACTORS.map(f => ({ label: f.label, key: f.key, raw: e[f.key], points: +(f.score(e[f.key]) * f.weight).toFixed(1), of: f.weight }))
   const score = Math.round(parts.reduce((s, p) => s + p.points, 0))
   const level = score >= 65 ? 'Critical' : score >= 45 ? 'High' : score >= 25 ? 'Medium' : 'Low'
   const top = [...parts].sort((a, b) => b.points - a.points).filter(p => p.points > 1).slice(0, 3).map(p => p.label)
@@ -49,27 +52,33 @@ const st = {
 export default function FlightRisk() {
   const { session } = useAuth()
   const { locationIds } = useScope()
-  const [roster, setRoster] = useState([])
+  const [signals, setSignals] = useState(null)   // null = loading
+  const [loadError, setLoadError] = useState('')
   const [drill, setDrill] = useState(null)
   const [sel, setSel] = useState(null)
 
   useEffect(() => {
-    sb.rpc('get_roster', { p_node_ids: locationIds, p_actor: session?.person?.id || null })
-      .then(({ data }) => { if (Array.isArray(data)) setRoster(data.filter(p => p.id)) }).catch(() => {})
+    let live = true
+    setSignals(null); setLoadError('')
+    sb.rpc('flight_risk_factors', { p_node_ids: locationIds, p_actor: session?.person?.id || null })
+      .then(({ data, error }) => {
+        if (!live) return
+        if (error) { setLoadError(error.message); setSignals([]); return }
+        setSignals(Array.isArray(data) ? data : [])
+      })
+    return () => { live = false }
   }, [JSON.stringify(locationIds), session?.person?.id])
 
-  const emps = useMemo(() => {
-    const people = roster.length ? roster.map((p, i) => ({ name: p.full_name || NAMES[i % NAMES.length], role: p.role_name || 'Associate', loc: p.node_name || LOCATIONS[i % LOCATIONS.length], id: p.id })) : NAMES.map((n, i) => ({ name: n, role: ['Associate', 'Key Holder', 'Store Manager'][i % 3], loc: LOCATIONS[i % LOCATIONS.length], id: `e${i}` }))
-    return people.map((p, i) => {
-      const signals = {
-        callouts: seed(i, 3) % 7, lates: seed(i, 5) % 5, openDAs: seed(i, 7) % 3,
-        tenureMo: seed(i, 9) % 36 + 1, pulseAvg: 2 + (seed(i, 11) % 30) / 10,
-        trainingPct: 55 + seed(i, 13) % 46, reviewDays: seed(i, 15) % 160,
-      }
-      const risk = computeRisk(signals)
-      return { ...p, ...signals, ...risk }
-    }).sort((a, b) => b.score - a.score)
-  }, [roster])
+  const emps = useMemo(() => (signals || []).map(r => {
+    const s = {
+      callouts: r.callouts_30d, lates: r.lates_30d, openDAs: r.open_das,
+      tenureMo: r.tenure_months == null ? null : Number(r.tenure_months),
+      pulseAvg: r.pulse_avg == null ? null : Number(r.pulse_avg),
+      trainingPct: r.training_pct == null ? null : Number(r.training_pct),
+      reviewDays: r.review_days,
+    }
+    return { id: r.person_id, name: r.full_name, role: r.role_name || 'Associate', loc: r.node_name || '', ...s, ...computeRisk(s) }
+  }).sort((a, b) => b.score - a.score), [signals])
 
   const k = useMemo(() => ({
     critical: emps.filter(e => e.level === 'Critical'),
@@ -81,7 +90,7 @@ export default function FlightRisk() {
   const COLS = [
     { key: 'name', label: 'Employee', value: e => e.name },
     { key: 'role', label: 'Role', value: e => e.role },
-    { key: 'loc', label: 'Location', value: e => e.loc },
+    { key: 'loc', label: 'Department', value: e => e.loc },
     { key: 'score', label: 'Risk Score', value: e => e.score, align: 'right', sortKey: e => e.score },
     { key: 'level', label: 'Level', value: e => e.level },
     { key: 'top', label: 'Top Drivers', value: e => (e.top || []).join(', ') || '—' },
@@ -89,15 +98,16 @@ export default function FlightRisk() {
   const openDrill = (title, rows, accent) => setDrill({ title, subtitle: `${rows.length} employees · computed retention risk`, columns: COLS, rows, accent, messaging: { nameKey: 'name', subjectKey: 'level' } })
 
   const expRows = emps.map(e => ({ Employee: e.name, Role: e.role, Location: e.loc, 'Risk Score': e.score, Level: e.level, 'Top Drivers': (e.top || []).join('; '), Callouts30: e.callouts, OpenDAs: e.openDAs, TenureMo: e.tenureMo }))
-  const exportCSV = () => { const c = Object.keys(expRows[0]); ddl(`vip-flight-risk-${new Date().toISOString().slice(0, 10)}.csv`, [c.join(','), ...expRows.map(o => c.map(x => JSON.stringify(o[x] ?? '')).join(','))].join('\n'), 'text/csv') }
-  const exportXLS = () => { const c = Object.keys(expRows[0]); const th = c.map(x => `<th style="background:#0b2545;color:#fff;padding:6px 10px">${esc(x)}</th>`).join(''); const trs = expRows.map(o => `<tr>${c.map(x => `<td style="padding:5px 10px">${esc(o[x])}</td>`).join('')}</tr>`).join(''); ddl(`vip-flight-risk-${new Date().toISOString().slice(0, 10)}.xls`, `<html xmlns:o="urn:schemas-microsoft-com:office:office"><head><meta charset="utf-8"></head><body><table border="1">${`<tr>${th}</tr>`}${trs}</table></body></html>`, 'application/vnd.ms-excel') }
+  const exportCSV = () => { const c = Object.keys(expRows[0]); ddl(`tg-flight-risk-${new Date().toISOString().slice(0, 10)}.csv`, [c.join(','), ...expRows.map(o => c.map(x => JSON.stringify(o[x] ?? '')).join(','))].join('\n'), 'text/csv') }
+  const exportXLS = () => { const c = Object.keys(expRows[0]); const th = c.map(x => `<th style="background:#0b2545;color:#fff;padding:6px 10px">${esc(x)}</th>`).join(''); const trs = expRows.map(o => `<tr>${c.map(x => `<td style="padding:5px 10px">${esc(o[x])}</td>`).join('')}</tr>`).join(''); ddl(`tg-flight-risk-${new Date().toISOString().slice(0, 10)}.xls`, `<html xmlns:o="urn:schemas-microsoft-com:office:office"><head><meta charset="utf-8"></head><body><table border="1">${`<tr>${th}</tr>`}${trs}</table></body></html>`, 'application/vnd.ms-excel') }
 
   return (
     <div style={st.wrap}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
         <div>
           <h1 style={st.h1}>Retention / Flight-Risk Model</h1>
-          <div style={st.sub}>A computed, weighted score (not a static badge) from attendance, discipline, tenure, pulse mood, training gaps, and review recency. Click any employee to see the factor breakdown.</div>
+          <div style={st.sub}>A computed, weighted score (not a static badge) from measured attendance, discipline, tenure, pulse mood, training and review recency. A factor with no record yet says so. Click any employee to see the factor breakdown.</div>
+          {loadError && <div style={{ ...st.sub, color: 'var(--t-danger)' }}>Could not read signals: {loadError}</div>}
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
           <button style={st.btn} onClick={exportCSV}>⤓ CSV</button>
@@ -126,6 +136,8 @@ export default function FlightRisk() {
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead><tr>{COLS.map(c => <th key={c.key} style={{ ...st.th, textAlign: c.align || 'left', position: 'sticky', top: 0 }}>{c.label}</th>)}</tr></thead>
               <tbody>
+                {signals === null && <tr><td colSpan={COLS.length} style={{ ...st.td, textAlign: 'center', color: 'var(--t-text-faint)', padding: 24 }}>Measuring signals…</td></tr>}
+                {signals !== null && emps.length === 0 && <tr><td colSpan={COLS.length} style={{ ...st.td, textAlign: 'center', color: 'var(--t-text-faint)', padding: 24 }}>No active people in scope.</td></tr>}
                 {emps.map(e => (
                   <tr key={e.id} onClick={() => setSel(e)} style={{ cursor: 'pointer', background: sel?.id === e.id ? 'var(--t-surface-2)' : 'transparent' }}>
                     <td style={{ ...st.td, fontWeight: 600 }}>{e.name}</td>
@@ -154,7 +166,7 @@ export default function FlightRisk() {
             <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--t-text-muted)', textTransform: 'uppercase', marginBottom: 8 }}>Factor breakdown</div>
             {sel.parts.map(p => (
               <div key={p.label} style={{ marginBottom: 8 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, marginBottom: 2 }}><span>{p.label}</span><span style={{ color: 'var(--t-text-muted)' }}>{p.points} / {p.of}</span></div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, marginBottom: 2 }}><span>{p.label} <span style={{ color: p.raw == null ? 'var(--t-warn)' : 'var(--t-text-faint)' }}>· {fmtSignal(p.key, p.raw)}</span></span><span style={{ color: 'var(--t-text-muted)' }}>{p.points} / {p.of}</span></div>
                 <div style={{ height: 5, background: 'var(--t-line)' }}><div style={{ height: '100%', width: `${(p.points / p.of) * 100}%`, background: p.points / p.of > 0.6 ? 'var(--t-danger)' : p.points / p.of > 0.3 ? 'var(--t-warn)' : 'var(--t-success)' }} /></div>
               </div>
             ))}
