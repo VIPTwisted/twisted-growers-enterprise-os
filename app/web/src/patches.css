@@ -1896,3 +1896,16 @@ button.narrblock:hover { outline: 1px solid var(--line); }
 .iq-all td{padding:4px 8px}
 .iq-resolve{margin-top:12px;border-top:1px solid var(--line);padding-top:10px}
 .iq-resolve label{display:block;margin:0 0 4px;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+
+/* SETUP FORM (BP-12b-3) — fields laid out on the shared input primitive; nothing new in the theme. */
+.sf-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px 14px}
+.sf-field label{display:block;margin:0 0 4px;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.sf-field label .note{text-transform:none;letter-spacing:0;font-weight:400}
+.sf-field .inp{width:100%;box-sizing:border-box}
+.sf-field textarea.inp{resize:vertical;font-family:inherit}
+.sf-check{font-family:ui-monospace,monospace;font-size:10px}
+.sf-editor{padding:4px 0}
+.sf-link{margin-right:10px;white-space:nowrap}
+.sf-diff{display:block}
+.sf-diff s{color:var(--muted)}
+.sf-table td{max-width:260px;overflow:hidden;text-overflow:ellipsis}
