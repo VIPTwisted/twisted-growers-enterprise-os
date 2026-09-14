@@ -111,7 +111,7 @@
   // ── Breadcrumbs: Org → Store → Register → Shift → Transaction → Item ──────
   function crumbs() {
     var c = context();
-    var out = [{ label: 'VIP Holdings', href: 'index.html' }];
+    var out = [{ label: 'Twisted Growers', href: 'index.html' }];
     if (c.entityId && c.entityId !== 'all') out.push({ label: c.entityName || c.entityId, href: drill('store', {}) });
     else if (c.recordKind) out.push({ label: 'All stores', href: drill('store', { entityId: 'all' }) });
     if (c.registerId) out.push({ label: c.registerId, href: drill('register', {}) });

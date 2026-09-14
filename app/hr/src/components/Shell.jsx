@@ -714,7 +714,22 @@ function Sidebar() {
 }
 
 /* ── top bar ──────────────────────────────────────────────────── */
+// The company name in the top bar is a ROW (hr.company_branding via get_company_branding),
+// read once per load; the fallback is the locked fact, never the clone's name.
+let BRAND_CACHE = null
+function useBranding() {
+  const [brand, setBrand] = useState(BRAND_CACHE)
+  useEffect(() => {
+    if (BRAND_CACHE) return undefined
+    let live = true
+    sb.rpc('get_company_branding').then(({ data }) => { if (live && data) { BRAND_CACHE = data; setBrand(data) } })
+    return () => { live = false }
+  }, [])
+  return brand
+}
+
 function TopBar() {
+  const brand = useBranding()
   const now = useClock()
   const { locations } = useScope()
   const locCount = locations?.length || 0
@@ -726,7 +741,7 @@ function TopBar() {
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
         <div className="topbar-logo">TG</div>
         <div>
-          <div className="topbar-name">VERY INTIMATE PLEASURES</div>
+          <div className="topbar-name">{brand?.company_display_name || 'TWISTED GROWERS'}</div>
           <div className="topbar-sub">{locCount} Location{locCount === 1 ? '' : 's'}</div>
         </div>
       </div>

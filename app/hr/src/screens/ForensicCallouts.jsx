@@ -33,7 +33,7 @@ function buildPrint({ rows, from, to, summary }) {
     .foot{margin-top:14px;border-top:1px solid #ccc;padding-top:5px;font-size:9px;color:#777}
     @media print{body{padding:0}}
   </style></head><body>
-    <div class="lh"><div><div class="co">VERY INTIMATE PLEASURES — Twisted Growers</div>
+    <div class="lh"><div><div class="co">Twisted Growers</div>
       <h1>Attendance Forensic Report</h1><div>Period: ${esc(from || 'all')} → ${esc(to || 'all')}</div></div>
       <div style="text-align:right;font-size:10px">Printed: ${esc(printedAt)}<br/>Confidential — HR/Legal</div></div>
     <div class="sum"><b>Summary:</b> ${summary.total} events · ${summary.uncovered} uncovered ·
