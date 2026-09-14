@@ -31,7 +31,7 @@ function computeRisk(e) {
   const parts = FACTORS.map(f => ({ label: f.label, key: f.key, raw: e[f.key], points: +(f.score(e[f.key]) * f.weight).toFixed(1), of: f.weight }))
   const score = Math.round(parts.reduce((s, p) => s + p.points, 0))
   const level = score >= 65 ? 'Critical' : score >= 45 ? 'High' : score >= 25 ? 'Medium' : 'Low'
-  const top = [...parts].sort((a, b) => b.points - a.points).filter(p => p.points > 1).slice(0, 3).map(p => p.label)
+  const top = [...parts].filter(p => p.raw != null).sort((a, b) => b.points - a.points).filter(p => p.points > 1).slice(0, 3).map(p => p.label)
   return { score, level, parts, top }
 }
 

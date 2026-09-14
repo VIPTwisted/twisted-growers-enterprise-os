@@ -814,8 +814,8 @@ function TodayHuddle({ isHR, userName, userId, locationId, locationIds }) {
         />
         <KTile
           label="Today's Sales Target"
-          value={`$${salesGoal.toLocaleString()}`}
-          sub={`${salesProgress}% pace`}
+          value={salesGoal == null ? '—' : `$${salesGoal.toLocaleString()}`}
+          sub={salesGoal == null ? 'no goal set — use Set Today’s Huddle' : salesProgress == null ? 'no revenue recorded today' : `${salesProgress}% pace`}
           color="var(--t-accent)"
           onClick={() => openDrill("Today's Zone Coverage", zoneData, ZONE_COLS, 'var(--t-accent)')}
         />
@@ -975,24 +975,24 @@ function TodayHuddle({ isHR, userName, userId, locationId, locationIds }) {
             Sales Target
           </div>
           <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--t-accent)', marginBottom: 4 }}>
-            ${salesGoal.toLocaleString()}
+            {salesGoal == null ? '—' : `$${salesGoal.toLocaleString()}`}
           </div>
           <div style={{ fontSize: 11, color: 'var(--t-text-faint)', marginBottom: 4 }}>
-            {salesProgress}% pace — ${Math.round(salesGoal * salesProgress / 100).toLocaleString()} of goal
+            {salesGoal == null ? 'No goal set for today.' : salesProgress == null ? 'No revenue recorded for today yet.' : `${salesProgress}% pace — $${Math.round(salesActual).toLocaleString()} of goal`}
           </div>
-          <ProgressBar pct={salesProgress} color="var(--t-accent)" />
+          <ProgressBar pct={salesProgress || 0} color="var(--t-accent)" />
         </div>
         <div style={{ background: 'var(--t-surface)', border: '1px solid var(--t-line)', padding: '14px 16px' }}>
           <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--t-text-muted)', textTransform: 'uppercase', letterSpacing: '.08em', marginBottom: 6 }}>
             Training Completion
           </div>
           <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--t-success)', marginBottom: 4 }}>
-            {trainingGoal}% target
+            {trainingGoal == null ? '—' : `${trainingGoal}% target`}
           </div>
           <div style={{ fontSize: 11, color: 'var(--t-text-faint)', marginBottom: 4 }}>
-            {trainingProgress}% actual — {trainingProgress >= trainingGoal ? 'On track' : `${trainingGoal - trainingProgress}% below goal`}
+            {trainingProgress == null ? 'No training records yet.' : trainingGoal == null ? `${trainingProgress}% complete — no goal set` : `${trainingProgress}% actual — ${trainingProgress >= trainingGoal ? 'On track' : `${trainingGoal - trainingProgress}% below goal`}`}
           </div>
-          <ProgressBar pct={trainingProgress} color={trainingProgress >= trainingGoal ? 'var(--t-success)' : 'var(--t-warn)'} />
+          <ProgressBar pct={trainingProgress || 0} color={trainingGoal != null && trainingProgress != null && trainingProgress >= trainingGoal ? 'var(--t-success)' : 'var(--t-warn)'} />
         </div>
       </div>
       )}
@@ -1376,8 +1376,8 @@ function SetHuddle({ isHR, userName, userId, locationId, locationIds }) {
               max={100}
             />
             <div style={{ flex: 1 }}>
-              <ProgressBar pct={trainingGoal} color="var(--t-success)" />
-              <div style={{ fontSize: 10, color: 'var(--t-text-faint)', marginTop: 3 }}>{trainingGoal}% goal</div>
+              <ProgressBar pct={Number(trainingGoal) || 0} color="var(--t-success)" />
+              <div style={{ fontSize: 10, color: 'var(--t-text-faint)', marginTop: 3 }}>{trainingGoal === '' ? 'no goal set' : `${trainingGoal}% goal`}</div>
             </div>
           </div>
         </div>

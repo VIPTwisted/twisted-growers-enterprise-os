@@ -855,7 +855,8 @@ const migrationEntries = files.map((name) => ({
 // Re-pinned 14 Sep 2026 -> 1129 files. Recorded claude_ci_record_verdict_function (the gates role stays read-only). Claude desk.
 // Re-pinned 14 Sep 2026 -> 1133 files. Recorded the four hr_* migrations of BP-12g (six HR screens on live rows, huddle day read,
 // drafter wrappers). Claude desk.
-const expectedMigrationTreeDigest = "c4f6fd36891025a0d4f80962324efb843380c4c213531f1326dee083ef07d152";
+// Re-pinned 14 Sep 2026 -> 1135 files. Recorded hr_ai_keys_never_in_hr and hr_company_branding_row_and_reader (BP-12g). Claude desk.
+const expectedMigrationTreeDigest = "12835ee755cb5c11e621338e601a7f0c25b659717bc0490e11c4dc882a88a81d";
 const actualMigrationTreeDigest = migrationTreeDigest(migrationEntries);
 if (actualMigrationTreeDigest !== expectedMigrationTreeDigest) {
   console.error(`money-grain: FAIL — migration tree differs from the independently reviewed ${files.length}-file manifest (${actualMigrationTreeDigest}).`);

@@ -61,7 +61,7 @@ function buildDoc({ locName, weekStart, retain, sections, diff }) {
     @media print{body{padding:0}}
   </style></head><body>
     <div class="lh">
-      <div><div class="co">VERY INTIMATE PLEASURES — Twisted Growers</div><h1>Schedule Record — ${esc(locName)}</h1>
+      <div><div class="co">Twisted Growers</div><h1>Schedule Record — ${esc(locName)}</h1>
         <div>Week of ${esc(weekStart)}</div></div>
       <div class="r">Printed: ${esc(printedAt)}<br/>Official records copy</div>
     </div>
