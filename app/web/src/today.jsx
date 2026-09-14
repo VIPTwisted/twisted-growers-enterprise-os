@@ -27,7 +27,7 @@ import { supabase } from "./lib/supabase.js";
 import { useRole, AssignTask } from "./App.jsx";
 
 const SOURCE_LABEL = {
-  finding_group: "finding family", issue_group: "watchdog issue", question: "open question",
+  finding_group: "finding family", report: "reported defect", issue_group: "watchdog issue", question: "open question",
   enhancement: "page enhancement", correction: "correction proposal", qa_enhancement: "reported enhancement",
 };
 const OPTION_LABEL = {
@@ -138,7 +138,7 @@ export default function TodayScreen({ entry, actions, session }) {
       </div>
 
       <div className="sbtotals syncstats">
-        <div><b>{feed ? num(feed.behind?.shown) : "…"}</b><span>{feed ? `shown of ${num(feed.behind?.total)} decisions` : "loading"}</span></div>
+        <div><b>{feed ? num(feed.behind?.shown) : "…"}</b><span>{feed ? `top of ${num(feed.behind?.total)} decisions${items.length > Number(feed.behind?.shown) ? ` + ${items.length - Number(feed.behind?.shown)} top of their kind` : ""}` : "loading"}</span></div>
         {feed && <div><b>{num(feed.behind?.rows_total)}</b><span>rows behind them</span></div>}
         {feed && <div className={Number(feed.behind?.dollars_total) > 0 ? "hot" : ""}><b>{usd(feed.behind?.dollars_total)}</b><span>at stake</span></div>}
         {Object.entries(bySource).sort((a, b) => b[1] - a[1]).map(([s, n]) => (
@@ -170,7 +170,7 @@ export default function TodayScreen({ entry, actions, session }) {
                 <React.Fragment key={it.key}>
                   <tr className={`syncrow${open ? " on" : ""}`} onClick={toggle} role="button" tabIndex={0} aria-expanded={open}
                       onKeyDown={(e) => { if (e.target === e.currentTarget && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); toggle(); } }}>
-                    <td>{it.rank}</td>
+                    <td>{it.rank}{it.in_top === false ? <div className="note" title="Outside the top 25 by score, shown because it is one of the top three of its kind">top of kind</div> : null}</td>
                     <td><span className={`pill ${sevTone(it.severity)}`}>{it.severity}</span></td>
                     <td className="wrap"><b>{it.what}</b><div className="note iq-detail">{SOURCE_LABEL[it.source] || it.source} · {it.why}{it.who ? ` · ${it.who}` : ""}</div></td>
                     <td>{num(it.n)}</td>
