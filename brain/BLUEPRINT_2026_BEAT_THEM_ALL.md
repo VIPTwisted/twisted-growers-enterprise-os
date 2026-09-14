@@ -11,6 +11,32 @@
 
 ---
 
+## 0a. Delivery governance revision — GPT's review of 14 Sep 2026, reconciled (one document, no drift)
+
+GPT reviewed v2 and returned a "Part I — controlling enterprise delivery revision" (owner: *"review this from GPT and share thoughts — collaborate"*). The Bible stays one document (§16.1): every point is adopted, adapted or rejected **here**, with the reason. Owner decisions incorporated: **QuickBooks → phase 2; the advanced security program → phase 2** (board rows marked *PHASE 2 (owner 14 Sep)*).
+
+| GPT point | Verdict | What changes in this document |
+|---|---|---|
+| **The hours table does not add up:** 412 h listed (Claude 242 · Grok 86 · GPT 84), not ≈330; Claude's lane is 107 h over a 135 h capacity; Monday alone carries 43 h | **Adopted — the arithmetic was wrong.** The estimates are engineer-hours; Claude's measured throughput on night one was ≈4× (16 estimated hours delivered in 4 wall-clock hours, certified), but a table must reconcile to its own stated capacity | §13 carries the corrected totals, a measured-throughput note, and a rebalance: scorecards, rules editor and document register move to Grok; cost sheet and custody move to GPT. Re-estimate after day 2 from measured throughput, not assumption |
+| Replace daily bundles with dependency gates G0–G5 | **Adapted.** The day-by-day order stays (the owner's demand for speed and visibility); G0–G5 become the **exit evidence** each journey must show, not a replacement | §13 gains the G-gate column; a row cannot flip PASS without its gate evidence |
+| QuickBooks: no Phase-1 dependency; "TG as book of record, QB as mirror" is a phase-2 decision needing opening balances, corrections, period controls and a parallel close | **Adopted.** | §6: the spine ships internal and **indicative**; the book-of-record transition is QB-04, phase 2, signed by the accounting owner |
+| Reject a blanket % tolerance; identities and duplicates exact; explicit rounding; unexplained money differences stay exceptions | **Adopted — better than my 0.5 % suggestion.** | §6 acceptance rewritten; owner row `owner.bp_tolerance` becomes "rounding rules per field class", not one percentage |
+| Security deferral = postpone the expansion program, never disable protections; fix a discovered exposure before the affected real-data workflow launches | **Adopted — and it decides the held row:** `security.upload_key_hardcoded` (admin key baked into deployed source) is a discovered exposure, so it stays **phase 1** (≈1 h, read from `integration_secrets`; no rotation before the live test) | Board: CSP and anon re-measure → phase 2; upload key → phase 1, Tue |
+| Certification contract: claim id · source/version · time · population · rules · transformation version · independent comparison · exceptions · verdict · expiry · evidence link; states verified / indicative / stale / incomplete / disputed / unavailable; two queries over one faulty source are not independent | **Adopted** (matches the house rule "two derivations sharing a filter are one") | §16.5: `f_certify` records this contract; the board shows the six states |
+| Agents: mandate = identity, tools, objects, actions, approval boundary, budget, retry limit, stop condition, evidence, escalation owner; durable job status; no self-approval; retrieved content is evidence, not instruction | **Adopted** | §5 mandate columns extended; `agent_mandate` carries them |
+| A subscription browser session is not a guaranteed background runtime | **Adopted — true and important.** Unattended work runs server-side (cron / edge functions); the extension is interactive and preferred; the API key (owner: "keys later") is the unattended fallback | §17: the bot page-walk is best-effort while a session is open; deploy watch, sync watch and certification run on cron |
+| Page walks are smoke tests; acceptance exercises complete tasks, forbidden actions, failed saves, concurrent edits, partial outages, recovery; role tests need real role accounts, not the admin preview lens | **Adopted** | §17 and §13: GPT's role QA uses real accounts; the dry runs are the acceptance |
+| Recovery: candidate build ≠ production outage; monitor from outside; a Netlify republish does not reverse Supabase migrations or business effects; test recovery before claiming rollback | **Adopted** (deploy watch already separates branch from `main`) | §16.3 adds: **no destructive migration during go-live week** (additive only), a tested recovery drill on Tue 22, and an outside-in availability probe |
+| "Silence is agreement" is wrong; do not continue a harmful instruction because it is written | **Adopted — my wording was wrong.** An agent that believes an item is harmful **pauses that item** and files the evidence; silence means *bound by the text*, never *approved* | §16.1 reworded |
+| Definition of done must separate implementation complete · deployed · accepted (real user workflow passed); manual approvals and automated measurements recorded separately | **Adopted** | §16.6: three states on every row; the Fri/Mon dry runs are the acceptance step |
+| The five questions every released journey must answer; quality floor P1-01…P1-12 | **Adopted as the functional floor of every archetype exemplar** | §12b floor extended (confirmed saves, distinguishable states, persisted preferences, recovery path) |
+| Competitive superiority needs a defined task and outcome, not page counts | **Agreed — §12 already states per-rival tests;** they are tests, not claims, until measured | §12 header reworded |
+| Sept 18 / 23 remain targets subject to demonstrated readiness; a journey that cannot pass gets a documented scope or date change, never silent deferral | **Adopted** | §13 |
+| Numeric performance promises (e.g. "< 1.5 s") must come from measured baselines | **Adopted** — Package 360 measured 0.35–0.9 s server-side; page targets are set from measurement | §9 |
+| Source counts in Part II are dated claims until verified | **Agreed** — §1 is dated 14 Sep 01:30 UTC and re-measured by the board | — |
+
+**Rejected:** nothing of substance. GPT's Part I is folded in here rather than kept as a separate "controlling" document, because two controlling documents is the drift §16.1 forbids.
+
 ## 0. The bar — who we beat and how
 
 | Rival | What it owns | What we take from it | Where we beat it |
@@ -189,7 +215,7 @@ Event-sourced. Every event in `tag_event` (or arriving through the syncs) produc
 | **QuickBooks mirror** (flip the sync) + reconciliation to tolerance (owner sets, suggest 0.5 %) | | | | | 16 (+ GPT 10 independent) |
 | **Total** | | | | | **≈ 80 (v1 in 40)** |
 
-Acceptance: harvest/package/sale/payroll/purchase post within 60 s; live figures reconcile to QuickBooks within tolerance; every figure → journal → `tag_event`. Day-one label: **indicative** until reconciled, then **certified** line by line.
+Acceptance (phase 1): harvest/package/sale/payroll/purchase post within 60 s; every figure → journal → `tag_event`; every money figure carries the **indicative** label and names its source and method. **Phase 2 (owner, 14 Sep): QuickBooks** — QB-01 integration specification (authority by record type, operations, mappings, history, sync direction — no uncontrolled bidirectional ownership) · QB-02 execution (duplicate protection, replay, visible exceptions, attributable changes, recovery) · QB-03 reconciliation (**no blanket % tolerance**: identities and duplicates exact; rounding rules explicit per field class; unexplained money differences stay exceptions) · QB-04 the book-of-record transition, only after opening balances, corrections, reversals, period controls and a full parallel close pass, signed by the accounting owner. Until then the existing accounting operation continues unchanged.
 
 ---
 
@@ -385,19 +411,21 @@ Big fifteen not already above: create/edit/approve UI (the Setup form + object a
 
 ## 13. Schedule — nine days to go-live, three agents, with hours
 
-Capacity: 3 agents × 9 days × 15 h ≈ **405 h**. Committed below ≈ 330 h (Claude ≈ 150, Grok ≈ 90, GPT ≈ 90) — the rest is fixes and the owner's reviews.
+**Corrected 14 Sep (GPT's review, §0a):** the table below lists **412 engineer-hours** (Claude 242 · Grok 86 · GPT 84), not ≈330, against 135 h per lane at 15 h/day; Claude's lane is over by 107 h and Monday carries 43 h. Two corrections apply: (1) **rebalance** — scorecards, rules editor and document register move to Grok; cost sheet and custody move to GPT (Claude ≈ 190 · Grok ≈ 110 · GPT ≈ 112); (2) **measure, don't assume** — night one delivered 16 estimated hours in 4 wall-clock hours, certified (Package 360, board, deploy watch); every lane's real throughput is re-measured after day 2 and the table re-estimated from it. QuickBooks reconciliation (10 h, GPT, Thu) is **phase 2** and struck. Sept 18 and 23 remain targets subject to demonstrated readiness: a journey that cannot pass gets a **documented** scope or date change from the owner — never a silent deferral, never relabelled complete.
+
+**Exit gates (GPT, adopted as evidence, not as a replacement for the day order):** G0 scope (this board) · G1 foundation (identities, contracts, sources) · G2 one complete journey through real dependencies and failure paths · G3 controlled expansion (per-journey evidence) · G4 release candidate (acceptance run, recovery demonstrated, launch blockers resolved) · G5 onboarding and launch (real-user review, live verification). A row flips PASS only with its gate's evidence.
 
 | Day | Claude (hours) | Grok (hours) | GPT (hours) |
 |---|---|---|---|
 | **Mon 14** | Package 360 page + tag links + Spotlight (8) · Findings exemplar → 60 (12) · section-19 board (2) · **deploy watch (6) · sync watch (5) · `blueprint-in-sync` gate (4) · Report-an-issue on every page (6)** | bots answer only from certified figures (10) · **bot page-walk v1 (12)** | Metrc population certificates: plants, packages, harvests, transfers (12) |
 | **Tue 15** | Setup form → 251 (15) · HR merge + `/hr` + menu row (4) · Today v1 (8) | dashboards green vs drills (12) | sync liveness + cursor health, all endpoints (10) · role QA matrix design (4) |
 | **Wed 16** | Sheet vs Metrc + override + neon + weekly review (12) · Compliance agent v1 (10) · Harvest schedule → 36 (10) | Ask front on `f_ask_view` (10) | `stock_position` → 29 (10) · certificates continued (4) |
-| **Thu 17** | Money spine v1: journal from tag_event, P&L, cost per pound, inventory value (24) · Cost sheet → 29 (8) | HR module pages → `/hr` (12) | QuickBooks reconciliation, independent (10) |
-| **Fri 18** | Custody + COA register → 48 (12) · certification board signed (4) · **onboarding pack** (6) | scorecards → 16 (8) | per-role QA signed (10) |
+| **Thu 17** | Money spine v1: journal from tag_event, P&L, cost per pound, inventory value (24) · `security.upload_key_hardcoded` fixed (1) | HR module pages → `/hr` (12) · **scorecards → 16 (8)** | **cost sheet → 29 (8)** · ~~QuickBooks reconciliation~~ **phase 2** |
+| **Fri 18** | certification board signed (4) · **onboarding pack** (6) | **COA register → 24 (6)** | **custody chain → 24 (6)** · **per-role QA** with real role accounts: every role logs in, sees its menu, nothing else — signed (10) |
 | **Sat 19** | Sales desk v1: allocate → manifest draft + COAs → Apex under review → invoice (14) · Work layer v1: task 360, List/Board/My Work, forms, timers (12) | scoreboards/answer-first band (8) | vault reconciliation (8) |
-| **Sun 20** | Dispensary portal v1 (12) · Rules editor → 39 (8) | — | — |
+| **Sun 20** | Dispensary portal v1 (12) | **rules editor → 39 (8)** | — |
 | **Mon 21** | My views v1 (10) · Harvest & Rooms v1 + People v1 (12) · cycle compare (6) | Ask in words → saved view in Budz (8) | dry run with customer users (8) |
-| **Tue 22** | **Freeze 12:00.** certification pass, audit pack, runbook, fixes (12) | fixes (6) | second dry run; fixes (8) |
+| **Tue 22** | **Freeze 12:00.** certification pass, audit pack, runbook, **recovery drill** (previous Netlify deploy + schema compatibility confirmed — additive migrations only this week), fixes only (12) | fixes (6) | second dry run; fixes (8) |
 | **Wed 23** | **Go-live on site.** Watchdog on; on call | on call | on call |
 
 **Owner inputs (each unblocks a row):** role list for every employee · alert recipients · shift/zone/weekend/edit-roles confirmations · sheet review day and unit exceptions · the two Supabase switches + Netlify Git link · reconciliation tolerance · twelve Ask benchmark questions · three simulation scenarios · page-decision marks (§12b).
@@ -445,7 +473,7 @@ Capacity: 3 agents × 9 days × 15 h ≈ **405 h**. Committed below ≈ 330 h (C
 ### 16.1 One source, one identity per item
 - **This file is the Bible.** `CLAUDE.md` holds the rules; `HANDOFF.md` holds state; this file holds the build. Nothing about the build is decided anywhere else — not in chat, not in another agent's notes, not in a PR description. If it is not here, it is not the plan; if it is here, it is not open to interpretation.
 - **Every item carries an ID** — `BP-<section>-<n>` (e.g. `BP-12b-3` = Setup form archetype) — and lives as a `deployment_check` row `bp.<section>.<slug>` in tracker section **19 Blueprint 2026** with: owner lane (Claude / Grok / GPT / owner), hours, acceptance test (verbatim from this file), status. **The tracker row is the only place status changes, and only by a measurement**, never by hand, never by an agent's claim.
-- **No agent re-interprets.** An agent that believes an item is wrong files a *finding* against it (`agent_findings`, scope `BP-…`) and continues on the written item until the owner rules. Silence is agreement; deviation is a defect.
+- **No agent re-interprets.** An agent that believes an item is wrong files a *finding* against it (`agent_findings`, scope `BP-…`). If the item is merely doubtful, the agent continues on the written item until the owner rules; if the agent believes it is **harmful**, it **pauses that item** and files the evidence — a written instruction is never a reason to continue a known harm. Silence means *bound by the text*, never *approved*; deviation without a finding is a defect. (Wording corrected 14 Sep after GPT's review.)
 - **Stale is a defect.** Any section of this file older than its items' last measurement is flagged by the gate below. A number in this file that disagrees with the tracker is a finding.
 
 ### 16.2 Reviewers, watchers, the guard — who agrees, and how it is enforced
@@ -457,7 +485,9 @@ Capacity: 3 agents × 9 days × 15 h ≈ **405 h**. Committed below ≈ 330 h (C
 | **Owner** | Vinny | the plan, the marks in the page-decision register, the owner rows | the only hand that changes this file's rulings |
 
 ### 16.3 Deploy watch — every deployment watched; a failure is fixed immediately
-- **Mechanism:** `deploy_watch` (cron, every 2 min, pg_net → Netlify deploys API for both sites, token `NETLIFY_AUTH_TOKEN` stored on the Sync page): records every deploy (`deploy_state`: id, site, commit, state, error_message, published_at). GitHub Actions status recorded the same way for every PR.
+- **Mechanism (live 14 Sep, PR #249):** `f_deploy_watch` (cron, every 2 min, pg_net → Netlify deploys API for both sites, GitHub Actions runs; tokens `NETLIFY_AUTH_TOKEN` / `GITHUB_TOKEN` stored on the Sync page) records every deploy in `deploy_state`. **A branch failure is a finding; only `main` raises the alarm** — candidate build state and production health are separate facts (GPT, §0a). Until the tokens exist the tracker row `deploy.watch_alive` says FAIL — no token, never "watching".
+- **Recovery is three procedures, not one:** application rollback (previous Netlify deploy, one click), database recovery (migrations this week are **additive only**; an app rollback must stay schema-compatible — confirmed in the Tue 22 drill), and reversal of external effects (Apex posts are under human review; none are automatic in phase 1). A Netlify republish alone never reverses a migration or a business effect.
+- **Outside-in probe:** an availability check of the published site from outside the platform (cron → HTTP GET, recorded), so the monitor is not the component it monitors.
 - **On `error` / `failed`:** within one sweep — (1) `agent_findings` row, severity NO-GO, with the failing gate's name parsed from the log; (2) push to the on-call agent's channel and to the owner's recipients (rows); (3) an `ai_bridge_jobs` row *"fix production build <deploy id>"* dispatched to the on-call agent; (4) the tracker row `deploy.production_green` flips to FAIL and blocks every other section-19 row from flipping to PASS until green.
 - **The fix is the agent's, immediately:** the on-call agent reverts or repairs within the hour, opens the PR, and certifies the green deploy; the finding closes only when `deploy_state` shows `ready` for `main` and the live check passes. Rollback is always available: the previous Netlify deploy, one click.
 - **Hours:** 6 (Claude, Day 1 night). Acceptance: kill a build on a branch → finding + push + bridge job within 2 min.
