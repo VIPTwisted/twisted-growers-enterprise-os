@@ -1501,7 +1501,7 @@ const chipTone = (v) => {
 };
 /* Sitewide color code inside every table: red = issue, green = good, amber = watch, blue = neutral info */
 const ISSUE_COL = /(violation|overdue|blocked|late|missing|error|exception|flag|alert|expired|discrepan)/;
-const cellView = (col, v) => {
+export const cellView = (col, v) => {
   /* A Metrc tag anywhere in the OS is a door to its Package 360 (BP-4-1). The
      anchor works with the hash router and the keyboard; nothing else changes. */
   if (typeof v === "string" && METRC_TAG_RE.test(v)) return <a href={`#package_360:${v}`} className="taglink" title="Open this package">{v}</a>;
@@ -3342,7 +3342,13 @@ function ReportScreen({ entry, actions, session }) {
   );
 }
 
+/* ONE LAYOUT PER ARCHETYPE (Bible §12b, owner 14 Sep 2026): the registry row's
+   archetype picks the screen, so an exemplar designed once rolls to every page of
+   its kind by data. A page with no archetype, or one not yet designed, renders
+   the generic report screen exactly as before. */
+const IssueQueueScreen = lazy(() => import("./issue-queue.jsx"));
 function ModuleScreen({ entry, actions, session }) {
+  if (entry?.archetype === "issue_queue" && entry?.page_kind !== "custom") return <IssueQueueScreen entry={entry} actions={actions} session={session} />;
   return <ReportScreen entry={entry} actions={actions} session={session} />;
 }
 
@@ -3367,7 +3373,7 @@ const MIRROR_SETS = [
 
    Server-side by design: it filters the query, not a page of rows already
    fetched, so searching finds records beyond the current page. */
-function useDataToolbar(table, { eq = {}, limit = 200, orderBy = null, ascending = false } = {}) {
+export function useDataToolbar(table, { eq = {}, limit = 200, orderBy = null, ascending = false } = {}) {
   const eqKey = JSON.stringify(eq);
   const [rows, setRows] = useState(null);
   const [sample, setSample] = useState(null);
@@ -3470,7 +3476,7 @@ function useDataToolbar(table, { eq = {}, limit = 200, orderBy = null, ascending
       count={total} onExport={exportCsv} loadError={loadError} />
   );
 
-  return { rows, toolbar, total, dateCol, searching: dirty };
+  return { rows, toolbar, total, dateCol, searching: dirty, loadError };
 }
 
 /* Date-range predicate for pages that keep their own filtering. Compares the
