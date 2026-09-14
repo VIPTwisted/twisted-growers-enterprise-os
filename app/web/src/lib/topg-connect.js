@@ -78,12 +78,14 @@ export function extTooOld(version) {
 }
 
 
-export function extProviderNow() {
+export function extProviderNow(companyProvider = "openai") {
   try {
     const p = localStorage.getItem(TG_BOTS_PROVIDER_KEY);
     if (p && PROVIDERS.some((x) => x.key === p)) return p;
   } catch { /* private mode */ }
-  return "grok";
+  if (companyProvider === "anthropic" || companyProvider === "claude") return "claude";
+  if (companyProvider === "xai" || companyProvider === "grok") return "grok";
+  return "gpt";
 }
 
 export function extModelNow() {
@@ -134,6 +136,40 @@ export async function savePreferred(extProvider) {
 
 export function topGConnected() {
   try { return localStorage.getItem(TOPG_KEY) === "1"; } catch { return false; }
+}
+
+export async function desktopCodexStatus() {
+  try {
+    const { data, error } = await supabase
+      .from("v_bridge_status")
+      .select("machine, online, last_seen, version, verdict")
+      .neq("machine", "tg-bots-ext")
+      .order("last_seen", { ascending: false })
+      .limit(1);
+    if (error) return { installed: true, ok: false, on: false, provider: "gpt", error: error.message };
+    const row = data?.[0];
+    if (!row?.online) {
+      return {
+        installed: true, ok: false, on: false, provider: "gpt",
+        version: row?.version || "",
+        error: "Desktop Codex has not reported in during the live heartbeat window.",
+      };
+    }
+    return {
+      installed: true, ok: true, on: true, provider: "gpt",
+      model: "", version: row.version || "", machine: row.machine,
+    };
+  } catch (e) {
+    return { installed: true, ok: false, on: false, provider: "gpt", error: String(e?.message || e) };
+  }
+}
+
+export function rememberDesktopTopGConnected(on) {
+  try {
+    if (on) localStorage.setItem(TOPG_KEY, "1");
+    else localStorage.removeItem(TOPG_KEY);
+    window.dispatchEvent(new Event("tg-topg"));
+  } catch { /* private mode */ }
 }
 
 function sendExt(msg, timeoutMs = 800) {
