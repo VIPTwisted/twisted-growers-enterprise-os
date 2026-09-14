@@ -841,7 +841,9 @@ const migrationEntries = files.map((name) => ({
 // Re-pinned 14 Sep 2026, 1110 -> 1117 files. Package 360 (BP-4-1): seven migrations recorded (lifecycle without the
 // secret read, four materialised sources + their DDL, predicate pushdown, definer gated by menu visibility) and
 // the schema baseline regenerated (34 matviews). Claude desk. Tamper seal, not an approval.
-const expectedMigrationTreeDigest = "dc1f93d788cfe10e956983fd44307f2fb81b1181c604f86dfc193b91a55184de";
+// Re-pinned 14 Sep 2026, 1117 -> 1118 files. Recorded claude_deploy_watch_bp_16_3 (Bible §16.3: deploy_state,
+// f_deploy_watch every 2 min, tracker deploy.watch_alive) and the baseline regenerated. Claude desk. Tamper seal.
+const expectedMigrationTreeDigest = "99e71d01f33d03764a4bf62ed906104a4ca0635ba67b6d559e4301684437d1d4";
 const actualMigrationTreeDigest = migrationTreeDigest(migrationEntries);
 if (actualMigrationTreeDigest !== expectedMigrationTreeDigest) {
   console.error(`money-grain: FAIL — migration tree differs from the independently reviewed ${files.length}-file manifest (${actualMigrationTreeDigest}).`);
