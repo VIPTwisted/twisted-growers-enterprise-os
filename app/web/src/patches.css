@@ -1909,3 +1909,27 @@ button.narrblock:hover { outline: 1px solid var(--line); }
 .sf-diff{display:block}
 .sf-diff s{color:var(--muted)}
 .sf-table td{max-width:260px;overflow:hidden;text-overflow:ellipsis}
+
+/* SCHEDULE (BP-12b-7) — month grid on the panel primitive; tones are the theme's own vars. */
+.sc-cal{overflow:hidden}
+.sc-head{display:grid;grid-template-columns:repeat(7,1fr);border-bottom:1px solid var(--line)}
+.sc-head > div{padding:6px 8px;font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.sc-grid{display:grid;grid-template-columns:repeat(7,1fr)}
+.sc-cell{min-height:92px;padding:4px 6px 6px;border-right:1px solid var(--line);border-bottom:1px solid var(--line);display:flex;flex-direction:column;gap:3px}
+.sc-cell:nth-child(7n){border-right:0}
+.sc-cell.out{opacity:.45}
+.sc-cell.wk{background:var(--surface-2)}
+.sc-cell.today .sc-day{color:var(--neon)}
+.sc-cell.over{outline:2px dashed var(--neon);outline-offset:-2px}
+.sc-day{font-size:11px;font-weight:700;color:var(--muted)}
+.sc-ev{display:block;width:100%;text-align:left;border:1px solid var(--line);border-left:3px solid var(--neon);border-radius:4px;background:var(--panel2);padding:3px 6px;cursor:grab;font:inherit;color:inherit;line-height:1.2}
+.sc-ev b{display:block;font-size:11px}
+.sc-ev span{font-size:10px;color:var(--muted)}
+.sc-ev.on{background:var(--neon-soft);border-color:var(--neon)}
+.sc-ev.late,.sc-ev.overdue{border-left-color:var(--red)}
+.sc-ev.done{border-left-color:var(--muted);cursor:default}
+.sc-ev:focus-visible{outline:2px solid var(--neon);outline-offset:1px}
+.sc-bar{font-size:9px;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);border-left:3px solid var(--neon-line);padding-left:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sc-bar.late,.sc-bar.overdue{border-left-color:var(--red);color:var(--red)}
+.sc-bar.done{border-left-color:var(--line)}
+@media (max-width:760px){.sc-cell{min-height:64px;padding:3px 4px}.sc-ev span{display:none}.sc-bar{display:none}}
