@@ -14000,6 +14000,7 @@ begin
              from public.journal j
             where j.event_kind in ('sold', 'packaged', 'adjusted') and j.gap_reason like 'stream rate is $0%' and coalesce(j.qty_lb, 0) > 0
               and not exists (select 1 from public.journal x where x.source_table = 'journal' and x.source_id = j.id::text and x.event_kind = 'reprice')
+              and public.f_rate_for(public.f_tag_stream(j.tag), j.tag) > 0   -- only what will price now; the rest waits for a rate, not for its turn
             order by j.event_at limit p_limit loop
     v_amt := round(r.qty_lb * public.f_rate_for(r.stream, r.tag), 2);
     if v_amt is null or v_amt <= 0 then continue; end if;
