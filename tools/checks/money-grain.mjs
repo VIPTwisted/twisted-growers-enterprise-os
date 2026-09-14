@@ -856,7 +856,9 @@ const migrationEntries = files.map((name) => ({
 // Re-pinned 14 Sep 2026 -> 1133 files. Recorded the four hr_* migrations of BP-12g (six HR screens on live rows, huddle day read,
 // drafter wrappers). Claude desk.
 // Re-pinned 14 Sep 2026 -> 1135 files. Recorded hr_ai_keys_never_in_hr and hr_company_branding_row_and_reader (BP-12g). Claude desk.
-const expectedMigrationTreeDigest = "12835ee755cb5c11e621338e601a7f0c25b659717bc0490e11c4dc882a88a81d";
+// Re-pinned 14 Sep 2026 -> 1139 files. Baseline regenerated (v_hr_platform_tiles); recorded hr_command_center_tiles, os_hr_dashboard_shows_hr_platform_tiles,
+// control_tower_carries_hr_platform_figures (BP-12g) and Agent I's hr_rehome_report_contract repair (applied 07:11 UTC, mirrored here to unblock main). Claude desk.
+const expectedMigrationTreeDigest = "fd004fce237a2e0ec27cecf61fc72dea5356b023521af873b1c8133552533d6b";
 const actualMigrationTreeDigest = migrationTreeDigest(migrationEntries);
 if (actualMigrationTreeDigest !== expectedMigrationTreeDigest) {
   console.error(`money-grain: FAIL — migration tree differs from the independently reviewed ${files.length}-file manifest (${actualMigrationTreeDigest}).`);
