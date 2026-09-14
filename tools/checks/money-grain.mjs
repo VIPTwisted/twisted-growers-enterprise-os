@@ -874,7 +874,8 @@ const migrationEntries = files.map((name) => ({
 // Re-pinned 14 Sep 2026 -> 1156 files. Recorded money_spine_v1_bp_6 (gl_account, posting_rule, journal + journal_line, f_post_journals, the five
 // spine views, cron journal-post, seven Finance pages), money_spine_engine_one_poster_at_a_time, money_spine_engine_says_no_weight_on_the_event
 // and money_spine_tag_stream_and_reprice (f_tag_stream, the reprice section); baseline regenerated. Claude desk.
-const expectedMigrationTreeDigest = "6b0116596628b4997910e8ee7533f4090407531de3189c21a6b5971cbf8df82f";
+// Re-pinned 14 Sep 2026 -> 1157 files. Recorded money_spine_reprice_only_what_will_price (the reprice section keeps only rows that will price); baseline regenerated. Claude desk.
+const expectedMigrationTreeDigest = "6e55ffc3495d22d1a7c9e4aeea86bdf0853b2ce18965f007393c3239569cfb3e";
 const actualMigrationTreeDigest = migrationTreeDigest(migrationEntries);
 if (actualMigrationTreeDigest !== expectedMigrationTreeDigest) {
   console.error(`money-grain: FAIL — migration tree differs from the independently reviewed ${files.length}-file manifest (${actualMigrationTreeDigest}).`);
