@@ -384,21 +384,23 @@ Functional floor on every upgraded archetype: filters + saved views · expand-in
 
 ## 12g. HR platform — tracker section 18, every open item (BP-12g)
 
+Status measured 14 Sep 2026 (PRs #260–#263; `/hr` served from the OS build, shared sign-in).
+
 | Item | Status | Hours |
 |---|---|---|
-| Owner: expose schema `hr`; enable anonymous sign-ins; link tg-hr to Git in Netlify | OWNER | 3 clicks |
-| First real sign-in from the OS lands on the HR dashboard as the right person/role | PENDING | 3 |
-| Six screens still seed figures (AiScheduler→TG drafter, ComplianceExpirations, FlightRisk, Forms, Huddle, LaborBudget) | PENDING | 18 |
-| HR writes TG handbook, policies, procedures, courses, benefits in the platform | PENDING | HR content; 2 support |
-| Human Resources in the OS side menu opens `/hr` | PENDING | 1 (deploy-time nav row) |
-| PR #238 merged; `/hr` proxy live | PENDING | 2 |
-| Every HR AI feature calls TG's gateway; `hr.ai_providers` holds no keys | PENDING | 4 |
-| Every active employee has a PIN (kiosk) | FAIL | HR data, 1 |
-| Policies & procedures module works on TG content (Handbook Builder, Policies hub, Doc Center, acknowledgments, quizzes) | PENDING | 8 |
-| CEO company strip shows TG revenue (from the spine) | PENDING | 3 |
-| OS HR dashboard, Control Tower, CEO dashboard show the HR platform's own tiles — same labels, numbers, buttons | PENDING | 12 |
-| HR → OS people sync direction settled | — | 4 |
-| | **Total** | **≈ 60** |
+| Owner: expose schema `hr` (DONE 14 Sep); enable anonymous sign-ins (OWNER — Supabase Auth › Providers; the kiosk PIN door needs it, the Login screen says so); link tg-hr to Git (NO LONGER NEEDED — app/hr builds inside the OS build, tg-hr retired) | OWNER: 1 switch | 1 click |
+| First real sign-in from the OS lands on the HR dashboard as the right person/role | PASS 14 Sep (owner → Admin/Owner, 27 people; name/role per employee are data inputs) | — |
+| Six screens still seed figures (AiScheduler→TG drafter, ComplianceExpirations, FlightRisk, Forms, Huddle, LaborBudget) | PASS 14 Sep — every one reads rows (`compliance_expirations`, `flight_risk_factors`, `labor_budget`, `form_catalog`, `huddle_day`, the `tg_draft_*` drafter wrappers); scope reach fixed (11 → 27 people) | — |
+| HR writes TG handbook, policies, procedures, courses, benefits in the platform | HR content; the Employee Manual and Documents screens now read only what HR publishes (no typed-in text) | 2 support |
+| Human Resources in the OS side menu opens `/hr` | PASS 14 Sep (rail door + top-menu row; 64 superseded OS HR rows disabled, OS-only rows re-homed to Settings/Finance) | — |
+| PR #238 merged; `/hr` proxy live | PASS 14 Sep as #260 — built inside the OS deploy, not proxied | — |
+| Every HR AI feature calls TG's gateway; `hr.ai_providers` holds no keys | PASS 14 Sep — 0 providers / 0 keys, every `ai_*` function deterministic; key store shut (CHECK) | — |
+| Every active employee has a PIN (kiosk) | FAIL — 0 of 27; one PIN now serves the OS wall terminal and the HR kiosk (`admin_reset_pin` / `change_pin` / `f_set_punch_pin` share the hash); HR enters them | HR data |
+| Policies & procedures module works on TG content (Handbook Builder, Policies hub, Doc Center, acknowledgments, quizzes) | PLATFORM READY — the screens read `hr.handbook_documents` / `hr_policies` / `hr_documents` / `sign_requests`; content is HR's | HR content |
+| CEO company strip shows TG revenue (from the spine) | PENDING — waits on money spine v1 (BP-6) | 3 |
+| OS HR dashboard, Control Tower, CEO dashboard show the HR platform's own tiles — same labels, numbers, buttons | OS HR dashboard + Control Tower PASS 14 Sep (`hr.command_center_tiles` is the one derivation; tiles are `mv_department_dashboard` rows with drill `hr_platform:/route`); CEO dashboard lives in frozen `budz.jsx` — needs OWNER-APPROVED | 1 (CEO, on approval) |
+| HR → OS people sync direction settled | PASS 14 Sep — `public.employees` is the register, `hr.people` the HR person, one id; OS→HR and HR→OS triggers, depth-guarded | — |
+| | **Left** | **≈ 6 + HR content** |
 
 ## 12h. Sync & IT — section 11 (done) + IT health page (12e) (BP-12h)
 Sync & Connections live 13 Sep (registry, secrets, add/edit/switch/reschedule/remove, Run now). Remaining: `sync.keys_page_consolidated` (nav row at deploy, 1 h); IT health page additions (10 h, in 12e).
