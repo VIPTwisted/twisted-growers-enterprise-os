@@ -11,6 +11,7 @@ import {
   Bell,
   BookOpen,
   Bot,
+  Brain,
   Briefcase,
   Building2,
   Calculator,
@@ -70,6 +71,7 @@ const ICO = {
   bell: Bell,
   book: BookOpen,
   bot: Bot,
+  brain: Brain,
   chat: MessageSquare,
   briefcase: Briefcase,
   building: Building2,
@@ -141,6 +143,11 @@ export const COCKPITS = [
     short: "Command",
     ico: "gauge",
     children: [
+      /* Owner, 13 Sep 2026, after the 8 Sep side-to-deep move: "I don't want to
+         lose any pages that I need … go with your recommendations." The two
+         personal cockpits come back; the thin admin pages stay on the face. */
+      { view_key: "my_dashboard", label: "My dashboard", ico: "dash" },
+      { view_key: "ceo_dashboard", label: "Chief Executive", ico: "gauge" },
       { view_key: "inventory_alerts", label: "Alerts", ico: "bell" },
       { view_key: "open_issues", label: "Decisions", ico: "scale" },
       { view_key: "dashboard_tasks", label: "Tasks", ico: "check" },
@@ -171,6 +178,7 @@ export const COCKPITS = [
          side menu on 8 Sep with the 14-cockpit move (nav row budz → surface=deep,
          os_change_log side-to-deep); the page itself never went anywhere. */
       { view_key: "budz", label: "Budz chat", ico: "chat" },
+      { view_key: "brain", label: "TG Brain", ico: "brain" },
       { view_key: "brand_locker", label: "Brand locker", ico: "archive" },
     ],
   },
