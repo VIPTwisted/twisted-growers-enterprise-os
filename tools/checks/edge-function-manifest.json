@@ -174,10 +174,10 @@
       "note": "Real source. If the hash changes, deploy it or record why not."
     },
     "sheet-sync": {
-      "deployed_version": 4,
-      "sha256": "3d4fd851ef2a4e380d0e384062ef93b245f4a8736f909e8fbfdee2fa99ceed16",
+      "deployed_version": 5,
+      "sha256": "ba774aec2d3b663dfe872664abae0a9ea2e75bc3cc7f9b49d2b15648dd8983b8",
       "redacted": false,
-      "note": "Real source. Deployed v4 on 19 Aug 2026: added the MACHINE AUTH PATH. It accepted only a signed-in executive's token, so a cron job could never authenticate and the spreadsheet import was never scheduled at all \u2014 13 imports in thirty days, every one manual, and the sheets sitting 6.7 days stale when the owner asked. It now also accepts TG_ADMIN_KEY as x-admin-key, the same machine credential tg_call_function already sends and apex-probe already trusts; a human executive's token works exactly as before. verify_jwt unchanged."
+      "note": "Real source. Deployed v5 on 12 Sep 2026: HEADER LOCK. The header row was pinned by number per tab; Solventless was pinned to row 2, the sheet's header moved to row 1, and the sync read a product row as the header, mapped no columns, kept no rows and reported ok - 17 solventless products missing from every finished-goods figure with no alarm. The header is now found by content (>=5 known fields, >=2 identity fields, first 8 rows); a tab with no header is REFUSED before any delete; every run logs per-tab counts and header rows in metrc_sync_runs.note. Also carried the x-admin-key CORS header that was in deployed v4 but not in the committed file. Tested against the 12 Sep tabs (Solventless 17, others unchanged) and live: run 14:18:05Z, Solventless 17 rows. verify_jwt unchanged. Previously v4 on 19 Aug 2026: machine auth path (x-admin-key = TG_ADMIN_KEY) so cron could run it."
     },
     "coa-inspect": {
       "deployed_version": 1,
