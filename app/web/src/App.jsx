@@ -49,8 +49,12 @@ const ScheduleBuilder = lazy(() => import("./schedbuild.jsx"));
 /* The Human Resources door. The HR platform lives at /hr on this origin (app/hr, same Supabase
    project, schema hr, same sign-in). Landing on this view — from the rail, a search hit, or a
    ?view= link — goes straight to its Dashboard. Nothing renders here on purpose. */
-function HrPlatformDoor() {
-  useEffect(() => { window.location.assign("/hr/"); }, []);
+function HrPlatformDoor({ route }) {
+  /* `#hr_platform:/compliance-expirations` opens that page of the HR platform — the drill of an
+     HR tile on the OS dashboards (mv_department_dashboard rows carry drill 'hr_platform:/route')
+     lands on the same page the HR platform's own tile opens. Only a path is accepted. */
+  const path = typeof route === "string" && /^\/[a-z0-9\-\/]*$/i.test(route) ? route.replace(/^\//, "") : "";
+  useEffect(() => { window.location.assign("/hr/" + path); }, [path]);
   return <div className="note" style={{ padding: 24 }}>Opening the HR platform…</div>;
 }
 
@@ -413,6 +417,26 @@ const METRIC_GROUPS = [
       late_or_at_risk_orders: { label: "Late / At-Risk Orders", icon: I.truck, drill: "orders" },
       unconfirmed_open_orders: { label: "Unconfirmed Open Orders", icon: I.clip, drill: "orders" },
       open_p0_actions: { label: "Open P0 Actions", icon: I.shield, drill: "action_register" },
+    },
+  },
+  {
+    /* PEOPLE — THE HR PLATFORM'S OWN FIGURES (Bible §12g, hrp.dashboard_tiles_match). Every
+       value is a row of v_control_tower computed by hr.command_center_tiles(), the one derivation
+       the HR Command Center's KPI strip reads; each card opens the same HR platform page the HR
+       tile opens (drill hr_platform:/route). A Metrc agent whose badge has expired cannot legally
+       be on the floor — that card leads. */
+    title: "People — HR platform",
+    items: {
+      hr_badges_expired: { label: "Metrc Badges Expired — cannot be on the floor", icon: I.shield, drill: "hr_platform:/compliance-expirations" },
+      hr_badges_30d: { label: "Metrc Badges Due ≤30d", icon: I.clock, drill: "hr_platform:/compliance-expirations" },
+      hr_called_out: { label: "Callouts Today", icon: I.users, drill: "hr_platform:/callouts" },
+      hr_no_show: { label: "No-Call No-Show Today", icon: I.users, drill: "hr_platform:/attendance" },
+      hr_late: { label: "Late Today", icon: I.clock, drill: "hr_platform:/attendance" },
+      hr_ot_employees: { label: "People at or over 40 h", icon: I.gauge, drill: "hr_platform:/timeclock" },
+      hr_pending_pto: { label: "Pending PTO", icon: I.clip, drill: "hr_platform:/requests" },
+      hr_open_incidents: { label: "Open HR Incidents", icon: I.shield, drill: "hr_platform:/incidents" },
+      hr_open_das: { label: "Open Disciplinary Actions", icon: I.clip, drill: "hr_platform:/disciplinary" },
+      hr_docs_pending_ack: { label: "Docs Pending Acknowledgement", icon: I.clip, drill: "hr_platform:/documents" },
     },
   },
 ];
@@ -12000,7 +12024,7 @@ export default function App() {
     dept_dash_hr: <HrDashboard go={setView} session={session} />,
     employee_file: <EmployeeFile go={setView} session={session} />,
     schedule_builder: <ScheduleBuilder go={setView} session={session} />,
-    hr_platform: <HrPlatformDoor />,
+    hr_platform: <HrPlatformDoor route={viewArg} />,
     timesheets: <Timesheets go={setView} session={session} />,
     hr_review_queue: <HrQueue go={setView} session={session} />,
     terminals: <Terminals go={setView} session={session} />,

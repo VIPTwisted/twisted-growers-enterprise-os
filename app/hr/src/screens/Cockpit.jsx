@@ -1255,6 +1255,7 @@ export default function Cockpit() {
         sb.rpc('get_cockpit_sales',        { p_node_ids: nodeIds }),                                 // 9
         sb.rpc('get_current_wages',        { p_node_ids: nodeIds }),                                 // 10
         sb.rpc('get_employee_sales',       { p_node_ids: nodeIds, p_date_from: yestS, p_date_to: todayS }), // 11
+        sb.rpc('command_center_tiles',     { p_node_ids: nodeIds }),                                 // 12 — THE tile numbers (one derivation, shared with the OS)
       ])
       const val = i => {
         const r = results[i]
@@ -1268,7 +1269,13 @@ export default function Cockpit() {
         const err = results[0].status === 'fulfilled' ? results[0].value?.error : results[0].reason
         throw new Error(err?.message || 'Roster and schedule reads failed')
       }
-      setData(buildModel({
+      // ONE DERIVATION FOR THE KPI NUMBERS (Bible §12g, 14 Sep 2026): hr.command_center_tiles() is
+      // what the OS Human Resources dashboard, the Control Tower and the Chief Executive dashboard
+      // read. The strip below shows those numbers; the drills still open the lists this screen
+      // assembled, so a tile and its drill come from the same reach.
+      const tiles = val(12)
+      const n = tiles?.numbers || null
+      const model = buildModel({
         roster:   val(0)  || [],
         shifts:   val(1)  || [],
         punches:  val(2)  || [],
@@ -1282,7 +1289,16 @@ export default function Cockpit() {
         wages:    val(10) || [],   // idem
         empSales: val(11) || [],
         locations,
-      }))
+      })
+      if (n) Object.assign(model, {
+        tilesAsOf: tiles.as_of, tileRoutes: Object.fromEntries((tiles.tiles || []).map(t => [t.key, t.route])),
+        headcount: n.headcount, clockedInCount: n.clocked_in, coverageRate: n.coverage_rate, attendanceRate: n.attendance_rate,
+        totalHrsWeek: Number(n.hours_week) || 0, totalOTHrs: Number(n.ot_hours) || 0, laborCost: n.labor_cost, otCost: n.ot_cost,
+        wageCoverage: tiles.wages_on_file, wagesProvisional: tiles.wages_provisional,
+        trainingPct: n.training_pct, docsPendingAck: n.docs_pending_ack, openIncidents: n.open_incidents, pendingPTO: n.pending_pto, openDAs: n.open_das,
+        badges30: n.badges_30d, badgesExpired: n.badges_expired,
+      })
+      setData(model)
     } catch (e) {
       setData(null)
       setLoadError(e?.message || 'Failed to load command center data')
@@ -1665,7 +1681,7 @@ export default function Cockpit() {
                   <KTile label="Total Hours This Wk" value={fmtH(d.totalHrsWeek)} sub="from live time punches" onClick={()=>openDrill('Total Hours This Week', d.emps, OT_COLS, 'var(--t-accent)')}/>
                   <KTile label="OT Hours" value={fmtH(d.totalOTHrs)} sub="above 40hr threshold" alert={d.totalOTHrs>20?'amber':null} color={d.totalOTHrs>0?'var(--t-warn)':'var(--t-text-muted)'} onClick={()=>openDrill('Overtime Hours — Employees Over 40h', d.emps.filter(e=>e.hours_week>40), OT_COLS, 'var(--t-warn)')}/>
                   <KTile label="OT Employees" value={d.otAlerts.length} sub="at or above 40 hrs" alert={d.otAlerts.length>3?'amber':null} color={d.otAlerts.length>0?'var(--t-warn)':'var(--t-text-muted)'} onClick={()=>openDrill('OT Employees — At or Above 40h', d.otAlerts, OT_COLS, 'var(--t-warn)')}/>
-                  <KTile label="Est. Labor Cost" value={fmt$(d.laborCost)} sub={d.laborCost!=null?`this week · ${d.wageCoverage} wage${d.wageCoverage===1?'':'s'} on file`:'no wages on file'} onClick={()=>openDrill('Est. Labor Cost — By Employee', d.emps, OT_COLS, 'var(--t-accent)')}/>
+                  <KTile label="Est. Labor Cost" value={fmt$(d.laborCost)} sub={d.laborCost!=null?(d.wagesProvisional>0?`this week · ${d.wagesProvisional} of ${d.wageCoverage} wages provisional`:`this week · ${d.wageCoverage} wage${d.wageCoverage===1?'':'s'} on file`):'no wages on file'} onClick={()=>openDrill('Est. Labor Cost — By Employee', d.emps, OT_COLS, 'var(--t-accent)')}/>
                   <KTile label="OT Cost" value={fmt$(d.otCost)} sub={d.otCost!=null&&d.laborCost?`${Math.round(d.otCost/d.laborCost*100)}% of labor`:'—'} alert={d.otCost!=null&&d.laborCost&&d.otCost/d.laborCost>.15?'amber':null} color={d.otCost>500?'var(--t-warn)':'var(--t-text-muted)'} onClick={()=>openDrill('OT Cost — Employees Over 40h', d.emps.filter(e=>e.hours_week>40), OT_COLS, 'var(--t-warn)')}/>
                   <KTile label="Avg Hrs/Employee" value={d.headcount>0?fmtH(d.totalHrsWeek/d.headcount):'—'} sub="per week" onClick={()=>openDrill('Avg Hours per Employee', d.emps, OT_COLS, 'var(--t-accent)')}/>
                 </div>
@@ -1679,6 +1695,7 @@ export default function Cockpit() {
                   <KTile label="Docs Pending Ack" value={d.docsPendingAck ?? '—'} sub="unsigned required documents" alert={d.docsPendingAck>0?'amber':null} color={d.docsPendingAck>0?'var(--t-warn)':'var(--t-text-muted)'} onClick={()=>nav('/documents')}/>
                   <KTile label="Open Incidents" value={d.openIncidents} sub="requiring follow-up" alert={d.openIncidents>2?'amber':null} color={d.openIncidents>0?'var(--t-warn)':'var(--t-text-muted)'} onClick={()=>nav('/incidents')}/>
                   <KTile label="Pending PTO" value={d.pendingPTO} sub="awaiting review" alert={d.pendingPTO>5?'amber':null} onClick={()=>nav('/requests')}/>
+                  {d.badges30!=null && <KTile label="Metrc Badges Due" value={d.badges30} sub={d.badgesExpired>0?`${d.badgesExpired} EXPIRED · cannot be on the floor`:'expiring within 30 days'} alert={d.badgesExpired>0?'red':d.badges30>0?'amber':null} color={d.badgesExpired>0?'var(--t-danger)':d.badges30>0?'var(--t-warn)':'var(--t-success)'} onClick={()=>nav('/compliance-expirations')}/>}
                   <KTile label="Open D.A.s" value={d.openDAs} sub="disciplinary actions" alert={d.openDAs>3?'red':d.openDAs>0?'amber':null} color={d.openDAs>0?'var(--t-danger)':'var(--t-text-muted)'} onClick={()=>openDrill('Open Disciplinary Actions — By Employee', d.emps.filter(e=>e.open_das>0), EMP_COLS, 'var(--t-danger)')}/>
                 </div>
               </div>

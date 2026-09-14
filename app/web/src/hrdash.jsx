@@ -21,7 +21,8 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "./lib/supabase.js";
 import { AssignTask, DateRangeSelect } from "./App.jsx";
-import { useDefaultRange, DkFrameNote } from "./dashkit.jsx";
+import { useDefaultRange, DkFrameNote, DkKpiStrip, DkErr } from "./dashkit.jsx";
+import { fetchDepartmentDashboard } from "./lib/dashboard-range.js";
 
 const VIEW_KEY = "dept_dash_hr";
 
@@ -82,6 +83,20 @@ export default function HrDashboard({ go, session }) {
   const [work, setWork] = useState({ open: [], cards: [], pto: [], queue: [], punches: [] });
   const [busy, setBusy] = useState(false);
   const [said, setSaid] = useState(null);
+  /* THE HR PLATFORM'S OWN TILES (Bible §12g, hrp.dashboard_tiles_match). The rows of
+     mv_department_dashboard for Human Resources are published from hr.command_center_tiles(),
+     the one derivation the HR Command Center's KPI strip reads — same label, same number, and
+     each tile's drill (hr_platform:/route) opens the same HR platform page. Read once here
+     through the shared department reader; nothing is recomputed in the browser. */
+  const [hrTiles, setHrTiles] = useState({ rows: null, err: null });
+  useEffect(() => {
+    let live = true;
+    fetchDepartmentDashboard(supabase, { department: "Human Resources" }).then(({ data, error }) => {
+      if (!live) return;
+      setHrTiles({ rows: (Array.isArray(data) ? data : []).filter((r) => String(r.drill || "").startsWith("hr_platform:")), err: error });
+    });
+    return () => { live = false; };
+  }, []);
 
   useEffect(() => {
     Promise.all([
@@ -238,6 +253,14 @@ export default function HrDashboard({ go, session }) {
           <button className="btn ghost small" onClick={() => go?.("hr_review_queue")}>Review queue</button>
         </div>
       </div>
+
+      {/* 0 — THE HR PLATFORM'S TILES, as published. Opens the HR platform page behind each one. */}
+      {hrTiles.err && <DkErr what="The HR platform tiles" err={hrTiles.err} />}
+      {hrTiles.rows && hrTiles.rows.length > 0 && (
+        <DkKpiStrip dept="Human Resources" tiles={hrTiles.rows} trend={{}} targets={{}} go={go}
+          sourceNote={{ label: "the HR platform's own figures — every tile opens the HR platform",
+                        why: "These rows are computed by hr.command_center_tiles(), the same function the HR platform's Command Center reads for its KPI strip, and published on the ten-minute dashboard cycle (the context of each tile carries its as-of time). Clicking a tile opens that page of the HR platform at /hr." }} />
+      )}
 
       {/* 1 — THE CLIFF. Anyone who cannot legally work, or is about to. */}
       {(m.blocked.length > 0 || m.urgent.length > 0) && (
