@@ -260,7 +260,8 @@ const TABS = ['Employee Handbook', 'Operations Manual', 'Quick Reference']
 export default function Manual() {
   const { session } = useAuth()
   const person = session?.person
-  const { locationIds } = useScope()
+  const { locationIds, locations } = useScope()
+  const [handbookMeta, setHandbookMeta] = useState(null)   // { version, updated } of the published handbook rows
   const [tab,    setTab]    = useState('Employee Handbook')
   const [search, setSearch] = useState('')
   const [openIds, setOpenIds] = useState(() => new Set(['hb-overview', 'ops-opening']))
@@ -278,6 +279,10 @@ export default function Manual() {
         if (cancelled) return
         if (error) { console.warn('get_employee_manual failed', error); return }
         const mapped = rowsToHandbookSections(data)
+        if (Array.isArray(data) && data.length) {
+          const newest = data.reduce((m, r) => (!m || (r.created_at || '') > (m.created_at || '')) ? r : m, null)
+          setHandbookMeta({ version: newest?.version, updated: newest?.created_at })
+        }
         if (mapped.length) setLiveHandbook(mapped)
       } catch (e) {
         if (!cancelled) console.warn('get_employee_manual threw', e)
@@ -375,7 +380,7 @@ export default function Manual() {
               Employee Handbook & Operations Manual
             </div>
             <div style={{ fontSize: 13, color: 'var(--t-text-muted)' }}>
-              Twisted Growers · Massachusetts · 4 Locations
+              Twisted Growers · Massachusetts · {locations?.length || 0} location{locations?.length === 1 ? '' : 's'}
             </div>
           </div>
           <div style={{ marginLeft: 'auto', display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
@@ -386,14 +391,14 @@ export default function Manual() {
               fontSize: 11,
               color: 'var(--t-text-muted)',
               fontFamily: 'monospace',
-            }}>v2.1.0</span>
+            }}>{handbookMeta?.version != null ? `v${handbookMeta.version}` : 'not published'}</span>
             <span style={{
               padding: '4px 10px',
               background: 'var(--t-surface-2)',
               border: '1px solid var(--t-line)',
               fontSize: 11,
               color: 'var(--t-text-muted)',
-            }}>Last Updated: Jun 1, 2026</span>
+            }}>{handbookMeta?.updated ? `Last Updated: ${new Date(handbookMeta.updated).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}` : 'No handbook published yet'}</span>
           </div>
         </div>
 
