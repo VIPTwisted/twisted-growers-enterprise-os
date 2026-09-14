@@ -765,7 +765,17 @@ class Boundary extends React.Component {
     if (this.state.err) {
       return (
         <div className="boundary">
-          <b>This section hit an error — the rest of the OS is unaffected.</b>
+          {/* A chunk that no longer exists after a publish is not a page fault (owner,
+              14 Sep 2026): say so, and offer the reload that fixes it. */}
+          {/Failed to fetch dynamically imported module|Importing a module script failed|error loading dynamically imported module/i.test(String(this.state.err)) ? (
+            <>
+              <b>This tab was open across a new release — reload to pick it up.</b>
+              <div className="note">The page asked for a file from the previous build, which no longer exists. Nothing on this page changed; the platform was published while this tab was open.</div>
+              <button className="btn primary" style={{ marginTop: 12 }} onClick={() => window.location.reload()}>Reload the platform</button>
+            </>
+          ) : (
+            <b>This section hit an error — the rest of the OS is unaffected.</b>
+          )}
           <div className="note">{String(this.state.err)}</div>
           <CrashReceipt receipt={this.state.receipt}
             onRetry={() => this.record(this.state.err, this.crashInfo, true)} />
