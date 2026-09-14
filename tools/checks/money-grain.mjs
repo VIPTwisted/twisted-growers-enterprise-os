@@ -838,7 +838,10 @@ const migrationEntries = files.map((name) => ({
 // Re-pinned 14 Sep 2026, 1108 -> 1110 files. Recorded claude_package_360_and_search (f_package_360,
 // f_package_search — Blueprint 2026 first object) and claude_tracker_section_19_blueprint_2026_board (the
 // go-live board, 44 rows). Claude desk. Tamper seal, not an approval.
-const expectedMigrationTreeDigest = "2ec178c053a4cca1a8950d287deaa039b6fc83724021bc423bd7672438dbc0d1";
+// Re-pinned 14 Sep 2026, 1110 -> 1117 files. Package 360 (BP-4-1): seven migrations recorded (lifecycle without the
+// secret read, four materialised sources + their DDL, predicate pushdown, definer gated by menu visibility) and
+// the schema baseline regenerated (34 matviews). Claude desk. Tamper seal, not an approval.
+const expectedMigrationTreeDigest = "dc1f93d788cfe10e956983fd44307f2fb81b1181c604f86dfc193b91a55184de";
 const actualMigrationTreeDigest = migrationTreeDigest(migrationEntries);
 if (actualMigrationTreeDigest !== expectedMigrationTreeDigest) {
   console.error(`money-grain: FAIL — migration tree differs from the independently reviewed ${files.length}-file manifest (${actualMigrationTreeDigest}).`);

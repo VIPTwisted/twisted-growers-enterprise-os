@@ -1856,3 +1856,27 @@ button.narrblock:hover { outline: 1px solid var(--line); }
 .synccols{align-items:start}
 .pill.muted{background:var(--surface-2);color:var(--muted);border:1px solid var(--line)}
 @media (max-width:900px){ .synchead{flex-direction:column} .syncsearch{margin-left:0;width:100%} }
+
+/* ═══ PACKAGE 360 — Blueprint 2026 §4, BP-4-1 ═══════════════════════════════
+ * The first object page, built from the primitives above (pagehead, sbtotals,
+ * panel, pill, syncgrid). A tag anywhere in the OS is a link to it. Tokens
+ * only; every class is prefixed; nothing shared changes.
+ */
+.taglink{color:var(--neon);text-decoration:none;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;border-bottom:1px dotted var(--neon-line)}
+.taglink:hover{border-bottom-style:solid}
+.p360-sec{margin-top:12px;padding:0}
+.p360-sechead{display:flex;align-items:center;gap:10px;width:100%;background:transparent;border:0;padding:12px 16px;cursor:pointer;color:var(--ink);font-family:inherit;text-align:left}
+.p360-sechead:hover{background:var(--row-hover)}
+.p360-secbody{padding:0 16px 14px}
+.p360-facts td{padding:5px 8px;white-space:normal;vertical-align:top;line-height:1.45}
+.p360-facts td:first-child{white-space:nowrap;width:150px}
+.p360-src{color:var(--muted);font-size:10.5px;letter-spacing:.02em}
+.p360-stages{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:8px}
+.p360-stage{border:1px solid var(--line);border-radius:6px;padding:8px 10px;background:var(--surface-2);min-height:64px}
+.p360-stage.on{border-color:var(--neon);box-shadow:inset 3px 0 0 var(--neon)}
+.p360-stagename{font-size:10px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.p360-stage.on .p360-stagename{color:var(--neon)}
+.p360-stagewhen{font-weight:700;margin:2px 0}
+.p360-foot{margin-top:14px;padding-top:10px;border-top:1px solid var(--line)}
+@media (max-width:1100px){ .p360-stages{grid-template-columns:repeat(3,minmax(0,1fr))} }
+@media (max-width:640px){ .p360-stages{grid-template-columns:repeat(2,minmax(0,1fr))} .p360-facts td:first-child{width:110px} }
