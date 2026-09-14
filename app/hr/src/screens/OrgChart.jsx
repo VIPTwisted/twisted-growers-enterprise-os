@@ -6,6 +6,7 @@ import { sb } from '../lib/supabase'
 import { useAuth } from '../lib/auth.jsx'
 import { useScope } from '../lib/scope.jsx'
 import { useFeatureFlag } from '../lib/featureFlags.js'
+import { getLocationNames } from '../lib/locations.js'
 
 /* ─────────────────────────────────────────────────────────────────────────────
    SEED HELPER
@@ -15,217 +16,8 @@ const seed = (a, b) => ((a * 31 + b) * 17 + a * b) % 100
 /* ─────────────────────────────────────────────────────────────────────────────
    ORG DATA
 ───────────────────────────────────────────────────────────────────────────── */
-const ORG_TREE = {
-  id: 'carlos',
-  name: 'Carlos M.',
-  role: 'Owner',
-  level: 'owner',
-  children: [
-    {
-      id: 'sarah',
-      name: 'Sarah K.',
-      role: 'COO',
-      level: 'coo',
-      children: [
-        {
-          id: 'jordan',
-          name: 'Jordan L.',
-          role: 'HR Manager',
-          level: 'manager',
-          location: null,
-          children: [],
-        },
-        {
-          id: 'mike',
-          name: 'Mike T.',
-          role: 'District Manager',
-          level: 'manager',
-          location: null,
-          children: [
-            {
-              id: 'alex',
-              name: 'Alex P.',
-              role: 'Store Manager',
-              level: 'manager',
-              location: 'Orange',
-              children: [
-                {
-                  id: 'sam',
-                  name: 'Sam R.',
-                  role: 'Key Holder',
-                  level: 'keyholder',
-                  location: 'Orange',
-                  children: [],
-                },
-                {
-                  id: 'casey',
-                  name: 'Casey W.',
-                  role: 'Key Holder',
-                  level: 'keyholder',
-                  location: 'Orange',
-                  children: [],
-                },
-                {
-                  id: 'taylor',
-                  name: 'Taylor D.',
-                  role: 'Associate',
-                  level: 'associate',
-                  location: 'Orange',
-                  children: [],
-                },
-                {
-                  id: 'morgan',
-                  name: 'Morgan F.',
-                  role: 'Associate',
-                  level: 'associate',
-                  location: 'Orange',
-                  children: [],
-                },
-              ],
-            },
-            {
-              id: 'riley',
-              name: 'Riley B.',
-              role: 'Store Manager',
-              level: 'manager',
-              location: 'Hartford',
-              children: [
-                {
-                  id: 'dana',
-                  name: 'Dana C.',
-                  role: 'Key Holder',
-                  level: 'keyholder',
-                  location: 'Hartford',
-                  children: [],
-                },
-                {
-                  id: 'quinn',
-                  name: 'Quinn H.',
-                  role: 'Associate',
-                  level: 'associate',
-                  location: 'Hartford',
-                  children: [],
-                },
-                {
-                  id: 'avery',
-                  name: 'Avery S.',
-                  role: 'Associate',
-                  level: 'associate',
-                  location: 'Hartford',
-                  children: [],
-                },
-              ],
-            },
-            {
-              id: 'jamie',
-              name: 'Jamie N.',
-              role: 'Store Manager',
-              level: 'manager',
-              location: 'Manchester',
-              children: [
-                {
-                  id: 'blake',
-                  name: 'Blake O.',
-                  role: 'Key Holder',
-                  level: 'keyholder',
-                  location: 'Manchester',
-                  children: [],
-                },
-                {
-                  id: 'skyler',
-                  name: 'Skyler P.',
-                  role: 'Associate',
-                  level: 'associate',
-                  location: 'Manchester',
-                  children: [],
-                },
-                {
-                  id: 'drew',
-                  name: 'Drew Q.',
-                  role: 'Associate',
-                  level: 'associate',
-                  location: 'Manchester',
-                  children: [],
-                },
-              ],
-            },
-            {
-              id: 'emery',
-              name: 'Emery R.',
-              role: 'Store Manager',
-              level: 'manager',
-              location: 'Southington',
-              children: [
-                {
-                  id: 'vacant-kh-south',
-                  name: '(Vacant)',
-                  role: 'Key Holder',
-                  level: 'keyholder',
-                  location: 'Southington',
-                  vacant: true,
-                  children: [],
-                },
-                {
-                  id: 'open-1-south',
-                  name: '(Open Position)',
-                  role: 'Associate',
-                  level: 'associate',
-                  location: 'Southington',
-                  vacant: true,
-                  children: [],
-                },
-                {
-                  id: 'open-2-south',
-                  name: '(Open Position)',
-                  role: 'Associate',
-                  level: 'associate',
-                  location: 'Southington',
-                  vacant: true,
-                  children: [],
-                },
-              ],
-            },
-          ],
-        },
-      ],
-    },
-  ],
-}
-
-/* ─────────────────────────────────────────────────────────────────────────────
-   FLAT EMPLOYEE LIST (for table view / search / export)
-───────────────────────────────────────────────────────────────────────────── */
-function flattenTree(node, parentName = null, depth = 0) {
-  const rows = []
-  if (!node.vacant) {
-    rows.push({
-      id: node.id,
-      name: node.name,
-      role: node.role,
-      level: node.level,
-      location: node.location || '—',
-      manager: parentName,
-      directReports: node.children.filter(c => !c.vacant).length,
-      status: 'active',
-    })
-  } else {
-    rows.push({
-      id: node.id,
-      name: node.name,
-      role: node.role,
-      level: node.level,
-      location: node.location || '—',
-      manager: parentName,
-      directReports: 0,
-      status: 'vacant',
-    })
-  }
-  node.children.forEach(child => {
-    rows.push(...flattenTree(child, node.vacant ? null : node.name, depth + 1))
-  })
-  return rows
-}
-
+// No typed-in org: the tree is built from get_roster rows (buildTreeFromLive); an empty scope is an empty tree.
+const ORG_TREE = { id: 'root', name: 'Twisted Growers', role: 'Company', level: 'company', location: null, children: [] }
 const ALL_EMPLOYEES = flattenTree(ORG_TREE)
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -534,40 +326,7 @@ function TableView({ employees, navigate, searchQ, roleFilter, locFilter }) {
 /* ─────────────────────────────────────────────────────────────────────────────
    LOCATION VIEW
 ───────────────────────────────────────────────────────────────────────────── */
-const LOCATIONS_DATA = [
-  {
-    name: 'Orange',
-    manager: 'Alex P.',
-    managerEmail: 'ap@vip.com',
-    keyHolders: ['Sam R.', 'Casey W.'],
-    associates: ['Taylor D.', 'Morgan F.'],
-    openPositions: seed(1, 2) % 3,  // 0-2
-  },
-  {
-    name: 'Hartford',
-    manager: 'Riley B.',
-    managerEmail: 'rb@vip.com',
-    keyHolders: ['Dana C.'],
-    associates: ['Quinn H.', 'Avery S.'],
-    openPositions: seed(3, 4) % 3,
-  },
-  {
-    name: 'Manchester',
-    manager: 'Jamie N.',
-    managerEmail: 'jn@vip.com',
-    keyHolders: ['Blake O.'],
-    associates: ['Skyler P.', 'Drew Q.'],
-    openPositions: seed(5, 6) % 3,
-  },
-  {
-    name: 'Southington',
-    manager: 'Emery R.',
-    managerEmail: 'er@vip.com',
-    keyHolders: ['(Vacant)'],
-    associates: ['(Open Position)', '(Open Position)'],
-    openPositions: 2,
-  },
-]
+const LOCATIONS_DATA = []
 
 function LocationView({ navigate, locations = LOCATIONS_DATA }) {
   const [expanded, setExpanded] = useState({})
@@ -901,7 +660,7 @@ function buildLocationsFromLive(roster) {
    MAIN EXPORT
 ───────────────────────────────────────────────────────────────────────────── */
 const UNIQUE_ROLES = ['All', ...new Set(ALL_EMPLOYEES.map(e => e.role))]
-const UNIQUE_LOCS  = ['All', 'Orange', 'Hartford', 'Manchester', 'Southington', 'Warehouse / Distribution']
+const UNIQUE_LOCS  = ['All', ...getLocationNames()]
 
 export default function OrgChart() {
   const enabled = useFeatureFlag('org_chart')

@@ -4,6 +4,8 @@ import { useFeatureFlag } from '../lib/featureFlags.js'
 import { useConfig } from '../lib/config.js'
 import { sb, getSession } from '../lib/supabase'
 import DrillDown from '../components/DrillDown.jsx'
+import { getLocationNames, getSiteNames } from '../lib/locations.js'
+
 
 // ── Location node ids for the signed-in user (scopes every read) ─────────────
 function useNodeIds() {
@@ -431,7 +433,7 @@ function TabDesign({ toast, actorId }) {
               <div style={{ borderTop: `1px solid ${design.coverTextDark ? 'rgba(0,0,0,0.3)' : 'rgba(255,255,255,0.4)'}`, width: '100%', marginBottom: 16 }} />
               <div style={{ fontSize: 10, color: design.coverTextDark ? 'rgba(0,0,0,0.5)' : 'rgba(255,255,255,0.6)', textTransform: 'uppercase', letterSpacing: 1, textAlign: 'center' }}>
                 Confidential — For Internal Use Only<br />
-                4 Locations: Orange · Hartford · Manchester · Southington
+                {getSiteNames().length} location{getSiteNames().length === 1 ? '' : 's'}: {getLocationNames().join(' · ')}
               </div>
             </div>
           </div>
@@ -580,7 +582,7 @@ function TabPublish({ toast, actorId }) {
   const [version, setVersion] = useState('1.0')
   const [effectiveDate, setEffectiveDate] = useState('2026-01-01')
   const [notes, setNotes] = useState('')
-  const [locations, setLocations] = useState({ Orange: true, Hartford: true, Manchester: true, Southington: true })
+  const [locations, setLocations] = useState(() => Object.fromEntries(getLocationNames().map(l => [l, true])))
   const [requireSig, setRequireSig] = useState(true)
   const [sigDeadline, setSigDeadline] = useState('2026-07-31')
   const [published, setPublished] = useState(false)
@@ -640,7 +642,7 @@ function TabPublish({ toast, actorId }) {
             <label style={S.label}>What's New in This Version</label>
             <textarea style={{ ...S.textarea, minHeight: 80 }} value={notes} onChange={e => setNotes(e.target.value)} placeholder="Describe changes from previous version..." />
             <label style={S.label}>Audience</label>
-            {['Orange', 'Hartford', 'Manchester', 'Southington', 'Warehouse / Distribution'].map(loc => (
+            {getLocationNames().map(loc => (
               <div key={loc} style={{ ...S.row, marginBottom: 4 }}>
                 <input type="checkbox" checked={locations[loc]} onChange={e => setLocations(p => ({ ...p, [loc]: e.target.checked }))} id={`loc-${loc}`} />
                 <label htmlFor={`loc-${loc}`} style={{ fontSize: 12, color: 'var(--t-text)', cursor: 'pointer' }}>{loc}</label>

@@ -4,6 +4,8 @@ import { useAuth } from '../lib/auth.jsx'
 import { useScope } from '../lib/scope.jsx'
 
 import { sb, getSession } from '../lib/supabase'
+import { locColor, locBorder } from '../lib/locations.js'
+
 
 // ─── Date / time utilities ──────────────────────────────────────────────────
 const _today  = new Date()
@@ -38,18 +40,8 @@ const hoursUntil = (dateStr) => {
 }
 
 // ─── Cosmetic per-location accents (fallbacks handle any real name) ──────────
-const LOC_COLORS = {
-  Orange:      'var(--t-accent)',
-  Hartford:    '#2ad6a0',
-  Manchester:  '#a78bfa',
-  Southington: '#f472b6',
-}
-const LOC_BORDER = {
-  Orange:      'rgba(255,179,71,0.5)',
-  Hartford:    'rgba(42,214,160,0.5)',
-  Manchester:  'rgba(167,139,250,0.5)',
-  Southington: 'rgba(244,114,182,0.5)',
-}
+const LOC_COLORS = new Proxy({}, { get: (_, name) => (typeof name === 'string' ? locColor(name) : undefined) })
+const LOC_BORDER = new Proxy({}, { get: (_, name) => (typeof name === 'string' ? locBorder(name) : undefined) })
 
 // ─── Feature Disabled ────────────────────────────────────────────────────────
 function FeatureDisabledMsg() {

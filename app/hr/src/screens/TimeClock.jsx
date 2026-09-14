@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { sb } from '../lib/supabase'
 import { useAuth } from '../lib/auth.jsx'
 import { useScope } from '../lib/scope.jsx'
@@ -124,135 +124,44 @@ function downloadCSV(filename, headers, rows) {
 /* ══════════════════════════════════════════════════════════════
    DETERMINISTIC MOCK DATA
 ══════════════════════════════════════════════════════════════ */
-function seed(a, b) { return ((a * 31 + b) * 17 + a * b) % 100 }
+// THE PUNCHES ARE ROWS (Bible §12g, 14 Sep 2026). The manager views used to draw a 30-day
+// history for eighteen typed-in people from a seed. They now read hr.get_all_time_entries
+// (hr.time_punches through the reach rule) for the last 30 days and the roster for the people;
+// the store below is filled once by the root component and read synchronously by the tabs.
+// Location sales per hour is not a number this screen holds — it shows '—'.
+import { getLocationNames, locColor } from '../lib/locations.js'
+const LOCATIONS = getLocationNames()
+const LOC_SALES = {}   // revenue per location is not recorded here; revenue/hour shows '—'
 
-const LOCATIONS = ['Orange', 'Hartford', 'Manchester', 'Southington', 'Warehouse / Distribution']
-const LOC_SALES = { Orange: 4800, Hartford: 3900, Manchester: 4200, Southington: 3600 }
-
-const ALL_EMPLOYEES = [
-  { id: 'e01', full_name: 'Jordan Lee',      role_name: 'Key Holder',    location: 'Orange',      hourly: 17 },
-  { id: 'e02', full_name: 'Sam Rivera',       role_name: 'Associate',     location: 'Hartford',    hourly: 15 },
-  { id: 'e03', full_name: 'Casey Morgan',     role_name: 'HR Manager',    location: 'Manchester',  hourly: 22 },
-  { id: 'e04', full_name: 'Alex Chen',        role_name: 'Associate',     location: 'Southington', hourly: 15 },
-  { id: 'e05', full_name: 'Dana Kim',         role_name: 'Store Manager', location: 'Orange',      hourly: 20 },
-  { id: 'e06', full_name: 'Riley Gomez',      role_name: 'Associate',     location: 'Hartford',    hourly: 15 },
-  { id: 'e07', full_name: 'Chris Patel',      role_name: 'Key Holder',    location: 'Orange',      hourly: 17 },
-  { id: 'e08', full_name: 'Morgan Wu',        role_name: 'Associate',     location: 'Manchester',  hourly: 15 },
-  { id: 'e09', full_name: 'Taylor Brooks',    role_name: 'Associate',     location: 'Southington', hourly: 15 },
-  { id: 'e10', full_name: 'Jamie Ortiz',      role_name: 'Key Holder',    location: 'Hartford',    hourly: 17 },
-  { id: 'e11', full_name: 'Reese Murphy',     role_name: 'Associate',     location: 'Manchester',  hourly: 15 },
-  { id: 'e12', full_name: 'Quinn Nakamura',   role_name: 'Store Manager', location: 'Hartford',    hourly: 20 },
-  { id: 'e13', full_name: 'Avery Singh',      role_name: 'Associate',     location: 'Orange',      hourly: 15 },
-  { id: 'e14', full_name: 'Blake Torres',     role_name: 'Key Holder',    location: 'Southington', hourly: 17 },
-  { id: 'e15', full_name: 'Skyler Johnson',   role_name: 'Associate',     location: 'Manchester',  hourly: 15 },
-  { id: 'e16', full_name: 'Parker Williams',  role_name: 'COO',           location: 'Orange',      hourly: 35 },
-  { id: 'e17', full_name: 'Drew Ramirez',     role_name: 'Associate',     location: 'Southington', hourly: 15 },
-  { id: 'e18', full_name: 'Finley Scott',     role_name: 'Associate',     location: 'Hartford',    hourly: 15 },
-]
-
-// Build 30-day punch history for all 18 employees
-function buildAllPunches() {
+const LIVE = { punches: [], employees: [], loaded: false, error: '' }
+let ALL_EMPLOYEES = []   // filled from the roster; never a typed-in list
+export function setTimeClockData({ punches, employees, error }) {
+  LIVE.punches = Array.isArray(punches) ? punches : []
+  LIVE.employees = Array.isArray(employees) ? employees : []
+  LIVE.loaded = true
+  LIVE.error = error || ''
+  ALL_EMPLOYEES = LIVE.employees
+}
+function punchStatus(r, today) {
+  if (r.punched_out_at) return 'complete'
+  return String(r.work_date) === today ? 'active' : 'missing_out'
+}
+export function rowsToPunches(rows, roster) {
   const today = todayStr()
-  const punches = []
-  const now = new Date()
-
-  ALL_EMPLOYEES.forEach((emp, ei) => {
-    for (let daysAgo = 29; daysAgo >= 0; daysAgo--) {
-      const d = new Date()
-      d.setDate(d.getDate() - daysAgo)
-      const dateStr = d.toISOString().slice(0, 10)
-      const dow = d.getDay() // 0=Sun, 6=Sat
-
-      // Skip Sundays; some employees skip Saturdays
-      if (dow === 0) continue
-      if (dow === 6 && seed(ei, daysAgo) < 40) continue
-
-      // ~10% chance of no-show
-      if (seed(ei + 5, daysAgo) < 10) continue
-
-      const isToday = dateStr === today
-      const inHour = 7 + (seed(ei, daysAgo * 2) % 4)   // 7–10
-      const inMin = seed(ei + 1, daysAgo) % 60
-      // ~8% chance of being late (>5 min past scheduled 9:00)
-      const scheduledHour = 9
-      const isLate = inHour > scheduledHour || (inHour === scheduledHour && inMin > 5)
-
-      const inTs = `${dateStr}T${pad2(inHour)}:${pad2(inMin)}:00`
-
-      // Today: 8 employees clocked in, no clock-out yet
-      // 3 of today's active are "currently on break"
-      if (isToday) {
-        const todayActiveIdx = [0, 2, 4, 6, 8, 10, 12, 14] // indices into ALL_EMPLOYEES
-        if (todayActiveIdx.includes(ei)) {
-          punches.push({
-            id: `p-${emp.id}-${dateStr}`,
-            person_id: emp.id,
-            full_name: emp.full_name,
-            role_name: emp.role_name,
-            location: emp.location,
-            work_date: dateStr,
-            punched_in_at: inTs,
-            punched_out_at: null,
-            status: 'active',
-            break_mins: [0, 2, 4].includes(ei) ? seed(ei, 99) % 20 + 5 : 0,
-            is_late: isLate,
-          })
-          continue
-        }
-      }
-
-      // Yesterday: 2 employees missing clock-out
-      const yesterday = new Date(); yesterday.setDate(yesterday.getDate() - 1)
-      const yesterdayStr = yesterday.toISOString().slice(0, 10)
-      if (dateStr === yesterdayStr && [3, 7].includes(ei)) {
-        punches.push({
-          id: `p-${emp.id}-${dateStr}`,
-          person_id: emp.id,
-          full_name: emp.full_name,
-          role_name: emp.role_name,
-          location: emp.location,
-          work_date: dateStr,
-          punched_in_at: inTs,
-          punched_out_at: null,
-          status: 'missing_out',
-          break_mins: 0,
-          is_late: isLate,
-        })
-        continue
-      }
-
-      const shiftLen = 7 + (seed(ei + 3, daysAgo) % 3) // 7–9 hours
-      const outH = inHour + shiftLen
-      const outMin = seed(ei + 2, daysAgo) % 60
-      const outTs = outH < 23 ? `${dateStr}T${pad2(outH)}:${pad2(outMin)}:00` : `${dateStr}T22:59:00`
-
-      const approved = daysAgo > 7 || seed(ei, daysAgo + 100) > 30
-
-      punches.push({
-        id: `p-${emp.id}-${dateStr}`,
-        person_id: emp.id,
-        full_name: emp.full_name,
-        role_name: emp.role_name,
-        location: emp.location,
-        work_date: dateStr,
-        punched_in_at: inTs,
-        punched_out_at: outTs,
-        status: approved ? 'approved' : 'pending',
-        break_mins: shiftLen >= 5 ? 30 : 0,
-        is_late: isLate,
-      })
+  const byId = Object.fromEntries((roster || []).map(e => [e.id, e]))
+  return (rows || []).map(r => {
+    const emp = byId[r.person_id] || {}
+    const inAt = r.punched_in_at ? new Date(r.punched_in_at) : null
+    return {
+      id: r.id, person_id: r.person_id, full_name: r.full_name || emp.full_name || '—', role_name: emp.role_name || '—',
+      location: r.node_name || emp.location || '—', work_date: String(r.work_date || '').slice(0, 10),
+      punched_in_at: inAt ? inAt.toISOString().slice(0, 19) : null,
+      punched_out_at: r.punched_out_at ? new Date(r.punched_out_at).toISOString().slice(0, 19) : null,
+      status: punchStatus(r, today), break_mins: 0, is_late: false, hours_worked: r.hours_worked == null ? null : Number(r.hours_worked), notes: r.notes || '',
     }
   })
-
-  return punches
 }
-
-// Lazy-build once per session
-let _cachedPunches = null
-function getAllPunches() {
-  if (!_cachedPunches) _cachedPunches = buildAllPunches()
-  return _cachedPunches
-}
+function getAllPunches() { return LIVE.punches }
 
 function buildMyPunches(personId, weekDates) {
   const all = getAllPunches()
@@ -548,16 +457,10 @@ function FixPunchModal({ punch, personId, managerId, onClose, onSave }) {
 /* ══════════════════════════════════════════════════════════════
    SCHEDULE HELPER
 ══════════════════════════════════════════════════════════════ */
-function getScheduledShift(personId) {
-  const idNum = parseInt(personId?.replace(/\D/g, '') || '1', 10)
-  const pick = seed(idNum, 7) % 3
-  const startHour = [8, 9, 10][pick]
-  const endHour = startHour + 8
-  return {
-    startHour,
-    endHour,
-    label: `${startHour > 12 ? startHour - 12 : startHour}:00 ${startHour >= 12 ? 'PM' : 'AM'} – ${endHour > 12 ? endHour - 12 : endHour}:00 ${endHour >= 12 ? 'PM' : 'AM'}`,
-  }
+function getScheduledShift(_personId) {
+  // No posted shift is read here yet (the TG drafter posts to the OS schedule; the HR punch board
+  // shows it). Until a shift is posted the comparison says so instead of inventing 8/9/10 am.
+  return { startHour: null, endHour: null, label: 'no shift posted' }
 }
 
 /* ══════════════════════════════════════════════════════════════
@@ -577,7 +480,7 @@ function ClockTab({ session, locationIds, locations }) {
     try { return parseInt(localStorage.getItem(`vip_break_accum_${personId}`) || '0', 10) } catch { return 0 }
   })
   const [recentPunches, setRecentPunches] = useState([])
-  const [selectedLocation, setSelectedLocation] = useState(locations?.[0]?.name || 'Orange')
+  const [selectedLocation, setSelectedLocation] = useState(locations?.[0]?.name || '')
   const [busy, setBusy] = useState(false)
   const [toast, setToast] = useState(null)
   const [breakTypePicker, setBreakTypePicker] = useState(false)
@@ -658,9 +561,10 @@ function ClockTab({ session, locationIds, locations }) {
     const sched = getScheduledShift(personId)
     const nowHour = new Date().getHours()
     const nowMin = new Date().getMinutes()
-    const diffMins = (nowHour - sched.startHour) * 60 + nowMin
+    const diffMins = sched.startHour == null ? null : (nowHour - sched.startHour) * 60 + nowMin
     let statusLabel, statusColor
-    if (diffMins <= -5) { statusLabel = `Early by ${Math.abs(diffMins)} min`; statusColor = 'var(--t-info, var(--t-accent))' }
+    if (diffMins == null) { statusLabel = 'Clocked in — no shift posted to compare against'; statusColor = 'var(--t-text-muted)' }
+    else if (diffMins <= -5) { statusLabel = `Early by ${Math.abs(diffMins)} min`; statusColor = 'var(--t-info, var(--t-accent))' }
     else if (diffMins <= 5) { statusLabel = 'On Time ✓'; statusColor = 'var(--t-success)' }
     else if (diffMins <= 15) { statusLabel = `Late by ${diffMins} min ⚠`; statusColor = 'var(--t-warn)' }
     else { statusLabel = `LATE — ${diffMins} min`; statusColor = 'var(--t-danger)' }
@@ -1687,7 +1591,7 @@ function TimeReportsTab() {
   // Revenue per labor hour
   const revPerHr = LOCATIONS.reduce((acc, loc) => {
     const hrs = locHoursWeek[loc] || 1
-    acc[loc] = (LOC_SALES[loc] * 7 / hrs).toFixed(2) // weekly sales estimate
+    acc[loc] = LOC_SALES[loc] == null ? null : (LOC_SALES[loc] * 7 / hrs).toFixed(2) // no revenue recorded here → null
     return acc
   }, {})
 
@@ -1705,7 +1609,7 @@ function TimeReportsTab() {
   })
   const maxTrendHrs = Math.max(...SIX_WEEKS.map(w => Math.max(...LOCATIONS.map(l => w[l]))))
 
-  const LOC_COLORS = { Orange: '#00e5ff', Hartford: '#7c4dff', Manchester: '#00e676', Southington: '#ff9100' }
+  const LOC_COLORS = new Proxy({}, { get: (_, n) => (typeof n === 'string' ? locColor(n) : undefined) })
 
   const employeeReport = ALL_EMPLOYEES.map(e => ({
     ...e,
@@ -1846,11 +1750,11 @@ function TimeReportsTab() {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: '12px', marginBottom: '16px' }}>
           {LOCATIONS.map(loc => {
             const hrs = locHoursWeek[loc] || 0
-            const rph = parseFloat(revPerHr[loc])
+            const rph = revPerHr[loc] == null ? null : parseFloat(revPerHr[loc])
             return (
               <div key={loc} style={{ background: 'var(--t-bg)', border: '1px solid var(--t-line)', padding: '14px', textAlign: 'center' }}>
                 <div style={{ fontSize: '11px', color: LOC_COLORS[loc], fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: 6 }}>{loc}</div>
-                <div style={{ fontFamily: 'monospace', fontSize: '22px', fontWeight: 800, color: 'var(--t-text)', marginBottom: 4 }}>${rph.toFixed(0)}</div>
+                <div style={{ fontFamily: 'monospace', fontSize: '22px', fontWeight: 800, color: 'var(--t-text)', marginBottom: 4 }}>{rph == null ? '—' : `$${rph.toFixed(0)}`}</div>
                 <div style={{ fontSize: '10px', color: 'var(--t-text-faint)' }}>/labor hr · {hrs.toFixed(0)}h worked</div>
               </div>
             )
@@ -1919,64 +1823,28 @@ function TimeReportsTab() {
    TAB 5: LIVE FLOOR (HR only)
 ══════════════════════════════════════════════════════════════ */
 
-// Deterministic floor status for each employee based on seed
+// Floor status from today's punch rows (no seed): clocked in (open punch), clocked out
+// (closed punch), not yet in (no punch today). Breaks and no-shows need break rows and a
+// posted shift, which are not read here yet — those statuses are never invented.
 function buildFloorStatus() {
   const today = todayStr()
-  const now = new Date()
-  const currentHour = now.getHours()
-
-  // Status assignment: ~7 clocked in, ~3 on break, ~4 clocked out, ~2 not yet in, ~2 no show
-  const STATUS_MAP = {
-    e01: 'clocked_in',
-    e02: 'on_break',
-    e03: 'clocked_in',
-    e04: 'clocked_out',
-    e05: 'clocked_in',
-    e06: 'not_yet_in',
-    e07: 'on_break',
-    e08: 'clocked_in',
-    e09: 'clocked_out',
-    e10: 'clocked_in',
-    e11: 'no_show',
-    e12: 'clocked_in',
-    e13: 'clocked_out',
-    e14: 'on_break',
-    e15: 'clocked_in',
-    e16: 'clocked_out',
-    e17: 'not_yet_in',
-    e18: 'no_show',
-  }
-
-  const BREAK_TYPES = ['Meal Break', 'Rest Break', 'Personal Break']
-  const SCHEDULED_SHIFTS = { e06: '1:00 PM', e17: '2:00 PM' }
-
-  return ALL_EMPLOYEES.map((emp, ei) => {
-    const status = STATUS_MAP[emp.id] || 'clocked_out'
-    const inHour = 7 + (seed(ei, 1) % 3)
-    const inMin = seed(ei + 1, 2) % 60
-    const isLate = inHour > 9 || (inHour === 9 && inMin > 5)
-    const clockInTs = `${today}T${pad2(inHour)}:${pad2(inMin)}:00`
-    const breakMins = seed(ei, 55) % 30 + 5
-    const breakType = BREAK_TYPES[seed(ei, 7) % 3]
-    const breakStartMins = breakMins // how long they've been on break
-
+  const todays = getAllPunches().filter(p => p.work_date === today)
+  return ALL_EMPLOYEES.map(emp => {
+    const punch = todays.find(p => p.person_id === emp.id)
+    const status = !punch ? 'not_yet_in' : punch.punched_out_at ? 'clocked_out' : 'clocked_in'
     return {
       ...emp,
       status,
-      clockInTs: ['clocked_in', 'on_break', 'clocked_out'].includes(status) ? clockInTs : null,
-      isLate: status === 'clocked_in' && isLate,
-      breakType: status === 'on_break' ? breakType : null,
-      breakMinsElapsed: status === 'on_break' ? breakStartMins : 0,
-      scheduledTime: SCHEDULED_SHIFTS[emp.id] || null,
+      clockInTs: punch?.punched_in_at || null,
+      isLate: false,
+      breakType: null,
+      breakMinsElapsed: 0,
+      scheduledTime: null,
     }
   })
 }
 
-let _cachedFloorStatus = null
-function getFloorStatus() {
-  if (!_cachedFloorStatus) _cachedFloorStatus = buildFloorStatus()
-  return _cachedFloorStatus
-}
+function getFloorStatus() { return buildFloorStatus() }
 
 function initials(name) {
   return name.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase()
@@ -2246,9 +2114,9 @@ function buildPayrollData(period) {
   const allPunches = getAllPunches()
 
   return ALL_EMPLOYEES.map((emp, ei) => {
-    // Pay rate: seed-based $13.50–$22.00
-    const rateBase = 1350 + seed(ei, 4) * 85 // cents, gives ~13.50–22.00
-    const rate = rateBase / 100
+    // Pay rate: the person's hourly rate when the roster carries one; otherwise null and the
+    // pay columns show '—' (no rate is ever invented)
+    const rate = emp.hourly == null ? null : Number(emp.hourly)
 
     const empPunches = allPunches.filter(p => p.person_id === emp.id && dateSet.has(p.work_date) && p.punched_out_at)
 
@@ -2269,7 +2137,7 @@ function buildPayrollData(period) {
         breakMins: breakMin,
         regH,
         otH,
-        dailyPay: regH * rate + otH * rate * 1.5,
+        dailyPay: rate == null ? null : regH * rate + otH * rate * 1.5,
       }
     })
 
@@ -2282,11 +2150,10 @@ function buildPayrollData(period) {
     const weeklyOT2 = Math.max(0, week2Hrs - 40)
     const totalOT = dailyBreakdown.reduce((a, r) => a + r.otH, 0) + weeklyOT1 + weeklyOT2
     const totalReg = dailyBreakdown.reduce((a, r) => a + r.regH, 0)
-    const grossPay = totalReg * rate + totalOT * rate * 1.5
+    const grossPay = rate == null ? null : totalReg * rate + totalOT * rate * 1.5
 
-    // Status: seed-based PENDING / APPROVED / EXPORTED
-    const statusSeed = seed(ei, 20)
-    const status = statusSeed < 50 ? 'pending' : statusSeed < 80 ? 'approved' : 'exported'
+    // Status: pending until a pay run records otherwise (pay runs live in the OS Finance lane)
+    const status = 'pending'
 
     return {
       ...emp,
@@ -2613,6 +2480,26 @@ export default function TimeClock() {
 
   const [tab, setTab] = useState('clock')
   const [now, setNow] = useState(new Date())
+  const [dataVer, setDataVer] = useState(0)
+  const [dataError, setDataError] = useState('')
+  useEffect(() => {
+    if (!locationIds?.length) return undefined
+    let alive = true
+    const to = todayStr()
+    const from = (() => { const d = new Date(); d.setDate(d.getDate() - 30); return d.toISOString().slice(0, 10) })()
+    Promise.all([
+      sb.rpc('get_all_time_entries', { p_node_ids: locationIds, p_date_from: from, p_date_to: to }),
+      sb.rpc('get_roster', { p_node_ids: locationIds, p_actor: person.id || null }),
+    ]).then(([t, r]) => {
+      if (!alive) return
+      const roster = (Array.isArray(r.data) ? r.data : []).filter(e => e.id).map(e => ({ id: e.id, full_name: e.full_name, role_name: e.role_name || 'Associate', location: e.node_name || '—', hourly: null }))
+      const err = [t.error, r.error].filter(Boolean).map(e => e.message).join(' · ')
+      setTimeClockData({ punches: rowsToPunches(Array.isArray(t.data) ? t.data : [], roster), employees: roster, error: err })
+      setDataError(err)
+      setDataVer(v => v + 1)
+    })
+    return () => { alive = false }
+  }, [JSON.stringify(locationIds), person.id, now])
 
   // Tick for KPI panel refresh
   useEffect(() => {
@@ -2650,8 +2537,9 @@ export default function TimeClock() {
         </div>
       </div>
 
+      {dataError && <div style={{ fontSize: 12, color: 'var(--t-danger)', marginBottom: 10 }}>Could not read time entries: {dataError}</div>}
       {/* KPI Panel — always visible */}
-      {canSeeHR && <ForensicKPIPanel now={now} />}
+      {canSeeHR && <ForensicKPIPanel now={now} key={`kpi-${dataVer}`} />}
 
       {/* Tab bar */}
       <div style={{ display: 'flex', gap: 0, borderBottom: '1px solid var(--t-line)', marginBottom: 0 }}>
@@ -2680,13 +2568,13 @@ export default function TimeClock() {
           <MyTimecardTab session={session} isManager={canSeeHR} canEdit={canEditTC} />
         )}
         {tab === 'all' && canSeeHR && (
-          <AllTimecardsTab session={session} canEdit={canEditTC} />
+          <AllTimecardsTab key={`all-${dataVer}`} session={session} canEdit={canEditTC} />
         )}
         {tab === 'floor' && canSeeHR && (
-          <LiveFloorTab />
+          <LiveFloorTab key={`floor-${dataVer}`} />
         )}
         {tab === 'reports' && canSeeHR && (
-          <TimeReportsTab />
+          <TimeReportsTab key={`rep-${dataVer}`} />
         )}
         {tab === 'payroll' && canSeeHR && flagPayroll && (
           <PayrollSummaryTab session={session} />

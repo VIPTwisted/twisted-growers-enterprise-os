@@ -1,8 +1,10 @@
-﻿import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { sb } from '../lib/supabase'
 import { useAuth } from '../lib/auth.jsx'
 import { useScope } from '../lib/scope.jsx'
 import DrillDown from '../components/DrillDown.jsx'
+import { getLocationNames } from '../lib/locations.js'
+
 
 // ── drill-down columns for promotion records ──────────────────────────────────
 const PROMO_COLS = [
@@ -18,7 +20,7 @@ const PROMO_COLS = [
 
 function seed(a,b){ return ((a*31+b)*17+a*b)%100 }
 const isHR = r => ['ceo','hr','manager','coo','admin','owner'].some(x=>(r||'').toLowerCase().includes(x))
-const LOCS = ['Orange','Hartford','Manchester','Southington','Warehouse / Distribution']
+const LOCS = getLocationNames()
 const CATEGORIES = ['Seasonal','Product Launch','Clearance','Bundle Deal','Holiday','Flash Sale','Loyalty','Cross-Sell']
 const STATUSES = ['active','upcoming','expired','draft','paused']
 

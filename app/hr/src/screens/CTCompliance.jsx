@@ -155,7 +155,7 @@ function ChecklistTab({ config, categories, state, nodeId, personId, loading, er
   }
 
   function exportReport() {
-    const lines = ['Twisted Growers — CT LABOR COMPLIANCE REPORT', `Generated: ${new Date().toLocaleString()}`, '']
+    const lines = ['Twisted Growers — LABOR COMPLIANCE REPORT', `Generated: ${new Date().toLocaleString()}`, '']
     categories.forEach(cat => {
       lines.push(`== ${cat.name} ==`)
       cat.items.forEach(item => {
@@ -292,7 +292,7 @@ function ChecklistTab({ config, categories, state, nodeId, personId, loading, er
   )
 }
 
-// ── Tab 2: CT Law Reference (static statutory reference content) ─────────────
+// ── Tab 2: Statutory reference — rows for the company's state (hr.compliance_rules) ───────
 
 function LawCard({ title, effectiveDate, badgeColor, children, footer }) {
   return (
@@ -326,69 +326,42 @@ function Row({ label, value }) {
   )
 }
 
-function LawReferenceTab({ config }) {
+function LawReferenceTab({ config, reference }) {
+  // STATUTORY REFERENCE IS ROWS (Bible §12g, 14 Sep 2026): hr.compliance_rules for the
+  // company's own state, read by hr.compliance_reference(). The clone printed Connecticut
+  // statutes here; nothing is typed in now and no law text is invented — HR / counsel enter
+  // the rows and they render as cards.
+  const rules = reference?.rules || []
+  const state = reference?.state_code || '—'
+  const byDomain = rules.reduce((m, r) => { (m[r.domain || 'General'] ||= []).push(r); return m }, {})
+  const label = (k) => String(k || '').replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
+  const fmtVal = (v) => v == null ? '—' : typeof v === 'object' ? Object.entries(v).map(([a, b]) => `${label(a)}: ${b}`).join(' · ') : String(v)
   return (
     <div style={{ padding: '20px 24px', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 16 }}>
-      <LawCard title="MINIMUM WAGE" effectiveDate="JAN 1, 2024">
-        <Row label="Current rate" value={`$${config.min_wage}/hr`} />
-        <div style={{ marginTop: 8, marginBottom: 4, fontWeight: 700, fontSize: 11, color: 'var(--t-text-muted)', letterSpacing: '.06em' }}>HISTORY</div>
-        <Row label="2019" value="$11.00" />
-        <Row label="2020" value="$12.00" />
-        <Row label="2021" value="$13.00" />
-        <Row label="2022" value="$14.00" />
-        <Row label="2023" value="$15.00" />
-        <Row label="2024" value="$15.69" />
-        <div style={{ marginTop: 8, fontSize: 11, color: 'var(--t-text-faint)' }}>Full text: ct.gov/dol</div>
+      <LawCard title="PLATFORM CONFIGURATION" effectiveDate={`${state} · from Settings`}>
+        <Row label="Minimum wage used by the checklist" value={config?.min_wage != null ? `$${config.min_wage}/hr` : '—'} />
+        <Row label="Paid leave accrual cap" value={config?.paid_leave_accrual_hours != null ? `${config.paid_leave_accrual_hours} hours` : '—'} />
+        <Row label="Federal FMLA threshold" value={config?.fmla_threshold_hours != null ? `${config.fmla_threshold_hours} hours` : '—'} />
+        <div style={{ marginTop: 8, fontSize: 11, color: 'var(--t-text-faint)' }}>These are the figures the checklist uses; change them in Settings.</div>
       </LawCard>
-
-      <LawCard title="PAID LEAVE (P.A. 19-25)" effectiveDate="JAN 1, 2022">
-        <Row label="Effective" value="Jan 1, 2022" />
-        <Row label="Applies to" value="Employers 1+ employees in CT" />
-        <Row label="Accrual" value="1 hour per 30 hours worked" />
-        <Row label="Annual cap" value={`${config.paid_leave_accrual_hours} hours`} />
-        <Row label="Carryover" value={`Up to ${config.paid_leave_accrual_hours} hours`} />
-        <div style={{ marginTop: 8, fontSize: 11, color: 'var(--t-text)' }}>
-          Usage: personal illness, family care, domestic violence
-        </div>
-      </LawCard>
-
-      <LawCard title="CT FMLA" effectiveDate="CT LAW">
-        <Row label="CT eligibility" value="12 months + 1,000 hours" />
-        <Row label="Federal FMLA threshold" value={`${config.fmla_threshold_hours} hours`} />
-        <Row label="Leave entitlement" value="Up to 12 weeks/year" />
-        <div style={{ marginTop: 8, fontSize: 11, color: 'var(--t-text)' }}>
-          CT FMLA covers smaller employers than federal law. Consult HR before denying any leave request.
-        </div>
-      </LawCard>
-
-      <LawCard title="CT NON-COMPETE" effectiveDate="2016 CT LAW">
-        <div style={{ marginBottom: 6 }}>2016 CT law restricts non-compete agreements.</div>
-        <div style={{ marginBottom: 4 }}>• Must be reasonable in duration and geography</div>
-        <div style={{ marginBottom: 4 }}>• Cannot be imposed on low-wage workers</div>
-        <div style={{ fontSize: 11, color: 'var(--t-text)', marginTop: 8 }}>
-          Note: consult counsel before enforcing any non-compete clause.
-        </div>
-      </LawCard>
-
-      <LawCard title="PREDICTIVE SCHEDULING (HARTFORD)" effectiveDate="HARTFORD ORD." badgeColor="var(--t-warn)">
-        <div style={{ marginBottom: 6 }}>Hartford Fair Workweek Ordinance applies to large retail/food service.</div>
-        <div style={{ marginBottom: 4 }}>• 2-week advance notice of schedules required</div>
-        <div style={{ marginBottom: 4 }}>• Premium pay applies for last-minute schedule changes</div>
-        <div style={{ marginBottom: 4 }}>• Applies to Hartford location operations</div>
-        <div style={{ fontSize: 11, color: 'var(--t-text)', marginTop: 8 }}>
-          Review applicability thresholds annually.
-        </div>
-      </LawCard>
-
-      <LawCard title="MARIJUANA IN WORKPLACE (PUMA ACT 2021)" effectiveDate="JUL 1, 2021" badgeColor="var(--t-success)">
-        <div style={{ marginBottom: 4 }}>• Employees may use cannabis off-duty</div>
-        <div style={{ marginBottom: 4 }}>• Employers may prohibit impairment at work</div>
-        <div style={{ marginBottom: 4 }}>• Zero-tolerance policy still enforceable for safety positions</div>
-        <div style={{ marginBottom: 4 }}>• Drug testing protocols may need updating</div>
-        <div style={{ fontSize: 11, color: 'var(--t-text)', marginTop: 8 }}>
-          Consult legal before updating drug testing policies.
-        </div>
-      </LawCard>
+      {reference === null && <LawCard title="STATUTORY REFERENCE" effectiveDate="reading…"><div style={{ fontSize: 12, color: 'var(--t-text-faint)' }}>Reading the reference rows…</div></LawCard>}
+      {reference !== null && rules.length === 0 && (
+        <LawCard title={`${state} STATUTORY REFERENCE`} effectiveDate="no rows yet">
+          <div style={{ fontSize: 12, color: 'var(--t-text)', lineHeight: 1.6 }}>
+            No statutory reference rows are entered for {state} yet. HR or counsel enter each rule (domain, key, value, citation, effective date) in hr.compliance_rules and it appears here as a card. Nothing on this page is written by the platform.
+          </div>
+        </LawCard>
+      )}
+      {Object.entries(byDomain).map(([domain, rs]) => (
+        <LawCard key={domain} title={label(domain).toUpperCase()} effectiveDate={`${state} · ${rs.length} rule${rs.length === 1 ? '' : 's'}`}>
+          {rs.map(r => (
+            <div key={r.id} style={{ marginBottom: 8 }}>
+              <Row label={label(r.rule_key)} value={fmtVal(r.rule_value)} />
+              <div style={{ fontSize: 10, color: 'var(--t-text-faint)' }}>{r.citation || 'no citation'}{r.effective_from ? ` · effective ${r.effective_from}` : ''}</div>
+            </div>
+          ))}
+        </LawCard>
+      ))}
     </div>
   )
 }
@@ -637,17 +610,23 @@ export default function CTCompliance() {
     return (!max || new Date(s.last_reviewed_at) > new Date(max)) ? s.last_reviewed_at : max
   }, null)
 
-  const TABS = ['COMPLIANCE CHECKLIST', 'CT LAW REFERENCE', 'UPCOMING DEADLINES']
+  const [reference, setReference] = useState(null)
+  useEffect(() => {
+    let live = true
+    sb.rpc('compliance_reference').then(({ data, error }) => { if (live) setReference(error ? { state_code: null, rules: [], error: error.message } : (data || { rules: [] })) })
+    return () => { live = false }
+  }, [])
+  const TABS = ['COMPLIANCE CHECKLIST', `${reference?.state_code || 'STATE'} LAW REFERENCE`, 'UPCOMING DEADLINES']
 
   return (
     <div style={{ minHeight: '100dvh', background: 'var(--t-bg)', color: 'var(--t-text)', fontFamily: 'inherit' }}>
       {/* Page header */}
       <div style={{ background: 'linear-gradient(135deg, #0a1628, #0d1f3c)', borderBottom: '1px solid var(--t-line)', padding: 24 }}>
         <div style={{ fontSize: 22, fontWeight: 900, color: 'var(--t-text)', letterSpacing: '-.01em', marginBottom: 4 }}>
-          CT LABOR COMPLIANCE
+          {reference?.state_code || 'STATE'} LABOR COMPLIANCE
         </div>
         <div style={{ fontSize: 12, color: 'var(--t-text-muted)' }}>
-          Massachusetts Department of Labor — Twisted Growers compliance tracker
+          {reference?.company || 'Twisted Growers'} compliance tracker · state {reference?.state_code || '—'} from the company record
         </div>
       </div>
 
@@ -706,7 +685,7 @@ export default function CTCompliance() {
           onReload={reload}
         />
       )}
-      {tab === 1 && <LawReferenceTab config={config} />}
+      {tab === 1 && <LawReferenceTab config={config} reference={reference} />}
       {tab === 2 && (
         <DeadlinesTab
           deadlines={deadlines}

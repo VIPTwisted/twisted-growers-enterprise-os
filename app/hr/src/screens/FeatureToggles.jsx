@@ -4,13 +4,15 @@ import { getAllFlags, setFeatureFlag, FEATURE_DEFAULTS, ALL_ROLES as FLAG_ROLES,
 import { useScope } from '../lib/scope.jsx'
 import { sb } from '../lib/supabase'
 import DrillDown from '../components/DrillDown.jsx'
+import { getLocationNames } from '../lib/locations.js'
+
 
 /* ── constants ───────────────────────────────────────────────────── */
 const LS_KEY_FLAGS    = 'vip_feature_flags_v2'
 const LS_KEY_ROLLOUT  = 'vip_feature_rollout'
 const LS_KEY_LOG      = 'vip_feature_audit'
 
-const LOCS  = ['Orange', 'Hartford', 'Manchester', 'Southington', 'Warehouse / Distribution']
+const LOCS = getLocationNames()
 const ALL_ROLES = ['Admin/Owner', 'COO', 'HR Manager', 'Store Manager', 'Key Holder', 'Associate']
 
 const FEATURES = [
