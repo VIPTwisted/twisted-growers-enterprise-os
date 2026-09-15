@@ -377,10 +377,10 @@ Functional floor on every upgraded archetype: filters + saved views · expand-in
 | Every active employee has a primary department (11 missing) | FAIL | owner/HR data, 1 |
 | HR verifies the 17 seeded training rows | FAIL | HR, 1 |
 | Trained-in / in-training recorded — floaters appear | WARN | HR data |
-| First real weekly draft posted (week of 21 Sep) by a sign-off role | PENDING | 2 + owner |
-| AI layer drafts through `f_schedule_candidates` / `f_draft_schedule` | PENDING | 6 (Harvest & Rooms / People agent v1) |
+| First real weekly draft posted (week of 21 Sep) by a sign-off role | DRAFTED 15 Sep by People v1 (82 shifts, 16 people, 2 cells to review, 656 h) — on Today at rank 1 for owner/executive/CFO/HR to post; onboarding step `scheduling.first_week` | company sign-off |
+| AI layer drafts through `f_schedule_candidates` / `f_draft_schedule` | BUILT 15 Sep (PR #275): People v1 — cron `people-agent-v1` drafts every week in the horizon nobody drafted; the draft is a decision on Today (source `schedule_draft`: post / discard / assign / defer, sign-off roles from the policy); proven live: post → 82 shifts → `hr.shifts` → onboarding step done, rolled back | — |
 | My schedule / availability / swap / call-out pages read zones, skills, policy | PENDING | 10 |
-| PR #235 merged | PENDING | 1 |
+| PR #235 merged | carried into #275 (cherry-pick, generator moved out of tools/checks) | — |
 | Owner: shift 08:00–16:30 · 30 min unpaid · waves 12:00 / 13:30 · three zone→department maps · weekend flower cover · who may edit settings | OWNER | decisions |
 | | **Total** | **≈ 85** |
 

@@ -29,14 +29,15 @@ import { useRole, AssignTask } from "./App.jsx";
 const SOURCE_LABEL = {
   finding_group: "finding family", report: "reported defect", issue_group: "watchdog issue", question: "open question",
   enhancement: "page enhancement", correction: "correction proposal", qa_enhancement: "reported enhancement",
-  onboarding: "onboarding step",
+  onboarding: "onboarding step", schedule_draft: "schedule draft",
 };
 const OPTION_LABEL = {
   resolve: "Resolve", assign: "Assign", defer: "Defer", fix: "Fix", leave: "Leave as is", ignore: "Ignore",
   answer: "Answer", approved: "Approve", rejected: "Reject", deferred: "Defer", build_now: "Build now", build_later: "Build later", no: "No",
+  post: "Post the schedule", discard: "Discard",
 };
 /* Options that the database refuses without written words (≥ 15 characters), so the form asks first. */
-const NEEDS_WORDS = new Set(["resolve", "leave", "ignore", "answer", "rejected", "deferred", "no"]);
+const NEEDS_WORDS = new Set(["resolve", "leave", "ignore", "answer", "rejected", "deferred", "no", "discard"]);
 const NEEDS_DATE = new Set(["defer"]);
 const sevTone = (s) => (s === "critical" ? "err" : s === "elevated" ? "run" : "ok");
 const usd = (v) => (v == null || Number.isNaN(Number(v)) ? "—" : Number(v).toLocaleString(undefined, { style: "currency", currency: "USD", maximumFractionDigits: 0 }));
