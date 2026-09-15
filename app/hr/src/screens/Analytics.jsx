@@ -6,6 +6,7 @@ import { useFeatureFlag } from '../lib/featureFlags.js'
 import { useConfig } from '../lib/config.js'
 import { saveSynced, hydrate, loadCached } from '../lib/syncStore.js'
 import DrillDown from '../components/DrillDown.jsx'
+import { companyName } from '../lib/config.js'
 
 /* ══════════════════════════════════════════════════════════════════════════
    Analytics & Intelligence — 100% real data.
@@ -945,7 +946,7 @@ function printBoardPack(metrics, rows, dateRange) {
   const th = ['Location', ...cols].map(c => `<th>${c}</th>`).join('')
   const trs = rows.map(r => `<tr><td class="loc">${r.name}</td>${cols.map(m => `<td>${r[METRIC_COL[m]] ?? '—'}</td>`).join('')}</tr>`).join('')
   const w = window.open('', '_blank'); if (!w) return
-  w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Twisted Growers Board Pack</title>
+  w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${companyName()} Board Pack</title>
     <style>@page{margin:18mm}body{font-family:Arial,Helvetica,sans-serif;color:#111}
     .hdr{border-bottom:3px solid #00b4d8;padding-bottom:10px;margin-bottom:16px}
     .brand{font-size:22px;font-weight:900;letter-spacing:-.5px}.sub{color:#555;font-size:12px;margin-top:2px}
@@ -953,7 +954,7 @@ function printBoardPack(metrics, rows, dateRange) {
     th{background:#0b2545;color:#fff;text-align:left;padding:8px 10px}
     td{padding:7px 10px;border-bottom:1px solid #ddd}.loc{font-weight:700}
     .foot{margin-top:20px;font-size:10px;color:#888}</style></head>
-    <body><div class="hdr"><div class="brand">Twisted Growers — Executive Board Pack</div>
+    <body><div class="hdr"><div class="brand">{companyName()} — Executive Board Pack</div>
     <div class="sub">${dateRange} · ${rows.length} location(s) · Generated ${new Date().toLocaleString()}</div></div>
     <table><tr>${th}</tr>${trs}</table>
     <div class="foot">🔒 Live database export. Figures reflect the selected scope and range.</div></body></html>`)

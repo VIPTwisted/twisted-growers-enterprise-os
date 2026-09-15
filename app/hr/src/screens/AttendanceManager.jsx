@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../lib/auth.jsx'
 import { useScope } from '../lib/scope.jsx'
+import { companyPrefix } from '../lib/config.js'
 import { sb, getSession } from '../lib/supabase'
 import { useConfig } from '../lib/config.js'
 import DrillDown from '../components/DrillDown.jsx'
@@ -80,7 +81,7 @@ function buildLiveRecords(shifts = [], timeEntries = []) {
     }
 
     // Derive location name from node_name
-    const location = (s.node_name || '').replace(/^Twisted Growers\s*/i, '').trim() || 'Unknown'
+    const location = (s.node_name || '').replace(companyPrefix(), '').trim() || 'Unknown'
 
     return {
       id: `live-${s.shift_id || idx}-${shiftDate}`,
@@ -113,7 +114,7 @@ const INCIDENT_STATUS = { tardy: 'late', callout: 'callout', ncns: 'ncns' }
 function buildIncidentRecords(overview = [], minDate = '0000-00-00') {
   const out = []
   for (const emp of overview) {
-    const location = (emp.location || '').replace(/^Twisted Growers\s*/i, '').trim() || 'Unknown'
+    const location = (emp.location || '').replace(companyPrefix(), '').trim() || 'Unknown'
     for (const inc of (emp.incidents || [])) {
       const date = (inc.date || '').slice(0, 10)
       if (!date || date < minDate) continue
@@ -147,7 +148,7 @@ function peopleFromOverview(overview = []) {
   return overview
     .filter(e => e.person_id)
     .map(e => {
-      const loc = (e.location || '').replace(/^Twisted Growers\s*/i, '').trim()
+      const loc = (e.location || '').replace(companyPrefix(), '').trim()
       return {
         id: e.person_id,
         person_id: e.person_id,

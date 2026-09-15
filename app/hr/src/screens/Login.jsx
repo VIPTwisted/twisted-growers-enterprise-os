@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '../lib/auth.jsx'
 import { ensureSession } from '../lib/supabase'
+import { companyName } from '../lib/config.js'
 
 // The floor path (Employee ID + PIN) runs as an anonymous auth session. That switch lives in
 // the Supabase dashboard (owner). Until it is on, say so instead of "Invalid ID or PIN".
@@ -109,7 +110,7 @@ export default function Login() {
         }}>TG</div>
 
         <div style={{ fontSize: 22, fontWeight: 800, color: '#eaf2ff', letterSpacing: .4, marginBottom: 4 }}>
-          Twisted Growers
+          {companyName()}
         </div>
         <div style={{ fontSize: 13, color: 'rgba(120,170,230,.60)', marginBottom: 6, letterSpacing: .3 }}>
           HR Command Center · Lakeville, MA
@@ -119,11 +120,11 @@ export default function Login() {
         </div>
 
         <div style={{ minHeight: 20, marginBottom: 14, fontSize: 13, color: err ? '#ffb347' : '#00e5ff', fontWeight: 600 }}>
-          {err || (!ssoTried ? 'Checking for your Twisted Growers OS sign-in…' : '')}
+          {err || (!ssoTried ? 'Checking for your ' + companyName() + ' OS sign-in…' : '')}
         </div>
         {ssoTried && !err && (
           <div style={{ fontSize: 12, color: 'rgba(120,170,230,.75)', marginBottom: 16, lineHeight: 1.6 }}>
-            Signed in to the Twisted Growers OS? <a href="/" style={{ color: '#00e5ff' }}>Open the OS</a> and come back — the same sign-in works here.
+            Signed in to the {companyName()} OS? <a href="/" style={{ color: '#00e5ff' }}>Open the OS</a> and come back — the same sign-in works here.
             {kiosk === false && <div style={{ marginTop: 6, color: '#ffb347' }}>Employee ID + PIN (kiosk) needs anonymous sign-ins switched on in the Supabase dashboard (Auth → Providers) — an owner setting, not yet on.</div>}
           </div>
         )}
@@ -191,7 +192,7 @@ export default function Login() {
         </button>
 
         <div style={{ marginTop: 26, fontSize: 10, color: 'rgba(100,150,200,.32)', letterSpacing: .8, textTransform: 'uppercase' }}>
-          Secure · Encrypted · Twisted Growers © 2026
+          Secure · Encrypted · {companyName()} © 2026
         </div>
       </form>
 

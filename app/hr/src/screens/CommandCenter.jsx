@@ -8,6 +8,7 @@ import { useNavigate } from 'react-router-dom'
 import DrillDown from '../components/DrillDown.jsx'
 import AIAdvisor from '../components/AIAdvisor.jsx'
 import { generateRecommendations } from '../lib/aiAdvisor.js'
+import { companyName } from '../lib/config.js'
 
 const APPLICANT_STAGES = ['applied', 'screening', 'interview', 'offer', 'hired']
 const STAGE_LABEL = { applied: 'Applied', screening: 'Screening', interview: 'Interview', offer: 'Offer', hired: 'Hired' }
@@ -182,7 +183,7 @@ export default function CommandCenter() {
       </div>
 
       {/* AI Operations Advisor — the platform brain, monitoring all live data */}
-      <AIAdvisor recommendations={recs} title="AI Operations Advisor — Twisted Growers Command" />
+      <AIAdvisor recommendations={recs} title={"AI Operations Advisor — " + companyName() + " Command"} />
 
       {/* KPI row */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6,1fr)', gap: 8, marginBottom: 16 }}>

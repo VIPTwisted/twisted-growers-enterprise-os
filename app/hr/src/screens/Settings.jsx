@@ -3,6 +3,7 @@ import { sb } from '../lib/supabase'
 import { useAuth } from '../lib/auth.jsx'
 import { applyTheme } from '../lib/theme.js'
 import { useConfig, saveConfig } from '../lib/config.js'
+import { companyName } from '../lib/config.js'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Date / relative-time helpers (used by real audit-log driven views)
@@ -492,8 +493,8 @@ const ACCENT_COLORS = [
 ]
 
 const THEME_FAMILIES = [
-  { id: 'aurora', label: 'Twisted Growers Aurora',      desc: 'Midnight Aurora — cyan on navy',  swatch: ['#070b14', '#00e5ff'] },
-  { id: 'tg',     label: 'Twisted Growers', desc: 'The OS theme — neon green',       swatch: ['#0a0c0b', '#2df26a'] },
+  { id: 'aurora', label: '' + companyName() + ' Aurora',      desc: 'Midnight Aurora — cyan on navy',  swatch: ['#070b14', '#00e5ff'] },
+  { id: 'tg',     label: companyName(), desc: 'The OS theme — neon green',       swatch: ['#0a0c0b', '#2df26a'] },
 ]
 const THEME_MODES = [
   { id: 'dark',   label: 'Dark',   desc: 'Dark surfaces' },
@@ -868,7 +869,7 @@ function PrivacyTab({ session, initial, personId, onSaved }) {
       <div style={{ padding: '16px', background: 'var(--t-surface-2)', border: '1px solid var(--t-line)', marginBottom: 16 }}>
         <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--t-text)', marginBottom: 4 }}>Export My Data</div>
         <div style={{ fontSize: 12, color: 'var(--t-text-muted)', marginBottom: 14, lineHeight: 1.6 }}>
-          Request a copy of all personal data Twisted Growers holds on your account. Your data will be compiled and made available within 5 business days.
+          Request a copy of all personal data {companyName()} holds on your account. Your data will be compiled and made available within 5 business days.
         </div>
         <button style={{ ...btnSecondary, fontSize: 11 }} onClick={handleExport} disabled={exporting}>
           {exporting ? 'Preparing…' : 'Download My Data'}
@@ -914,11 +915,13 @@ function WhiteLabelTab({ onSave }) {
 
   const set = (key, val) => setDraft(d => ({ ...d, [key]: val }))
 
-  const handleSave = () => {
-    saveConfig(draft)
-    onSave('White label settings saved.')
-    setSaved(true)
-    setTimeout(() => setSaved(false), 2000)
+  const handleSave = async () => {
+    try {
+      await saveConfig(draft)                       // rows first (hr.tenant_config.settings); the cache follows
+      onSave('White label settings saved.')
+      setSaved(true)
+      setTimeout(() => setSaved(false), 2000)
+    } catch (e) { onSave(e?.message || 'the settings could not be saved') }
   }
 
   const selectStyle = { ...inputStyle }

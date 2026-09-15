@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useAuth } from '../lib/auth.jsx'
 import { sb, getSession } from '../lib/supabase'
+import { companyName } from '../lib/config.js'
 
 /* ── AURORA MIDNIGHT DEFAULTS ────────────────────────────────────────── */
 const AURORA_DEFAULTS = {
@@ -63,7 +64,7 @@ const PRESETS = [
   },
   {
     id:'twisted-growers',
-    name:'Twisted Growers',
+    name:companyName(),
     desc:'The OS theme — neon green on near-black',
     swatches:['#0a0c0b','#111513','#2df26a','#2df26a','#ffea00'],
     vars: {
@@ -75,7 +76,7 @@ const PRESETS = [
   },
   {
     id:'twisted-growers-light',
-    name:'Twisted Growers Light',
+    name:'' + companyName() + ' Light',
     desc:'The OS light mode — green on white',
     swatches:['#fdfefd','#ffffff','#0fae4f','#0fae4f','#9c7a1e'],
     vars: {
@@ -706,7 +707,7 @@ export default function ThemeStudio() {
 
             {/* Heading */}
             <div style={{ fontFamily:typo.fontFamily, fontWeight:typo.headingWeight, fontSize:22, color:'var(--t-text)', letterSpacing:`${typo.letterSpacing}px`, lineHeight:typo.lineHeight, marginBottom:10 }}>
-              Twisted Growers HR
+              {companyName()} HR
             </div>
 
             {/* Body */}

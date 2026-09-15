@@ -4,6 +4,7 @@ import { useConfig } from '../lib/config.js'
 import { useAuth } from '../lib/auth.jsx'
 import { sb, getSession } from '../lib/supabase'
 import { locColor as locColorByName } from '../lib/locations.js'
+import { companyName } from '../lib/config.js'
 
 
 function FeatureDisabled({ name }) {
@@ -461,7 +462,7 @@ export default function CoachingLog() {
         </div>
         <div style={S.headerRight}>
           <span style={{ fontSize: 11, color: 'var(--t-text-muted)' }}>
-            Twisted Growers · {config?.locationName || 'All Locations'}
+            {companyName()} · {config?.locationName || 'All Locations'}
           </span>
         </div>
       </div>

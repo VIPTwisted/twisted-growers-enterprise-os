@@ -5,6 +5,7 @@ import { useAuth } from '../lib/auth.jsx'
 import { useScope } from '../lib/scope.jsx'
 import { sb } from '../lib/supabase'
 import { getLocationNames } from '../lib/locations.js'
+import { companyName } from '../lib/config.js'
 
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -921,7 +922,7 @@ function AddEmployeeTab({ onSaved }) {
           boxShadow: '0 0 20px rgba(0,229,255,.1)',
         }}>
           <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--t-accent)', letterSpacing: 2, marginBottom: 12, textTransform: 'uppercase' }}>
-            Twisted Growers — Employee ID
+            {companyName()} — Employee ID
           </div>
           <div style={{ display: 'flex', gap: 14, alignItems: 'center', marginBottom: 14 }}>
             <div style={{ width: 54, height: 54, background: 'var(--t-accent-soft)', border: '2px solid var(--t-accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 20, color: 'var(--t-accent)' }}>

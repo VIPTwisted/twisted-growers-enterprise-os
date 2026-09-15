@@ -4,6 +4,7 @@ import { useFeatureFlag } from '../lib/featureFlags.js'
 import { useAuth } from '../lib/auth.jsx'
 import { useScope } from '../lib/scope.jsx'
 import { useConfig } from '../lib/config.js'
+import { companyName } from '../lib/config.js'
 
 // ── PLAN CATALOG (reference offerings — static plan definitions, not per-employee data) ──
 const HEALTH_PLANS = ['PPO Silver', 'PPO Gold', 'HMO Basic', 'Waived']
@@ -1116,7 +1117,7 @@ export default function Benefits() {
       <div style={S.hdr}>
         <div>
           <div style={S.hdrTitle}>BENEFITS ADMINISTRATION</div>
-          <div style={S.hdrSub}>Health, dental, retirement and Massachusetts leave — Twisted Growers</div>
+          <div style={S.hdrSub}>Health, dental, retirement and Massachusetts leave — {companyName()}</div>
         </div>
         {enrollOpen && <button style={S.btnPrimary} onClick={() => setTab('enrollment')}>Open Enrollment Active</button>}
       </div>

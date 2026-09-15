@@ -5,6 +5,7 @@ import { useScope } from '../lib/scope.jsx'
 import { sb } from '../lib/supabase'
 import DrillDown from '../components/DrillDown.jsx'
 import { getLocationNames } from '../lib/locations.js'
+import { companyName } from '../lib/config.js'
 
 
 /* ── constants ───────────────────────────────────────────────────── */
@@ -28,7 +29,7 @@ const FEATURES = [
   { id: 'pipeline',       label: 'Pipeline / CRM',         desc: 'Sales pipeline and customer relationship management', category: 'Core Features',         defaultOn: false },
   { id: 'inventory',      label: 'Inventory Tracking',     desc: 'Real-time stock levels and reorder management',       category: 'Core Features',         defaultOn: true  },
   { id: 'promotions',     label: 'Promotions Manager',     desc: 'Create and manage store promotions and discounts',    category: 'Core Features',         defaultOn: true  },
-  { id: 'cultivation',    label: 'Cultivation',            desc: 'Cannabis cultivation dashboard (Twisted Growers only)', category: 'Core Features',       defaultOn: false },
+  { id: 'cultivation',    label: 'Cultivation',            desc: 'Cannabis cultivation dashboard (' + companyName() + ' only)', category: 'Core Features',       defaultOn: false },
   { id: 'loyalty',        label: 'Customer Loyalty',       desc: 'Points-based customer rewards and retention system',  category: 'Core Features',         defaultOn: false },
   { id: 'academy',        label: 'Academy / LMS',          desc: 'Course catalog, certifications, and training paths',  category: 'Core Features',         defaultOn: true  },
   { id: 'leaderboards',   label: 'Leaderboards',           desc: 'Employee performance ranking boards',                 category: 'Core Features',         defaultOn: true  },

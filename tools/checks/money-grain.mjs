@@ -888,7 +888,9 @@ const migrationEntries = files.map((name) => ({
 // Re-pinned 15 Sep 2026 -> 1178 files. Recorded the six People v1 migrations (one schedule store: employee_schedules ⇄ hr.shifts; the
 // people-agent-v1 cron; the schedule_draft source on Today with post/discard through f_decide; the draft's labour figure and go-live weight;
 // two generated-column fixes; the onboarding first-week step counting scheduled shifts); baseline regenerated. Claude desk. Tamper seal, not an approval.
-const expectedMigrationTreeDigest = "0b1b5e1832b7be5cbd80c2876f09e765d2c9b91b0e9efbec6d8264bc17dd6673";
+// Re-pinned 15 Sep 2026 -> 1181 files. Recorded the white-label pass (onboarding step parameters as rows, the tenant as the company org node,
+// HR settings as rows via hr.tg_settings_get/save, hr.tg_company); baseline regenerated. Claude desk. Tamper seal, not an approval.
+const expectedMigrationTreeDigest = "492fc89e57c6734587b4cbdf1d2b7a20109443fef3a751a01ef08074f7c06e57";
 const actualMigrationTreeDigest = migrationTreeDigest(migrationEntries);
 if (actualMigrationTreeDigest !== expectedMigrationTreeDigest) {
   console.error(`money-grain: FAIL — migration tree differs from the independently reviewed ${files.length}-file manifest (${actualMigrationTreeDigest}).`);

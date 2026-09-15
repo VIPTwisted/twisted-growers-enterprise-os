@@ -2,6 +2,7 @@ import { useState, useMemo, useCallback, useRef, useEffect } from 'react'
 import { useAuth } from '../lib/auth.jsx'
 import { useScope } from '../lib/scope.jsx'
 import { sb } from '../lib/supabase'
+import { companyName } from '../lib/config.js'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // HANDBOOK CONTENT — Twisted Growers starter skeleton (DRAFT until published in the Handbook Builder)
@@ -15,7 +16,7 @@ import { sb } from '../lib/supabase'
 const HANDBOOK_SECTIONS = []
 const OPS_SECTIONS = []
 
-const BENEFIT_DATES = []  // HR sets Twisted Growers enrollment windows in Benefits › Administration
+const BENEFIT_DATES = []  // HR sets the company's enrollment windows in Benefits › Administration
 
 const TRAINING_DEADLINES = []  // Training deadlines come from Training › Modules once HR assigns them
 
@@ -380,7 +381,7 @@ export default function Manual() {
               Employee Handbook & Operations Manual
             </div>
             <div style={{ fontSize: 13, color: 'var(--t-text-muted)' }}>
-              Twisted Growers · Massachusetts · {locations?.length || 0} location{locations?.length === 1 ? '' : 's'}
+              {companyName()} · Massachusetts · {locations?.length || 0} location{locations?.length === 1 ? '' : 's'}
             </div>
           </div>
           <div style={{ marginLeft: 'auto', display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
@@ -510,7 +511,7 @@ export default function Manual() {
 
           {handbookSections.length === 0 && (
             <div style={{ textAlign: 'center', padding: '48px 0', color: 'var(--t-text-muted)', fontSize: 13 }}>
-              No handbook is published yet. HR writes Twisted Growers&rsquo; handbook in the Handbook Builder and publishes it; nothing here is company policy until then.
+              No handbook is published yet. HR writes {companyName()}&rsquo;s handbook in the Handbook Builder and publishes it; nothing here is company policy until then.
             </div>
           )}
           {handbookSections.length > 0 && filteredHandbook.length === 0 && (

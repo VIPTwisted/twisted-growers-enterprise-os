@@ -5,6 +5,7 @@ import { useAuth } from '../lib/auth.jsx'
 import { useFeatureFlag } from '../lib/featureFlags.js'
 import { useConfig } from '../lib/config.js'
 import DrillDown from '../components/DrillDown.jsx'
+import { companyName } from '../lib/config.js'
 
 // ─── constants ────────────────────────────────────────────────────────────────
 // Location / role filter options are derived from the LIVE roster at runtime
@@ -99,14 +100,14 @@ function printReport(title, rows) {
   const th = keys.map(k => `<th>${esc(k)}</th>`).join('')
   const trs = rows.map(r => `<tr>${keys.map(k => `<td>${esc(r[k])}</td>`).join('')}</tr>`).join('')
   const w = window.open('', '_blank'); if (!w) return
-  w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Twisted Growers — ${esc(title)}</title>
+  w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${companyName()} — ${esc(title)}</title>
     <style>@page{margin:16mm}body{font-family:Arial,sans-serif;color:#111}
     .hdr{border-bottom:3px solid #00b4d8;padding-bottom:8px;margin-bottom:14px}
     .brand{font-size:20px;font-weight:900}.sub{color:#555;font-size:11px}
     table{width:100%;border-collapse:collapse;font-size:11px}
     th{background:#0b2545;color:#fff;text-align:left;padding:7px 9px}
     td{padding:6px 9px;border-bottom:1px solid #ddd}</style></head>
-    <body><div class="hdr"><div class="brand">Twisted Growers — ${esc(title)}</div>
+    <body><div class="hdr"><div class="brand">{companyName()} — ${esc(title)}</div>
     <div class="sub">${rows.length} records · Generated ${new Date().toLocaleString()}</div></div>
     <table><tr>${th}</tr>${trs}</table></body></html>`)
   w.document.close(); w.focus(); setTimeout(() => w.print(), 350)

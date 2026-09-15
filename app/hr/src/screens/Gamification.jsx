@@ -3,6 +3,7 @@ import { sb } from '../lib/supabase'
 import { useAuth } from '../lib/auth.jsx'
 import { useScope } from '../lib/scope.jsx'
 import DrillDown from '../components/DrillDown.jsx'
+import { companyName } from '../lib/config.js'
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 function initials(name = '') {
@@ -26,7 +27,7 @@ const LEVELS = [
   { level: 5, name: 'Go-Getter',       min: 3500,  max: 4999 },
   { level: 6, name: 'Standout',        min: 5000,  max: 7499 },
   { level: 7, name: 'Elite Associate', min: 7500,  max: 9999 },
-  { level: 8, name: 'Twisted Growers All-Star',    min: 10000, max: 14999 },
+  { level: 8, name: '' + companyName() + ' All-Star',    min: 10000, max: 14999 },
   { level: 9, name: 'Floor Legend',    min: 15000, max: 24999 },
   { level:10, name: 'Hall of Fame',    min: 25000, max: Infinity },
 ]
@@ -1093,7 +1094,7 @@ function AdminPanel({ board, session, onReload }) {
               <div>
                 <div style={{ fontSize:'12px', color:'var(--t-text-muted)', marginBottom:'4px' }}>Category</div>
                 <select style={S.select} value={newRw.category} onChange={e => setNewRw(p=>({...p,category:e.target.value}))}>
-                  {['Schedule Perks','Gift Cards','Company Swag','Experience','Twisted Growers Privileges'].map(c => <option key={c}>{c}</option>)}
+                  {['Schedule Perks','Gift Cards','Company Swag','Experience','' + companyName() + ' Privileges'].map(c => <option key={c}>{c}</option>)}
                 </select>
               </div>
             </div>

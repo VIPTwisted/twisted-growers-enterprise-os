@@ -3,6 +3,7 @@ import { sb } from '../lib/supabase'
 import { useAuth } from '../lib/auth.jsx'
 import { useScope } from '../lib/scope.jsx'
 import DrillDown from '../components/DrillDown.jsx'
+import { companyName } from '../lib/config.js'
 
 // ─── Date utilities ────────────────────────────────────────────────────────────
 
@@ -1326,7 +1327,7 @@ export default function Coverage() {
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
           <div>
             <div style={S.pageTitle}>Coverage Management</div>
-            <div style={S.pageSub}>Real-time shift coverage, gap filling, and on-call coordination — Twisted Growers</div>
+            <div style={S.pageSub}>Real-time shift coverage, gap filling, and on-call coordination — {companyName()}</div>
           </div>
           {isHR && (
             <Bdg variant={openGapCount > 0 ? 'red' : 'green'}>

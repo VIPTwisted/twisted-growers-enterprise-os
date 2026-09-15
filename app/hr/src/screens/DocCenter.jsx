@@ -915,7 +915,7 @@ export default function DocCenter() {
             Document Center
           </div>
           <div style={{ fontSize: 13, color: 'var(--t-text-muted)' }}>
-            Manage, publish, and track all company documents across Twisted Growers.
+            Manage, publish, and track all company documents across {companyName()}.
           </div>
         </div>
         <div style={{ display: 'flex', gap: 10 }}>

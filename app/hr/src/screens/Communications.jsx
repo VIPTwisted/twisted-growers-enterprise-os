@@ -2014,7 +2014,7 @@ function BroadcastTab({person, roster, locations, broadcasts, refresh}) {
                   {form.body||'Your message will appear here…'}
                 </div>
                 <div style={{marginTop:12,paddingTop:10,borderTop:'1px solid var(--t-line)',fontSize:11,color:'var(--t-text-faint)'}}>
-                  Sent via Twisted Growers Platform · {form.timing==='schedule'&&form.schedAt?new Date(form.schedAt).toLocaleString():'Now'}
+                  Sent via {companyName()} Platform · {form.timing==='schedule'&&form.schedAt?new Date(form.schedAt).toLocaleString():'Now'}
                 </div>
               </div>
               <div style={{...S.sectionLabel, marginBottom:8, display:'block'}}>Audience Breakdown</div>

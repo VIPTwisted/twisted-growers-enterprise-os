@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { sb } from '../lib/supabase'
 import { useAuth } from '../lib/auth.jsx'
 import { useScope } from '../lib/scope.jsx'
+import { companyName } from '../lib/config.js'
 
 // ── Auth guard ──────────────────────────────────────────────────────────────
 function isVaultAuthorized(person) {
@@ -40,7 +41,7 @@ function dvMapDocRow(row) {
     type: typeLabel,
     title: row.name || meta.title || 'Untitled Document',
     uploaded: row.created_at ? String(row.created_at).split('T')[0].split(' ')[0] : isoToday(),
-    uploadedBy: row.created_by || meta.applies_to || 'Twisted Growers HR',
+    uploadedBy: row.created_by || meta.applies_to || '' + companyName() + ' HR',
     expires: row.expires_at || null,
     confidential: row.requires_ack !== false,
   }

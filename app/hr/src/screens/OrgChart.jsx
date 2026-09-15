@@ -7,6 +7,7 @@ import { useAuth } from '../lib/auth.jsx'
 import { useScope } from '../lib/scope.jsx'
 import { useFeatureFlag } from '../lib/featureFlags.js'
 import { getLocationNames } from '../lib/locations.js'
+import { companyName } from '../lib/config.js'
 
 /* ─────────────────────────────────────────────────────────────────────────────
    SEED HELPER
@@ -17,7 +18,7 @@ const seed = (a, b) => ((a * 31 + b) * 17 + a * b) % 100
    ORG DATA
 ───────────────────────────────────────────────────────────────────────────── */
 // No typed-in org: the tree is built from get_roster rows (buildTreeFromLive); an empty scope is an empty tree.
-const ORG_TREE = { id: 'root', name: 'Twisted Growers', role: 'Company', level: 'company', location: null, children: [] }
+const ORG_TREE = { id: 'root', name: companyName(), role: 'Company', level: 'company', location: null, children: [] }
 const ALL_EMPLOYEES = flattenTree(ORG_TREE)
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -499,7 +500,7 @@ function LocationView({ navigate, locations = LOCATIONS_DATA }) {
 function exportOrgTxt(filtered, tree = ORG_TREE, employees = ALL_EMPLOYEES) {
   const lines = [
     'TWISTED GROWERS — ORGANIZATION CHART',
-    'Twisted Growers ',
+    '' + companyName() + ' ',
     '='.repeat(50),
     '',
   ]
@@ -745,7 +746,7 @@ export default function OrgChart() {
           ORGANIZATION CHART
         </div>
         <div style={{ fontSize: 12, color: 'var(--t-text-muted)', marginTop: 3 }}>
-          Twisted Growers
+          {companyName()}
         </div>
       </div>
 

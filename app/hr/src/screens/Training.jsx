@@ -3,6 +3,7 @@ import { sb } from '../lib/supabase'
 import { useAuth } from '../lib/auth.jsx'
 import { useScope } from '../lib/scope.jsx'
 import DrillDown from '../components/DrillDown.jsx'
+import { companyName } from '../lib/config.js'
 
 /* ─────────────────────────────────────────────────────────────────
    Training & Compliance — 100% real data.
@@ -793,7 +794,7 @@ function AddCourse({ onSaved }) {
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
         <div style={field}>
           <span style={label}>Course Name *</span>
-          <input style={input} value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="e.g. Twisted Growers Employee Handbook" />
+          <input style={input} value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder={"e.g. " + companyName() + " Employee Handbook"} />
         </div>
         <div style={field}>
           <span style={label}>Category</span>
@@ -1095,7 +1096,7 @@ export default function Training() {
         <div>
           <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--t-text)', letterSpacing: '-.3px' }}>Training &amp; Compliance</div>
           <div style={{ fontSize: 12, color: 'var(--t-text-muted)', marginTop: 2 }}>
-            Twisted Growers · {loading ? 'Loading…' : `${matrix.length} employees · ${modules.length} courses`}
+            {companyName()} · {loading ? 'Loading…' : `${matrix.length} employees · ${modules.length} courses`}
           </div>
         </div>
         {loading && <div style={{ fontSize: 11, color: 'var(--t-accent)', fontWeight: 600, letterSpacing: '.5px' }}>● Syncing…</div>}

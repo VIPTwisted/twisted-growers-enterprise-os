@@ -2,6 +2,7 @@
 import { sb, getSession } from '../lib/supabase'
 import { useAuth } from '../lib/auth.jsx'
 import { useScope } from '../lib/scope.jsx'
+import { getConfig } from '../lib/config.js'
 
 // ── Role helpers ──────────────────────────────────────────────────────────────
 function roleIsHR(role) {
@@ -322,7 +323,7 @@ function CourseDetailPanel({ course, myProg, onClose, onStart }) {
     'Understand core concepts and best practices',
     'Apply learned skills in real store scenarios',
     'Pass the knowledge check with 70%+',
-    'Earn your Twisted Growers Academy certification badge',
+    `Earn your ${getConfig().company_name || 'company'} Academy certification badge`,
   ]
   return (
     <div style={{ position:'fixed', inset:0, zIndex:8000, background:'rgba(0,0,0,0.7)', display:'flex', justifyContent:'flex-end' }} onClick={onClose}>
@@ -730,7 +731,7 @@ export default function Academy() {
       <div style={{ background:`linear-gradient(135deg,#4c1d95 0%,#6d28d9 60%,#7c3aed 100%)`, padding:'24px 28px', display:'flex', alignItems:'center', gap:24, flexWrap:'wrap' }}>
         <div style={{ flex:1, minWidth:200 }}>
           <div style={{ fontSize:11, fontWeight:700, textTransform:'uppercase', letterSpacing:'.1em', color:'rgba(255,255,255,0.6)', marginBottom:6 }}>
-            Twisted Growers Academy · {fullName || 'Team Member'}
+            {getConfig().company_name || 'Company'} Academy · {fullName || 'Team Member'}
           </div>
           <div style={{ fontSize:28, fontWeight:900, color:'#fff', marginBottom:4, lineHeight:1 }}>
             Level {Math.floor(myCertCnt / 2) + 1}
@@ -1287,7 +1288,7 @@ export default function Academy() {
       {/* ── Page Header ──────────────────────────────────────────────────── */}
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', flexWrap:'wrap', gap:12, marginBottom:20 }}>
         <div>
-          <div className="section-title" style={{ marginBottom:4 }}>Twisted Growers Academy</div>
+          <div className="section-title" style={{ marginBottom:4 }}>{getConfig().company_name || 'Company'} Academy</div>
           <div style={{ fontSize:12, color:'var(--t-text-faint)' }}>Training & Learning Hub · {fullName || 'Team Member'}</div>
         </div>
         {/* Lang toggle */}

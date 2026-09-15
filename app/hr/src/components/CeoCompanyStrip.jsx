@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { sb } from '../lib/supabase'
 
-/* ── COMPANY STRIP: TWISTED GROWERS OS → HR ────────────────────────────────
+/* ── COMPANY STRIP: THE OS MONEY SPINE → HR (white-label) ──────────────────
    The company figures on the HR CEO screen come from the OS money spine (BP-6)
    through hr.tg_company_kpi_strip(): revenue and COGS from the journal at tag
    grain, orders from Apex, bought-in and onboarding from the Control Tower.
@@ -17,16 +17,17 @@ const when = s => (s ? new Date(s).toLocaleDateString('en-US', { day: 'numeric',
 
 export default function CeoCompanyStrip() {
   const [k, setK] = useState(null)
+  const [co, setCo] = useState(null)   // the company, from its org node — never a name in this file
   const [err, setErr] = useState(null)
 
   useEffect(() => {
     let alive = true
     const load = async () => {
       try {
-        const { data, error } = await sb.rpc('tg_company_kpi_strip')
+        const [{ data, error }, c] = await Promise.all([sb.rpc('tg_company_kpi_strip'), sb.rpc('tg_company')])
         if (!alive) return
         if (error) { setErr(error.message || 'the money spine could not be read'); return }
-        setErr(null); setK(data)
+        setErr(null); setK(data); if (!c.error) setCo(c.data)
       } catch (e) { if (alive) setErr(e?.message || 'the money spine could not be read') }
     }
     load()
@@ -56,7 +57,7 @@ export default function CeoCompanyStrip() {
     <div style={{ background: 'var(--t-surface)', border: '1px solid var(--t-line)', borderBottom: '1px solid var(--t-line)' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, padding: '10px 24px', background: 'var(--t-surface-2)', borderBottom: '1px solid var(--t-line)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: '.08em', color: 'var(--t-accent)', textTransform: 'uppercase' }}>Company — Twisted Growers OS (money spine)</span>
+          <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: '.08em', color: 'var(--t-accent)', textTransform: 'uppercase' }}>Company — {co?.name || 'the company'} · OS money spine</span>
           <span style={{ width: 7, height: 7, borderRadius: '50%', background: err ? 'var(--t-danger,#ff5c5c)' : 'var(--t-ok,#16c784)', display: 'inline-block' }} />
           <span style={{ fontSize: 9, fontWeight: 700, color: 'var(--t-text-faint)' }}>{err ? 'NOT READ — ' + err : k ? 'LIVE · as of ' + asOf : 'reading…'}</span>
         </div>

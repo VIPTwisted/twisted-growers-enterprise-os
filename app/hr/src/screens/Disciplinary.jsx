@@ -4,6 +4,7 @@ import { useScope } from '../lib/scope.jsx'
 import { useAuth } from '../lib/auth.jsx'
 import { useFeatureFlag } from '../lib/featureFlags.js'
 import { useConfig } from '../lib/config.js'
+import { companyName } from '../lib/config.js'
 
 /* ── helpers ─────────────────────────────────────────────────── */
 const fmt = (d) =>
@@ -59,7 +60,7 @@ const AI_DRAFT = {
   'Verbal Warning': (name, reason) =>
     `This document serves as a formal verbal warning issued to ${name || 'the employee'} regarding the following matter: ${reason || '[reason]'}. This conversation was held to address the issue directly and provide an opportunity for immediate corrective action. The employee is expected to demonstrate sustained improvement. Failure to do so may result in further disciplinary measures up to and including written warning.`,
   'Written Warning': (name, reason) =>
-    `This written warning is issued to ${name || 'the employee'} in accordance with Twisted Growers progressive discipline policy (§4.2). The specific concern is as follows: ${reason || '[reason]'}. This constitutes a formal written notice that continuation of this behavior or performance deficiency will result in escalated disciplinary action, including final warning or termination.`,
+    `This written warning is issued to ${name || 'the employee'} in accordance with ${companyName()} progressive discipline policy (§4.2). The specific concern is as follows: ${reason || '[reason]'}. This constitutes a formal written notice that continuation of this behavior or performance deficiency will result in escalated disciplinary action, including final warning or termination.`,
   'Final Warning': (name, reason) =>
     `This final written warning is issued to ${name || 'the employee'} and represents the last step in the progressive discipline process prior to termination. The matter at hand: ${reason || '[reason]'}. Any further violation or recurrence will result in immediate termination of employment. This document has been reviewed by HR and management.`,
   'Suspension (Paid)': (name, reason) =>
@@ -69,7 +70,7 @@ const AI_DRAFT = {
   'PIP': (name, reason) =>
     `This Performance Improvement Plan (PIP) is established for ${name || 'the employee'} to address the following performance concern: ${reason || '[reason]'}. The plan is effective for a period of 30 days. Progress reviews will be conducted weekly. Failure to meet the stated objectives may result in further disciplinary action up to and including termination.`,
   'Termination': (name, reason) =>
-    `This document confirms the separation of ${name || 'the employee'} from Twisted Growers, effective on the date indicated herein. The basis for this decision is: ${reason || '[reason]'}. The employee's final paycheck, including all accrued and unused PTO where applicable under Massachusetts law, will be processed per the standard payroll schedule.`,
+    `This document confirms the separation of ${name || 'the employee'} from ${companyName()}, effective on the date indicated herein. The basis for this decision is: ${reason || '[reason]'}. The employee's final paycheck, including all accrued and unused PTO where applicable under Massachusetts law, will be processed per the standard payroll schedule.`,
 }
 
 
@@ -252,7 +253,7 @@ function DAFormModal({ onClose, prefill, employees, nodeId, issuedById, onSaved 
           </div>
           <div id="da-printable" style={{ background:'#fff', color:'#000', padding:'28px 32px', fontFamily:'Arial,sans-serif' }}>
             <div style={{ textAlign:'center', fontSize:20, fontWeight:900, letterSpacing:'0.06em', color:'#000', marginBottom:4, textTransform:'uppercase', borderBottom:'3px solid #000', paddingBottom:8 }}>V.I.P Disciplinary Warning</div>
-            <div style={{ textAlign:'center', fontSize:11, color:'#444', marginBottom:18, letterSpacing:'0.08em' }}>Twisted Growers — Massachusetts</div>
+            <div style={{ textAlign:'center', fontSize:11, color:'#444', marginBottom:18, letterSpacing:'0.08em' }}>{companyName()} — Massachusetts</div>
             <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:16, marginBottom:12 }}>
               <div><div style={lbl}>Employee:</div><input style={inp} value={da.employee} onChange={(e)=>setField('employee',e.target.value)}/></div>
               <div><div style={lbl}>Location:</div><input style={inp} value={da.location} onChange={(e)=>setField('location',e.target.value)}/></div>
@@ -1182,7 +1183,7 @@ export default function Disciplinary() {
               <div style={{ fontSize:11, color:'var(--t-accent)', letterSpacing:'0.06em', fontWeight:700, marginBottom:12 }}>LIVE PREVIEW</div>
               <div style={{ background:'#fff', color:'#000', padding:20, fontFamily:'Arial,sans-serif', fontSize:12, lineHeight:1.7 }}>
                 <div style={{ textAlign:'center', fontWeight:900, fontSize:14, textTransform:'uppercase', borderBottom:'2px solid #000', paddingBottom:6, marginBottom:10 }}>V.I.P. DISCIPLINARY ACTION</div>
-                <div style={{ textAlign:'center', fontSize:10, color:'#555', marginBottom:12 }}>Twisted Growers — Massachusetts</div>
+                <div style={{ textAlign:'center', fontSize:10, color:'#555', marginBottom:12 }}>{companyName()} — Massachusetts</div>
                 <div style={{ marginBottom:6 }}><strong>Employee:</strong> {employees.find(e=>e.id===form.person_id)?.full_name||'—'}</div>
                 <div style={{ marginBottom:6 }}><strong>Location:</strong> {employees.find(e=>e.id===form.person_id)?.node_name||'—'}</div>
                 <div style={{ marginBottom:6 }}><strong>Type:</strong> {form.type}</div>

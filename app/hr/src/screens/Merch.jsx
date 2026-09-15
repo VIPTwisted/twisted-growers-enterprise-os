@@ -3,6 +3,7 @@ import { sb } from '../lib/supabase'
 import { useAuth } from '../lib/auth.jsx'
 import { useScope } from '../lib/scope.jsx'
 import DrillDown from '../components/DrillDown.jsx'
+import { companyName } from '../lib/config.js'
 
 // ── style helpers ─────────────────────────────────────────────────────────────
 const S = {
@@ -787,7 +788,7 @@ export default function Merch() {
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 14, flexWrap: 'wrap', gap: 10 }}>
           <div>
             <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--t-text)', letterSpacing: '-0.01em' }}>Company Store</div>
-            <div style={{ fontSize: 11, color: 'var(--t-text-muted)', marginTop: 3 }}>Twisted Growers branded merchandise · {items.length} item{items.length === 1 ? '' : 's'} available</div>
+            <div style={{ fontSize: 11, color: 'var(--t-text-muted)', marginTop: 3 }}>{companyName()} branded merchandise · {items.length} item{items.length === 1 ? '' : 's'} available</div>
           </div>
           {cartCount > 0 && (
             <button onClick={() => setCartOpen(true)} style={{ padding: '8px 16px', background: 'var(--t-accent)', border: 'none', color: '#070b14', fontSize: 11, fontWeight: 800, cursor: 'pointer', letterSpacing: '0.06em', textTransform: 'uppercase', flexShrink: 0 }}>

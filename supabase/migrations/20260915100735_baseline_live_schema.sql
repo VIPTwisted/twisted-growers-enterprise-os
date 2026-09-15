@@ -4653,7 +4653,8 @@ create table if not exists public.onboarding_item (
   "sort" integer default 100 not null,
   "active" boolean default true not null,
   "created_at" timestamp with time zone default now() not null,
-  "updated_at" timestamp with time zone default now() not null
+  "updated_at" timestamp with time zone default now() not null,
+  "params" jsonb default '{}'::jsonb not null
 );
 create table if not exists public.open_questions (
   "id" bigint default nextval('open_questions_id_seq'::regclass) not null,
@@ -13690,7 +13691,9 @@ CREATE OR REPLACE FUNCTION public.f_onboarding_measure()
  STABLE SECURITY DEFINER
  SET search_path TO 'public', 'hr', 'auth'
 AS $function$
-  with emp as (select count(*)::int n from public.employees where status = 'active')
+  with emp as (select count(*)::int n from public.employees where status = 'active'),
+       roles as (select coalesce((select array(select jsonb_array_elements_text(i.params->'roles')) from public.onboarding_item i where i.key = 'roles.accounts'), '{owner}'::text[]) r),
+       wk as (select coalesce(nullif((select i.params->>'week_start' from public.onboarding_item i where i.key = 'scheduling.first_week'), '')::date, date_trunc('week', current_date)::date + 7) ws)
   select 'company.licences', least((select count(*)::int from public.company_licenses), 1), 1,
          (select count(*) from public.company_licenses) || ' licence(s) on file'
   union all
@@ -13713,8 +13716,8 @@ AS $function$
   select 'people.login', (select count(*)::int from public.employees e where e.status = 'active' and exists (select 1 from public.app_users u where u.employee_id = e.id)), (select n from emp),
          (select count(*) from public.employees e where e.status = 'active' and not exists (select 1 from public.app_users u where u.employee_id = e.id)) || ' active employee(s) without a login'
   union all
-  select 'roles.accounts', (select count(distinct u.role::text)::int from public.app_users u where u.role::text = any('{owner,executive,cfo,hr,manager,dept_head,planner,staff}'::text[])), 8,
-         coalesce((select 'no account yet on: ' || string_agg(x, ', ') from unnest('{owner,executive,cfo,hr,manager,dept_head,planner,staff}'::text[]) x where not exists (select 1 from public.app_users u where u.role::text = x)), 'every role has an account')
+  select 'roles.accounts', (select count(distinct u.role::text)::int from public.app_users u where u.role::text in (select unnest(r) from roles)), (select coalesce(array_length(r, 1), 0) from roles),
+         coalesce((select 'no account yet on: ' || string_agg(x, ', ') from (select unnest(r) x from roles) rr where not exists (select 1 from public.app_users u where u.role::text = rr.x)), 'every role has an account')
   union all
   select 'auth.anonymous', (case when exists (select 1 from auth.users where is_anonymous) then 1 else 0 end), 1,
          case when exists (select 1 from auth.users where is_anonymous) then 'a kiosk session has signed in anonymously' else 'no anonymous session has ever signed in — the switch is off or the kiosk has not been opened' end
@@ -13725,12 +13728,12 @@ AS $function$
   union all
   select 'scheduling.policy_confirmed', (case when (select updated_by from public.scheduling_policy limit 1) is not null then 1 else 0 end), 1,
          case when (select updated_by from public.scheduling_policy limit 1) is not null then 'saved by ' || coalesce((select e.full_name from public.employees e where e.id = (select updated_by from public.scheduling_policy limit 1)), 'a person') || ' at ' || (select updated_at from public.scheduling_policy limit 1)::text
-              else 'still the seeded recommendation of 12 Sep 2026 — nobody has saved it' end
+              else 'still the seeded recommendation — nobody at the company has saved it' end
   union all
-  select 'scheduling.first_week', least((select count(*)::int from hr.shifts s where s.status not in ('cancelled', 'void') and s.shift_date >= date '2026-09-21' and s.shift_date < date '2026-09-28'), 1), 1,
-         (select count(*) from hr.shifts s where s.status not in ('cancelled', 'void') and s.shift_date >= date '2026-09-21' and s.shift_date < date '2026-09-28') || ' shift(s) on the HR schedule for the week of 21 Sep ('
-         || (select count(distinct s.person_id) from hr.shifts s where s.status not in ('cancelled', 'void') and s.shift_date >= date '2026-09-21' and s.shift_date < date '2026-09-28') || ' people); drafts waiting for sign-off: '
-         || (select count(*) from public.schedule_drafts d where d.status = 'draft' and d.covers_from <= date '2026-09-27' and d.covers_to >= date '2026-09-21')
+  select 'scheduling.first_week', least((select count(*)::int from hr.shifts s, wk where s.status not in ('cancelled', 'void') and s.shift_date >= wk.ws and s.shift_date < wk.ws + 7), 1), 1,
+         (select count(*) from hr.shifts s, wk where s.status not in ('cancelled', 'void') and s.shift_date >= wk.ws and s.shift_date < wk.ws + 7) || ' shift(s) on the HR schedule for the week of ' || to_char((select ws from wk), 'DD Mon') || ' ('
+         || (select count(distinct s.person_id) from hr.shifts s, wk where s.status not in ('cancelled', 'void') and s.shift_date >= wk.ws and s.shift_date < wk.ws + 7) || ' people); drafts waiting for sign-off: '
+         || (select count(*) from public.schedule_drafts d, wk where d.status = 'draft' and d.covers_from <= wk.ws + 6 and d.covers_to >= wk.ws)
   union all
   select 'alerts.recipients', least((select count(*)::int from public.alert_recipient where active), 1), 1,
          (select count(*) from public.alert_recipient where active) || ' active recipient row(s)'
@@ -13739,7 +13742,7 @@ AS $function$
          (select count(*) from public.v_bought_in_register where state <> 'turned' and not purchase_on_file) || ' bought-in package(s) on hand or in transit with no purchase on file'
   union all
   select 'cost.flower_rate', (case when exists (select 1 from public.cost_basis_rule where stream = 'Dried flower' and active and not indicative) then 1 else 0 end), 1,
-         coalesce((select 'Dried flower rule: ' || source || ' ' || key || ' per ' || per || case when indicative then ' — INDICATIVE (realised Apex price $478–$649/lb vs the $1,100/lb basis on the first P&L reading)' else ' — confirmed' end from public.cost_basis_rule where stream = 'Dried flower' and active order by priority limit 1), 'no active Dried flower rule')
+         coalesce((select 'Dried flower rule: ' || source || ' ' || key || ' per ' || per || case when indicative then ' — INDICATIVE, pending the CFO''s cost per pound' else ' — confirmed' end from public.cost_basis_rule where stream = 'Dried flower' and active order by priority limit 1), 'no active Dried flower rule')
   union all
   select 'sheets.reader', (case when exists (select 1 from public.sheet_rows) then 1 else 0 end), 1,
          (select count(*) from public.sheet_rows) || ' sheet row(s) ever delivered'

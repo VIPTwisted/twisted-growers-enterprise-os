@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { sb } from '../lib/supabase'
 
-/* ── CROSS-APP MENU: every Twisted Growers OS module, reachable from HR ──────
+/* ── CROSS-APP MENU: every OS module, reachable from HR (white-label) ────────
    PLATFORM LAW: navigation comes from the governed nav registry, one schema for
    all modules. This reads the OS's own public.nav_registry through
    hr.tg_os_modules() (the enabled side-menu and launcher rows, grouped by their
@@ -16,14 +16,16 @@ export default function CeoPlatformMenu() {
   const [q, setQ] = useState('')
   const ql = q.trim().toLowerCase()
   const [groups, setGroups] = useState(null)
+  const [co, setCo] = useState(null)   // the company, from its org node — never a name in this file
   const [err, setErr] = useState(null)
 
   useEffect(() => {
     let alive = true
     ;(async () => {
       try {
-        const { data, error } = await sb.rpc('tg_os_modules')
+        const [{ data, error }, c] = await Promise.all([sb.rpc('tg_os_modules'), sb.rpc('tg_company')])
         if (!alive) return
+        if (!c.error) setCo(c.data)
         if (error) { setErr(error.message || 'the nav registry could not be read'); return }
         const by = {}
         ;(Array.isArray(data) ? data : []).forEach(r => { (by[r.category] = by[r.category] || []).push([r.label, `${OS_HOME}#${r.view_key}`, r.description || '']) })
@@ -38,7 +40,7 @@ export default function CeoPlatformMenu() {
     <div style={{ background: 'var(--t-surface)', border: '1px solid var(--t-line)', margin: '0 0 0 0' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, padding: '10px 24px', background: 'var(--t-surface-2)', borderBottom: '1px solid var(--t-line)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: '.06em', color: 'var(--t-accent)', textTransform: 'uppercase' }}>Twisted Growers OS — modules</span>
+          <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: '.06em', color: 'var(--t-accent)', textTransform: 'uppercase' }}>{co?.name || 'Company'} OS — modules</span>
           <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--t-text-faint)' }}>{err ? 'registry not read — ' + err : groups ? `${total} modules · nav registry` : 'reading…'}</span>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>

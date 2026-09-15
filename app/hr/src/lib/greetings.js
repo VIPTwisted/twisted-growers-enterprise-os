@@ -1,4 +1,5 @@
-// greetings.js — Twisted Growers greeting engine.
+import { getConfig } from './config.js'
+// greetings.js — the greeting engine (white-label: the company name is read from the config rows at call time).
 // Energetic, crew-focused greetings shown at login / clock-in for a cultivation, manufacturing and (soon) retail team. 50+ built-in
 // lines; the AI proposes 25 more every 30 days for COO approval; approved lines
 // join the rotation and are recycled so messages stay fresh but never stale.
@@ -88,9 +89,9 @@ export function rejectGreeting(id) { saveG(LS_PENDING, getPending().filter(x => 
 
 // AI proposes 25 fresh greetings every 30 days (COO must approve).
 // Deterministic recombination of energetic fragments — no external call needed.
-const OPENERS = ["Let's", 'Today', 'This shift', 'Right now', 'Come on team', 'Twisted Growers', "Let's go —", 'Starting now', 'Every room —', 'From open to close']
+const OPENERS = () => ["Let's", 'Today', 'This shift', 'Right now', 'Come on team', getConfig().company_name || 'Team', "Let's go —", 'Starting now', 'Every room —', 'From open to close']
 const MIDS = ['bring big energy', 'lead with a smile', 'spread good vibes', 'stay happy and sharp', 'keep every tag honest', 'make it clean and calm', 'keep the rooms dialled in', 'radiate positivity', 'grow with heart', 'own your zone', 'be contagiously upbeat', 'look after your crew']
-const CLOSERS = ['and watch the harvest follow. 📈', '— the plants can feel it. ✨', 'and make today count. 🔥', 'because good vibes grow. 💚', 'and leave the room better. 😄', "— that's the Twisted Growers way. ⭐", 'and outshine yesterday. 🌟', 'so the next shift starts easy. 🔄']
+const CLOSERS = () => ['and watch the harvest follow. 📈', '— the plants can feel it. ✨', 'and make today count. 🔥', 'because good vibes grow. 💚', 'and leave the room better. 😄', `— that's the ${getConfig().company_name || 'team'} way. ⭐`, 'and outshine yesterday. 🌟', 'so the next shift starts easy. 🔄']
 function pick(arr, n) { return arr[n % arr.length] }
 
 export function maybeGenerateBatch() {
@@ -100,7 +101,7 @@ export function maybeGenerateBatch() {
   const seedBase = getApproved().length + getPending().length
   const batch = Array.from({ length: 25 }, (_, i) => {
     const s = seedBase + i
-    const text = `${pick(OPENERS, s * 3)} ${pick(MIDS, s * 5 + 1)} ${pick(CLOSERS, s * 7 + 2)}`
+    const text = `${pick(OPENERS(), s * 3)} ${pick(MIDS, s * 5 + 1)} ${pick(CLOSERS(), s * 7 + 2)}`
     return { id: `g-${iso(now)}-${i}`, text, proposed_at: now.toISOString() }
   })
   saveG(LS_PENDING, [...getPending(), ...batch])

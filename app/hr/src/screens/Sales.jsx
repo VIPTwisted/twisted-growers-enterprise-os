@@ -2,6 +2,7 @@
 import { sb } from '../lib/supabase'
 import { useAuth } from '../lib/auth.jsx'
 import { useScope } from '../lib/scope.jsx'
+import { companyName } from '../lib/config.js'
 
 // ── Formatters ────────────────────────────────────────────────────────────────
 const fmt$ = (n) => `$${parseFloat(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
@@ -1135,7 +1136,7 @@ export default function Sales() {
               ? <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: '.06em', padding: '3px 9px', background: 'var(--t-success)', color: '#04121a', textTransform: 'uppercase' }}>● Live Data</span>
               : <span title={dataSource.error || 'Sales data unavailable'} style={{ fontSize: 10, fontWeight: 800, letterSpacing: '.06em', padding: '3px 9px', background: 'var(--t-warn)', color: '#111', textTransform: 'uppercase' }}>⚠ Data Unavailable</span>}
           </div>
-          <div style={{ fontSize: 12, color: 'var(--t-text-muted)' }}>Twisted Growers · {data.locNames.length} location{data.locNames.length === 1 ? '' : 's'} · Forensic sales analytics</div>
+          <div style={{ fontSize: 12, color: 'var(--t-text-muted)' }}>{companyName()} · {data.locNames.length} location{data.locNames.length === 1 ? '' : 's'} · Forensic sales analytics</div>
         </div>
         <button onClick={() => setShowModal(true)} style={{ padding: '9px 20px', background: '#00e5ff', border: 'none', color: '#070b14', fontSize: 13, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>
           + Log Sale

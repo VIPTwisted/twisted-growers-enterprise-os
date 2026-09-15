@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { sb, getSession } from '../lib/supabase'
 import { useAuth } from '../lib/auth.jsx'
 import { useScope } from '../lib/scope.jsx'
+import { companyName } from '../lib/config.js'
 
 // All data on this screen is live:
 //   get_contests(p_node_ids)                          — contest list
@@ -1530,7 +1531,7 @@ export default function Contests() {
         <div style={S.headerLeft}>
           <h1 style={S.headerTitle}>Contests</h1>
           <div style={S.headerSub}>
-            {locNames.length ? 'Twisted Growers · ' + locNames.join(' · ') + ' · ' : 'Twisted Growers · '}{activeContests.length} active
+            {locNames.length ? '' + companyName() + ' · ' + locNames.join(' · ') + ' · ' : '' + companyName() + ' · '}{activeContests.length} active
           </div>
         </div>
         <div style={S.headerActions}>

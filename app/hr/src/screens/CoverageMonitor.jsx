@@ -14,6 +14,7 @@ import { useAuth } from '../lib/auth.jsx'
 import { useScope } from '../lib/scope.jsx'
 import { sb } from '../lib/supabase'
 import FilterBar from '../components/FilterBar.jsx'
+import { companyName } from '../lib/config.js'
 
 /* ── shift buckets (grouping only; hours shown are the REAL shift times) ──
    AM/PM split at 13:00 mirrors the backend's shift_slot rule (forensic_callouts). */
@@ -308,7 +309,7 @@ export default function CoverageMonitor() {
       {/* ── printable report ── */}
       <div id="cov-print">
         <div style={{ marginBottom: 12 }}>
-          <div style={{ fontSize: 15, fontWeight: 900, letterSpacing: '.04em' }}>Twisted Growers — Staff Coverage</div>
+          <div style={{ fontSize: 15, fontWeight: 900, letterSpacing: '.04em' }}>{companyName()} — Staff Coverage</div>
           <div style={{ fontSize: 12, color: 'var(--t-text-muted)' }}>{printLabel}{(fval.location && fval.location.length) ? ` · ${fval.location.join(', ')}` : ' · All Locations'}</div>
         </div>
 
