@@ -882,7 +882,10 @@ const migrationEntries = files.map((name) => ({
 // sync triggers), pnl_first_reading_flower_basis_indicative (the $1,100/lb basis marked indicative after the first P&L reading), the two
 // hr_wage_to_os generated-column fixes, and the three Today changes (onboarding as a source, one family per step, the step's own headline);
 // baseline regenerated (508/567/34/1390). Claude desk. Tamper seal, not an approval.
-const expectedMigrationTreeDigest = "472c90a501a39a2cb489dd69f58d676cffab95c64769bbfa4ac3ba99e26c3e42";
+// Re-pinned 15 Sep 2026 -> 1172 files. Recorded the three hr_ceo_strip migrations (hr.tg_company_kpi_strip from the money spine — both
+// books summed, no margin without COGS — and hr.tg_os_modules from nav_registry: the HR CEO screen reads Twisted Growers, never VIP);
+// baseline regenerated. Claude desk. Tamper seal, not an approval.
+const expectedMigrationTreeDigest = "f120d033ab1492d8f6064838a00ce3cd4a3b9f40a01f86da5c4e4bfa5b7e0d09";
 const actualMigrationTreeDigest = migrationTreeDigest(migrationEntries);
 if (actualMigrationTreeDigest !== expectedMigrationTreeDigest) {
   console.error(`money-grain: FAIL — migration tree differs from the independently reviewed ${files.length}-file manifest (${actualMigrationTreeDigest}).`);
