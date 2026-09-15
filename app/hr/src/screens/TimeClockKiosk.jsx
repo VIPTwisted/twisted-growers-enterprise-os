@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useFeatureFlag } from '../lib/featureFlags.js'
 import { useScope } from '../lib/scope.jsx'
 import { sb } from '../lib/supabase'
+import { companyName } from '../lib/config.js'
 
 /* ══════════════════════════════════════════════════════════════
    HELPERS
@@ -554,7 +555,7 @@ export default function TimeClockKiosk() {
             fontSize: 11, fontWeight: 700, letterSpacing: '2px',
             color: 'var(--t-text-muted)', textTransform: 'uppercase', marginBottom: 6,
           }}>
-            Twisted Growers · Time Clock
+            {companyName()} · Time Clock
           </div>
           <div style={{ display: 'flex', justifyContent: 'center', gap: 8, alignItems: 'center' }}>
             <LiveBadge />

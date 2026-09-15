@@ -508,6 +508,10 @@ jobs:
       # board row whose BP id the Bible does not carry (verified against the live tracker).
       - name: The Bible — frozen surfaces, additive migrations, board in sync
         run: node tools/checks/blueprint-in-sync.mjs
+      # White-label (owner, 15 Sep 2026): the product carries no customer as text — the HR platform
+      # names the company in zero places; the OS count is a ratchet that only goes down.
+      - name: White-label — no customer name in code
+        run: node tools/checks/white-label.mjs
       - run: node tools/checks/all-checks-wired.mjs
 
       # ---- Rule E1 / E6 / H2: dangerous SQL must not reach a migration ---------------

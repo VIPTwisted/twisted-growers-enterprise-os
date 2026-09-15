@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import { useScope } from '../lib/scope.jsx'
 import { sb } from '../lib/supabase'
+import { companyName } from '../lib/config.js'
 
 // ─── SHARED COMPONENTS ───────────────────────────────────────────────────────
 
@@ -391,7 +392,7 @@ export default function PoliciesHub() {
     <div style={S.page}>
       <PageHeader
         title="Policies & Compliance Hub"
-        sub="Central command for disciplinary actions, leave management, and compliance tracking across all Twisted Growers locations."
+        sub={"Central command for disciplinary actions, leave management, and compliance tracking across all " + companyName() + " locations."}
         isLive={isLive}
       >
         {loading && (

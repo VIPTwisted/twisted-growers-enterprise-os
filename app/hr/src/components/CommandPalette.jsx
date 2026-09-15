@@ -38,7 +38,7 @@ const TARGETS = [
   ['Applicant Tracking', '/ats', 'Hiring', ''],
   ['Training & Dev', '/training', 'Training', 'courses lms'],
   ['Learning Paths', '/learning-paths', 'Training', 'journey'],
-  ['Twisted Growers Academy', '/academy', 'Training', ''],
+  ['Academy', '/academy', 'Training', ''],
   ['Reports', '/reports', 'Business', 'export analytics'],
   ['Analytics', '/analytics', 'Business', 'insights export'],
   ['Labor Budget', '/labor-budget', 'Business', 'cost variance actual'],

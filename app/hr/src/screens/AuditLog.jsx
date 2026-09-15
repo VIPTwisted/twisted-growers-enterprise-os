@@ -4,6 +4,7 @@ import { useScope } from '../lib/scope.jsx'
 import { sb, getSession } from '../lib/supabase'
 import DrillDown from '../components/DrillDown.jsx'
 import { logAudit } from '../lib/audit.js'
+import { companyName } from '../lib/config.js'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function relativeTime(iso) {
@@ -437,7 +438,7 @@ export default function AuditLog() {
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
         <div>
           <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--t-text)', letterSpacing: '-.02em' }}>Audit Log</div>
-          <div style={{ fontSize: 12, color: 'var(--t-text-muted)', marginTop: 2 }}>Twisted Growers — All Locations — Forensic Activity Tracking</div>
+          <div style={{ fontSize: 12, color: 'var(--t-text-muted)', marginTop: 2 }}>{companyName()} — All Locations — Forensic Activity Tracking</div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <span style={{ fontSize: 12, color: 'var(--t-text-faint)' }}>Last refreshed: {secondsAgo}s ago</span>

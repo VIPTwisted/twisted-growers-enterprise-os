@@ -16,6 +16,7 @@ import { useConfig } from '../lib/config.js'
 import DrillDown from '../components/DrillDown.jsx'
 import CeoCompanyStrip from '../components/CeoCompanyStrip.jsx'
 import CeoPlatformMenu from '../components/CeoPlatformMenu.jsx'
+import { companyName } from '../lib/config.js'
 
 /* ── helpers ─────────────────────────────────────────────────────── */
 const fmt$ = n => n == null ? '—' : `$${parseFloat(n||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}`
@@ -1413,7 +1414,7 @@ export default function Cockpit() {
       <div style={{background:'linear-gradient(135deg,#070b14 0%,#0d1a2e 100%)',borderBottom:'1px solid var(--t-line)',padding:'20px 24px',marginBottom:0}}>
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',flexWrap:'wrap',gap:12}}>
           <div>
-            <div style={{fontSize:11,color:'var(--t-accent)',fontWeight:700,letterSpacing:'.1em',textTransform:'uppercase',marginBottom:4}}>Twisted Growers — Command Center</div>
+            <div style={{fontSize:11,color:'var(--t-accent)',fontWeight:700,letterSpacing:'.1em',textTransform:'uppercase',marginBottom:4}}>{companyName()} — Command Center</div>
             <div style={{fontSize:22,fontWeight:800,color:'var(--t-text)',marginBottom:2}}>{greeting}, {person?.full_name?.split(' ')[0]||'Manager'}</div>
             <div style={{fontSize:13,color:'var(--t-text-muted)'}}>{dateStr}</div>
           </div>

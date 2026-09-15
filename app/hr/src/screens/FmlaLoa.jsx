@@ -4,6 +4,7 @@ import { useConfig } from '../lib/config.js'
 import { useAuth } from '../lib/auth.jsx'
 import { useScope } from '../lib/scope.jsx'
 import { sb } from '../lib/supabase'
+import { companyName } from '../lib/config.js'
 
 const LEAVE_TYPES = ['FMLA', 'Personal LOA', 'Military', 'Bereavement', 'CT Paid Leave']
 const LEAVE_STATUSES = ['ACTIVE', 'RETURNED', 'OVERDUE', 'UPCOMING']
@@ -35,7 +36,7 @@ export default function FmlaLoa() {
   const isManager = ['ceo', 'manager', 'coo', 'admin', 'owner', 'hr'].some(r => roleName.includes(r))
 
   const threshold = config?.fmla_threshold_hours || 1250
-  const companyShort = config?.company_short || 'Twisted Growers'
+  const companyShort = config?.company_short || companyName()
 
   const [activeTab, setActiveTab] = useState('leaves')
   const [leaves, setLeaves] = useState([])

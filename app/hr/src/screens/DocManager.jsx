@@ -5,6 +5,7 @@ import { useScope } from '../lib/scope.jsx'
 import { useFeatureFlag } from '../lib/featureFlags.js'
 import { useConfig } from '../lib/config.js'
 import DrillDown from '../components/DrillDown.jsx'
+import { companyName } from '../lib/config.js'
 
 // ── Role helpers ─────────────────────────────────────────────────────────────
 const isHRRole = (r = '') =>
@@ -61,7 +62,7 @@ const AI_TEMPLATES = {
   pip: (emp = '[Employee Name]', mgr = '[Manager Name]') => ({
     title: `Performance Improvement Plan — ${emp}`,
     body: `PERFORMANCE IMPROVEMENT PLAN (PIP)
-Twisted Growers — Massachusetts
+{companyName()} — Massachusetts
 
 Date:       ${TODAY}
 Employee:   ${emp}
@@ -118,7 +119,7 @@ SUPPORT PROVIDED
 CONSEQUENCES
 Failure to meet the benchmarks outlined above within the 90-day review period may result in further disciplinary action up to and including termination of employment.
 
-This document does not alter the at-will nature of employment at Twisted Growers.
+This document does not alter the at-will nature of employment at ${companyName()}.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -135,13 +136,13 @@ Copy provided to: Employee  ☐   HR File  ☐   Direct Manager  ☐
   first_warning: (emp = '[Employee Name]', mgr = '[Manager Name]') => ({
     title: `First Written Warning — ${emp}`,
     body: `FIRST WRITTEN WARNING
-Twisted Growers — Massachusetts
+{companyName()} — Massachusetts
 
 Date:      ${TODAY}
 Employee:  ${emp}
 Position:  [Job Title] — [Location]
 Manager:   ${mgr}
-Policy:    Twisted Growers Employee Handbook §4.1 — Progressive Discipline
+Policy:    ${companyName()} Employee Handbook §4.1 — Progressive Discipline
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -160,7 +161,7 @@ DESCRIPTION OF INCIDENT
 [Provide a factual, objective account of what occurred, what policy was violated, and any impact on store operations, coworkers, or customers.]
 
 EXPECTED BEHAVIOR GOING FORWARD
-Consistent adherence to all Twisted Growers policies and procedures as outlined in the Employee Handbook. Any recurrence of this or similar conduct may result in escalated disciplinary action, including a Final Written Warning or termination.
+Consistent adherence to all ${companyName()} policies and procedures as outlined in the Employee Handbook. Any recurrence of this or similar conduct may result in escalated disciplinary action, including a Final Written Warning or termination.
 
 EMPLOYEE RESPONSE (optional)
 [Space for employee's written response or rebuttal, to be attached]
@@ -180,7 +181,7 @@ HR:        ____________________________  Date: ____________
   final_warning: (emp = '[Employee Name]', mgr = '[Manager Name]') => ({
     title: `Final Written Warning — ${emp}`,
     body: `FINAL WRITTEN WARNING
-Twisted Growers — Massachusetts
+{companyName()} — Massachusetts
 
 ⚠ THIS IS YOUR FINAL WARNING PRIOR TO TERMINATION ⚠
 
@@ -201,10 +202,10 @@ CURRENT VIOLATION
 [Describe the specific conduct or performance failure that has prompted this Final Written Warning. Reference any previous warnings and note the pattern of behavior.]
 
 Date of Current Incident: [Date]
-Policy Reference: Twisted Growers Employee Handbook §[Section]
+Policy Reference: ${companyName()} Employee Handbook §[Section]
 
 CONSEQUENCES
-Any further violations of company policy, repetition of the behaviors described above, or failure to meet the performance standards established during any active Performance Improvement Plan will result in the immediate termination of ${emp}'s employment with Twisted Growers.
+Any further violations of company policy, repetition of the behaviors described above, or failure to meet the performance standards established during any active Performance Improvement Plan will result in the immediate termination of ${emp}'s employment with ' + companyName() + '.
 
 This is a final opportunity to correct the pattern of conduct described herein.
 
@@ -223,7 +224,7 @@ Witness:   ____________________________  Date: ____________
   termination: (emp = '[Employee Name]', mgr = '[Manager Name]') => ({
     title: `Termination Letter — ${emp}`,
     body: `NOTICE OF EMPLOYMENT TERMINATION
-Twisted Growers (Twisted Growers) — Massachusetts
+{companyName()} (${companyName()}) — Massachusetts
 
 CONFIDENTIAL
 
@@ -237,7 +238,7 @@ Manager:   ${mgr}
 
 Dear ${emp},
 
-This letter serves as formal notice that your employment with Twisted Growers is terminated effective ${TODAY}.
+This letter serves as formal notice that your employment with ${companyName()} is terminated effective ${TODAY}.
 
 REASON FOR TERMINATION
 [Select applicable: Voluntary Resignation / Involuntary Termination — Performance / Involuntary Termination — Misconduct / Position Elimination / End of Temporary Assignment]
@@ -291,13 +292,13 @@ Employee:  ____________________________  Date: ____________
   offer: (emp = '[Candidate Name]') => ({
     title: `Job Offer Letter — ${emp}`,
     body: `OFFER OF EMPLOYMENT
-Twisted Growers (Twisted Growers) — Massachusetts
+{companyName()} (${companyName()}) — Massachusetts
 
 Date: ${TODAY}
 
 Dear ${emp},
 
-On behalf of Twisted Growers, we are pleased to offer you the position of [Job Title] at our [Location] location. We believe your skills and experience will be a great addition to our team.
+On behalf of ${companyName()}, we are pleased to offer you the position of [Job Title] at our [Location] location. We believe your skills and experience will be a great addition to our team.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -324,7 +325,7 @@ BENEFITS
 
 - PTO Accrual: Begins accruing after 90 days of employment
 - Employee Discount: [X]% on all store merchandise
-- Training: Access to Twisted Growers Learning Platform
+- Training: Access to ${companyName()} Learning Platform
 - Advancement: Internal promotion pathways available to all employees
 - Additional benefits as described in the Employee Handbook
 
@@ -341,15 +342,15 @@ This offer is contingent upon:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 AT-WILL EMPLOYMENT
-Employment with Twisted Growers is at-will. Either party may end the employment relationship at any time, with or without cause and with or without prior notice.
+Employment with ${companyName()} is at-will. Either party may end the employment relationship at any time, with or without cause and with or without prior notice.
 
 Please indicate your acceptance by signing and returning this letter no later than [Response Deadline].
 
-We look forward to welcoming you to the Twisted Growers family!
+We look forward to welcoming you to the ${companyName()} family!
 
 Warmly,
 [Hiring Manager Name]
-[Title] — Twisted Growers
+[Title] — ${companyName()}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -363,7 +364,7 @@ Printed:    ${emp}
   promotion: (emp = '[Employee Name]') => ({
     title: `Promotion Letter — ${emp}`,
     body: `LETTER OF PROMOTION
-Twisted Growers — Massachusetts
+{companyName()} — Massachusetts
 
 Date:      ${TODAY}
 Employee:  ${emp}
@@ -373,7 +374,7 @@ Effective: [Effective Date]
 
 Dear ${emp},
 
-It is our pleasure to inform you that, effective [Effective Date], you are being promoted to the position of [New Title] at Twisted Growers — [Location].
+It is our pleasure to inform you that, effective [Effective Date], you are being promoted to the position of [New Title] at ${companyName()} — [Location].
 
 This promotion reflects your consistent performance, reliability, and the leadership qualities you have demonstrated over the past [X months/years]. We are confident that you will excel in this expanded role.
 
@@ -391,7 +392,7 @@ Please acknowledge receipt and acceptance of this promotion by signing below.
 Congratulations — your hard work has earned this.
 
 [Manager Name]
-[Title] — Twisted Growers
+[Title] — ${companyName()}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -403,7 +404,7 @@ Manager:   ____________________________  Date: ____________
   loa: (emp = '[Employee Name]') => ({
     title: `Leave of Absence Approval — ${emp}`,
     body: `LEAVE OF ABSENCE APPROVAL
-Twisted Growers — Massachusetts
+{companyName()} — Massachusetts
 
 Date:         ${TODAY}
 Employee:     ${emp}
@@ -443,7 +444,7 @@ Employee:  ____________________________  Date: ____________
   rtw: (emp = '[Employee Name]') => ({
     title: `Return to Work Letter — ${emp}`,
     body: `RETURN TO WORK AUTHORIZATION
-Twisted Growers — Massachusetts
+{companyName()} — Massachusetts
 
 Date:          ${TODAY}
 Employee:      ${emp}
@@ -1066,7 +1067,7 @@ function DistributeTab({ docs, person, roster, nodeId, reload }) {
       p_doc_id: chosenDoc?.id ?? null, p_doc_name: selectedDoc, p_node_id: nodeId ?? null,
       p_sent_to_label: recipientLabel(), p_require_sig: reqSig, p_due_date: reqSig ? dueDate : null,
       p_message: message, p_person_ids: recips.map(r => r.id), p_person_names: recips.map(r => r.full_name),
-      p_actor: person?.id ?? null, p_actor_name: person?.full_name ?? 'Twisted Growers HR',
+      p_actor: person?.id ?? null, p_actor_name: person?.full_name ?? '' + companyName() + ' HR',
     })
     setSending(false)
     if (error) {
@@ -1185,7 +1186,7 @@ function AIGeneratorTab({ person, nodeId, reload }) {
         const p = customPrompt || prompt
         result = {
           title: p.length > 60 ? p.slice(0, 57) + '…' : p,
-          body:  `DOCUMENT: ${p}\n\nDate: ${TODAY}\nPrepared By: Twisted Growers HR Department\nLocation: [Location]\n\n${'━'.repeat(40)}\n\nThis document was generated based on your request:\n"${p}"\n\nCustomize the content below to match your specific situation. All Twisted Growers documents should be reviewed by HR before distribution.\n\n${'━'.repeat(40)}\n\nEmployee: ____________________________  Date: ____________\nManager:  ____________________________  Date: ____________\nHR:       ____________________________  Date: ____________`,
+          body:  `DOCUMENT: ${p}\n\nDate: ${TODAY}\nPrepared By: ${companyName()} HR Department\nLocation: [Location]\n\n${'━'.repeat(40)}\n\nThis document was generated based on your request:\n"${p}"\n\nCustomize the content below to match your specific situation. All ${companyName()} documents should be reviewed by HR before distribution.\n\n${'━'.repeat(40)}\n\nEmployee: ____________________________  Date: ____________\nManager:  ____________________________  Date: ____________\nHR:       ____________________________  Date: ____________`,
         }
       }
       setGenTitle(result.title)

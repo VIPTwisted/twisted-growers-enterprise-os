@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useFeatureFlag } from '../lib/featureFlags.js'
 import { useConfig } from '../lib/config.js'
 import { sb, getSession } from '../lib/supabase'
+import { companyName } from '../lib/config.js'
 
 // ── Shared sub-components ────────────────────────────────────────────────────
 
@@ -155,7 +156,7 @@ function ChecklistTab({ config, categories, state, nodeId, personId, loading, er
   }
 
   function exportReport() {
-    const lines = ['Twisted Growers — LABOR COMPLIANCE REPORT', `Generated: ${new Date().toLocaleString()}`, '']
+    const lines = ['' + companyName() + ' — LABOR COMPLIANCE REPORT', `Generated: ${new Date().toLocaleString()}`, '']
     categories.forEach(cat => {
       lines.push(`== ${cat.name} ==`)
       cat.items.forEach(item => {
@@ -626,7 +627,7 @@ export default function CTCompliance() {
           {reference?.state_code || 'STATE'} LABOR COMPLIANCE
         </div>
         <div style={{ fontSize: 12, color: 'var(--t-text-muted)' }}>
-          {reference?.company || 'Twisted Growers'} compliance tracker · state {reference?.state_code || '—'} from the company record
+          {reference?.company || companyName()} compliance tracker · state {reference?.state_code || '—'} from the company record
         </div>
       </div>
 

@@ -29,6 +29,10 @@ process.stdin.on("end", () => {
 const IMMUTABLE = [
   "watchdog_findings",
   "issue_decisions",
+  /* BP-6, 14 Sep 2026: the money spine's journal. Rebuilt ONCE that day onto the cost basis (recorded in
+     audit_events action journal.rebuild); a wrong posting is reversed by a new journal from here on. */
+  "journal",
+  "journal_line",
   "cost_input_history",
   "metrc_corrections",
   "moisture_loss_entries",

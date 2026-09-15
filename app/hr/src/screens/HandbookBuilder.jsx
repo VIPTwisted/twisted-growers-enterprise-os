@@ -5,6 +5,7 @@ import { useConfig } from '../lib/config.js'
 import { sb, getSession } from '../lib/supabase'
 import DrillDown from '../components/DrillDown.jsx'
 import { getLocationNames, getSiteNames } from '../lib/locations.js'
+import { companyName } from '../lib/config.js'
 
 
 // ── Location node ids for the signed-in user (scopes every read) ─────────────
@@ -23,30 +24,30 @@ const isHRRole = (roleName) =>
 
 // ── Static data ───────────────────────────────────────────────────────────────
 const FULL_POLICIES = [
-  { id: 1,  category: 'Handbook',   title: 'Purpose of the Employee Handbook',        version: '0.1', effective: '', ackRequired: true,  content: 'DRAFT — to be written and approved by Twisted Growers HR. Nothing here is company policy until it is published in the Handbook Builder.' },
-  { id: 2,  category: 'Handbook',   title: 'Right to Revise',                          version: '0.1', effective: '', ackRequired: false, content: 'DRAFT — to be written and approved by Twisted Growers HR. Nothing here is company policy until it is published in the Handbook Builder.' },
-  { id: 3,  category: 'Handbook',   title: 'Confidentiality of this Manual',           version: '0.1', effective: '', ackRequired: true,  content: 'DRAFT — to be written and approved by Twisted Growers HR. Nothing here is company policy until it is published in the Handbook Builder.' },
-  { id: 4,  category: 'Onboarding', title: 'Welcome — Your First Two Weeks',           version: '0.1', effective: '', ackRequired: false, content: 'DRAFT — to be written and approved by Twisted Growers HR. Nothing here is company policy until it is published in the Handbook Builder.' },
-  { id: 5,  category: 'Onboarding', title: 'Agent Registration & Badge',               version: '0.1', effective: '', ackRequired: true,  content: 'Every employee holds a CCC agent registration and wears the badge on shift (935 CMR 500.030). DRAFT — to be written and approved by Twisted Growers HR. Nothing here is company policy until it is published in the Handbook Builder.' },
-  { id: 6,  category: 'Employment', title: 'At-Will Employment',                       version: '0.1', effective: '', ackRequired: true,  content: 'DRAFT — to be written and approved by Twisted Growers HR. Nothing here is company policy until it is published in the Handbook Builder.' },
-  { id: 7,  category: 'Employment', title: 'Equal Employment Opportunity',             version: '0.1', effective: '', ackRequired: true,  content: 'M.G.L. c.151B; CROWN Act. DRAFT — to be written and approved by Twisted Growers HR. Nothing here is company policy until it is published in the Handbook Builder.' },
-  { id: 8,  category: 'Employment', title: 'Anti-Harassment (M.G.L. c.151B §3A)',      version: '0.1', effective: '', ackRequired: true,  content: 'Distributed annually. DRAFT — to be written and approved by Twisted Growers HR. Nothing here is company policy until it is published in the Handbook Builder.' },
-  { id: 9,  category: 'Attendance', title: 'Attendance, Punctuality & Call-outs',      version: '0.1', effective: '', ackRequired: true,  content: 'DRAFT — to be written and approved by Twisted Growers HR. Nothing here is company policy until it is published in the Handbook Builder.' },
-  { id: 10, category: 'Attendance', title: 'Scheduling, Swaps & Open Shifts',          version: '0.1', effective: '', ackRequired: false, content: 'DRAFT — to be written and approved by Twisted Growers HR. Nothing here is company policy until it is published in the Handbook Builder.' },
-  { id: 11, category: 'Pay',        title: 'Wages, Overtime & Pay Days',               version: '0.1', effective: '', ackRequired: true,  content: 'MA minimum wage $15.00 (c.151 §1); OT 1.5× over 40 h (c.151 §1A). DRAFT — to be written and approved by Twisted Growers HR. Nothing here is company policy until it is published in the Handbook Builder.' },
-  { id: 12, category: 'Pay',        title: 'Meal Breaks (M.G.L. c.149 §100)',          version: '0.1', effective: '', ackRequired: false, content: '30 minutes on shifts over six hours; two waves. DRAFT — to be written and approved by Twisted Growers HR. Nothing here is company policy until it is published in the Handbook Builder.' },
-  { id: 13, category: 'Leave',      title: 'Earned Sick Time (M.G.L. c.149 §148C)',    version: '0.1', effective: '', ackRequired: true,  content: '1 hour per 30 worked, up to 40 hours a year. DRAFT — to be written and approved by Twisted Growers HR. Nothing here is company policy until it is published in the Handbook Builder.' },
-  { id: 14, category: 'Leave',      title: 'Paid Family & Medical Leave (c.175M)',     version: '0.1', effective: '', ackRequired: true,  content: 'DRAFT — to be written and approved by Twisted Growers HR. Nothing here is company policy until it is published in the Handbook Builder.' },
-  { id: 15, category: 'Leave',      title: 'PTO & Holidays',                           version: '0.1', effective: '', ackRequired: false, content: 'DRAFT — to be written and approved by Twisted Growers HR. Nothing here is company policy until it is published in the Handbook Builder.' },
-  { id: 16, category: 'Conduct',    title: 'Drug-Free Workplace (935 CMR 500.105)',    version: '0.1', effective: '', ackRequired: true,  content: 'DRAFT — to be written and approved by Twisted Growers HR. Nothing here is company policy until it is published in the Handbook Builder.' },
-  { id: 17, category: 'Conduct',    title: 'Code of Conduct',                          version: '0.1', effective: '', ackRequired: true,  content: 'DRAFT — to be written and approved by Twisted Growers HR. Nothing here is company policy until it is published in the Handbook Builder.' },
-  { id: 18, category: 'Conduct',    title: 'Progressive Discipline',                   version: '0.1', effective: '', ackRequired: true,  content: 'DRAFT — to be written and approved by Twisted Growers HR. Nothing here is company policy until it is published in the Handbook Builder.' },
-  { id: 19, category: 'Safety',     title: 'PPE, Rooms & Extraction Safety',           version: '0.1', effective: '', ackRequired: true,  content: 'DRAFT — to be written and approved by Twisted Growers HR. Nothing here is company policy until it is published in the Handbook Builder.' },
-  { id: 20, category: 'Safety',     title: 'Injury Reporting & Workers\' Compensation', version: '0.1', effective: '', ackRequired: true,  content: 'DRAFT — to be written and approved by Twisted Growers HR. Nothing here is company policy until it is published in the Handbook Builder.' },
-  { id: 21, category: 'Compliance', title: 'Metrc — Tags, Weights & Record of Truth',  version: '0.1', effective: '', ackRequired: true,  content: 'If it is not tagged, it does not exist. Metrc overrides every spreadsheet. DRAFT — to be written and approved by Twisted Growers HR. Nothing here is company policy until it is published in the Handbook Builder.' },
-  { id: 22, category: 'Compliance', title: 'Diversion & Inventory Integrity',          version: '0.1', effective: '', ackRequired: true,  content: 'DRAFT — to be written and approved by Twisted Growers HR. Nothing here is company policy until it is published in the Handbook Builder.' },
-  { id: 23, category: 'Compliance', title: 'Security, Access & Surveillance (935 CMR 500.110)', version: '0.1', effective: '', ackRequired: true, content: 'DRAFT — to be written and approved by Twisted Growers HR. Nothing here is company policy until it is published in the Handbook Builder.' },
-  { id: 24, category: 'Compliance', title: 'Confidentiality & Data',                   version: '0.1', effective: '', ackRequired: true,  content: 'DRAFT — to be written and approved by Twisted Growers HR. Nothing here is company policy until it is published in the Handbook Builder.' },
+  { id: 1,  category: 'Handbook',   title: 'Purpose of the Employee Handbook',        version: '0.1', effective: '', ackRequired: true,  content: 'DRAFT — to be written and approved by ' + companyName() + ' HR. Nothing here is company policy until it is published in the Handbook Builder.' },
+  { id: 2,  category: 'Handbook',   title: 'Right to Revise',                          version: '0.1', effective: '', ackRequired: false, content: 'DRAFT — to be written and approved by ' + companyName() + ' HR. Nothing here is company policy until it is published in the Handbook Builder.' },
+  { id: 3,  category: 'Handbook',   title: 'Confidentiality of this Manual',           version: '0.1', effective: '', ackRequired: true,  content: 'DRAFT — to be written and approved by ' + companyName() + ' HR. Nothing here is company policy until it is published in the Handbook Builder.' },
+  { id: 4,  category: 'Onboarding', title: 'Welcome — Your First Two Weeks',           version: '0.1', effective: '', ackRequired: false, content: 'DRAFT — to be written and approved by ' + companyName() + ' HR. Nothing here is company policy until it is published in the Handbook Builder.' },
+  { id: 5,  category: 'Onboarding', title: 'Agent Registration & Badge',               version: '0.1', effective: '', ackRequired: true,  content: 'Every employee holds a CCC agent registration and wears the badge on shift (935 CMR 500.030). DRAFT — to be written and approved by ' + companyName() + ' HR. Nothing here is company policy until it is published in the Handbook Builder.' },
+  { id: 6,  category: 'Employment', title: 'At-Will Employment',                       version: '0.1', effective: '', ackRequired: true,  content: 'DRAFT — to be written and approved by ' + companyName() + ' HR. Nothing here is company policy until it is published in the Handbook Builder.' },
+  { id: 7,  category: 'Employment', title: 'Equal Employment Opportunity',             version: '0.1', effective: '', ackRequired: true,  content: 'M.G.L. c.151B; CROWN Act. DRAFT — to be written and approved by ' + companyName() + ' HR. Nothing here is company policy until it is published in the Handbook Builder.' },
+  { id: 8,  category: 'Employment', title: 'Anti-Harassment (M.G.L. c.151B §3A)',      version: '0.1', effective: '', ackRequired: true,  content: 'Distributed annually. DRAFT — to be written and approved by ' + companyName() + ' HR. Nothing here is company policy until it is published in the Handbook Builder.' },
+  { id: 9,  category: 'Attendance', title: 'Attendance, Punctuality & Call-outs',      version: '0.1', effective: '', ackRequired: true,  content: 'DRAFT — to be written and approved by ' + companyName() + ' HR. Nothing here is company policy until it is published in the Handbook Builder.' },
+  { id: 10, category: 'Attendance', title: 'Scheduling, Swaps & Open Shifts',          version: '0.1', effective: '', ackRequired: false, content: 'DRAFT — to be written and approved by ' + companyName() + ' HR. Nothing here is company policy until it is published in the Handbook Builder.' },
+  { id: 11, category: 'Pay',        title: 'Wages, Overtime & Pay Days',               version: '0.1', effective: '', ackRequired: true,  content: 'MA minimum wage $15.00 (c.151 §1); OT 1.5× over 40 h (c.151 §1A). DRAFT — to be written and approved by ' + companyName() + ' HR. Nothing here is company policy until it is published in the Handbook Builder.' },
+  { id: 12, category: 'Pay',        title: 'Meal Breaks (M.G.L. c.149 §100)',          version: '0.1', effective: '', ackRequired: false, content: '30 minutes on shifts over six hours; two waves. DRAFT — to be written and approved by ' + companyName() + ' HR. Nothing here is company policy until it is published in the Handbook Builder.' },
+  { id: 13, category: 'Leave',      title: 'Earned Sick Time (M.G.L. c.149 §148C)',    version: '0.1', effective: '', ackRequired: true,  content: '1 hour per 30 worked, up to 40 hours a year. DRAFT — to be written and approved by ' + companyName() + ' HR. Nothing here is company policy until it is published in the Handbook Builder.' },
+  { id: 14, category: 'Leave',      title: 'Paid Family & Medical Leave (c.175M)',     version: '0.1', effective: '', ackRequired: true,  content: 'DRAFT — to be written and approved by ' + companyName() + ' HR. Nothing here is company policy until it is published in the Handbook Builder.' },
+  { id: 15, category: 'Leave',      title: 'PTO & Holidays',                           version: '0.1', effective: '', ackRequired: false, content: 'DRAFT — to be written and approved by ' + companyName() + ' HR. Nothing here is company policy until it is published in the Handbook Builder.' },
+  { id: 16, category: 'Conduct',    title: 'Drug-Free Workplace (935 CMR 500.105)',    version: '0.1', effective: '', ackRequired: true,  content: 'DRAFT — to be written and approved by ' + companyName() + ' HR. Nothing here is company policy until it is published in the Handbook Builder.' },
+  { id: 17, category: 'Conduct',    title: 'Code of Conduct',                          version: '0.1', effective: '', ackRequired: true,  content: 'DRAFT — to be written and approved by ' + companyName() + ' HR. Nothing here is company policy until it is published in the Handbook Builder.' },
+  { id: 18, category: 'Conduct',    title: 'Progressive Discipline',                   version: '0.1', effective: '', ackRequired: true,  content: 'DRAFT — to be written and approved by ' + companyName() + ' HR. Nothing here is company policy until it is published in the Handbook Builder.' },
+  { id: 19, category: 'Safety',     title: 'PPE, Rooms & Extraction Safety',           version: '0.1', effective: '', ackRequired: true,  content: 'DRAFT — to be written and approved by ' + companyName() + ' HR. Nothing here is company policy until it is published in the Handbook Builder.' },
+  { id: 20, category: 'Safety',     title: 'Injury Reporting & Workers\' Compensation', version: '0.1', effective: '', ackRequired: true,  content: 'DRAFT — to be written and approved by ' + companyName() + ' HR. Nothing here is company policy until it is published in the Handbook Builder.' },
+  { id: 21, category: 'Compliance', title: 'Metrc — Tags, Weights & Record of Truth',  version: '0.1', effective: '', ackRequired: true,  content: 'If it is not tagged, it does not exist. Metrc overrides every spreadsheet. DRAFT — to be written and approved by ' + companyName() + ' HR. Nothing here is company policy until it is published in the Handbook Builder.' },
+  { id: 22, category: 'Compliance', title: 'Diversion & Inventory Integrity',          version: '0.1', effective: '', ackRequired: true,  content: 'DRAFT — to be written and approved by ' + companyName() + ' HR. Nothing here is company policy until it is published in the Handbook Builder.' },
+  { id: 23, category: 'Compliance', title: 'Security, Access & Surveillance (935 CMR 500.110)', version: '0.1', effective: '', ackRequired: true, content: 'DRAFT — to be written and approved by ' + companyName() + ' HR. Nothing here is company policy until it is published in the Handbook Builder.' },
+  { id: 24, category: 'Compliance', title: 'Confidentiality & Data',                   version: '0.1', effective: '', ackRequired: true,  content: 'DRAFT — to be written and approved by ' + companyName() + ' HR. Nothing here is company policy until it is published in the Handbook Builder.' },
 ]
 
 const LAW_ALERTS = [
@@ -88,7 +89,7 @@ const DC_FEATURES = [
 
 // ── Default handbook design (used until an admin saves one) ──────────────────
 const DEFAULT_DESIGN = {
-  companyName: 'Twisted Growers',
+  companyName: companyName(),
   tagline: 'Employee Handbook 2026',
   logo: null,
   gradColors: ['#1e1b4b', '#7c3aed', '#c4b5fd'],
@@ -426,7 +427,7 @@ function TabDesign({ toast, actorId }) {
               )}
               <div style={{ borderTop: `1px solid ${design.coverTextDark ? 'rgba(0,0,0,0.3)' : 'rgba(255,255,255,0.4)'}`, width: '100%', marginBottom: 20 }} />
               <div style={{ fontSize: 28, fontWeight: 900, color: design.coverTextDark ? '#1a1a1a' : '#fff', letterSpacing: 3, textTransform: 'uppercase', marginBottom: 4 }}>{design.companyName}</div>
-              <div style={{ fontSize: 13, color: design.coverTextDark ? 'rgba(0,0,0,0.6)' : 'rgba(255,255,255,0.7)', marginBottom: 24, letterSpacing: 1 }}>Twisted Growers</div>
+              <div style={{ fontSize: 13, color: design.coverTextDark ? 'rgba(0,0,0,0.6)' : 'rgba(255,255,255,0.7)', marginBottom: 24, letterSpacing: 1 }}>{companyName()}</div>
               <div style={{ borderTop: `1px solid ${design.coverTextDark ? 'rgba(0,0,0,0.3)' : 'rgba(255,255,255,0.4)'}`, width: '100%', marginBottom: 20 }} />
               <div style={{ fontSize: 18, fontWeight: 700, color: design.coverTextDark ? '#1a1a1a' : '#fff', textTransform: 'uppercase', letterSpacing: 2, marginBottom: 8 }}>{design.tagline}</div>
               <div style={{ fontSize: 11, color: design.coverTextDark ? 'rgba(0,0,0,0.5)' : 'rgba(255,255,255,0.6)', marginBottom: 16 }}>Effective: January 1, 2026</div>
@@ -447,7 +448,7 @@ function TabDesign({ toast, actorId }) {
 function TabContent({ toast, actorId }) {
   const defaultItems = useMemo(() => {
     const divider = { type: 'divider', id: 'd-welcome', title: 'Welcome & Introduction', hidden: false }
-    const customWelcome = { type: 'custom', id: 'c-welcome', title: 'Welcome Letter from Management', content: 'Dear Team,\n\nWelcome to Twisted Growers. We are thrilled to have you as part of our family...', hidden: false }
+    const customWelcome = { type: 'custom', id: 'c-welcome', title: 'Welcome Letter from Management', content: 'Dear Team,\n\nWelcome to ' + companyName() + '. We are thrilled to have you as part of our family...', hidden: false }
     const policies = FULL_POLICIES.map(p => ({ type: 'policy', id: `p-${p.id}`, policyId: p.id, title: p.title, category: p.category, version: p.version, roles: 'all', hidden: false }))
     return [divider, customWelcome, ...policies]
   }, [])
@@ -674,7 +675,7 @@ function TabPublish({ toast, actorId }) {
               {/* Cover */}
               <div style={{ background: gradStyle, padding: '48px 40px', textAlign: 'center', color: '#fff', minHeight: 200 }}>
                 <div style={{ fontSize: 24, fontWeight: 900, letterSpacing: 3, textTransform: 'uppercase', marginBottom: 8 }}>{design.companyName}</div>
-                <div style={{ fontSize: 12, opacity: 0.7, marginBottom: 16 }}>Twisted Growers</div>
+                <div style={{ fontSize: 12, opacity: 0.7, marginBottom: 16 }}>{companyName()}</div>
                 <div style={{ fontSize: 18, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 2, marginBottom: 4 }}>Employee Handbook {version}</div>
                 <div style={{ fontSize: 11, opacity: 0.6 }}>Effective: January 1, 2026 | Confidential</div>
               </div>
@@ -709,7 +710,7 @@ function TabPublish({ toast, actorId }) {
                       })}
                     </div>
                     <div style={{ fontSize: 9, color: '#bbb', marginTop: 12, borderTop: '1px solid #eee', paddingTop: 6, display: 'flex', justifyContent: 'space-between' }}>
-                      <span>Twisted Growers Employee Handbook {version} · Confidential</span>
+                      <span>{companyName()} Employee Handbook {version} · Confidential</span>
                       <span>Page {p.page}</span>
                     </div>
                   </div>
@@ -792,7 +793,7 @@ function TabSignatures({ toast }) {
             <div style={{ fontSize: 12, color: 'var(--t-text-muted)', marginBottom: 8 }}>Signed: <strong style={{ color: 'var(--t-text)' }}>{sigModal.signedDate}</strong></div>
             <div style={{ fontSize: 12, color: 'var(--t-text-muted)', marginBottom: 16 }}>Location: <strong style={{ color: 'var(--t-text)' }}>{sigModal.location || '—'}</strong></div>
             <div style={{ background: 'var(--t-bg)', border: '1px solid var(--t-line)', padding: 12, fontSize: 11, color: 'var(--t-text-muted)', marginBottom: 16, lineHeight: 1.6 }}>
-              "I acknowledge that I have received, read, and understood the Twisted Growers Employee Handbook. I agree to comply with all policies and procedures contained therein."
+              "I acknowledge that I have received, read, and understood the " + companyName() + " Employee Handbook. I agree to comply with all policies and procedures contained therein."
             </div>
             <div style={{ fontFamily: 'cursive', fontSize: 20, color: 'var(--t-text)', borderBottom: '1px solid var(--t-text)', paddingBottom: 4, marginBottom: 8 }}>{sigModal.name}</div>
             <div style={{ fontSize: 10, color: 'var(--t-text-muted)', marginBottom: 16 }}>Digitally signed · {sigModal.signedDate} · v{sigModal.signed_version || '—'}</div>
@@ -1162,7 +1163,7 @@ function TabMyHandbook({ toast }) {
       p_person_name: sigName,
       p_version: doc.version || '1.0',
       p_node_id: firstNode,
-      p_ack: 'I have received, read, and understood the Twisted Growers Employee Handbook.',
+      p_ack: 'I have received, read, and understood the ' + companyName() + ' Employee Handbook.',
     })
     if (error || !data?.ok) { toast('Signature not saved — try again'); return }
     setSigned(true)
@@ -1222,7 +1223,7 @@ function TabMyHandbook({ toast }) {
             <div style={S.cardHeader}><span style={S.cardTitle}>Electronic Signature Required</span></div>
             <div style={S.cardBody}>
               <div style={{ fontSize: 13, color: 'var(--t-text)', lineHeight: 1.7, marginBottom: 16 }}>
-                By signing below, I acknowledge that I have received and read the Twisted Growers Employee Handbook and agree to comply with all policies and procedures contained herein. I understand that my employment is at-will and that this handbook does not constitute a contract of employment.
+                By signing below, I acknowledge that I have received and read the ${companyName()} Employee Handbook and agree to comply with all policies and procedures contained herein. I understand that my employment is at-will and that this handbook does not constitute a contract of employment.
               </div>
               <label style={S.label}>Full Name</label>
               <input style={{ ...S.input, maxWidth: 280 }} value={sigName} onChange={e => setSigName(e.target.value)} placeholder="Enter your full name" />
@@ -1329,7 +1330,7 @@ export default function HandbookBuilder() {
 
       <div style={S.header}>
         <div style={S.title}>Employee Handbook Builder</div>
-        <div style={S.sub}>Twisted Growers — Twisted Growers</div>
+        <div style={S.sub}>{companyName()} — {companyName()}</div>
       </div>
 
       <div style={S.kpiRow}>

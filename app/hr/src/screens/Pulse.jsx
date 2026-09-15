@@ -7,6 +7,7 @@ import { useAuth } from '../lib/auth.jsx'
 import { sb, getSession } from '../lib/supabase'
 import DrillDown from '../components/DrillDown.jsx'
 import { getLocationNames } from '../lib/locations.js'
+import { companyName } from '../lib/config.js'
 
 
 const EXEC_RX = /admin|owner|coo|ceo|cfo|president|chief|hr|manager/i
@@ -18,7 +19,7 @@ const LOCATIONS = getLocationNames()
 // question types: rating (1-5), nps (0-10), yesno, choice, text
 const TEMPLATES = [
   { id: 'enps', title: 'Employee Net Promoter (eNPS)', questions: [
-    { id: 'q1', type: 'nps', text: 'How likely are you to recommend Twisted Growers as a place to work?' },
+    { id: 'q1', type: 'nps', text: 'How likely are you to recommend ' + companyName() + ' as a place to work?' },
     { id: 'q2', type: 'text', text: 'What is the main reason for your score?' },
   ] },
   { id: 'manager', title: 'Manager Effectiveness', questions: [

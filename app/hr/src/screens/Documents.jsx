@@ -3,6 +3,7 @@ import { sb } from '../lib/supabase'
 import { useAuth } from '../lib/auth.jsx'
 import { useScope } from '../lib/scope.jsx'
 import DrillDown from '../components/DrillDown.jsx'
+import { companyName } from '../lib/config.js'
 
 // EVERY LIST IS A READ (Bible §12g, 14 Sep 2026): my documents = get_my_assigned_documents, the
 // company library = doccenter_list_documents (hr.hr_documents), signatures required and the
@@ -169,7 +170,7 @@ function DocViewer({ doc, onClose, onMarkRead, onSign }) {
         whiteSpace: 'pre-wrap',
         fontFamily: 'inherit',
       }}>
-        {content || `[Document content for "${doc.title}" is stored in the Twisted Growers document system. Contact HR to request a printed copy or digital access via your employee portal.]`}
+        {content || `[Document content for "${doc.title}" is stored in the ${companyName()} document system. Contact HR to request a printed copy or digital access via your employee portal.]`}
       </div>
       <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
         {doc.status === 'Unread' && onMarkRead && (
@@ -357,7 +358,7 @@ function CompanyLibrary({ library, loading, loadError }) {
 
   function handleDownload(doc) {
     if (doc.file_url) { window.open(doc.file_url, '_blank', 'noopener'); return }
-    const content = DOC_CONTENT[doc.contentKey] || `Twisted Growers — ${doc.title}\n\n${doc.desc || ''}\n\nThe full document is available from HR.`
+    const content = DOC_CONTENT[doc.contentKey] || `${companyName()} — ${doc.title}\n\n${doc.desc || ''}\n\nThe full document is available from HR.`
     const blob = new Blob([content], { type: 'text/plain' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
@@ -661,7 +662,7 @@ export default function Documents() {
       {/* Page title */}
       <div>
         <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '.1em', color: 'var(--t-text-muted)', textTransform: 'uppercase', marginBottom: 6 }}>
-          Twisted Growers
+          {companyName()}
         </div>
         <div style={{ fontSize: 22, fontWeight: 900, color: 'var(--t-text)', letterSpacing: '-.01em' }}>
           Document Center

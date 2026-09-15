@@ -112,6 +112,8 @@ GPT reviewed v2 and returned a "Part I — controlling enterprise delivery revis
 - Code meets a senior engineering bar; share primitives, never layouts; one definition per primitive (DDC discipline); MIT/Google/Microsoft standard or beat it — name the gate and the number.
 - Parse the manual before guessing; always check, verify, confirm (derive a second way, then challenge).
 - ClickUp is a clone inside the OS (Workspace), not one of our syncs.
+- **Bought-in material (14 Sep 2026):** material bought from another licence is inventory — product and processing material we turn around and sell in **30–45 days** — tracked site-wide as a daily item: the bought-in register, the turnaround queue (`bought_in_turnaround`), Inventory tiles, Control Tower figures and an hourly watch whose findings land on Today; the two days are rows (`bought_in_turnaround_target_days`, `bought_in_turnaround_max_days`); a purchase entered with its package tag is the tag's cost basis. `tag_event` 'received' rows are OUR outbound deliveries being accepted — not purchases.
+- **The cost basis is the Manufacturing Production Worksheet (14 Sep 2026):** `docs/source-of-truth/Manufacturing_Production_Worksheet.xlsx`, loaded as rows (`cost_inputs`, `manufacturing_cost_figure`); the money spine prices COGS, packaging and loss from `cost_basis_rule` (figure or owner rule per stream and item — flower $1,100/lb by the 13 Aug ruling), a purchase on file for the tag first. A valuation rate is what material is worth, never what it cost.
 
 ### 2b. Frozen surfaces and the speed rule (14 Sep 2026) (BP-2b)
 - **Untouchable:** theme and colours (`styles.css` locked; `patches.css` only), Facility Map, Top G / Bots desk, Budz, TG Brain, side rail, top bar (Finance / Tax / HR / Reports), department dashboards unless the owner names one.
@@ -375,11 +377,11 @@ Functional floor on every upgraded archetype: filters + saved views · expand-in
 | Every active employee has a primary department (11 missing) | FAIL | owner/HR data, 1 |
 | HR verifies the 17 seeded training rows | FAIL | HR, 1 |
 | Trained-in / in-training recorded — floaters appear | WARN | HR data |
-| First real weekly draft posted (week of 21 Sep) by a sign-off role | PENDING | 2 + owner |
-| AI layer drafts through `f_schedule_candidates` / `f_draft_schedule` | PENDING | 6 (Harvest & Rooms / People agent v1) |
+| First real weekly draft posted (week of 21 Sep) by a sign-off role | DRAFTED 15 Sep by People v1 (82 shifts, 16 people, 2 cells to review, 656 h) — on Today at rank 1 for owner/executive/CFO/HR to post; onboarding step `scheduling.first_week` | company sign-off |
+| AI layer drafts through `f_schedule_candidates` / `f_draft_schedule` | BUILT 15 Sep (PR #275): People v1 — cron `people-agent-v1` drafts every week in the horizon nobody drafted; the draft is a decision on Today (source `schedule_draft`: post / discard / assign / defer, sign-off roles from the policy); proven live: post → 82 shifts → `hr.shifts` → onboarding step done, rolled back | — |
 | My schedule / availability / swap / call-out pages read zones, skills, policy | PENDING | 10 |
-| PR #235 merged | PENDING | 1 |
-| Owner: shift 08:00–16:30 · 30 min unpaid · waves 12:00 / 13:30 · three zone→department maps · weekend flower cover · who may edit settings | OWNER | decisions |
+| PR #235 merged | carried into #275 (cherry-pick, generator moved out of tools/checks) | — |
+| Company, during onboarding (owner ruling 15 Sep: rules and staff are white-label — never hardwired): shift model and breaks on the shift templates · waves · zone→department maps · weekend cover · who may edit settings — the scheduling policy and templates are rows the company saves (onboarding step `scheduling.policy_confirmed`) | COMPANY | onboarding |
 | | **Total** | **≈ 85** |
 
 ## 12g. HR platform — tracker section 18, every open item (BP-12g)
@@ -397,7 +399,7 @@ Status measured 14 Sep 2026 (PRs #260–#263; `/hr` served from the OS build, sh
 | Every HR AI feature calls TG's gateway; `hr.ai_providers` holds no keys | PASS 14 Sep — 0 providers / 0 keys, every `ai_*` function deterministic; key store shut (CHECK) | — |
 | Every active employee has a PIN (kiosk) | FAIL — 0 of 27; one PIN now serves the OS wall terminal and the HR kiosk (`admin_reset_pin` / `change_pin` / `f_set_punch_pin` share the hash); HR enters them | HR data |
 | Policies & procedures module works on TG content (Handbook Builder, Policies hub, Doc Center, acknowledgments, quizzes) | PLATFORM READY — the screens read `hr.handbook_documents` / `hr_policies` / `hr_documents` / `sign_requests`; content is HR's | HR content |
-| CEO company strip shows TG revenue (from the spine) | PENDING — waits on money spine v1 (BP-6) | 3 |
+| CEO company strip shows TG revenue (from the spine) | BUILT 15 Sep (PR #275): `hr.tg_company_kpi_strip()` from `v_pnl_live` / `v_cost_per_pound_journal` / `v_control_tower` — revenue, COGS (indicative while the basis is), margin only when COGS posted, orders, lb sold, labour posted, bought-in, onboarding, people; the VIP "CEO Platform" launcher on the same screen replaced by the OS nav registry (`hr.tg_os_modules()`) — measured on production after the merge | — |
 | OS HR dashboard, Control Tower, CEO dashboard show the HR platform's own tiles — same labels, numbers, buttons | OS HR dashboard + Control Tower PASS 14 Sep (`hr.command_center_tiles` is the one derivation; tiles are `mv_department_dashboard` rows with drill `hr_platform:/route`); CEO dashboard lives in frozen `budz.jsx` — needs OWNER-APPROVED | 1 (CEO, on approval) |
 | HR → OS people sync direction settled | PASS 14 Sep — `public.employees` is the register, `hr.people` the HR person, one id; OS→HR and HR→OS triggers, depth-guarded | — |
 | | **Left** | **≈ 6 + HR content** |
@@ -423,14 +425,14 @@ Big fifteen not already above: create/edit/approve UI (the Setup form + object a
 | **Tue 15** | Setup form → 251 (15) · HR merge + `/hr` + menu row (4) · Today v1 (8) | dashboards green vs drills (12) | sync liveness + cursor health, all endpoints (10) · role QA matrix design (4) |
 | **Wed 16** | Sheet vs Metrc + override + neon + weekly review (12) · Compliance agent v1 (10) · Harvest schedule → 36 (10) | Ask front on `f_ask_view` (10) | `stock_position` → 29 (10) · certificates continued (4) |
 | **Thu 17** | Money spine v1: journal from tag_event, P&L, cost per pound, inventory value (24) · `security.upload_key_hardcoded` fixed (1) | HR module pages → `/hr` (12) · **scorecards → 16 (8)** | **cost sheet → 29 (8)** · ~~QuickBooks reconciliation~~ **phase 2** |
-| **Fri 18** | certification board signed (4) · **onboarding pack** (6) | **COA register → 24 (6)** | **custody chain → 24 (6)** · **per-role QA** with real role accounts: every role logs in, sees its menu, nothing else — signed (10) |
+| **Fri 18** | certification board signed (4) · **onboarding pack** (6 — the Onboarding page pulled forward and live 15 Sep; Friday is the walk-through with the company) | **COA register → 24 (6)** | **custody chain → 24 (6)** · **per-role QA** with real role accounts: every role logs in, sees its menu, nothing else — signed (10) |
 | **Sat 19** | Sales desk v1: allocate → manifest draft + COAs → Apex under review → invoice (14) · Work layer v1: task 360, List/Board/My Work, forms, timers (12) | scoreboards/answer-first band (8) | vault reconciliation (8) |
 | **Sun 20** | Dispensary portal v1 (12) | **rules editor → 39 (8)** | — |
 | **Mon 21** | My views v1 (10) · Harvest & Rooms v1 + People v1 (12) · cycle compare (6) | Ask in words → saved view in Budz (8) | dry run with customer users (8) |
 | **Tue 22** | **Freeze 12:00.** certification pass, audit pack, runbook, **recovery drill** (previous Netlify deploy + schema compatibility confirmed — additive migrations only this week), fixes only (12) | fixes (6) | second dry run; fixes (8) |
 | **Wed 23** | **Go-live on site.** Watchdog on; on call | on call | on call |
 
-**Owner inputs (each unblocks a row):** role list for every employee · alert recipients · shift/zone/weekend/edit-roles confirmations · sheet review day and unit exceptions · the two Supabase switches + Netlify Git link · reconciliation tolerance · twelve Ask benchmark questions · three simulation scenarios · page-decision marks (§12b).
+**Company inputs, entered during onboarding — owner ruling 14 Sep 2026: the platform is white-label; the company enters its own inputs inside the platform, never the owner (BP-13):** the Onboarding page (Settings › Onboarding, live 15 Sep) lists every step with who does it, why it matters, what to do and the screen it opens, measured from the rows — departments and roles for every employee · kiosk PINs · real pay rates · logins and one account per role · training sign-offs · scheduling policy confirmation and the first posted week · alert recipients · purchase prices for bought-in packages · the bulk-flower cost per pound · the sheet reader sign-in · the anonymous sign-in switch · HR configuration, handbook and policies. Open blockers are findings on Today (source `onboarding`, weighted by `today_onboarding_weight`) until they measure done. Step parameters (the roles that need an account, the week to post) are rows too (`onboarding_item.params`, Settings › Onboarding steps). The `white-label` gate (CI + Netlify) fails any HR-platform source that spells the company's name; the HR settings are rows (`hr.tg_settings_get/save`), the tenant is the company org node, the company is `hr.tg_company()`. Still the owner's: reconciliation tolerance · twelve Ask benchmark questions · three simulation scenarios · page-decision marks (§12b).
 
 ### After go-live — the remaining hours, pushed to the maximum
 

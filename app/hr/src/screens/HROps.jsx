@@ -19,6 +19,7 @@ import { sb } from '../lib/supabase'
 import { useAuth } from '../lib/auth.jsx'
 import { useScope } from '../lib/scope.jsx'
 import DrillDown from '../components/DrillDown.jsx'
+import { companyName } from '../lib/config.js'
 
 /* ─────────────────── helpers & constants ─────────────────── */
 const isHR = r => ['ceo','hr','manager','coo','admin','owner'].some(x=>(r||'').toLowerCase().includes(x))
@@ -1402,7 +1403,7 @@ export default function HROps() {
               <div style={{marginTop:16}}>
                 <SectionLabel>TEMPLATES</SectionLabel>
                 {[
-                  {title:'Schedule Reminder',body:'Please review this week\'s schedule in the Twisted Growers app. Any conflicts must be reported to your manager by Monday morning.'},
+                  {title:'Schedule Reminder',body:'Please review this week\'s schedule in the ' + companyName() + ' app. Any conflicts must be reported to your manager by Monday morning.'},
                   {title:'Policy Acknowledgment Due',body:'All employees must complete and sign the updated Employee Handbook by end of week. Please log in and navigate to Policies to sign.'},
                   {title:'Training Deadline',body:'Mandatory training modules are due by Friday. Check your Training tab for any incomplete courses.'},
                   {title:'Peak Season Alert',body:'We are entering a peak season period. All time-off requests require 21 days notice. No exceptions.'},

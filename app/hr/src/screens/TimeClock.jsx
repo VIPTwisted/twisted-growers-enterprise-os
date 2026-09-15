@@ -8,6 +8,7 @@ import DrillDown from '../components/DrillDown.jsx'
 import { buildBriefing } from '../lib/greetings.js'
 import PulseGate from '../components/PulseGate.jsx'
 import { getPulseSettings, pulseDoneToday, pulseReminderText } from '../lib/pulse.js'
+import { companyName } from '../lib/config.js'
 
 // count messages/alerts waiting for a person (task messages + coverage asks)
 function pendingMsgCount(person) {
@@ -2251,7 +2252,7 @@ function PayrollSummaryTab({ session }) {
     const rows = sorted.map(r => {
       const regPay = r.totalReg * r.rate
       const otPay  = r.totalOT * r.rate * 1.5
-      if (variant === 'adp') return ['Twisted Growers', 'BIWEEKLY', r.id, r.full_name, r.location, r.totalReg.toFixed(2), r.totalOT.toFixed(2), regPay.toFixed(2), otPay.toFixed(2), r.grossPay.toFixed(2)]
+      if (variant === 'adp') return [companyName(), 'BIWEEKLY', r.id, r.full_name, r.location, r.totalReg.toFixed(2), r.totalOT.toFixed(2), regPay.toFixed(2), otPay.toFixed(2), r.grossPay.toFixed(2)]
       return [r.id, r.full_name, r.location, r.rate.toFixed(2), r.totalReg.toFixed(2), r.totalOT.toFixed(2), regPay.toFixed(2), otPay.toFixed(2), r.grossPay.toFixed(2), period.label]
     })
 

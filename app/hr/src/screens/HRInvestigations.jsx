@@ -4,6 +4,7 @@ import { useConfig } from '../lib/config.js'
 import { useAuth } from '../lib/auth.jsx'
 import { sb, getSession } from '../lib/supabase'
 import DrillDown from '../components/DrillDown.jsx'
+import { companyName } from '../lib/config.js'
 
 /* ── helpers ─────────────────────────────────────────────── */
 const fmt = (d) =>
@@ -436,7 +437,7 @@ export default function HRInvestigations() {
   const [filterLocation, setFilterLocation]     = useState('all')
 
   const slaDays = config?.investigation_sla_days ?? 14
-  const company = config?.company_short ?? 'Twisted Growers'
+  const company = config?.company_short ?? companyName()
 
   const nodes = useMemo(() => (getSession().nodes || []).filter(n => n && n.id), [])
   const nodeIds = useMemo(() => nodes.map(n => n.id), [nodes])

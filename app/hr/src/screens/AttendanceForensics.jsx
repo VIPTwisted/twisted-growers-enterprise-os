@@ -4,6 +4,7 @@ import { useScope } from '../lib/scope.jsx'
 import { sb, getSession } from '../lib/supabase'
 import { useFeatureFlag } from '../lib/featureFlags.js'
 import DrillDown from '../components/DrillDown.jsx'
+import { companyName } from '../lib/config.js'
 
 /* ══════════════════════════════════════════════════════════════════════
    Attendance Forensics — 100% real data.
@@ -849,7 +850,7 @@ function buildWarnings(roster, nowMs, thresholds) {
     if (tardies14.length >= 3) {
       out.push({ key: `${r.person_id}|LATE_ARRIVAL|${tardies14[0]}`, r, type: 'LATE_ARRIVAL', dates: tardies14,
         rationale: `${tardies14.length} tardies in 14 days`,
-        text: `This is your ${tardies14.length}th late-arrival notice in the past 14 days (${tardies14.map(fmtShort).join(', ')}). Per Twisted Growers attendance policy, further late arrivals may result in formal disciplinary action. Please arrive on or before your scheduled shift start time.` })
+        text: `This is your ${tardies14.length}th late-arrival notice in the past 14 days (${tardies14.map(fmtShort).join(', ')}). Per ${companyName()} attendance policy, further late arrivals may result in formal disciplinary action. Please arrive on or before your scheduled shift start time.` })
     }
     const ncns14 = r.incidents.filter(i => i.type === 'ncns' && within(i.date, 14)).map(i => i.date).sort().reverse()
     if (ncns14.length > 0) {
@@ -866,7 +867,7 @@ function buildWarnings(roster, nowMs, thresholds) {
     if (r.brad.score >= thresholds.final_warn) {
       out.push({ key: `${r.person_id}|ATT_THRESHOLD|${r.lastAbs || 'x'}`, r, type: 'ATT_THRESHOLD', dates: r.lastAbs ? [r.lastAbs] : [],
         rationale: `Bradford ${r.brad.score} ≥ ${thresholds.final_warn}`,
-        text: `Your Bradford Factor is ${r.brad.score}, at or above the final-warning threshold of ${thresholds.final_warn} (${r.brad.spells} absence spells over ${r.brad.days} days). This triggers a formal attendance review under the Twisted Growers performance-management process.` })
+        text: `Your Bradford Factor is ${r.brad.score}, at or above the final-warning threshold of ${thresholds.final_warn} (${r.brad.spells} absence spells over ${r.brad.days} days). This triggers a formal attendance review under the ${companyName()} performance-management process.` })
     }
   })
   return out

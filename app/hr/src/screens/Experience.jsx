@@ -1,4 +1,4 @@
-// Experience.jsx — "Twisted Growers Experience" hub: our own Microsoft Viva-style employee
+// Experience.jsx — "{companyName()} Experience" hub: our own Microsoft Viva-style employee
 // experience layer. Unifies Connections (news), Learning, Goals, Insights
 // (wellbeing), Recognition, Community & Knowledge into one personalized home,
 // plus a working Pulse daily check-in. Modules link to the existing screens;
@@ -9,11 +9,12 @@ import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../lib/auth.jsx'
 import { sb } from '../lib/supabase'
+import { companyName } from '../lib/config.js'
 
 function greeting() { const h = new Date().getHours(); return h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening' }
 const isUuid = (v) => typeof v === 'string' && /^[0-9a-f-]{36}$/i.test(v)
 
-// Viva-analog modules → the Twisted Growers screens that power them.
+// Viva-analog modules → the {companyName()} screens that power them.
 const MODULES = [
   { key: 'connections', icon: '📰', name: 'Connections', viva: 'Viva Connections', desc: 'Company news, broadcasts & announcements in one feed.', to: '/comms', accent: 'var(--t-accent)' },
   { key: 'learning',    icon: '🎓', name: 'Learning',    viva: 'Viva Learning',    desc: 'Your courses, certifications & required training.', to: '/training', accent: '#a78bfa' },
@@ -101,7 +102,7 @@ export default function Experience() {
     <div style={{ color: 'var(--t-text)', fontSize: 13 }}>
       {/* Hero */}
       <div style={{ background: 'linear-gradient(135deg, rgba(0,229,255,0.08), rgba(124,77,255,0.06), transparent)', border: '1px solid var(--t-line)', padding: '22px 24px', marginBottom: 18 }}>
-        <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: '.12em', color: 'var(--t-accent)', textTransform: 'uppercase', marginBottom: 6 }}>Twisted Growers EXPERIENCE</div>
+        <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: '.12em', color: 'var(--t-accent)', textTransform: 'uppercase', marginBottom: 6 }}>{companyName()} EXPERIENCE</div>
         <div style={{ fontSize: 24, fontWeight: 800, letterSpacing: '-.4px' }}>{greeting()}, {name} 👋</div>
         <div style={{ fontSize: 13, color: 'var(--t-text-muted)', marginTop: 4 }}>Your personalized hub — learning, goals, recognition, community & wellbeing, all in one place.</div>
       </div>
@@ -178,7 +179,7 @@ export default function Experience() {
       </div>
 
       <div style={{ marginTop: 16, fontSize: 11, color: 'var(--t-text-faint)' }}>
-        This is our own employee-experience layer, inspired by Microsoft Viva — every module runs on Twisted Growers's real data. More depth (org-wide Insights analytics, Pulse survey campaigns, communities) rolling out next.
+        This is our own employee-experience layer, inspired by Microsoft Viva — every module runs on {companyName()}'s real data. More depth (org-wide Insights analytics, Pulse survey campaigns, communities) rolling out next.
       </div>
     </div>
   )

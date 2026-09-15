@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
+import { getConfig } from '../lib/config.js'
 import { sb } from '../lib/supabase'
 import { useAuth } from '../lib/auth.jsx'
 import { useScope } from '../lib/scope.jsx'
@@ -593,7 +594,7 @@ function ChatTab({ isHR, personId, personName, primaryLoc, live, articles, aiSta
     const greeting = now.getHours() < 12 ? 'Good morning' : now.getHours() < 17 ? 'Good afternoon' : 'Good evening'
     setMessages([{
       role: 'assistant', id: 'welcome',
-      content: `${greeting}, ${personName.split(' ')[0]}! I'm your Twisted Growers HR Assistant.\n\nI answer from your live HR data — schedules, PTO, policies, callouts, training, and more.${isHR ? '\n\nAs a manager, you also have access to team attendance, incidents, approvals, and DA templates.' : ''}\n\nWhat can I help you with today?`,
+      content: `${greeting}, ${personName.split(' ')[0]}! I'm your ${getConfig().company_name || 'company'} HR Assistant.\n\nI answer from your live HR data — schedules, PTO, policies, callouts, training, and more.${isHR ? '\n\nAs a manager, you also have access to team attendance, incidents, approvals, and DA templates.' : ''}\n\nWhat can I help you with today?`,
       data: null,
     }])
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
@@ -1175,7 +1176,7 @@ export default function AiAssist() {
   const isHR        = ['ceo', 'hr', 'manager', 'coo', 'admin', 'owner'].some(r => roleName.includes(r))
   const personId    = session?.person?.id
   const personName  = session?.person?.full_name || session?.person?.preferred_name || 'Employee'
-  const primaryLoc  = locations?.[0]?.name || 'Twisted Growers'
+  const primaryLoc  = locations?.[0]?.name || getConfig().company_name || 'the company'
 
   const [tab, setTab] = useState('chat')
   const [live, setLive] = useState(EMPTY_LIVE)

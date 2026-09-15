@@ -2,6 +2,7 @@
 import { sb } from '../lib/supabase'
 import { useScope } from '../lib/scope.jsx'
 import { useAuth } from '../lib/auth.jsx'
+import { companyName } from '../lib/config.js'
 
 /* ── helpers ─────────────────────────────────────────────────── */
 const fmt = (d) =>
@@ -599,7 +600,7 @@ function FileIncidentTab({ locations, employees, onSubmit }) {
       {/* RIGHT: Live Preview */}
       <div style={{ background: '#fff', color: '#000', padding: 24, fontFamily: 'Arial, sans-serif', border: '1px solid #ccc', fontSize: 12, position: 'sticky', top: 20 }}>
         <div style={{ textAlign: 'center', fontWeight: 900, fontSize: 16, letterSpacing: '0.06em', borderBottom: '2px solid #000', paddingBottom: 8, marginBottom: 12 }}>INCIDENT REPORT</div>
-        <div style={{ textAlign: 'center', fontSize: 10, color: '#555', marginBottom: 16 }}>Twisted Growers — Massachusetts</div>
+        <div style={{ textAlign: 'center', fontSize: 10, color: '#555', marginBottom: 16 }}>{companyName()} — Massachusetts</div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 10 }}>
           {[['Report #', 'PENDING'], ['Date', form.date], ['Time', form.time], ['Location', form.location || '—']].map(([k, v]) => (
             <div key={k}><span style={{ fontWeight: 700, fontSize: 10 }}>{k}: </span><span>{v}</span></div>
