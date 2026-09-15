@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 
 const here = dirname(fileURLToPath(import.meta.url));
-const src = readFileSync(resolve(here, "../../app/web/src/facility/data/facility.ts"), "utf8");
+const src = readFileSync(resolve(here, "../app/web/src/facility/data/facility.ts"), "utf8");
 
 function block(name) {
   const start = src.indexOf(`export const ${name}`);

@@ -2,14 +2,14 @@
 // snapshot was generated from app/web/src/facility/data/facility.ts (the A1.1 blueprint as the map
 // draws it). Until the facility page reads the table, there are two definitions of a room; this test
 // is what holds them equal. If someone edits facility.ts, this fails and says which room moved —
-// regenerate the snapshot (node tools/checks/facility-rooms-from-blueprint.mjs > snapshot) AND ship
+// regenerate the snapshot (node tools/facility-rooms-from-blueprint.mjs > snapshot) AND ship
 // the same change to facility_room, or the map and the schedule will disagree about a wall.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
-import { rooms, depts } from "../checks/facility-rooms-from-blueprint.mjs";
+import { rooms, depts } from "../facility-rooms-from-blueprint.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const snapshot = JSON.parse(readFileSync(resolve(here, "../checks/facility-rooms.snapshot.json"), "utf8"));
