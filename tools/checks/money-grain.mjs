@@ -878,7 +878,11 @@ const migrationEntries = files.map((name) => ({
 // Re-pinned 14 Sep 2026 -> 1158 files. Recorded money_spine_pnl_margin_waits_for_a_cost_basis (a margin from a value rate is not a margin); baseline regenerated. Claude desk.
 // Re-pinned 14 Sep 2026 -> 1161 files. Recorded bought_in_register_turnaround_and_watch, money_spine_cost_basis_from_the_worksheet_and_bought_in
 // (the journal rebuilt ONCE onto the cost basis, recorded in audit_events; immutable from here) and control_tower_carries_bought_in_figures; baseline regenerated. Claude desk.
-const expectedMigrationTreeDigest = "3f78bc1cc76af754ece5ad59a9a7fbc322cb1a8383037bcff339b823de089445";
+// Re-pinned 15 Sep 2026 -> 1169 files. Recorded onboarding_pack_white_label_bp_13 (the company's onboarding steps as rows, measured; two HR→OS
+// sync triggers), pnl_first_reading_flower_basis_indicative (the $1,100/lb basis marked indicative after the first P&L reading), the two
+// hr_wage_to_os generated-column fixes, and the three Today changes (onboarding as a source, one family per step, the step's own headline);
+// baseline regenerated (508/567/34/1390). Claude desk. Tamper seal, not an approval.
+const expectedMigrationTreeDigest = "472c90a501a39a2cb489dd69f58d676cffab95c64769bbfa4ac3ba99e26c3e42";
 const actualMigrationTreeDigest = migrationTreeDigest(migrationEntries);
 if (actualMigrationTreeDigest !== expectedMigrationTreeDigest) {
   console.error(`money-grain: FAIL — migration tree differs from the independently reviewed ${files.length}-file manifest (${actualMigrationTreeDigest}).`);

@@ -29,6 +29,7 @@ import { useRole, AssignTask } from "./App.jsx";
 const SOURCE_LABEL = {
   finding_group: "finding family", report: "reported defect", issue_group: "watchdog issue", question: "open question",
   enhancement: "page enhancement", correction: "correction proposal", qa_enhancement: "reported enhancement",
+  onboarding: "onboarding step",
 };
 const OPTION_LABEL = {
   resolve: "Resolve", assign: "Assign", defer: "Defer", fix: "Fix", leave: "Leave as is", ignore: "Ignore",
